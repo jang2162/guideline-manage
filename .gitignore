@@ -19,3 +19,6 @@ node_modules/
 
 # Design and plan history: kept locally, not published
 /docs/superpowers/
+compose.override.yaml
+# Server-specific Compose overrides (ports, networks): kept on each server
+compose.override.yaml
