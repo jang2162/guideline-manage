@@ -62,7 +62,7 @@ pnpm version minor            # 또는 patch, major. 커밋과 v<버전> 태그�
 git push --follow-tags        # 태그가 릴리스 워크플로를 띄운다
 ```
 
-`v<SemVer>` 태그에서 `.github/workflows/release.yml` 이 돈다. 태그와 `package.json` 버전이 같은지 보고, `pnpm test` 를 돌린 뒤 provenance 와 함께 게시한다. 저장소 시크릿 `NPM_TOKEN` 이 필요하다. PR 과 main push 에서는 테스트(`ci.yml`)만 돈다.
+`v<SemVer>` 태그에서 `.github/workflows/release.yml` 이 돈다. 태그와 `package.json` 버전이 같은지 보고, `pnpm test` 를 돌린 뒤 provenance 와 함께 게시한다. npm Trusted Publishing 을 쓰므로 토큰을 두지 않는다. npm 패키지가 `jang2162/guideline-manage` 의 `release.yml` 을 신뢰하도록 등록돼 있어야 한다. PR 과 main push 에서는 테스트(`ci.yml`)만 돈다.
 
 ## 버전
 

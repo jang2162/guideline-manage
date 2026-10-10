@@ -62,7 +62,7 @@ pnpm version minor            # or patch, major. Creates the commit and the v<ve
 git push --follow-tags        # the tag starts the release workflow
 ```
 
-A `v<SemVer>` tag runs `.github/workflows/release.yml`: it checks that the tag matches `package.json`, runs `pnpm test`, and publishes with provenance. It needs an `NPM_TOKEN` repository secret. Pull requests and pushes to main run only the tests (`ci.yml`).
+A `v<SemVer>` tag runs `.github/workflows/release.yml`: it checks that the tag matches `package.json`, runs `pnpm test`, and publishes with provenance. It uses npm Trusted Publishing, so no token is stored: the npm package trusts `jang2162/guideline-manage` and `release.yml`. Pull requests and pushes to main run only the tests (`ci.yml`).
 
 ## Versioning
 

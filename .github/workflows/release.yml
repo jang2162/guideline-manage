@@ -28,6 +28,6 @@ jobs:
             exit 1
           fi
       - run: pnpm test
+      # Trusted Publishing (OIDC): npm trusts this workflow, so no token is stored. Needs npm 11.5.1 or later.
+      - run: npm install -g npm@^11.5.1
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
