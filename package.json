@@ -1,0 +1,43 @@
+{
+  "name": "guideline-manage",
+  "version": "0.15.0",
+  "description": "Keep shared coding-agent guidelines on a guideline server and pick them into ruler projects",
+  "keywords": [
+    "ai",
+    "coding-agent",
+    "claude-code",
+    "codex",
+    "ruler",
+    "guidelines",
+    "agents-md",
+    "cli"
+  ],
+  "homepage": "https://github.com/jang2162/guideline-manage#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jang2162/guideline-manage.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jang2162/guideline-manage/issues"
+  },
+  "author": "jang2162",
+  "type": "module",
+  "bin": {
+    "guideline": "cli/bin/guideline.js"
+  },
+  "files": [
+    "cli/bin",
+    "cli/src",
+    "locales",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "test": "node --import ./scripts/test-env.js --test 'cli/test/*.test.js' 'server/test/*.test.js'",
+    "prepublishOnly": "pnpm test"
+  },
+  "license": "MIT"
+}

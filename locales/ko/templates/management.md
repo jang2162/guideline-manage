@@ -1,0 +1,7 @@
+# 공용 지침 관리
+
+이 프로젝트의 지침 일부는 지침 서버에서 받은 사본이다.
+
+- 사본은 직접 고치지 않는다: `.ruler/<스택>/NN-*.md`, `.ruler/<스택>/99-reference.md`, `docs/guideline/`, `guideline.json`·`guideline-lock.json`, 이 파일. 사본을 고쳐 원본에 올릴 것은 {{propose}}, 새 지침은 `guideline-export` 스킬로 제안한다.
+- 이 프로젝트에만 다르게 할 것은 바꿈에 쓴다. 자리는 `.ruler/<스택>/override.md`, 파일이 여럿이면 `.ruler/<스택>/override.d/*.md` 다. 바꿈 절마다 제목 바로 아래 첫 줄에 ``바꾸는 절: `<스택>/<파일>` 「<## 절 제목>」`` 을 쓰고(파일 전체를 바꾸면 「」 를 뺀다), 그 아래에 이 프로젝트의 규칙을 쓴다. 바꿈이 사본보다 우선한다.
+- 지침을 최신으로 맞출 때는 `guideline status` 로 보고 `guideline update` 를 쓴다(에이전트는 `guideline-sync` 스킬).{{setup}}

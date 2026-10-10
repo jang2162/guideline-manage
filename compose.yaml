@@ -1,0 +1,20 @@
+# The guideline server, built from this repository (docker compose up -d --build). Settings and procedures: docs/server.md.
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: guideline-server:local
+    pull_policy: build   # not a registry image: skip pull and build from the repository on every up
+    restart: unless-stopped
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN is required}
+      PUBLIC_URL: ${PUBLIC_URL:?PUBLIC_URL is required}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      GUIDELINE_LANG: ${GUIDELINE_LANG:-en}
+      GUIDELINE_SEED: ${GUIDELINE_SEED:-on}
+    volumes:
+      - ${DATA_HOST_DIR:?DATA_HOST_DIR is required}:/data
+    ports:
+      - "${HOST_PORT:-3000}:3000"

@@ -1,0 +1,131 @@
+# Guideline server
+
+> A server that keeps a team's shared coding-agent guidelines (per-stack rules, skills, subagents, MCP settings). In a project, the `guideline` CLI picks and receives guidelines and applies them as ruler sources (`.ruler/`); edits go back as proposals. This server's address is {{SERVER}}.
+
+This document is the guide agents and people read when they first use this server.
+
+## Setup (once per machine)
+
+1. You need Node 24 or later and the `guideline` CLI (the `guideline-manage` npm package, 0.15 or later):
+
+   ```bash
+   npm install -g guideline-manage
+   ```
+
+   To use it straight from a clone of its repository, call `node <repo>/cli/bin/guideline.js <command>`.
+
+2. Log in. When the browser opens, log in with the admin token and click "Issue". A read token is stored in `~/.config/guideline/credentials.json` (mode 600).
+
+   ```bash
+   guideline login --server {{SERVER}}
+   ```
+
+   - Without a browser, store a token issued on the web "Tokens" page with `guideline login --server {{SERVER}} --token-stdin`.
+   - **Uploading proposals needs a token with the `propose` scope.** An admin issues it on the web "Tokens" page; store it with `--token-stdin`.
+   - Where files cannot be written, as in CI, use the `GUIDELINE_TOKEN` environment variable.
+   - The server address is chosen in this order: `--server` > the project's `guideline.json` > the `GUIDELINE_SERVER` environment variable.
+   - The language of CLI messages and of the text written into projects is `GUIDELINE_LANG`, then `lang` in `~/.config/guideline/config.json` (default `en`).
+
+## Receiving guidelines in a project
+
+**Only projects that use ruler can receive guidelines** — the unit directory must have `.ruler/` (otherwise commands stop with "Not a ruler project"). Run commands in that directory.
+
+```bash
+guideline pick                 # open the server form; submitting applies the choice right away
+guideline pick --new <name>    # new project: create GUIDELINE_PROJECTS_DIR/<name>, git init, then apply (a path works too)
+guideline status               # are the applied guidelines current, and what did the project change?
+guideline update               # same items, latest version. Files edited in the project are skipped
+guideline update --force       # also overwrite files edited in the project
+```
+
+- `pick` sends only the result of comparing the project with the source to the server and prints the form address (`Form: <address>` on stderr). It waits until items are checked in the form and submitted. MCP values (secrets) are not sent.
+- Form states: "same" is already applied, "different" means the project copy differs from the source (turn on "update" to overwrite it), "missing" is not there yet (check it to add). Unchecking an existing item means "remove". Category buttons check every item in that category.
+- Where copies go: always-on guidelines in `.ruler/<stack>/NN-*.md`, reference guidelines in `docs/guideline/<stack>/` with the index `.ruler/<stack>/99-reference.md`, skills in `.ruler/skills/`, MCP in `.ruler/ruler.toml`. After applying, `ruler apply` runs at the git root (when ruler is installed).
+- Applying creates `guideline.json` (chosen items) and `guideline-lock.json` (applied revision and hashes). Commit them with the applied files. The CLI does not commit.
+- **Monorepos**: run in a subdirectory with its own `.ruler/` and that directory becomes a separate unit, with its own manifest, lock and copies. Skills, subagents and MCP servers are received only at the git root. ruler builds that directory's guidelines only when `.ruler/ruler.toml` at the git root has `nested = true`.
+- Exit codes: 0 done, 1 error, 2 usage error (including "not a ruler project"), 3 cancelled or expired (nothing written).
+
+## Receiving from several sources
+
+One project can receive from several guideline servers (sources). For example, tool stacks from a personal server and company stacks from a company server.
+
+```bash
+guideline pick --source personal --server https://my.example.dev     # add a source and pick in its server's form
+guideline pick --source company --server {{SERVER}}
+guideline pick                       # opens each source's form in turn (a cancelled source stays as it was)
+guideline update --source company    # update only that source
+```
+
+```json
+{
+  "version": 2, "form": "ruler", "agents": ["claude", "codex"],
+  "sources": {
+    "personal": { "server": "https://my.example.dev", "items": ["rules/base/00-agent.md"] },
+    "company": { "server": "{{SERVER}}", "items": ["rules/base/01-git.md"], "aliases": { "rules/base": "company-base" } }
+  }
+}
+```
+
+- When two sources give the same name (stack, skill, subagent, MCP server), `pick` stops with "Name clash" (exit code 2, nothing written). Give one source an alias in `aliases`, `"<unit>": "<new name>"` (the unit is `rules/<stack>`, `skills/<name>`, `agents/<name>.md` or `mcp/<name>`), and it is received under that name: `.ruler/company-base/`, the skill's `name:` line, `[mcp_servers.<new name>]` in `ruler.toml`.
+- Store a token per server with `guideline login --server <URL>`. With several sources, `GUIDELINE_TOKEN` is not used.
+- If one source's server cannot be reached, that source is left as it is, the rest is applied, and the exit code is 1.
+- `propose` sends one proposal per source to that source's server (aliases are turned back into the original names).
+- Each source's `docs/management.md` is appended to the management guideline (`.ruler/guideline.md`) as `## <source> additional guidelines`.
+
+## Sending changes upstream (proposals)
+
+The source changes only through proposals an admin accepts. Once accepted, each project receives the change with `guideline update`.
+
+```bash
+guideline propose --dry-run              # show edited copies turned back into source form (not sent)
+guideline propose --title "<title>"      # send them as a proposal
+guideline source <empty folder>          # get a working copy of the source to write new guidelines in
+guideline propose --from <that folder> --title "<title>"   # send what was added, changed or deleted there
+```
+
+- `propose` sends only copies that are "edited in project" according to the lock. Guideline copies get the source frontmatter back; skills send each file's change, addition or deletion. MCP edits are not sent automatically (to-do `mcp-local`).
+- Write new guidelines, skills or MCP servers into a folder from `guideline source`, at their source paths (`rules/<stack>/NN-*.md`, `skills/<name>/`, `mcp/<name>/server.json` and so on), then send them with `propose --from`. The writing rules are that folder's `docs/authoring.md`. Agents use the `guideline-export` skill.
+- Admins review the diff under "Proposals" on the web and accept, reject or edit it. If the source changed in the meantime, non-overlapping changes are merged; overlapping ones make the proposal Outdated and it cannot be accepted.
+
+## What agents do
+
+`pick --json` and `update --json` print `{ revision, written, deleted, todos }`. Whatever the CLI could not do alone is left in `todos`. Handle them one by one and report what you handled and what is left. **Submitting the form is the user's confirmation, so do not ask again before applying.**
+
+| kind | What to do |
+| --- | --- |
+| `mcp-build` | Following the "Build on apply" section of `data.text` (the source `mcp/<name>/README.md`), read this project's values and build the MCP entry in `.ruler/ruler.toml`. Show the values and where they came from and get confirmation before writing |
+| `env` | Tell the user which environment variables to set (`data.vars`) and how to obtain them per the README |
+| `setup` | Check `## Check` in `docs/guideline/<stack>/SETUP.md`; if it is not done, go through `## Setup` with the user |
+| `conflict` | The same name already exists and differs from the source. Show the diff and let the user choose (turn on update in the next `pick`) |
+| `skipped` | Skipped because the project edited the file. Ask whether to send it upstream with `guideline propose` or overwrite it with `update --force` |
+| `override` | An override section points at a file or section the source does not have. Fix the override section's first line |
+| `subagents-off` | Ask whether to turn on `[agents] enabled = true` in `.ruler/ruler.toml` |
+| `ruler-apply` | Ask whether you may run the suggested `ruler apply` command |
+| `nested-off` | Ask whether to turn on `nested = true` in `.ruler/ruler.toml` at the git root |
+| `mcp-local` | The project changed an MCP setting. To send it upstream, edit `server.json` in a `guideline source` folder and send it with `propose --from` |
+| `adopted` | A copy `propose` left out. It already differed from the source when first received (it may be an old version). Use `guideline propose --only <item>` only if the project really edited it; if it is an old version, `guideline update --force` |
+| `alias` | An alias problem. For "the stack moved", move the override files to `.ruler/<new name>/`. Otherwise fix `aliases` in `guideline.json` |
+| `new-file`, `removed-upstream` | Tell the user, and suggest `guideline pick` to choose or remove it |
+| `blocked` | Not applied because of a source warning (or because it is a nested directory). The copy stays as it is. Report the reason |
+| `leftover` | Unchecked, but the copy differs from the source, so it was not deleted. Show the diff and ask whether to delete it |
+
+## Rules
+
+- **Do not edit the copies directly.** Files recorded in `guideline-lock.json` and `docs/guideline/` are written only by the CLI. To share an edit, send it with `guideline propose`.
+- Write anything that should differ for this project only as an **override**: `.ruler/<stack>/override.md` (or `override.d/*.md`). Start each override with the line ``Overrides: `<stack>/<file>` "<## section title>"`` (drop the quoted title for the whole file). Overrides win over the copies, and the CLI never touches them.
+- When a stack needs setup, follow `docs/guideline/<stack>/SETUP.md`.
+- Never put secrets in proposals either. Write MCP values as `${VAR}` references.
+
+## API (`Authorization: Bearer <token>`)
+
+- [Health]({{SERVER}}/api/v1/health): no authentication. Server version, schema, API level, latest revision
+- `GET {{SERVER}}/api/v1/catalog`: stacks, skills, subagents, MCP servers and their categories
+- `GET {{SERVER}}/api/v1/archive?rev=<revision>`: the whole source (tar.gz)
+- `GET {{SERVER}}/api/v1/files/<path>?rev=<revision>`: one source file
+- `POST {{SERVER}}/api/v1/proposals`: a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. An admin token can use `apply: true` to apply it right away without review
+- `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<number>`: the status of your proposals
+
+## More
+
+- [Admin web]({{SERVER}}/): view, edit and browse the history of guidelines, review proposals, issue tokens (log in with the admin token)
+- `docs/guide.md` in the repository: the user guide for people

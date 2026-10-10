@@ -1,0 +1,8 @@
+.git
+.idea
+node_modules
+docs
+cli/test
+server/test
+.env
+*.log

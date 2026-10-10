@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The server tests use node:sqlite. The package's engines (>=20) is for the CLI only.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # pnpm comes from packageManager in package.json. No install step: there are no runtime dependencies.
+      - run: corepack enable && corepack prepare --activate
+      - run: pnpm test

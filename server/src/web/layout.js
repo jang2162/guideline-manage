@@ -1,0 +1,147 @@
+import { sendBody } from '../http.js';
+import { t, currentLocale, messageKeys } from '../../../cli/src/i18n.js';
+
+/** 이스케이프하지 않고 그대로 넣을 HTML. */
+class Raw {
+  constructor(s) {
+    this.s = s;
+  }
+
+  toString() {
+    return this.s;
+  }
+}
+
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+export const raw = s => new Raw(String(s));
+
+export function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ESC[c]);
+}
+
+function render(v) {
+  if (v === null || v === undefined || v === false) return '';
+  if (v instanceof Raw) return v.s;
+  if (Array.isArray(v)) return v.map(render).join('');
+  return esc(v);
+}
+
+/** 보간 값을 이스케이프하는 템플릿 태그. 결과는 Raw 라서 다른 html`` 안에 그대로 들어간다. 배열은 이어 붙인다. */
+export function html(strings, ...values) {
+  let out = strings[0];
+  values.forEach((v, i) => {
+    out += render(v) + strings[i + 1];
+  });
+  return new Raw(out);
+}
+
+/** 경로 조각마다 인코딩한 주소. hrefFor('/f/', 'rules/한/a.md') → '/f/rules/%ED%95%9C/a.md' */
+export function hrefFor(prefix, p) {
+  return prefix + p.split('/').map(encodeURIComponent).join('/');
+}
+
+/** 상위 디렉터리 경로. 최상위면 ''. */
+export function parentOf(p) {
+  const i = p.lastIndexOf('/');
+  return i === -1 ? '' : p.slice(0, i);
+}
+
+const TABS = [
+  { key: 'stacks', get label() { return t('web.tab.stacks'); }, href: '/' },
+  { key: 'skills', get label() { return t('web.tab.skills'); }, href: '/skills' },
+  { key: 'agents', get label() { return t('web.tab.agents'); }, href: '/agents' },
+  { key: 'mcp', label: 'MCP', href: '/mcp' },
+];
+const UTILS = [
+  { key: 'proposals', get label() { return t('web.nav.proposals'); }, href: '/proposals' },
+  { key: 'history', get label() { return t('web.nav.history'); }, href: '/history' },
+  { key: 'tokens', get label() { return t('web.tokens'); }, href: '/tokens' },
+  { key: 'export', get label() { return t('web.nav.export'); }, href: '/export.tar.gz' },
+  { key: 'llms', get label() { return t('web.nav.usage'); }, href: '/llms.txt' },
+];
+
+/**
+ * 틀의 상단. counts 는 탭 키 → 개수, on 은 켜진 탭이나 이력·토큰 키.
+ * @param {{ counts?: Record<string, number>, on?: string | null }} frame
+ */
+function topBar({ counts = {}, on = null }) {
+  const cur = k => (k === on ? html` aria-current="page"` : '');
+  return html`<header class="top">
+<a class="brand" href="/"><span class="logo" aria-hidden="true"></span>${t('web.brand')}</a>
+<nav class="tabs" aria-label="${t('web.nav.kinds')}">${TABS.map(t => html`<a class="${t.key === on ? 'tab on' : 'tab'}" href="${t.href}"${cur(t.key)}>${t.label} <small>${counts[t.key] ?? 0}</small></a>`)}</nav>
+<nav class="util">${UTILS.map(u => html`<a${u.key === on ? html` class="on"` : ''} href="${u.href}"${cur(u.key)}>${u.label}${u.key === 'proposals' && counts.proposals ? html` <small>${counts.proposals}</small>` : ''}</a>`)}<form method="post" action="/logout"><button class="link">${t('web.logout')}</button></form></nav>
+</header>`;
+}
+
+
+/** 제목 줄: 빵부스러기, h1, 오른쪽 버튼. */
+function headBlock({ h1, crumbs = [], actions = null }) {
+  return html`<div class="head">
+${crumbs.length ? html`<nav class="crumbs">${crumbs.map((c, i) => html`${i ? ' › ' : ''}<a href="${c.href}">${c.label}</a>`)}</nav>` : ''}
+<div class="head-row"><h1>${h1}</h1>${actions ? html`<div class="actions">${actions}</div>` : ''}</div>
+</div>`;
+}
+
+/**
+ * 한 화면의 HTML. nav 가 false 면 틀 없이(로그인·오류) 그린다.
+ * frame 은 상단 탭의 개수와 켜진 탭, 사이드바(없으면 null)다. frame.js 의 frameFor 가 만든다.
+ * @param {{ title: string, body: unknown, nav?: boolean, h1?: string, crumbs?: { label: string, href: string }[], actions?: unknown,
+ *   frame?: { counts?: Record<string, number>, on?: string | null, sidebar?: unknown }, scripts?: string[], wide?: boolean }} opts
+ * @returns {string}
+ */
+/** 브라우저 스크립트가 쓰는 문구(web.client.*)를 JSON 으로. < 는 \u003c 로 바꿔 script 블록을 닫지 못하게 한다. */
+function clientMessages() {
+  const m = Object.fromEntries(messageKeys('web.client.').map(k => [k, t(k)]));
+  return JSON.stringify(m).replace(/</g, '\\u003c');
+}
+
+export function page({ title, body, nav = true, h1 = title, crumbs = [], actions = null, frame = {}, scripts = [], wide = false }) {
+  const head = headBlock({ h1, crumbs, actions });
+  const main = nav && frame.sidebar
+    ? html`<div class="shell">
+${frame.sidebar}
+<main>
+${head}
+${body}
+</main>
+</div>`
+    : html`<main class="${nav ? 'solo' : wide ? 'bare wide' : 'bare'}">
+${head}
+${body}
+</main>`;
+  return html`<!doctype html>
+<html lang="${currentLocale().lang}">
+<head>
+<meta charset="utf-8">
+<script type="application/json" id="i18n">${raw(clientMessages())}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} · ${t('web.brand')}</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/app.js" defer></script>
+${scripts.map(src => html`<script type="module" src="${src}"></script>`)}
+</head>
+<body>
+${nav ? topBar(frame) : ''}
+${main}
+</body>
+</html>
+`.toString();
+}
+
+export function sendPage(res, status, opts, headers = {}) {
+  sendBody(res, status, page(opts), 'text/html; charset=utf-8', { 'Cache-Control': 'no-store', ...headers });
+}
+
+export function errorPage(res, status, message, headers = {}) {
+  sendPage(res, status, { title: String(status), nav: false, body: html`<p class="error">${message}</p><p><a href="/">${t('web.backHome')}</a></p>` }, headers);
+}
+
+/** unifiedDiff 의 결과를 색칠한 블록. 빈 문자열이면 「차이 없음」. */
+export function diffBlock(text) {
+  if (!text) return html`<p class="meta">${t('web.noDiff')}</p>`;
+  return html`<pre class="diff">${text.split('\n').map(l => {
+    const cls = l.startsWith('+') && !l.startsWith('+++') ? 'add' : l.startsWith('-') && !l.startsWith('---') ? 'del' : '';
+    return cls ? html`<span class="${cls}">${l}</span>` : html`${l}\n`;
+  })}</pre>`;
+}

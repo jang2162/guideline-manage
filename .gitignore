@@ -1,0 +1,21 @@
+node_modules/
+.worktrees/
+
+# CI 가 잡 안에서 만드는 인증 파일. 실수로 커밋되지 않게 한다
+.npmrc
+
+# 지침 서버를 로컬에서 띄울 때의 환경 변수와 데이터. 비밀값이 들어 있다
+.env
+.data/
+
+# START Ruler Generated Files
+/.codex/config.toml
+/.codex/config.toml.bak
+/AGENTS.md
+/AGENTS.md.bak
+/CLAUDE.md
+/CLAUDE.md.bak
+# END Ruler Generated Files
+
+# Design and plan history: kept locally, not published
+/docs/superpowers/

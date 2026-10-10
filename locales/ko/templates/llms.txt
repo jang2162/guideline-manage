@@ -1,0 +1,131 @@
+# 지침 서버
+
+> 팀 공용 코딩 에이전트 지침(스택별 규칙, 스킬, 서브에이전트, MCP 설정)을 보관하는 서버다. 프로젝트에서는 `guideline` CLI 로 지침을 고르고 받아 ruler 소스(`.ruler/`)로 반영하고, 고친 것은 제안으로 올린다. 이 서버의 주소는 {{SERVER}} 이다.
+
+이 문서는 에이전트와 사람이 이 서버를 처음 쓸 때 읽는 안내다.
+
+## 준비 (머신마다 한 번)
+
+1. Node 24 이상과 `guideline` CLI(npm 패키지 `guideline-manage` 0.15 이상)가 있어야 한다.
+
+   ```bash
+   npm install -g guideline-manage
+   ```
+
+   저장소 클론에서 바로 쓸 때는 `node <저장소>/cli/bin/guideline.js <명령>` 으로 부른다.
+
+2. 로그인한다. 브라우저가 열리면 관리자 토큰으로 로그인해 「발급」 을 누른다. 읽기 토큰이 `~/.config/guideline/credentials.json`(권한 600)에 저장된다.
+
+   ```bash
+   guideline login --server {{SERVER}}
+   ```
+
+   - 브라우저를 쓸 수 없으면 웹 「토큰」 화면에서 발급한 토큰을 `guideline login --server {{SERVER}} --token-stdin` 으로 넣는다.
+   - **제안을 올리려면 범위 `propose` 토큰**이 있어야 한다. 관리자가 웹 「토큰」 에서 발급해 주면 `--token-stdin` 으로 넣는다.
+   - CI 처럼 파일을 쓸 수 없으면 환경 변수 `GUIDELINE_TOKEN` 을 쓴다.
+   - 서버 주소는 `--server` > 프로젝트의 `guideline.json` > 환경 변수 `GUIDELINE_SERVER` 순서로 정해진다.
+   - CLI 메시지와 프로젝트에 쓰는 글의 언어는 `GUIDELINE_LANG`, 없으면 `~/.config/guideline/config.json` 의 `lang` 이다(기본 `en`, 한국어는 `ko`).
+
+## 프로젝트에 지침 받기
+
+**ruler 를 쓰는 프로젝트만 받을 수 있다** — 단위 디렉터리에 `.ruler/` 가 있어야 한다(없으면 「ruler 프로젝트가 아니다」 로 멈춘다). 그 디렉터리에서 실행한다.
+
+```bash
+guideline pick                 # 서버 폼을 열고, 제출하면 바로 반영한다
+guideline pick --new <이름>    # 새 프로젝트: GUIDELINE_PROJECTS_DIR/<이름> 을 만들고 git init 한 뒤 반영한다(경로도 된다)
+guideline status               # 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지
+guideline update               # 고른 항목 그대로 최신으로. 프로젝트에서 고친 파일은 건너뛴다
+guideline update --force       # 프로젝트에서 고친 파일까지 덮어쓴다
+```
+
+- `pick` 은 프로젝트를 원본과 비교한 결과만 서버에 올리고 폼 주소를 낸다(stderr 의 `폼: <주소>`). 폼에서 항목을 체크하고 제출할 때까지 기다린다. MCP 의 값(비밀값)은 올라가지 않는다.
+- 폼의 상태: 「같음」 은 이미 반영됨, 「다름」 은 프로젝트 사본이 원본과 다름(「갱신」 을 켜야 덮어쓴다), 「없음」 은 아직 없음(체크하면 더한다). 이미 있는 항목의 체크를 풀면 「제거」 다. 분류 버튼은 그 분류의 항목을 한꺼번에 체크한다.
+- 사본 자리: 상시 지침은 `.ruler/<스택>/NN-*.md`, 참조 지침은 `docs/guideline/<스택>/` 과 색인 `.ruler/<스택>/99-reference.md`, 스킬은 `.ruler/skills/`, MCP 는 `.ruler/ruler.toml`. 반영 뒤 git 루트에서 `ruler apply` 가 돈다(ruler 가 설치돼 있을 때).
+- 반영하면 `guideline.json`(고른 항목)과 `guideline-lock.json`(반영한 리비전과 해시)이 생긴다. 반영한 파일과 함께 커밋한다. CLI 는 커밋하지 않는다.
+- **모노레포**: 하위 디렉터리(자기 `.ruler/` 가 있는 곳)에서 실행하면 그 디렉터리가 따로 단위가 된다. 매니페스트·잠금·사본이 모두 그 안에 생긴다. 스킬·서브에이전트·MCP 는 git 루트에서만 받는다. git 루트의 `.ruler/ruler.toml` 에 `nested = true` 가 있어야 ruler 가 그 디렉터리의 지침을 만든다.
+- 종료 코드: 0 완료, 1 오류, 2 사용법 오류(ruler 아님 포함), 3 취소·만료(아무것도 쓰지 않음).
+
+## 여러 출처에서 받기
+
+한 프로젝트가 여러 지침 서버(출처)에서 받을 수 있다. 예: 개인 서버의 도구 스택과 사내 서버의 사내 스택.
+
+```bash
+guideline pick --source personal --server https://my.example.dev     # 출처를 더하고 그 서버의 폼으로 고른다
+guideline pick --source company --server {{SERVER}}
+guideline pick                       # 출처마다 차례로 폼을 연다(취소한 출처는 이전 그대로)
+guideline update --source company    # 그 출처만 최신으로
+```
+
+```json
+{
+  "version": 2, "form": "ruler", "agents": ["claude", "codex"],
+  "sources": {
+    "personal": { "server": "https://my.example.dev", "items": ["rules/base/00-agent.md"] },
+    "company": { "server": "{{SERVER}}", "items": ["rules/base/01-git.md"], "aliases": { "rules/base": "company-base" } }
+  }
+}
+```
+
+- 두 출처가 같은 이름(스택·스킬·서브에이전트·MCP)을 주면 `pick` 이 「이름이 겹친다」 로 멈춘다(코드 2, 아무것도 쓰지 않음). 한쪽 출처의 `aliases` 에 `"<단위>": "<새 이름>"`(단위는 `rules/<스택>`·`skills/<이름>`·`agents/<이름>.md`·`mcp/<이름>`)을 주면 그 이름으로 받는다: `.ruler/company-base/`, 스킬 `name:` 줄, `ruler.toml` 의 `[mcp_servers.<새 이름>]`.
+- 토큰은 서버마다 따로 `guideline login --server <URL>` 로 저장한다. 출처가 여럿이면 `GUIDELINE_TOKEN` 은 쓰지 않는다.
+- 한 출처의 서버에 닿지 못하면 그 출처는 그대로 두고 나머지를 반영한 뒤 코드 1.
+- `propose` 는 출처마다 제안 하나를 그 서버에 올린다(별칭은 원래 이름으로 되돌려 올린다).
+- 각 원본의 `docs/management.md` 는 관리 지침(`.ruler/guideline.md`) 끝에 `## <출처> 추가 지침` 으로 붙는다.
+
+## 원본에 올리기 (제안)
+
+원본은 관리자가 수락한 제안으로만 바뀐다. 수락되면 각 프로젝트는 `guideline update` 로 받는다.
+
+```bash
+guideline propose --dry-run              # 프로젝트에서 고친 사본을 원본 모양으로 되돌려 보여 준다(보내지 않음)
+guideline propose --title "<제목>"       # 제안으로 올린다
+guideline source <빈 폴더>               # 새 지침을 쓸 원본 작업 사본을 받는다
+guideline propose --from <그 폴더> --title "<제목>"   # 그 폴더에서 더하고 고치고 지운 것을 올린다
+```
+
+- `propose` 는 잠금 기준으로 「프로젝트에서 고침」 인 사본만 올린다. 지침 사본에는 원본의 frontmatter 를 다시 붙이고, 스킬은 파일마다 바뀜·더함·지움을 올린다. MCP 수정은 자동으로 올리지 않는다(할 일 `mcp-local`).
+- 새 지침·스킬·MCP 는 `guideline source` 로 받은 폴더에 원본 경로(`rules/<스택>/NN-*.md`, `skills/<이름>/`, `mcp/<이름>/server.json` 등)로 쓴 뒤 `propose --from` 으로 올린다. 쓰는 규칙은 그 폴더의 `docs/authoring.md`. 에이전트는 `guideline-export` 스킬을 쓴다.
+- 관리자는 웹 「제안」 에서 차이를 보고 수락·거절하거나 고친다. 원본이 그사이 바뀌었으면 겹치지 않는 변경은 합쳐지고, 겹치면 Outdated 로 수락할 수 없다.
+
+## 에이전트가 할 일
+
+`pick --json`·`update --json` 은 `{ revision, written, deleted, todos }` 를 낸다. CLI 가 혼자 못 하는 일이 `todos` 에 남는다. 하나씩 처리하고, 처리한 것과 남은 것을 사용자에게 보고한다. **폼 제출이 사용자의 확인이므로 반영 전에 다시 묻지 않는다.**
+
+| kind | 처리 |
+| --- | --- |
+| `mcp-build` | `data.text`(원본 `mcp/<이름>/README.md`)의 「반영할 때 항목 만들기」 절대로 이 프로젝트의 값을 읽어 `.ruler/ruler.toml` 에 MCP 항목을 만든다. 쓰기 전에 값과 출처를 보여 주고 확인받는다 |
+| `env` | 설정할 환경 변수(`data.vars`)와 README 의 발급 방법을 알린다 |
+| `setup` | `docs/guideline/<스택>/SETUP.md` 의 `## 확인` 으로 이미 됐는지 보고, 안 됐으면 `## 세팅` 을 사용자와 함께 한다 |
+| `conflict` | 같은 이름이 이미 있고 원본과 다르다. 차이를 보여 주고 고르게 한다(다음 `pick` 에서 갱신을 켠다) |
+| `skipped` | 프로젝트에서 고친 파일이라 건너뛰었다. `guideline propose` 로 원본에 올릴지, `update --force` 로 덮어쓸지 묻는다 |
+| `override` | 바꿈 절이 원본에 없는 파일·절을 가리킨다. 바꿈 절의 첫 줄을 고친다 |
+| `subagents-off` | `.ruler/ruler.toml` 의 `[agents] enabled = true` 를 켤지 묻는다 |
+| `ruler-apply` | 안내한 `ruler apply` 명령을 실행해도 되는지 묻는다 |
+| `nested-off` | git 루트의 `.ruler/ruler.toml` 에 `nested = true` 를 켤지 묻는다 |
+| `mcp-local` | 프로젝트에서 MCP 설정을 고쳤다. 원본에 올리려면 `guideline source` 폴더에서 `server.json` 을 고쳐 `propose --from` 으로 올린다 |
+| `adopted` | `propose` 가 뺀 사본이다. 처음 받을 때 이미 원본과 달랐다(옛 판일 수 있다). 프로젝트에서 고친 것이 맞을 때만 `guideline propose --only <항목>`, 옛 판이면 `guideline update --force` |
+| `alias` | 별칭 문제다. 「스택 자리가 바뀌었다」 면 바꿈 파일을 `.ruler/<새 이름>/` 로 옮긴다. 그 밖은 `guideline.json` 의 `aliases` 를 고친다 |
+| `new-file`·`removed-upstream` | 알리고, 고르거나 지우려면 `guideline pick` 을 하자고 한다 |
+| `blocked` | 원본 경고로(또는 중첩 디렉터리라서) 반영하지 못했다. 사본은 그대로다. 이유를 보고한다 |
+| `leftover` | 체크를 풀었지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |
+
+## 지킬 것
+
+- **사본은 직접 고치지 않는다.** `guideline-lock.json` 에 기록된 파일과 `docs/guideline/` 은 CLI 만 쓴다. 고친 것을 공용으로 하려면 `guideline propose` 로 올린다.
+- 이 프로젝트에만 다르게 할 것은 **바꿈**에 쓴다: `.ruler/<스택>/override.md`(또는 `override.d/*.md`). 바꿈마다 첫 줄에 ``바꾸는 절: `<스택>/<파일>` 「<## 절 제목>」`` 을 쓴다(파일 전체면 「」 를 뺀다). 바꿈이 사본보다 우선하고, CLI 는 바꿈을 건드리지 않는다.
+- 스택 세팅이 필요하면 `docs/guideline/<스택>/SETUP.md` 를 따른다.
+- 비밀값은 제안에도 담지 않는다. MCP 의 값은 `${VAR}` 참조로 쓴다.
+
+## API (`Authorization: Bearer <토큰>`)
+
+- [상태]({{SERVER}}/api/v1/health): 인증 없음. 서버 버전, 스키마, API 수준, 최신 리비전
+- `GET {{SERVER}}/api/v1/catalog`: 스택·스킬·서브에이전트·MCP 목록과 분류
+- `GET {{SERVER}}/api/v1/archive?rev=<리비전>`: 원본 전체(tar.gz)
+- `GET {{SERVER}}/api/v1/files/<경로>?rev=<리비전>`: 원본 파일 하나
+- `POST {{SERVER}}/api/v1/proposals`: 제안(범위 `propose` 토큰). 본문 `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. 관리자 토큰은 `apply: true` 로 검토 없이 바로 반영한다
+- `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<번호>`: 자기 제안의 상태
+
+## 더 보기
+
+- [관리자 웹]({{SERVER}}/): 지침 보기·편집·이력·제안 검토·토큰 발급(관리자 토큰으로 로그인)
+- 저장소의 `docs/guide.md`: 사람을 위한 이용 가이드
