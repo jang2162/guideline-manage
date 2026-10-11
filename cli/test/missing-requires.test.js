@@ -106,3 +106,36 @@ test('출처가 여럿이면 출처마다 그 출처의 requires 와 실제 이�
   assert.deepEqual(pick((await updateJson(p, env)).todos), expected);
   assert.deepEqual(pick((await statusJson(p, env)).todos), expected);
 });
+
+test('별칭은 요구받는 블록에만 있어도 원본 이름끼리 견줘 판정한다(별칭을 받은 블록에 입히면 틀린다)', async t => {
+  const { list: [a], env } = await servers(t, 1);
+  a.store.commit({ ...META, changes: C7_NEEDS_BASE });
+  const p = project(t, {
+    default: { server: a.base, items: ['mcp/c7', 'rules/base/00-a.md'], aliases: { 'rules/base': 'my-base' } },
+  });
+  assert.deepEqual(missingOf((await updateJson(p, env)).todos), []);
+  assert.deepEqual(missingOf((await statusJson(p, env)).todos), []);
+});
+
+test('출처마다 서버의 requires 가 다르면 각자의 트리로 판정한다(첫 출처 트리를 모두에 쓰면 틀린다)', async t => {
+  const { list: [a, b], env } = await servers(t, 2);
+  a.store.commit({ ...META, changes: C7_NEEDS_BASE });
+  b.store.commit({ ...META, changes: { 'mcp/c7/README.md': '# c7\n' } }); // b 의 c7 은 아무것도 요구하지 않는다
+  const p = project(t, {
+    a: { server: a.base, items: ['mcp/c7'] },
+    b: { server: b.base, items: ['mcp/c7'], aliases: { 'mcp/c7': 'b-c7' } },
+  });
+  const pick = todos => missingOf(todos).map(({ item, data }) => ({ item, data }));
+  const expected = [{ item: 'a:mcp/c7', data: { missing: ['rules/base'] } }];
+  assert.deepEqual(pick((await updateJson(p, env)).todos), expected);
+  assert.deepEqual(pick((await statusJson(p, env)).todos), expected);
+});
+
+test('원본에 없는 블록을 요구해도 알리지 않는다(pick 으로 더할 수 없다)', async t => {
+  const { list: [a], env } = await servers(t, 1);
+  a.store.commit({ ...META, changes: { 'mcp/c7/README.md': '---\nrequires: [rules/nope, rules/base]\n---\n# c7\n' } });
+  const p = project(t, { default: { server: a.base, items: ['mcp/c7'] } });
+  await updateJson(p, env);
+  const todos = missingOf((await statusJson(p, env)).todos);
+  assert.deepEqual(todos.map(x => x.data), [{ missing: ['rules/base'] }]);
+});

@@ -92,7 +92,7 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 
 ## What agents do
 
-`pick --json` and `update --json` print `{ revision, written, deleted, todos }`. Whatever the CLI could not do alone is left in `todos`. Handle them one by one and report what you handled and what is left. **Submitting the form is the user's confirmation, so do not ask again before applying.**
+`pick --json`, `update --json` and `status --json` print `{ revision, written, deleted, todos }` (`status` only carries the to-dos it can tell). Whatever the CLI could not do alone is left in `todos`. Handle them one by one and report what you handled and what is left. **Submitting the form is the user's confirmation, so do not ask again before applying.**
 
 | kind | What to do |
 | --- | --- |
@@ -109,7 +109,7 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 | `adopted` | A copy `propose` left out. It already differed from the source when first received (it may be an old version). Use `guideline propose --only <item>` only if the project really edited it; if it is an old version, `guideline update --force` |
 | `alias` | An alias problem. For "the stack moved", move the override files to `.ruler/<new name>/`. Otherwise fix `aliases` in `guideline.json` |
 | `new-file`, `removed-upstream` | Tell the user, and suggest `guideline pick` to choose or remove it |
-| `missing-requires` | A received block (`item`) needs blocks that were not received (`data.missing`; from `update` and `status`). Tell the user which blocks are missing, and run `guideline pick --recommend <file> --json` with a recommendation file holding them; submitting the form is the confirmation |
+| `missing-requires` | A received block (`item`) needs blocks that were not received (`data.missing`; from `update` and `status`). Tell the user which blocks are missing, and run `guideline pick --recommend <file> --json` with a recommendation file holding them (add `--source <source>` when there are several sources); submitting the form is the confirmation |
 | `blocked` | Not applied because of a source warning (or because it is a nested directory). The copy stays as it is. Report the reason |
 | `leftover` | Unchecked, but the copy differs from the source, so it was not deleted. Show the diff and ask whether to delete it |
 

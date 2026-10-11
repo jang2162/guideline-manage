@@ -92,7 +92,7 @@ guideline propose --from <그 폴더> --title "<제목>"   # 그 폴더에서 �
 
 ## 에이전트가 할 일
 
-`pick --json`·`update --json` 은 `{ revision, written, deleted, todos }` 를 낸다. CLI 가 혼자 못 하는 일이 `todos` 에 남는다. 하나씩 처리하고, 처리한 것과 남은 것을 사용자에게 보고한다. **폼 제출이 사용자의 확인이므로 반영 전에 다시 묻지 않는다.**
+`pick --json`·`update --json`·`status --json` 은 `{ revision, written, deleted, todos }` 를 낸다(`status` 는 알 수 있는 할 일만 낸다). CLI 가 혼자 못 하는 일이 `todos` 에 남는다. 하나씩 처리하고, 처리한 것과 남은 것을 사용자에게 보고한다. **폼 제출이 사용자의 확인이므로 반영 전에 다시 묻지 않는다.**
 
 | kind | 처리 |
 | --- | --- |
@@ -109,7 +109,7 @@ guideline propose --from <그 폴더> --title "<제목>"   # 그 폴더에서 �
 | `adopted` | `propose` 가 뺀 사본이다. 처음 받을 때 이미 원본과 달랐다(옛 판일 수 있다). 프로젝트에서 고친 것이 맞을 때만 `guideline propose --only <항목>`, 옛 판이면 `guideline update --force` |
 | `alias` | 별칭 문제다. 「스택 자리가 바뀜」 면 바꿈 파일을 `.ruler/<새 이름>/` 로 옮긴다. 그 밖은 `guideline.json` 의 `aliases` 를 고친다 |
 | `new-file`·`removed-upstream` | 알리고, 고르거나 지우려면 `guideline pick` 을 하자고 한다 |
-| `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`)을 받지 않았다(`update`·`status`). 빠진 블록을 알리고, 그 블록을 담은 추천 파일로 `guideline pick --recommend <파일> --json` 을 띄워 폼 제출로 확인받는다 |
+| `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`)을 받지 않았다(`update`·`status`). 빠진 블록을 알리고, 그 블록을 담은 추천 파일로 `guideline pick --recommend <파일> --json` 을 띄워(출처가 여럿이면 `--source <출처>` 를 붙인다) 폼 제출로 확인받는다 |
 | `blocked` | 원본 경고로(또는 중첩 디렉터리라서) 반영하지 못했다. 사본은 그대로다. 이유를 보고한다 |
 | `leftover` | 체크를 풀었지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |
 
