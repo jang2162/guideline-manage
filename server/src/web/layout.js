@@ -113,8 +113,8 @@ function clientMessages() {
 export function page({ title, body, nav = true, h1 = title, crumbs = [], actions = null, frame = {}, detail = null, scripts = [], wide = false }) {
   const head = headBlock({ h1, crumbs, actions });
   const main = nav && detail
-    ? html`<div class="detail">
-<aside class="blocks">${detail.left}</aside>
+    ? html`<div class="${detail.left ? 'detail' : 'detail no-left'}">
+${detail.left ? html`<aside class="blocks">${detail.left}</aside>` : ''}
 <main>
 ${head}
 ${body}

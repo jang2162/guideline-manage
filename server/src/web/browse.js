@@ -70,7 +70,7 @@ function homePage(ctx) {
       title: t('web.side.list'),
       h1: t('web.tab.stacks'),
       tab: 'stacks',
-      body: html`<p>${t('web.empty')}</p>${isAdmin(ctx) ? html`<p><a href="/new">${t('web.newFile')}</a></p>` : ''}`,
+      body: html`<p>${t('web.empty')}</p>${isAdmin(ctx) ? html`<div class="grid">${addCard('stack')}</div>` : ''}`,
     });
     return;
   }
@@ -86,16 +86,21 @@ function homePage(ctx) {
     title: t('web.side.list'),
     h1: t('web.tab.stacks'),
     tab: 'stacks',
-    actions: isAdmin(ctx) ? html`<a class="button secondary" href="/new">${t('web.newFile')}</a>` : null,
     body: html`<p class="stats"><span><b>${s.stacks.length}</b> ${t('web.stats.stacks')}</span><span><b>${fileCount}</b> ${t('web.stats.files')}</span><span><b>${s.skills.length}</b> ${t('web.stats.skills')}</span><span><b>${s.mcp.length}</b> MCP</span><span>${t('web.stats.latest')} <a href="/r/${head}">r${head}</a></span></p>
 ${all.length ? html`<nav class="chips" aria-label="${t('web.categories')}">${chip(t('web.all'), '/', !want)}${all.map(c => html` ${chip(c, `/?cat=${encodeURIComponent(c)}`, c === want)}`)}</nav>` : ''}
-${stacks.length ? html`<div class="grid">
+${stacks.length || isAdmin(ctx) ? html`<div class="grid">
 ${stacks.map(st => stackCard(st, cat))}
-</div>` : html`<p class="meta">${t('web.noStacksInCategory')}</p>`}
-${s.warnings.length ? html`<section><h2>${t('web.warningsHeading')}</h2><ul class="plain">${s.warnings.map(w => html`<li><a href="${viewHref(w.path.replace(/\/$/, ''), s)}">${w.path}</a> <span class="meta">${w.message}</span></li>`)}</ul></section>` : ''}
-${s.ignored.length ? html`<section><h2>${t('web.ignored')}</h2><ul class="plain">${s.ignored.map(i => html`<li>${i.path} <span class="meta">${i.reason}</span></li>`)}</ul></section>` : ''}`,
+${isAdmin(ctx) ? addCard('stack') : ''}
+</div>` : ''}
+${!stacks.length ? html`<p class="meta">${t('web.noStacksInCategory')}</p>` : ''}
+${s.warnings.length || s.ignored.length ? html`<p class="meta"><a href="/settings">${t('web.settings.problems', { warnings: s.warnings.length, ignored: s.ignored.length })}</a></p>` : ''}`,
   });
 }
+
+const KIND_OF_TAB = { skills: 'skill', agents: 'agent', mcp: 'mcp' };
+
+/** 목록 마지막의 블록 추가 카드(관리자). */
+const addCard = kind => html`<a class="card add" href="${`/add?kind=${kind}`}"><span class="card-t"><b>${t(`web.add.${kind}`)}</b></span></a>`;
 
 const TAB_PAGES = {
   skills: {
@@ -139,13 +144,13 @@ function tabPage(ctx, tab) {
   sendView(ctx, 200, {
     title: def.title,
     tab,
-    actions: isAdmin(ctx) ? html`<a class="button secondary" href="${`/new?dir=${encodeURIComponent(tab)}`}">${t('web.newFile')}</a>` : null,
-    body: items.length ? html`<div class="grid">
+    body: items.length || isAdmin(ctx) ? html`<div class="grid">
 ${items.map(x => html`<a class="card" href="${x.href}">
 <span class="card-t"><b>${x.name}</b>${x.meta ? html`<span class="n">${x.meta}</span>` : ''}</span>
 ${x.desc ? html`<p class="card-d">${x.desc}</p>` : ''}
 ${x.cats?.length || x.warn ? html`<span class="card-m">${chips(x.cats)}${x.warn ? html`<span class="badge warn">${t('web.warnings', { n: x.warn })}</span>` : ''}</span>` : ''}
 </a>`)}
+${isAdmin(ctx) ? addCard(KIND_OF_TAB[tab]) : ''}
 </div>` : html`<p class="meta">${t('web.noneYet')}</p>`,
   });
 }
@@ -166,7 +171,7 @@ const DEFAULT_FILES = { stack: ['README.md'], skill: ['SKILL.md'], mcp: ['README
  * 가운데: 파일 하나(렌더링·원문·텍스트·바이너리)와 제목 줄 버튼.
  * @returns {{ actions: unknown, body: unknown }}
  */
-function fileView(ctx, p) {
+export function fileView(ctx, p) {
   const content = ctx.store.fileAt(p);
   const last = ctx.store.fileHistory(p, { limit: 1 })[0];
   const text = isTextPath(p);
