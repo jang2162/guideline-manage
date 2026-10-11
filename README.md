@@ -80,7 +80,7 @@ Until `1.0.0`, breaking changes also bump the minor version.
 | `server/` | The guideline server. `server/src/` server code (`web/` admin pages), `server/static/` page CSS and JS, `server/Dockerfile`. Not part of the npm package |
 | `compose.yaml` | Guideline server deployment with Docker Compose. Environment variables in `.env.example` |
 | `.github/workflows/` | CI (tests) and release (npm publish) |
-| `docs/` | Documentation for people (English). Korean in `docs/ko/` |
+| `docs/manual/` | Documentation for people (English). Korean in `docs/manual/ko/` |
 
 ## License
 

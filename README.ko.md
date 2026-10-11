@@ -80,7 +80,7 @@ git push --follow-tags        # 태그가 릴리스 워크플로를 띄운다
 | `server/` | 지침 서버. `server/src/` 서버 코드(`web/` 관리자 화면), `server/static/` 화면의 CSS·JS, `server/Dockerfile`. npm 패키지에는 들어가지 않는다 |
 | `compose.yaml` | Docker Compose 로 지침 서버 배포. 환경 변수는 `.env.example` |
 | `.github/workflows/` | CI(테스트)와 릴리스(npm 게시) |
-| `docs/` | 사람용 문서(영어). 한국어판은 `docs/ko/` |
+| `docs/manual/` | 사람용 문서(영어). 한국어판은 `docs/manual/ko/` |
 
 ## 라이선스
 

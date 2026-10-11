@@ -19,4 +19,4 @@ The `guideline` CLI (npm package `guideline-manage`) and the guideline server (`
 - Run `pnpm test` after changing code or `locales/`. Tests run with `GUIDELINE_LANG=ko`.
 - Every user-facing string goes through `t()` with a key in `locales/en/messages.json`; add the Korean text to `locales/ko/messages.json` too.
 - Use pnpm. Do not create `package-lock.json`. The CLI has no runtime dependencies; keep it that way.
-- Repository docs are English with a Korean copy under `docs/ko/` (and `README.ko.md`); change both.
+- Repository docs are English with a Korean copy under `docs/manual/ko/` (and `README.ko.md`); change both.
