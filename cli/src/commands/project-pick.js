@@ -7,6 +7,7 @@ import { remoteClient, loadSource, explain } from '../remote.js';
 import { tokenFor, virtualize, toRealLock, fetchSources, aliasMoveTodos, protectedPaths } from '../workspace.js';
 import { realOf, unitOf, unitName, finalUnit, collisions, collisionMessage, NAME } from '../sources.js';
 import { catalogView } from '../catalog-view.js';
+import { catalogSummary } from '../summary.js';
 import { splitQualified } from '../manifest.js';
 import { revisionLabel } from './project-update.js';
 import { inferAgents, formPayload, diskReader } from '../project-state.js';
@@ -30,6 +31,7 @@ const isDir = p => {
 export async function projectPick({
   project, newTarget, server, source, browser = true, json = false, env = process.env, out = console.log, err = console.error,
   open = openBrowser, fetchImpl = fetch, git = runGit, home, cwd = process.cwd(), pollWait = 30, runRuler,
+  recommend, readStdin = readAllStdin,
 }) {
   if (project !== undefined && newTarget !== undefined) {
     err(t('pick.projectAndNew'));
@@ -94,6 +96,19 @@ export async function projectPick({
     }
     sources[name] = { server: url, items: cur?.items ?? [], aliases: cur?.aliases ?? {} };
   }
+  let recommended = null;
+  if (recommend !== undefined) {
+    // 추천은 출처 하나의 실제 이름으로 받는다. 출처마다 폼을 차례로 열기 때문에 여러 출처를 미리 검사할 수 없다.
+    if (targets.length > 1) {
+      err(t('pick.recommendOneSource'));
+      return 2;
+    }
+    recommended = await readRecommend(recommend, { cwd, readStdin });
+    if (recommended.error) {
+      err(recommended.error);
+      return 2;
+    }
+  }
   const working = { ...base, sources };
   const single = Object.keys(sources).length === 1;
 
@@ -130,9 +145,18 @@ export async function projectPick({
       manifest: manifest && Object.hasOwn(base.sources, name) ? v.view : null, lock: v.viewLock,
       nested: unit.nested, rootStacks: unit.nested ? rootStacks(unit.root) : [], management: v.management,
     });
+    const aliases = sources[name].aliases ?? {};
+    if (recommended) {
+      const unknown = Object.keys(recommended.value).filter(k => !blockKeys(src.tree).has(k));
+      if (unknown.length) {
+        err(t('pick.recommendUnknown', { keys: unknown.join(', ') }));
+        return 2;
+      }
+      payload.recommend = Object.fromEntries(Object.entries(recommended.value).map(([k, why]) => [finalUnit(k, aliases), why]));
+    }
     const taken = takenUnits(sources, name);
     const othersOwn = otherOwned(sources, lock, name);
-    payload.catalog = catalogView(v.tree);
+    payload.catalog = withVirtualRequires(catalogView(v.tree), aliases);
     payload.items = payload.items
       .filter(it => it.kind !== 'orphan' || !othersOwn(it.id))
       .map(it => {
@@ -265,4 +289,47 @@ function otherOwned(sources, lock, name) {
     }
   }
   return p => paths.has(p) || [...stacks].some(st => p.startsWith(`.ruler/${st}/`) || p.startsWith(`docs/guideline/${st}/`));
+}
+
+/** 표준 입력 전부. */
+async function readAllStdin() {
+  const chunks = [];
+  for await (const c of process.stdin) chunks.push(c);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * --recommend 의 JSON(블록 키 → 이유). 파일 경로나 `-`(표준 입력).
+ * @returns {Promise<{ value: Record<string, string> } | { error: string }>}
+ */
+async function readRecommend(arg, { cwd, readStdin }) {
+  let text;
+  try {
+    text = arg === '-' ? await readStdin() : fs.readFileSync(path.resolve(cwd, expandPath(arg)), 'utf8');
+  } catch (e) {
+    return { error: t('pick.recommendRead', { reason: e.message }) };
+  }
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return { error: t('pick.badRecommend') };
+  }
+  const ok = value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(v => typeof v === 'string');
+  return ok ? { value } : { error: t('pick.badRecommend') };
+}
+
+/** 원본 트리의 블록 키(list --json 의 categories·labels 키와 같은 모양). */
+function blockKeys(tree) {
+  const s = catalogSummary(tree);
+  return new Set([
+    ...s.stacks.map(x => `rules/${x.name}`), ...s.skills.map(x => `skills/${x}`),
+    ...s.subagents.map(x => `agents/${x}.md`), ...s.mcp.map(x => `mcp/${x.name}`),
+  ]);
+}
+
+/** 폼에 싣는 목록의 requires(실제 이름)를 별칭을 입힌 이름으로. */
+function withVirtualRequires(catalog, aliases) {
+  const map = list => list.map(x => ({ ...x, requires: (x.requires ?? []).map(u => finalUnit(u, aliases)) }));
+  return { ...catalog, stacks: map(catalog.stacks), skills: map(catalog.skills), subagents: map(catalog.subagents), mcp: map(catalog.mcp) };
 }

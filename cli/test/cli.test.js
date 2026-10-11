@@ -110,10 +110,11 @@ test('help 에 pick 이 있고, pick 에 허용되지 않은 옵션은 2', t => 
   assert.equal(h.code, 0);
   assert.match(h.out, /pick +내보낼 지침을 웹 폼에서 선택/);
   assert.match(h.out, /--no-browser/);
+  assert.match(h.out, /--recommend <파일\|->/);
   assert.match(h.out, /status +반영한 지침이 최신인지/);
   const bad = run(['pick', '--force'], root);
   assert.equal(bad.code, 2);
-  assert.match(bad.out, /pick 에서 쓸 수 있는 옵션: --project, --no-browser, --new, --server, --source, --json/);
+  assert.match(bad.out, /pick 에서 쓸 수 있는 옵션: --project, --no-browser, --new, --server, --source, --recommend, --json/);
 });
 
 test('bin 의 pick: 서버 주소가 없으면 2', t => {

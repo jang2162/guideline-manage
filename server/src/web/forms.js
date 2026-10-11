@@ -88,6 +88,8 @@ export function registerForms(router) {
       project: f.payload.project,
       items: f.payload.items,
       overrides: f.payload.overrides,
+      // 에이전트가 고른 블록(가상 이름 → 이유). 옛 CLI 의 폼에는 없다.
+      recommend: f.payload.recommend ?? {},
       // CLI 가 별칭을 입힌 원본의 목록을 실어 보내면 그것을 쓴다(여러 출처)
       catalog: f.payload.catalog ?? catalogView(dbTree(ctx.store, f.revision)),
     }, { 'Cache-Control': 'no-store' });

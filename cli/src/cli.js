@@ -15,7 +15,7 @@ const usage = () => t('help.usage');
 /** 명령별로 허용하는 옵션. */
 const ALLOWED_OPTIONS = {
   list: ['json', 'server', 'source'],
-  pick: ['project', 'no-browser', 'new', 'server', 'source', 'json'],
+  pick: ['project', 'no-browser', 'new', 'server', 'source', 'recommend', 'json'],
   update: ['project', 'server', 'source', 'force', 'json'],
   status: ['project', 'server', 'source', 'json'],
   login: ['server', 'token-stdin'],
@@ -54,6 +54,7 @@ export async function main(argv) {
         help: { type: 'boolean', short: 'h' },
         json: { type: 'boolean' },
         title: { type: 'string' },
+        recommend: { type: 'string' },
         message: { type: 'string' },
         only: { type: 'string' },
         from: { type: 'string' },
@@ -117,7 +118,7 @@ export async function main(argv) {
 
   if (command === 'pick') {
     return projectPick({
-      project: values.project, newTarget: values.new, server: values.server, source: values.source, browser: !values['no-browser'], json: values.json, cwd,
+      project: values.project, newTarget: values.new, server: values.server, source: values.source, browser: !values['no-browser'], recommend: values.recommend, json: values.json, cwd,
     });
   }
 

@@ -24,7 +24,8 @@ function checkFormBody(body, head) {
   const ok = isObj(body) && Number.isInteger(body.revision) && body.revision >= 1 && body.revision <= head
     && isObj(body.project) && typeof body.project.name === 'string'
     && Array.isArray(body.items) && Array.isArray(body.overrides)
-    && (body.diffs === undefined || isObj(body.diffs));
+    && (body.diffs === undefined || isObj(body.diffs))
+    && (body.recommend === undefined || (isObj(body.recommend) && Object.values(body.recommend).every(v => typeof v === 'string')));
   if (!ok) throw new HttpError(400, t('sync.badFormBody'));
 }
 

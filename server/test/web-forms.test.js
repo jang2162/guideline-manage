@@ -161,3 +161,19 @@ test('폼 본문에 catalog 가 있으면 데이터는 그것을 쓴다(별칭�
   const d2 = (await plain.s.req(`/forms/${plain.id}/data`, { headers: { Cookie: await openForm(plain) } })).json();
   assert.deepEqual(d2.catalog.stacks.map(x => x.name), ['base']);
 });
+
+test('폼 data 의 recommend: 없으면 빈 객체, 문자열 값이 아닌 recommend 로는 폼을 만들지 못한다', async t => {
+  const f = await setup(t);
+  const cookie = await openForm(f);
+  assert.deepEqual((await f.s.req(`/forms/${f.id}/data`, { headers: { Cookie: cookie } })).json().recommend, {});
+  const bad = await f.s.req('/api/v1/forms', {
+    method: 'POST', auth: f.token, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revision: 1, project: { name: 'p' }, items: [], overrides: [], recommend: [1] }),
+  });
+  assert.equal(bad.status, 400);
+  const bad2 = await f.s.req('/api/v1/forms', {
+    method: 'POST', auth: f.token, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revision: 1, project: { name: 'p' }, items: [], overrides: [], recommend: { 'rules/base': 1 } }),
+  });
+  assert.equal(bad2.status, 400);
+});
