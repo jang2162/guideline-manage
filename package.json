@@ -39,5 +39,8 @@
     "test": "node --import ./scripts/test-env.js --test 'cli/test/*.test.js' 'server/test/*.test.js'",
     "prepublishOnly": "pnpm test"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@intellectronica/ruler": "^0.3.44"
+  }
 }
