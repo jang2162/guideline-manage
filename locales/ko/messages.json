@@ -583,5 +583,10 @@
   "pick.recommendOneSource": "--recommend 는 출처 하나를 고를 때만 씀 — --source <이름> 을 붙임",
   "pick.recommendRead": "추천 파일을 읽지 못함: {reason}",
   "pick.badRecommend": "추천은 {\"블록 키\": \"이유\"} 꼴의 JSON 이어야 함",
-  "pick.recommendUnknown": "원본에 없는 추천 블록: {keys}"
+  "pick.recommendUnknown": "원본에 없는 추천 블록: {keys}",
+  "web.client.recommended": "에이전트 추천",
+  "web.client.why": "이유: {why}",
+  "web.client.dependency": "의존성",
+  "web.client.autoChecked": "{by} 이 {needs} 을 필요로 해서 함께 체크함",
+  "web.client.missingRequire": "{needs} 없음 — {by} 이 필요로 함"
 }

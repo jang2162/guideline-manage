@@ -279,3 +279,8 @@ pre.diff-lines .dh { color: var(--muted); }
 .side-group { margin: 14px 8px 4px; color: var(--faint); font-size: 11.5px; font-weight: 600; }
 .change-tree a.conflict .nm { color: var(--error-fg); }
 .change-tree a.conflict .nm::after { content: " !"; font-weight: 700; }
+.badge.rec { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+.badge.dep { background: var(--warn-bg); color: var(--warn-fg); border-color: transparent; }
+.why { margin-left: .5em; color: var(--muted); font-size: 12px; font-weight: 400; }
+.note.warn, .reason.warn { color: var(--warn-fg); }
+.note.dep-note { background: var(--warn-bg); color: var(--warn-fg); padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; }

@@ -177,3 +177,12 @@ test('폼 data 의 recommend: 없으면 빈 객체, 문자열 값이 아닌 reco
   });
   assert.equal(bad2.status, 400);
 });
+
+test('폼 페이지는 추천·의존성 문구를 브라우저 문구 블록에 싣는다', async t => {
+  const f = await setup(t);
+  const cookie = await openForm(f);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
+  for (const key of ['web.client.recommended', 'web.client.why', 'web.client.dependency', 'web.client.autoChecked', 'web.client.missingRequire']) {
+    assert.ok(page.includes(`"${key}"`), key);
+  }
+});

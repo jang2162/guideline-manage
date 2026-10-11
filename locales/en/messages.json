@@ -583,5 +583,10 @@
   "pick.recommendOneSource": "--recommend works on one source at a time — add --source <name>",
   "pick.recommendRead": "Could not read the recommendation file: {reason}",
   "pick.badRecommend": "The recommendation must be JSON of the form {\"block key\": \"reason\"}",
-  "pick.recommendUnknown": "Recommended blocks not in the source: {keys}"
+  "pick.recommendUnknown": "Recommended blocks not in the source: {keys}",
+  "web.client.recommended": "Agent pick",
+  "web.client.why": "Why: {why}",
+  "web.client.dependency": "Dependency",
+  "web.client.autoChecked": "{by} needs {needs}, so it was checked too",
+  "web.client.missingRequire": "{needs} is missing — {by} needs it"
 }
