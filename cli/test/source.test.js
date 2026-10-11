@@ -18,10 +18,13 @@ async function setup(t) {
   t.after(() => fs.rmSync(work, { recursive: true, force: true }));
   return { s, env: { GUIDELINE_TOKEN: token, GUIDELINE_SERVER: s.base }, folder: path.join(work, 'src') };
 }
+// 명령은 cwd 의 guideline.json 에서 서버를 찾는다. 이 저장소 루트에도 guideline.json 이 있으므로 빈 폴더를 cwd 로 준다.
+const NEUTRAL = tmpDir('guideline-cwd-');
+process.on('exit', () => fs.rmSync(NEUTRAL, { recursive: true, force: true }));
 const cap = async (fn, opts) => {
   const o = collect();
   const e = collect();
-  const code = await fn({ out: o.out, err: e.out, ...opts });
+  const code = await fn({ out: o.out, err: e.out, cwd: NEUTRAL, ...opts });
   return { code, out: o.text(), err: e.text() };
 };
 

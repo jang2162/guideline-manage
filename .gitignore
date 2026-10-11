@@ -9,8 +9,12 @@ node_modules/
 .data/
 
 # START Ruler Generated Files
+/.agents/skills
+/.claude/skills
 /.codex/config.toml
 /.codex/config.toml.bak
+/.mcp.json
+/.mcp.json.bak
 /AGENTS.md
 /AGENTS.md.bak
 /CLAUDE.md
