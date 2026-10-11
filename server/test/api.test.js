@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeRichDocsRepo, filesOf } from '../../cli/test/helpers.js';
 import { catalogSummary } from '../../cli/src/summary.js';
-import { startApp, ADMIN, META } from './helpers.js';
+import { startApp, testConfig, ADMIN, META } from './helpers.js';
 import { sha256 } from '../src/store.js';
 
 test('health 는 인증 없이 버전·스키마·리비전을 내고, 보안 헤더가 붙고, 요청이 로그에 한 줄 남는다', async t => {
@@ -24,8 +24,8 @@ test('health 는 인증 없이 버전·스키마·리비전을 내고, 보안 �
   assert.doesNotMatch(s.lines.join('\n'), new RegExp(ADMIN));
 });
 
-test('토큰 없이는 401, 관리자·발급 토큰은 통과, 폐기한 토큰은 401', async t => {
-  const s = await startApp(t);
+test('비공개(PUBLIC_READ=0)면 토큰 없이는 401, 관리자·발급 토큰은 통과, 폐기한 토큰은 401', async t => {
+  const s = await startApp(t, { config: testConfig({ publicRead: false }) });
   const none = await s.req('/api/v1/catalog');
   assert.equal(none.status, 401);
   assert.equal(none.headers['www-authenticate'], 'Bearer');
@@ -35,6 +35,20 @@ test('토큰 없이는 401, 관리자·발급 토큰은 통과, 폐기한 토큰
   assert.equal((await s.req('/api/v1/catalog', { auth: token })).status, 200);
   s.tokens.revoke(id);
   assert.equal((await s.req('/api/v1/catalog', { auth: token })).status, 401);
+});
+
+test('공개(PUBLIC_READ=1)면 읽기 API 는 토큰 없이 되지만, 틀린·폐기한 토큰은 401', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: { 'rules/a/00-x.md': 'a\n' } });
+  assert.equal((await s.req('/api/v1/health')).json().publicRead, true);
+  for (const p of ['/api/v1/catalog', '/api/v1/tree', '/api/v1/files/rules/a/00-x.md', '/api/v1/revisions', '/api/v1/revisions/1', '/api/v1/archive']) {
+    assert.equal((await s.req(p)).status, 200, p);
+  }
+  assert.equal((await s.req('/api/v1/catalog', { auth: 'glt_wrong' })).status, 401);
+  const { id, token } = s.tokens.issue({ name: 'a', scope: 'read' });
+  s.tokens.revoke(id);
+  assert.equal((await s.req('/api/v1/catalog', { auth: token })).status, 401);
+  assert.equal((await s.req('/api/v1/proposals')).status, 401, '제안은 공개와 상관없이 토큰');
 });
 
 test('catalog 는 리비전 번호를 더한 list --json 을 낸다. 없는 리비전은 404', async t => {

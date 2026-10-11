@@ -110,11 +110,8 @@ export async function projectPick({
   let finalAgents = agents;
   for (const name of targets) {
     const { server: url } = sources[name];
+    // 토큰이 없어도 공개 서버(PUBLIC_READ)에서는 받을 수 있다. 비공개면 서버의 401 이 로그인 안내가 된다.
     const token = tokenFor(url, { env, home, single });
-    if (!token) {
-      failures.push(t('common.sourceLoginNeeded', { name, url }));
-      continue;
-    }
     const client = remoteClient({ server: url, token, fetchImpl });
     let src;
     try {
@@ -149,7 +146,7 @@ export async function projectPick({
       err(targets.length > 1 ? t('pick.sourceForm', { name, url: form.url }) : t('pick.form', { url: form.url }));
       if (browser) open(form.url);
       do {
-        result = await client.formResult(form.id, pollWait);
+        result = await client.formResult(form.id, pollWait, new URL(form.url).searchParams.get('k'));
       } while (result.status === 'pending');
     } catch (e) {
       failures.push(`${name}: ${e.status === 404 ? t('pick.formGone') : explain(e, url)}`);

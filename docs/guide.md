@@ -61,7 +61,7 @@ curl -s -X POST http://localhost:3000/api/v1/proposals \
   -d '{"title":"first fill","apply":true,"changes":[{"path":"rules/base/00-agent.md","text":"---\nload: always\n---\n\n# Agent\n","base":null}]}'
 ```
 
-Open `http://localhost:3000` and log in with the admin token to browse stacks, skills, subagents and MCP servers. "Usage" at the top is `/llms.txt`.
+Open `http://localhost:3000` to browse stacks, skills, subagents and MCP servers without logging in (with `PUBLIC_READ=0`, log in first). To edit, review proposals or manage tokens, use "Log in" at the top with the admin token. "Usage" at the top is `/llms.txt`.
 
 ## 3. Log in (once per machine)
 

@@ -132,7 +132,9 @@ test('스택 화면은 README 를 렌더링하고, 파일 이름만 보이는 �
   assert.equal((await getAs(s, cookie, '/s/nope')).status, 404);
   assert.equal((await getAs(s, cookie, '/s/empty')).status, 404);
   const anon = await s.req('/s/base');
-  assert.equal(anon.status, 303);
+  assert.equal(anon.status, 200, '보기는 로그인 없이 된다');
+  assert.ok(!anon.text.includes('href="/edit/'));
+  assert.ok(!anon.text.includes('/new?dir='));
 });
 
 test('스킬·서브에이전트·MCP 탭은 카드 목록을 보이고 디렉터리·파일 화면으로 보낸다', async t => {
@@ -151,7 +153,9 @@ test('스킬·서브에이전트·MCP 탭은 카드 목록을 보이고 디렉�
   assert.match(mcp, /<a class="card" href="\/d\/mcp\/gitlab">/);
   assert.ok(mcp.includes('GITLAB_TOKEN'));
   assert.ok(mcp.includes('반영할 때 README 로 만든다'));
-  assert.equal((await s.req('/skills')).status, 303);
+  const anon = await s.req('/skills');
+  assert.equal(anon.status, 200);
+  assert.ok(!anon.text.includes('/new?dir='));
 });
 
 test('파일 보기: .md 는 렌더링하고 frontmatter 는 칩으로, ?raw=1 이면 원문, 빵부스러기와 버튼', async t => {

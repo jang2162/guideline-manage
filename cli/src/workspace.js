@@ -55,11 +55,8 @@ export async function fetchSources({
   const failures = [];
   for (const name of names) {
     const server = trim(manifest.sources[name].server);
+    // 토큰이 없으면 없이 부른다. 공개 서버(PUBLIC_READ)는 받아 주고, 비공개면 401 이 로그인 안내가 된다.
     const token = tokenFor(server, { env, home, single });
-    if (!token) {
-      failures.push({ source: name, message: t('common.loginNeeded', { url: server }) });
-      continue;
-    }
     const client = remoteClient({ server, token, fetchImpl });
     const rev = lock?.revisions?.[name];
     try {

@@ -14,11 +14,11 @@ async function seeded(t) {
   return { s, cookie: await login(s) };
 }
 
-test('세션이 없으면 로그인으로 보내고, 맞는 토큰이면 쿠키를 주고 next 로 보낸다', async t => {
+test('관리자 화면은 세션이 없으면 로그인으로 보내고, 맞는 토큰이면 쿠키를 주고 next 로 보낸다', async t => {
   const s = await startApp(t);
-  const anon = await s.req('/d/rules');
+  const anon = await s.req('/new?dir=rules');
   assert.equal(anon.status, 303);
-  assert.equal(anon.headers.location, '/login?next=%2Fd%2Frules');
+  assert.equal(anon.headers.location, '/login?next=%2Fnew%3Fdir%3Drules');
   const wrong = await postForm(s, '/login', { token: 'nope', next: '/' });
   assert.equal(wrong.status, 401);
   assert.match(wrong.text, /토큰이 맞지 않는다/);
@@ -59,13 +59,77 @@ test('PUBLIC_URL 과 다른 출처의 POST 는 403 이고 PUBLIC_URL 로 접속�
   assert.doesNotMatch(same.text, /PUBLIC_URL/);
 });
 
-test('로그아웃은 쿠키를 지우고 로그인으로 보낸다', async t => {
+test('로그아웃은 쿠키를 지우고 목록으로 보낸다', async t => {
   const s = await startApp(t);
   const cookie = await login(s);
   const r = await postForm(s, '/logout', {}, { cookie });
   assert.equal(r.status, 303);
-  assert.equal(r.headers.location, '/login');
+  assert.equal(r.headers.location, '/');
   assert.match(r.headers['set-cookie'][0], /^gs_session=; .*Max-Age=0/);
+});
+
+test('보기는 로그인 없이 되고, 바꾸는 버튼·관리자 링크는 숨기고 로그인 링크를 둔다', async t => {
+  const { s } = await seeded(t);
+  for (const p of ['/', '/s/base', '/skills', '/agents', '/mcp', '/d/', '/d/rules/base', '/f/rules/base/02-git.md', '/history', '/history/rules/base/02-git.md', '/r/1', '/raw/rules/base/02-git.md', '/export.tar.gz']) {
+    const r = await s.req(p);
+    assert.equal(r.status, 200, p);
+  }
+  const file = (await s.req('/f/rules/base/02-git.md')).text;
+  assert.match(file, /<a href="\/login\?next=%2Ff%2Frules%2Fbase%2F02-git\.md">로그인<\/a>/);
+  for (const [p, text] of [
+    ['/f/rules/base/02-git.md', file],
+    ['/d/rules/base', (await s.req('/d/rules/base')).text],
+    ['/history/rules/base/02-git.md', (await s.req('/history/rules/base/02-git.md')).text],
+    ['/r/1', (await s.req('/r/1')).text],
+  ]) {
+    for (const bit of ['href="/edit/', 'href="/new', 'action="/rename"', 'action="/delete/', 'action="/revert"', 'data-upload=', 'href="/tokens"', 'href="/proposals"', 'action="/logout"']) {
+      assert.ok(!text.includes(bit), `${p}: ${bit}`);
+    }
+  }
+  const admin = (await getAs(s, await login(s), '/f/rules/base/02-git.md')).text;
+  for (const bit of ['href="/edit/', 'action="/rename"', 'href="/tokens"', 'href="/proposals"', 'action="/logout"']) assert.ok(admin.includes(bit), bit);
+  assert.ok(!admin.includes('href="/login'));
+});
+
+test('비공개(PUBLIC_READ=0)면 보기 화면도 로그인으로 보낸다', async t => {
+  const root = makeRichDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const s = await startApp(t, { config: testConfig({ publicRead: false }) });
+  s.store.commit({ ...META, source: 'import', changes: filesOf(root) });
+  for (const p of ['/', '/s/base', '/skills', '/d/rules', '/f/rules/base/02-git.md', '/raw/rules/base/02-git.md', '/export.tar.gz', '/history', '/r/1']) {
+    const r = await s.req(p);
+    assert.equal(r.status, 303, p);
+    assert.equal(r.headers.location, `/login?next=${encodeURIComponent(p)}`, p);
+  }
+  assert.equal((await s.req('/llms.txt')).status, 200);
+  assert.equal((await getAs(s, await login(s), '/d/rules')).status, 200);
+});
+
+test('세션 없이 바꾸는 요청은 로그인으로 보내고 아무것도 바꾸지 않는다', async t => {
+  const { s } = await seeded(t);
+  const head = s.store.headRevision();
+  for (const p of ['/tokens', '/proposals', '/edit/rules/base/02-git.md', '/new', '/cli/login']) {
+    const r = await s.req(p);
+    assert.equal(r.status, 303, p);
+    assert.match(r.headers.location, /^\/login\?next=/, p);
+  }
+  const posts = [
+    ['/edit/rules/base/02-git.md', { content: 'x', base: s.store.hashAt('rules/base/02-git.md'), message: 'm' }],
+    ['/new', { path: 'rules/base/zz.md', content: 'x', message: 'm' }],
+    ['/delete/rules/base/02-git.md', { message: 'm' }],
+    ['/rename', { from: 'rules/base/02-git.md', to: 'rules/base/zz.md', message: 'm' }],
+    ['/revert', { kind: 'revision', rev: '1', confirmed: '1' }],
+    ['/tokens', { name: 'x', scope: 'read' }],
+  ];
+  for (const [p, fields] of posts) {
+    const r = await postForm(s, p, fields);
+    assert.equal(r.status, 303, p);
+    assert.match(r.headers.location, /^\/login\?next=/, p);
+  }
+  const up = await s.req('/upload/rules/base/zz.md', { method: 'PUT', body: 'x', headers: { Origin: s.config.publicUrl.origin, 'X-Message': 'm' } });
+  assert.equal(up.status, 401);
+  assert.equal(s.store.headRevision(), head);
+  assert.equal(s.tokens.list().length, 0);
 });
 
 test('빈 저장소의 목록은 새 파일과 제안 API 를 안내한다', async t => {

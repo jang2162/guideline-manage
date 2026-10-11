@@ -52,14 +52,14 @@ export function createApp({ config, db, now = () => new Date(), log = line => co
   registerForms(router);
   registerProposals(router);
 
-  /** Bearer 토큰(관리자 토큰·발급 토큰) 또는 관리자 세션 쿠키. */
+  /** Bearer 토큰(관리자 토큰·발급 토큰) 또는 관리자 세션 쿠키. 틀린·폐기한 Bearer 는 badToken. */
   function authenticate(req) {
     const header = req.headers.authorization;
     if (typeof header === 'string' && header.startsWith('Bearer ')) {
       const token = header.slice('Bearer '.length).trim();
       if (safeEqual(token, config.adminToken)) return { kind: 'admin', via: 'bearer' };
       const t = tokens.verify(token);
-      return t ? { kind: 'token', ...t } : null;
+      return t ? { kind: 'token', ...t } : { badToken: true };
     }
     const cookie = parseCookies(req.headers.cookie)[SESSION_COOKIE];
     if (cookie && checkSession(key, cookie, now())) return { kind: 'admin', via: 'session' };
@@ -108,13 +108,15 @@ export function createApp({ config, db, now = () => new Date(), log = line => co
     }
     res.on('finish', () => log(`${req.method} ${url.pathname} ${res.statusCode} ${Date.now() - started}ms`));
     const isApi = url.pathname.startsWith('/api/') || /^\/forms\/[^/]+\/(data|diff|ping|submit|cancel)$/.test(url.pathname);
-    const ctx = { req, res, url, params: {}, auth: null, isApi, ...deps };
+    const ctx = { req, res, url, params: {}, auth: null, badToken: false, isApi, ...deps };
     try {
       const m = router.match(req.method, url.pathname);
       if (!m) throw new HttpError(404, t('web.notFound'));
       if (m.allowed) throw new HttpError(405, t('web.methodNotAllowed'), { Allow: m.allowed.join(', ') });
       ctx.params = m.params;
-      ctx.auth = authenticate(req);
+      const auth = authenticate(req);
+      ctx.badToken = auth?.badToken === true;
+      ctx.auth = ctx.badToken ? null : auth;
       await m.handler(ctx);
     } catch (e) {
       fail(ctx, e);

@@ -21,7 +21,7 @@ export const ADMIN = 'admin-token-'.padEnd(40, 'x');
 /** 테스트용 설정. PUBLIC_URL 은 http://guideline.test */
 export function testConfig(over = {}) {
   return {
-    adminToken: ADMIN, publicUrl: new URL('http://guideline.test'), dataDir: '', port: 0, backupKeep: 3, trustProxy: false, ...over,
+    adminToken: ADMIN, publicUrl: new URL('http://guideline.test'), dataDir: '', port: 0, backupKeep: 3, trustProxy: false, publicRead: true, ...over,
   };
 }
 

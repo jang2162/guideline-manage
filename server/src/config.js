@@ -8,6 +8,7 @@ export class ConfigError extends Error {}
  * @property {number} port
  * @property {number} backupKeep 남길 자동 백업 수
  * @property {boolean} trustProxy X-Forwarded-For 를 믿는가
+ * @property {boolean} publicRead 지침 보기(웹·읽기 API)를 로그인·토큰 없이 여는가
  */
 
 /**
@@ -41,6 +42,9 @@ export function loadConfig(env) {
     throw new ConfigError('PUBLIC_URL must be an address starting with http:// or https://');
   }
 
+  const publicRead = env.PUBLIC_READ ?? '1';
+  if (publicRead !== '0' && publicRead !== '1') throw new ConfigError('PUBLIC_READ must be 0 or 1');
+
   const backupKeep = int('BACKUP_KEEP', 14, 100000);
   if (backupKeep < 1) throw new ConfigError('BACKUP_KEEP must be 1 or more');
 
@@ -51,5 +55,6 @@ export function loadConfig(env) {
     port: int('PORT', 3000, 65535),
     backupKeep,
     trustProxy: env.TRUST_PROXY === '1',
+    publicRead: publicRead === '1',
   };
 }

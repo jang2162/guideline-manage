@@ -40,7 +40,6 @@
   "common.noServer": "No server address: pass --server <URL> or set GUIDELINE_SERVER",
   "common.notDir": "Not a directory: {dir}",
   "common.serverWithManySources": "With several sources, use --source instead of --server",
-  "common.sourceLoginNeeded": "{name}: login required: guideline login --server {url}",
   "common.tooManyTries": "Too many failed attempts. Try again in {minutes} min",
   "diff.differs": "{path} differs",
   "diff.eolOnly": "(only the final newline differs)",

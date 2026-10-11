@@ -12,6 +12,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:?PUBLIC_URL is required}
       BACKUP_KEEP: ${BACKUP_KEEP:-14}
       TRUST_PROXY: ${TRUST_PROXY:-0}
+      PUBLIC_READ: ${PUBLIC_READ:-1}
       GUIDELINE_LANG: ${GUIDELINE_LANG:-en}
       GUIDELINE_SEED: ${GUIDELINE_SEED:-on}
     volumes:

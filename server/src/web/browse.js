@@ -7,7 +7,7 @@ import { tarGz } from '../tar.js';
 import { contentType } from '../api.js';
 import { fileCategories } from '../../../cli/src/catalog.js';
 import { isTextPath } from '../../../cli/src/store-paths.js';
-import { requireAdminWeb } from './auth.js';
+import { isAdmin, requireReadWeb } from './auth.js';
 import { html, raw, hrefFor, parentOf } from './layout.js';
 import { catalogAt, crumbsOf, whereOf, sendView } from './frame.js';
 import { renderMarkdown, splitFrontmatter } from './markdown.js';
@@ -67,7 +67,7 @@ function homePage(ctx) {
       title: t('web.side.list'),
       h1: t('web.tab.stacks'),
       where: { tab: 'stacks' },
-      body: html`<p>${t('web.empty')}</p><p><a href="/new">${t('web.newFile')}</a></p>`,
+      body: html`<p>${t('web.empty')}</p>${isAdmin(ctx) ? html`<p><a href="/new">${t('web.newFile')}</a></p>` : ''}`,
     });
     return;
   }
@@ -83,7 +83,7 @@ function homePage(ctx) {
     title: t('web.side.list'),
     h1: t('web.tab.stacks'),
     where: { tab: 'stacks' },
-    actions: html`<a class="button secondary" href="/new">${t('web.newFile')}</a>`,
+    actions: isAdmin(ctx) ? html`<a class="button secondary" href="/new">${t('web.newFile')}</a>` : null,
     body: html`<p class="stats"><span><b>${s.stacks.length}</b> ${t('web.stats.stacks')}</span><span><b>${fileCount}</b> ${t('web.stats.files')}</span><span><b>${s.skills.length}</b> ${t('web.stats.skills')}</span><span><b>${s.mcp.length}</b> MCP</span><span>${t('web.stats.latest')} <a href="/r/${head}">r${head}</a></span></p>
 ${all.length ? html`<nav class="chips" aria-label="${t('web.categories')}">${chip(t('web.all'), '/', !want)}${all.map(c => html` ${chip(c, `/?cat=${encodeURIComponent(c)}`, c === want)}`)}</nav>` : ''}
 ${stacks.length ? html`<div class="grid">
@@ -107,11 +107,12 @@ function stackPage(ctx) {
   const short = p => (p.startsWith(`${dir}/`) ? p.slice(dir.length + 1) : p.replace(/^rules\//, ''));
   // 파일마다 분류를 단 스택에서만 분류 칸을 둔다(스택 분류는 위 칩에 있다).
   const fileCats = st.files.some(f => s.categories[f.path]?.length);
+  const admin = isAdmin(ctx);
   sendView(ctx, 200, {
     title: name,
     crumbs: [{ label: t('web.tab.stacks'), href: '/' }],
     where: { tab: 'stacks', group: name },
-    actions: html`${readme ? html`<a class="button" href="${hrefFor('/edit/', `${dir}/README.md`)}">${t('web.editReadme')}</a>` : ''}<a class="button secondary" href="${hrefFor('/d/', dir)}">${t('web.directory')}</a><a class="button secondary" href="${`/new?dir=${encodeURIComponent(dir)}`}">${t('web.newFile')}</a>`,
+    actions: html`${admin && readme ? html`<a class="button" href="${hrefFor('/edit/', `${dir}/README.md`)}">${t('web.editReadme')}</a>` : ''}<a class="button secondary" href="${hrefFor('/d/', dir)}">${t('web.directory')}</a>${admin ? html`<a class="button secondary" href="${`/new?dir=${encodeURIComponent(dir)}`}">${t('web.newFile')}</a>` : ''}`,
     body: html`<p class="meta-row">${chips(s.categories[dir])}${st.setup ? html`<a class="badge setup" href="${hrefFor('/f/', `${dir}/SETUP.md`)}">${t('web.setupDoc')}</a>` : ''}<span class="meta">${t('web.fileCount', { n: st.files.length })}</span></p>
 ${warns.length ? html`<div class="warn"><ul class="plain">${warns.map(w => html`<li><a href="${hrefFor('/f/', w.path)}">${short(w.path)}</a> — ${w.message}</li>`)}</ul></div>` : ''}
 ${fm ? docBlock(fm.body, `${dir}/README.md`) : html`<p class="meta">${t('web.noReadme')}</p>`}
@@ -175,7 +176,7 @@ function tabPage(ctx, tab) {
   sendView(ctx, 200, {
     title: def.title,
     where: { tab },
-    actions: html`<a class="button secondary" href="${`/new?dir=${encodeURIComponent(tab)}`}">${t('web.newFile')}</a>`,
+    actions: isAdmin(ctx) ? html`<a class="button secondary" href="${`/new?dir=${encodeURIComponent(tab)}`}">${t('web.newFile')}</a>` : null,
     body: items.length ? html`<div class="grid">
 ${items.map(x => html`<a class="card" href="${x.href}">
 <span class="card-t"><b>${x.name}</b>${x.meta ? html`<span class="n">${x.meta}</span>` : ''}</span>
@@ -212,6 +213,7 @@ function filePage(ctx) {
   const source = text ? content.toString('utf8') : '';
   const fm = md && !showRaw ? splitFrontmatter(source) : null;
   const view = hrefFor('/f/', p);
+  const admin = isAdmin(ctx);
   const toggle = showRaw
     ? html`<a class="button secondary" href="${view}">${t('web.rendered')}</a>`
     : html`<a class="button secondary" href="${`${view}?raw=1`}">${t('web.raw')}</a>`;
@@ -220,12 +222,12 @@ function filePage(ctx) {
     h1: p.slice(p.lastIndexOf('/') + 1),
     crumbs: crumbsOf(p, catalogAt(ctx.store)),
     where: whereOf(p),
-    actions: html`${text ? html`<a class="button" href="${hrefFor('/edit/', p)}">${t('web.edit')}</a>` : ''}${md ? toggle : ''}<a class="button secondary" href="${hrefFor('/history/', p)}">${t('web.nav.history')}</a><a class="button secondary" href="${hrefFor('/raw/', p)}">${t('web.download')}</a>`,
+    actions: html`${admin && text ? html`<a class="button" href="${hrefFor('/edit/', p)}">${t('web.edit')}</a>` : ''}${md ? toggle : ''}<a class="button secondary" href="${hrefFor('/history/', p)}">${t('web.nav.history')}</a><a class="button secondary" href="${hrefFor('/raw/', p)}">${t('web.download')}</a>`,
     body: html`<p class="meta-row">${fm ? frontChips(fm.fields) : ''}<span class="meta">${t('web.lastChange')} <a href="/r/${last.id}">r${last.id}</a> · ${last.author} · ${last.message}</span></p>
 ${fm ? docBlock(fm.body, p)
     : text ? html`<pre class="file">${source}</pre>`
       : html`<p>${t('web.binary', { n: content.length })}</p>`}
-${manageForms(p, 'file')}`,
+${admin ? manageForms(p, 'file') : ''}`,
   });
 }
 
@@ -241,6 +243,7 @@ function dirPage(ctx) {
     throw new HttpError(404, t('web.noDir'));
   }
   const child = name => (p ? `${p}/${name}` : name);
+  const admin = isAdmin(ctx);
   const hashes = JSON.stringify(Object.fromEntries(
     entries.filter(e => !e.dir).map(e => [e.name, ctx.store.hashAt(child(e.name))]),
   ));
@@ -249,9 +252,9 @@ function dirPage(ctx) {
     h1: p ? `${p.slice(p.lastIndexOf('/') + 1)}/` : t('web.allFiles'),
     crumbs: crumbsOf(p, catalogAt(ctx.store)),
     where: whereOf(p),
-    actions: html`${p ? html`<a class="button secondary" href="${hrefFor('/d/', parentOf(p))}">${t('web.up')}</a>` : ''}<a class="button secondary" href="${`/new?dir=${encodeURIComponent(p)}`}">${t('web.newFile')}</a>`,
+    actions: html`${p ? html`<a class="button secondary" href="${hrefFor('/d/', parentOf(p))}">${t('web.up')}</a>` : ''}${admin ? html`<a class="button secondary" href="${`/new?dir=${encodeURIComponent(p)}`}">${t('web.newFile')}</a>` : ''}`,
     body: html`<ul class="entries">${entries.map(e => html`<li class="${e.dir ? 'dir' : 'file'}"><a href="${hrefFor(e.dir ? '/d/' : '/f/', child(e.name))}">${e.name}${e.dir ? '/' : ''}</a></li>`)}</ul>
-${p ? html`<form class="stack upload" data-upload="${p}" data-hashes="${hashes}">
+${p && admin ? html`<form class="stack upload" data-upload="${p}" data-hashes="${hashes}">
 <h2>${t('web.upload.heading')}</h2>
 <label>${t('web.upload.file')} <input type="file" name="file" required></label>
 <label>${t('web.message')} <input name="message" required></label>
@@ -262,27 +265,27 @@ ${manageForms(p, 'dir')}` : ''}`,
   });
 }
 
-/** 목록(스택·스킬·서브에이전트·MCP), 스택, 파일·디렉터리 보기, 내려받기, 내보내기, 정적 파일을 등록한다. */
+/** 목록(스택·스킬·서브에이전트·MCP), 스택, 파일·디렉터리 보기, 내려받기, 내보내기, 정적 파일을 등록한다. PUBLIC_READ 면 로그인 없이 연다. */
 export function registerBrowse(router) {
   router.add('GET', '/', ctx => {
-    if (requireAdminWeb(ctx)) homePage(ctx);
+    if (requireReadWeb(ctx)) homePage(ctx);
   });
   router.add('GET', '/s/:name', ctx => {
-    if (requireAdminWeb(ctx)) stackPage(ctx);
+    if (requireReadWeb(ctx)) stackPage(ctx);
   });
   for (const tab of Object.keys(TAB_PAGES)) {
     router.add('GET', `/${tab}`, ctx => {
-      if (requireAdminWeb(ctx)) tabPage(ctx, tab);
+      if (requireReadWeb(ctx)) tabPage(ctx, tab);
     });
   }
   router.add('GET', '/f/*path', ctx => {
-    if (requireAdminWeb(ctx)) filePage(ctx);
+    if (requireReadWeb(ctx)) filePage(ctx);
   });
   router.add('GET', '/d/*path', ctx => {
-    if (requireAdminWeb(ctx)) dirPage(ctx);
+    if (requireReadWeb(ctx)) dirPage(ctx);
   });
   router.add('GET', '/raw/*path', ctx => {
-    if (!requireAdminWeb(ctx)) return;
+    if (!requireReadWeb(ctx)) return;
     const p = ctx.params.path.normalize('NFC');
     const content = ctx.store.fileAt(p);
     if (content === null) throw new HttpError(404, t('api.noFile'));
@@ -290,7 +293,7 @@ export function registerBrowse(router) {
     sendBody(ctx.res, 200, content, contentType(p), { 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}` });
   });
   router.add('GET', '/export.tar.gz', ctx => {
-    if (!requireAdminWeb(ctx)) return;
+    if (!requireReadWeb(ctx)) return;
     const head = ctx.store.headRevision();
     const files = ctx.store.pathsAt(head).map(f => ({ path: f.path, content: ctx.store.fileAt(f.path, head) }));
     sendBody(ctx.res, 200, tarGz(files, { mtime: ctx.now() }), 'application/gzip', {

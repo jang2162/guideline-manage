@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { startApp, ADMIN, META } from './helpers.js';
+import { startApp, testConfig, ADMIN, META } from './helpers.js';
 import { untarGz } from '../../cli/src/tar-read.js';
 
 const FORM = { revision: 1, project: { name: 'p', path: '/x/p', form: 'ruler', isNew: false, gitRepo: true, dirty: false }, items: [], overrides: [] };
@@ -30,7 +30,9 @@ test('archive 는 그 리비전 트리의 tar.gz', async t => {
   assert.equal(untarGz(r1.body).get('rules/a/00-x.md').toString(), 'a1\n');
   const head = await s.req('/api/v1/archive', { auth: ADMIN });
   assert.equal(untarGz(head.body).get('rules/a/00-x.md').toString(), 'a2\n');
-  assert.equal((await s.req('/api/v1/archive')).status, 401);
+  assert.equal((await s.req('/api/v1/archive')).status, 200, '공개 서버는 토큰 없이');
+  const closed = await withData(t, { config: testConfig({ publicRead: false }) });
+  assert.equal((await closed.req('/api/v1/archive')).status, 401);
 });
 
 test('지침이 없으면 archive 는 404', async t => {
@@ -71,7 +73,26 @@ test('폼 만들기는 본문 모양·리비전·크기·형식·CLI 버전을 �
   assert.equal((await post(s, '/api/v1/forms', FORM, { auth: a, headers: { 'Content-Type': 'text/plain' } })).status, 415);
   assert.equal((await post(s, '/api/v1/forms', FORM, { auth: a, headers: { 'X-Guideline-Client': '0.11.0' } })).status, 426);
   assert.equal((await post(s, '/api/v1/forms', FORM, { auth: a, headers: { 'X-Guideline-Client': '0.12.0' } })).status, 201);
-  assert.equal((await post(s, '/api/v1/forms', FORM)).status, 401);
+  const closed = await withData(t, { config: testConfig({ publicRead: false }) });
+  assert.equal((await post(closed, '/api/v1/forms', FORM)).status, 401);
+});
+
+test('공개 서버는 토큰 없이 폼을 만들고, 그 결과는 링크 토큰(X-Form-Link)으로만 본다', async t => {
+  const s = await withData(t);
+  const r = await post(s, '/api/v1/forms', FORM);
+  assert.equal(r.status, 201);
+  const { id, url } = r.json();
+  const k = new URL(url).searchParams.get('k');
+  assert.equal((await s.req(`/api/v1/forms/${id}/result`)).status, 404);
+  assert.equal((await s.req(`/api/v1/forms/${id}/result`, { headers: { 'X-Form-Link': 'nope' } })).status, 404);
+  const other = s.tokens.issue({ name: 'cli-b', scope: 'read' }).token;
+  assert.equal((await s.req(`/api/v1/forms/${id}/result`, { auth: other })).status, 404);
+  assert.deepEqual((await s.req(`/api/v1/forms/${id}/result`, { headers: { 'X-Form-Link': k } })).json(), { status: 'pending' });
+  assert.equal((await s.req(`/api/v1/forms/${id}/result`, { auth: ADMIN })).status, 200);
+  const a = s.tokens.issue({ name: 'cli-a', scope: 'read' }).token;
+  const mine = (await post(s, '/api/v1/forms', FORM, { auth: a })).json();
+  const mk = new URL(mine.url).searchParams.get('k');
+  assert.equal((await s.req(`/api/v1/forms/${mine.id}/result`, { headers: { 'X-Form-Link': mk } })).status, 404, '토큰 폼은 그 토큰만');
 });
 
 test('result 는 wait 동안 기다렸다가 끝나면 바로 답한다', async t => {

@@ -90,7 +90,7 @@ test('토큰은 발급 직후 한 번만 보이고, API 에 쓰이고, 폐기하
   const revoked = await postForm(s, `/tokens/${id}/revoke`, {}, { cookie });
   assert.equal(revoked.status, 303);
   assert.equal(revoked.headers.location, '/tokens');
-  assert.equal((await s.req('/api/v1/catalog', { auth: token })).status, 401);
+  assert.equal((await s.req('/api/v1/catalog', { auth: token })).status, 401, '공개 서버여도 폐기한 토큰은 401');
   assert.ok((await getAs(s, cookie, '/tokens')).text.includes('폐기'));
   const dup = await postForm(s, '/tokens', { name: 'jang-macbook', scope: 'read' }, { cookie });
   assert.equal(dup.status, 400);

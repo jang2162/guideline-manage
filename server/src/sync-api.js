@@ -1,5 +1,5 @@
 import { HttpError, sendJson, sendBody, readJson, clientIp } from './http.js';
-import { requireToken, parseRev } from './api.js';
+import { requireToken, requireRead, parseRev } from './api.js';
 import { tarGz } from './tar.js';
 import { TokenError } from './tokens.js';
 import { t } from '../../cli/src/i18n.js';
@@ -28,13 +28,24 @@ function checkFormBody(body, head) {
   if (!ok) throw new HttpError(400, t('sync.badFormBody'));
 }
 
-const ownerOf = auth => (auth.kind === 'token' ? auth.id : null);
-const owns = (auth, form) => (form.tokenId === null ? auth.kind === 'admin' : auth.kind === 'token' && auth.id === form.tokenId);
+const ownerOf = auth => (auth?.kind === 'token' ? auth.id : null);
+
+/**
+ * 폼 결과를 볼 수 있는가. 토큰 폼은 그 토큰만, 토큰 없이 만든 폼은 관리자나 링크 토큰(X-Form-Link)을 가진 쪽만.
+ * 링크 토큰은 만든 쪽(CLI)만 안다.
+ */
+function owns(ctx, form) {
+  const { auth } = ctx;
+  if (form.tokenId !== null) return auth?.kind === 'token' && auth.id === form.tokenId;
+  if (auth?.kind === 'admin') return true;
+  const link = ctx.req.headers['x-form-link'];
+  return typeof link === 'string' && ctx.forms.checkLink(form.id, link) !== null;
+}
 
 /** 프로젝트 반영(2a)이 쓰는 API. */
 export function registerSyncApi(router, { store, tokens, forms, cliLogins, limiter, config }) {
   router.add('GET', '/api/v1/archive', ctx => {
-    requireToken(ctx);
+    requireRead(ctx);
     const head = store.headRevision();
     if (head === 0) throw new HttpError(404, t('sync.empty'));
     const r = parseRev(ctx.url.searchParams.get('rev'), head);
@@ -51,8 +62,9 @@ export function registerSyncApi(router, { store, tokens, forms, cliLogins, limit
     sendJson(ctx.res, 200, { ok: true });
   });
 
+  // 폼은 지침을 받아 고르는 일이라 읽기와 같은 권한이다.
   router.add('POST', '/api/v1/forms', async ctx => {
-    requireToken(ctx);
+    requireRead(ctx);
     if (clientTooOld(ctx.req)) throw new HttpError(426, t('sync.cliOld'));
     const body = await readJson(ctx.req, FORM_BODY_LIMIT);
     checkFormBody(body, store.headRevision());
@@ -63,10 +75,10 @@ export function registerSyncApi(router, { store, tokens, forms, cliLogins, limit
   });
 
   router.add('GET', '/api/v1/forms/:id/result', async ctx => {
-    requireToken(ctx);
+    requireRead(ctx);
     const wait = Math.min(30, Math.max(0, Number.parseInt(ctx.url.searchParams.get('wait') ?? '0', 10) || 0));
     let f = forms.load(ctx.params.id);
-    if (!f || !owns(ctx.auth, f)) throw new HttpError(404, t('sync.noForm'));
+    if (!f || !owns(ctx, f)) throw new HttpError(404, t('sync.noForm'));
     const until = Date.now() + wait * 1000;
     while (f.status === 'pending' && Date.now() < until && !ctx.req.destroyed) {
       await sleep(POLL_MS);

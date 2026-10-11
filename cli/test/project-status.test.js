@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { startApp, META } from '../../server/test/helpers.js';
+import { startApp, testConfig, META } from '../../server/test/helpers.js';
 import { tmpDir, write, collect, ALWAYS } from './helpers.js';
 import { SOURCE, manifestOf } from './render-fixture.js';
 import { render } from '../src/render/index.js';
@@ -12,8 +12,8 @@ import { MANIFEST, LOCK, manifestText, lockText } from '../src/manifest.js';
 import { projectStatus } from '../src/commands/project-status.js';
 import { memoryTree } from '../src/tree.js';
 
-async function setup(t) {
-  const s = await startApp(t);
+async function setup(t, opts) {
+  const s = await startApp(t, opts);
   s.store.commit({ ...META, source: 'import', changes: SOURCE });
   const token = s.tokens.issue({ name: 'cli-t', scope: 'read' }).token;
   const p = tmpDir('guideline-status-');
@@ -63,12 +63,16 @@ test('status 글 출력', async t => {
   assert.match(o.text(), /^ {2}프로젝트에서 고침 {2}rules\/base\/01-b\.md$/m);
 });
 
-test('토큰이 없으면 1', async t => {
-  const { p } = await setup(t);
+test('비공개 서버에 토큰이 없으면 1, 공개 서버는 토큰 없이 된다', async t => {
+  const { p } = await setup(t, { config: testConfig({ publicRead: false }) });
   const e = collect();
   const home = tmpDir('guideline-home-');
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   assert.equal(await projectStatus({ project: p, env: {}, home, err: e.out, out: () => {} }), 1);
   assert.match(e.text(), /로그인이 필요하다/);
+  const open = await setup(t);
+  const o = collect();
+  assert.equal(await projectStatus({ project: open.p, env: {}, home, out: o.out }), 0);
+  assert.match(o.text(), /^지침 상태/m);
   assert.ok(path.isAbsolute(p));
 });

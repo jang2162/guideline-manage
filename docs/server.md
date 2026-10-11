@@ -31,6 +31,7 @@ Tools that deploy a Compose file straight from a Git repository work the same wa
 | `PUBLIC_URL` | required | The address users open. Opening any other address (server IP:port and so on) makes login and saving return 403 | `https://guideline.example.com` |
 | `DATA_HOST_DIR` | required | Host path for the DB (`guideline.db`) and backups (`backups/`). Must be writable by uid 1000 | `/data/guideline` |
 | `HOST_PORT` | optional (3000) | Port opened on the host | `3000` |
+| `PUBLIC_READ` | optional (1) | 1 opens viewing guidelines (web pages, read API, CLI pick/update/list) without login or token. 0 requires an admin login on the web and a read token for the API and CLI. Changing guidelines, reviewing proposals and managing tokens are always admin-only | `0` |
 | `BACKUP_KEEP` | optional (14) | Number of automatic backups to keep | `30` |
 | `TRUST_PROXY` | optional (0) | 1 behind a (single) reverse proxy. Login rate limits use the last value of `X-Forwarded-For`, which the proxy appends | `1` |
 | `GUIDELINE_LANG` | optional (en) | Language of the admin web, API errors, `/llms.txt` and the seed of an empty server. `ko` for Korean. An unknown code logs a warning at startup and runs in English | `ko` |
@@ -44,7 +45,7 @@ Leave TLS and the reverse proxy to the server's existing setup.
 1. Create `DATA_HOST_DIR` on the server and run `sudo chown 1000:1000 <path>`.
 2. Create an admin token with `openssl rand -base64 48` and put it in `.env` as `ADMIN_TOKEN`.
 3. Run `docker compose up -d --build`. The log (`docker compose logs`) shows `guideline-server listening on port 3000`, and on an empty DB also `seeded the empty server with <language> guidelines (r1)`.
-4. Log in with the admin token at `/login` under `PUBLIC_URL`.
+4. Open `PUBLIC_URL`. Anyone can browse guidelines and history and download them without logging in (with `PUBLIC_READ=0`, a login is required). To edit, revert, review proposals or manage tokens, use "Log in" at the top (`/login`) with the admin token.
 5. Fill in guidelines: "New file" on the admin web, or `POST /api/v1/proposals` with `apply: true` and the admin token (→ [guide.md](guide.md) "Running a guideline server").
 
 ## Upgrades

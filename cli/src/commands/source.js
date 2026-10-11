@@ -67,10 +67,6 @@ export async function source({
     err(t('common.noServer'));
     return 2;
   }
-  if (!token) {
-    err(t('common.loginNeeded', { url }));
-    return 1;
-  }
   let src;
   try {
     src = await loadSource(remoteClient({ server: url, token, fetchImpl }));

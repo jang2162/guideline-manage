@@ -53,24 +53,30 @@ const TABS = [
   { key: 'agents', get label() { return t('web.tab.agents'); }, href: '/agents' },
   { key: 'mcp', label: 'MCP', href: '/mcp' },
 ];
+// admin 인 것은 관리자에게만 보인다.
 const UTILS = [
-  { key: 'proposals', get label() { return t('web.nav.proposals'); }, href: '/proposals' },
+  { key: 'proposals', get label() { return t('web.nav.proposals'); }, href: '/proposals', admin: true },
   { key: 'history', get label() { return t('web.nav.history'); }, href: '/history' },
-  { key: 'tokens', get label() { return t('web.tokens'); }, href: '/tokens' },
+  { key: 'tokens', get label() { return t('web.tokens'); }, href: '/tokens', admin: true },
   { key: 'export', get label() { return t('web.nav.export'); }, href: '/export.tar.gz' },
   { key: 'llms', get label() { return t('web.nav.usage'); }, href: '/llms.txt' },
 ];
 
 /**
  * 틀의 상단. counts 는 탭 키 → 개수, on 은 켜진 탭이나 이력·토큰 키.
- * @param {{ counts?: Record<string, number>, on?: string | null }} frame
+ * 관리자가 아니면 관리자 링크 대신 login(이 화면으로 돌아오는 로그인 주소)을 건다.
+ * @param {{ counts?: Record<string, number>, on?: string | null, admin?: boolean, login?: string }} frame
  */
-function topBar({ counts = {}, on = null }) {
+function topBar({ counts = {}, on = null, admin = false, login = '/login' }) {
   const cur = k => (k === on ? html` aria-current="page"` : '');
+  const utils = UTILS.filter(u => admin || !u.admin);
+  const session = admin
+    ? html`<form method="post" action="/logout"><button class="link">${t('web.logout')}</button></form>`
+    : html`<a href="${login}">${t('web.login')}</a>`;
   return html`<header class="top">
 <a class="brand" href="/"><span class="logo" aria-hidden="true"></span>${t('web.brand')}</a>
 <nav class="tabs" aria-label="${t('web.nav.kinds')}">${TABS.map(t => html`<a class="${t.key === on ? 'tab on' : 'tab'}" href="${t.href}"${cur(t.key)}>${t.label} <small>${counts[t.key] ?? 0}</small></a>`)}</nav>
-<nav class="util">${UTILS.map(u => html`<a${u.key === on ? html` class="on"` : ''} href="${u.href}"${cur(u.key)}>${u.label}${u.key === 'proposals' && counts.proposals ? html` <small>${counts.proposals}</small>` : ''}</a>`)}<form method="post" action="/logout"><button class="link">${t('web.logout')}</button></form></nav>
+<nav class="util">${utils.map(u => html`<a${u.key === on ? html` class="on"` : ''} href="${u.href}"${cur(u.key)}>${u.label}${u.key === 'proposals' && counts.proposals ? html` <small>${counts.proposals}</small>` : ''}</a>`)}${session}</nav>
 </header>`;
 }
 
@@ -87,7 +93,7 @@ ${crumbs.length ? html`<nav class="crumbs">${crumbs.map((c, i) => html`${i ? ' �
  * 한 화면의 HTML. nav 가 false 면 틀 없이(로그인·오류) 그린다.
  * frame 은 상단 탭의 개수와 켜진 탭, 사이드바(없으면 null)다. frame.js 의 frameFor 가 만든다.
  * @param {{ title: string, body: unknown, nav?: boolean, h1?: string, crumbs?: { label: string, href: string }[], actions?: unknown,
- *   frame?: { counts?: Record<string, number>, on?: string | null, sidebar?: unknown }, scripts?: string[], wide?: boolean }} opts
+ *   frame?: { counts?: Record<string, number>, on?: string | null, sidebar?: unknown, admin?: boolean, login?: string }, scripts?: string[], wide?: boolean }} opts
  * @returns {string}
  */
 /** 브라우저 스크립트가 쓰는 문구(web.client.*)를 JSON 으로. < 는 \u003c 로 바꿔 script 블록을 닫지 못하게 한다. */

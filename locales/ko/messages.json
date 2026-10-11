@@ -40,7 +40,6 @@
   "common.noServer": "서버 주소가 없다: --server <URL> 이나 GUIDELINE_SERVER 를 준다",
   "common.notDir": "디렉터리가 아닙니다: {dir}",
   "common.serverWithManySources": "출처가 여럿이면 --server 대신 --source 를 쓴다",
-  "common.sourceLoginNeeded": "{name}: 로그인이 필요하다: guideline login --server {url}",
   "common.tooManyTries": "너무 많이 틀렸다. {minutes}분 뒤에 다시 한다",
   "diff.differs": "{path} 다름",
   "diff.eolOnly": "(파일 끝 줄바꿈만 다름)",

@@ -13,6 +13,8 @@ test('loadConfig 는 기본값을 채운다', () => {
   assert.equal(c.port, 3000);
   assert.equal(c.backupKeep, 14);
   assert.equal(c.trustProxy, false);
+  assert.equal(c.publicRead, true, '기본은 공개');
+  assert.equal(loadConfig({ ...ok, PUBLIC_READ: '0' }).publicRead, false);
   const d = loadConfig({ ...ok, DATA_DIR: '/tmp/g', PORT: '0', BACKUP_KEEP: '30', TRUST_PROXY: '1' });
   assert.deepEqual([d.dataDir, d.port, d.backupKeep, d.trustProxy], ['/tmp/g', 0, 30, true]);
 });
@@ -27,6 +29,7 @@ test('loadConfig 는 잘못된 값마다 이유를 담은 ConfigError', () => {
     [{ ...ok, PORT: 'abc' }, 'PORT is not a valid integer'],
     [{ ...ok, PORT: '70000' }, 'PORT is not a valid integer'],
     [{ ...ok, BACKUP_KEEP: '0' }, 'BACKUP_KEEP must be 1 or more'],
+    [{ ...ok, PUBLIC_READ: 'yes' }, 'PUBLIC_READ must be 0 or 1'],
   ];
   for (const [env, message] of cases) {
     assert.throws(() => loadConfig(env), e => e instanceof ConfigError && e.message === message, message);

@@ -1,7 +1,7 @@
 import { HttpError, readForm, redirect } from '../http.js';
 import { isTextPath } from '../../../cli/src/store-paths.js';
 import { unifiedDiff } from '../../../cli/src/diff.js';
-import { checkOrigin, requireAdminWeb } from './auth.js';
+import { checkOrigin, requireAdminWeb, requireReadWeb, isAdmin } from './auth.js';
 import { html, hrefFor, diffBlock } from './layout.js';
 import { sendView } from './frame.js';
 import { t } from '../../../cli/src/i18n.js';
@@ -54,7 +54,7 @@ function fileHistoryPage(ctx) {
   view(ctx, 200, {
     title: t('web.historyOf', { path: p }),
     body: html`<p class="meta"><a href="${hrefFor('/f/', p)}">${t('web.viewFile')}</a></p>${revisionRows(rows, { withHash: true })}
-<details class="manage"><summary>${t('web.revert')}</summary>${revertForms}</details>`,
+${isAdmin(ctx) ? html`<details class="manage"><summary>${t('web.revert')}</summary>${revertForms}</details>` : ''}`,
   });
 }
 
@@ -76,8 +76,8 @@ function revisionPage(ctx) {
     body: html`<p class="meta">${info.createdAt.replace('T', ' ').slice(0, 19)} · ${info.author} · ${SOURCE[info.source] ?? info.source}</p>
 <p>${info.message}</p>
 ${ctx.store.changes(id).map(c => changeBlock(ctx.store, id, c))}
-<form method="post" action="/revert" class="row"><input type="hidden" name="kind" value="revision"><input type="hidden" name="rev" value="${id}">
-<button class="secondary">${t('web.revertRevision')}</button></form>`,
+${isAdmin(ctx) ? html`<form method="post" action="/revert" class="row"><input type="hidden" name="kind" value="revision"><input type="hidden" name="rev" value="${id}">
+<button class="secondary">${t('web.revertRevision')}</button></form>` : ''}`,
   });
 }
 
@@ -139,16 +139,16 @@ ${confirmForm({ kind, rev }, t('store.revertRevision', { rev }))}`,
   });
 }
 
-/** 이력, 리비전, 되돌리기를 등록한다. */
+/** 이력, 리비전, 되돌리기를 등록한다. 보기는 requireReadWeb, 되돌리기는 관리자만. */
 export function registerHistory(router) {
   router.add('GET', '/history', ctx => {
-    if (requireAdminWeb(ctx)) historyPage(ctx);
+    if (requireReadWeb(ctx)) historyPage(ctx);
   });
   router.add('GET', '/history/*path', ctx => {
-    if (requireAdminWeb(ctx)) fileHistoryPage(ctx);
+    if (requireReadWeb(ctx)) fileHistoryPage(ctx);
   });
   router.add('GET', '/r/:id', ctx => {
-    if (requireAdminWeb(ctx)) revisionPage(ctx);
+    if (requireReadWeb(ctx)) revisionPage(ctx);
   });
   router.add('POST', '/revert', async ctx => {
     if (requireAdminWeb(ctx)) await postRevert(ctx);

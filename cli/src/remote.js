@@ -30,8 +30,8 @@ export function serverOf({ flag, manifest, env = process.env }) {
  */
 export function remoteClient({ server, token = null, fetchImpl = fetch, version = packageVersion() }) {
   const base = `${server.replace(/\/+$/, '')}/`;
-  async function call(method, apiPath, { body, raw = false, auth = true } = {}) {
-    const headers = { 'X-Guideline-Client': version };
+  async function call(method, apiPath, { body, raw = false, auth = true, extra = {} } = {}) {
+    const headers = { 'X-Guideline-Client': version, ...extra };
     if (auth && token) headers.Authorization = `Bearer ${token}`;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     let res;
@@ -59,7 +59,8 @@ export function remoteClient({ server, token = null, fetchImpl = fetch, version 
     tree: rev => call('GET', rev ? `tree?rev=${rev}` : 'tree'),
     archive: rev => call('GET', `archive?rev=${rev}`, { raw: true }),
     createForm: body => call('POST', 'forms', { body }),
-    formResult: (id, wait) => call('GET', `forms/${encodeURIComponent(id)}/result?wait=${wait}`),
+    // 토큰 없이 만든 폼은 링크 토큰(폼 주소의 k)이 결과를 볼 권한이다.
+    formResult: (id, wait, link = null) => call('GET', `forms/${encodeURIComponent(id)}/result?wait=${wait}`, { extra: link ? { 'X-Form-Link': link } : {} }),
     exchange: (code, verifier) => call('POST', 'cli/token', { body: { code, verifier }, auth: false }),
     revokeSelf: () => call('DELETE', 'tokens/self'),
     createProposal: body => call('POST', 'proposals', { body }),

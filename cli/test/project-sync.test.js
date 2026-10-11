@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { startApp, META } from '../../server/test/helpers.js';
+import { startApp, testConfig, META } from '../../server/test/helpers.js';
 import { tmpDir, write, read, exists, collect, ALWAYS } from './helpers.js';
 import { SOURCE } from './render-fixture.js';
 import { projectPick } from '../src/commands/project-pick.js';
@@ -65,6 +65,28 @@ test('ruler 프로젝트: 고른 것을 쓰고 매니페스트·잠금을 남긴
   assert.equal(r.revision, 1);
   assert.ok(r.written.includes('guideline.json') === false, '매니페스트는 written 에 넣지 않는다');
   assert.deepEqual([...new Set(r.todos.map(x => x.kind))].sort(), ['ruler-apply', 'setup']);
+});
+
+test('공개 서버는 토큰 없이 고르고 받는다. 비공개면 로그인 안내로 1', async t => {
+  const { s } = await server(t);
+  const home = tmpDir('guideline-home-');
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const env = { GUIDELINE_SERVER: s.base };
+  const p = gitProject(t, { '.ruler/ruler.toml': 'default_agents = ["claude"]\n' });
+  const code = await projectPick({
+    project: p, env, home, ...quiet,
+    open: driver(s, { choose: checkOnly(i => i.id === 'rules/base/00-a.md') }),
+  });
+  assert.equal(code, 0);
+  assert.ok(exists(p, '.ruler/base/00-a.md'));
+  assert.equal(await projectUpdate({ project: p, env, home, ...quiet, out: () => {} }), 0);
+
+  const closed = await startApp(t, { config: testConfig({ publicRead: false }) });
+  closed.store.commit({ ...META, source: 'import', changes: SOURCE });
+  const q = gitProject(t, { '.ruler/ruler.toml': 'default_agents = ["claude"]\n' });
+  const e = collect();
+  assert.equal(await projectPick({ project: q, env: { GUIDELINE_SERVER: closed.base }, home, ...quiet, err: e.out, open: () => {} }), 1);
+  assert.match(e.text(), /로그인이 필요하다: guideline login --server/);
 });
 
 test('--new: 제출하면 폴더를 만들고 git init 한 뒤 ruler 형으로 쓴다', async t => {

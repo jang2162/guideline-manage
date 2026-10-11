@@ -5,6 +5,7 @@ import { frontmatter, yamlString } from '../../../cli/src/frontmatter.js';
 import { firstSentence } from './markdown.js';
 import { html, hrefFor, sendPage } from './layout.js';
 import { t } from '../../../cli/src/i18n.js';
+import { isAdmin, loginHref } from './auth.js';
 
 /**
  * @typedef {object} Catalog
@@ -123,8 +124,9 @@ const PLACEHOLDER = {
 /**
  * @param {Catalog} cat
  * @param {{ tab: string, group: string | null, current: string | null }} where
+ * @param {boolean} admin 「새 파일」 링크를 둘지
  */
-function sidebar(cat, where) {
+function sidebar(cat, where, admin) {
   const { tab, group: open, current } = where;
   let items;
   if (tab === 'skills') {
@@ -149,7 +151,7 @@ function sidebar(cat, where) {
 ${items.length ? items : html`<li class="empty">${t('web.none')}</li>`}
 </ul>
 <p class="side-none" hidden>${t('web.side.noMatch')}</p>
-<p class="side-foot"><a href="/d/">${t('web.allFiles')}</a> · <a href="/new">${t('web.newFile')}</a></p>
+<p class="side-foot"><a href="/d/">${t('web.allFiles')}</a>${admin ? html` · <a href="/new">${t('web.newFile')}</a>` : ''}</p>
 </div>
 </details>`;
 }
@@ -163,13 +165,16 @@ ${items.length ? items : html`<li class="empty">${t('web.none')}</li>`}
 export function frameFor(ctx, where, on = null) {
   const cat = catalogAt(ctx.store);
   const s = cat.summary;
+  const admin = isAdmin(ctx);
   return {
     counts: {
       stacks: s.stacks.length, skills: s.skills.length, agents: s.subagents.length, mcp: s.mcp.length,
-      proposals: ctx.proposals ? ctx.proposals.pendingCount() : 0,
+      proposals: admin && ctx.proposals ? ctx.proposals.pendingCount() : 0,
     },
     on: where ? where.tab : on,
-    sidebar: where ? sidebar(cat, { group: null, current: null, ...where }) : null,
+    sidebar: where ? sidebar(cat, { group: null, current: null, ...where }, admin) : null,
+    admin,
+    login: loginHref(ctx),
   };
 }
 

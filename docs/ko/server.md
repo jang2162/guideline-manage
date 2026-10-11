@@ -31,6 +31,7 @@ Git 저장소에서 Compose 파일을 바로 배포하는 도구도 같은 방�
 | `PUBLIC_URL` | 필수 | 사용자가 여는 주소. 이 주소가 아닌 곳(서버 IP:포트 등)에서 열면 로그인·저장이 403 이다 | `https://guideline.example.com` |
 | `DATA_HOST_DIR` | 필수 | DB(`guideline.db`)와 백업(`backups/`)을 둘 호스트 경로. uid 1000 이 쓸 수 있어야 한다 | `/data/guideline` |
 | `HOST_PORT` | 선택(3000) | 호스트에 여는 포트 | `3000` |
+| `PUBLIC_READ` | 선택(1) | 1 이면 지침 보기(웹 화면, 읽기 API, CLI 의 pick·update·list)를 로그인·토큰 없이 연다. 0 이면 웹은 관리자 로그인, API·CLI 는 읽기 토큰이 있어야 한다. 바꾸기·제안 검토·토큰 관리는 언제나 관리자만 | `0` |
 | `BACKUP_KEEP` | 선택(14) | 남길 자동 백업 수 | `30` |
 | `TRUST_PROXY` | 선택(0) | 리버스 프록시(하나) 뒤면 1. 프록시가 덧붙인 `X-Forwarded-For` 의 마지막 값으로 로그인 제한을 건다 | `1` |
 | `GUIDELINE_LANG` | 선택(en) | 관리자 웹·API 오류·`/llms.txt`·빈 서버 씨앗의 언어. 한국어는 `ko`. 모르는 코드면 시작 로그에 경고하고 영어로 뜬다 | `ko` |
@@ -44,7 +45,7 @@ TLS 와 리버스 프록시는 서버의 기존 구성에 맡긴다.
 1. 서버에 `DATA_HOST_DIR` 을 만들고 `sudo chown 1000:1000 <경로>` 한다.
 2. `openssl rand -base64 48` 로 관리자 토큰을 만들어 `.env` 의 `ADMIN_TOKEN` 에 넣는다.
 3. `docker compose up -d --build` 한다. 로그(`docker compose logs`)에 `guideline-server listening on port 3000` 이 나온다. 빈 DB 면 `seeded the empty server with <언어> guidelines (r1)` 도 나온다.
-4. `PUBLIC_URL` 의 `/login` 에서 관리자 토큰으로 로그인한다.
+4. `PUBLIC_URL` 을 연다. 지침·이력 보기와 내려받기는 로그인 없이 된다(`PUBLIC_READ=0` 이면 로그인해야 한다). 편집·되돌리기·제안 검토·토큰 관리는 상단 「로그인」(`/login`)에서 관리자 토큰으로 로그인한 뒤 한다.
 5. 지침을 채운다: 관리 웹의 「새 파일」, 또는 관리자 토큰으로 `POST /api/v1/proposals` 에 `apply: true`(→ [guide.md](guide.md) 「지침 서버 띄우기」).
 
 ## 업그레이드

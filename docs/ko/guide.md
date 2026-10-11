@@ -61,7 +61,7 @@ curl -s -X POST http://localhost:3000/api/v1/proposals \
   -d '{"title":"처음 채움","apply":true,"changes":[{"path":"rules/base/00-agent.md","text":"---\nload: always\n---\n\n# 에이전트\n","base":null}]}'
 ```
 
-`http://localhost:3000` 을 열고 관리자 토큰으로 로그인하면 스택·스킬·서브에이전트·MCP 를 볼 수 있다. 상단의 「사용법」 이 `/llms.txt` 다.
+`http://localhost:3000` 을 열면 로그인 없이(`PUBLIC_READ=0` 이면 로그인해야) 스택·스킬·서브에이전트·MCP 를 볼 수 있다. 편집·제안 검토·토큰 관리는 상단 「로그인」 에서 관리자 토큰으로 로그인한 뒤 한다. 상단의 「사용법」 이 `/llms.txt` 다.
 
 ## 3. 로그인 (머신마다 한 번)
 

@@ -14,7 +14,7 @@ This document is the guide agents and people read when they first use this serve
 
    To use it straight from a clone of its repository, call `node <repo>/cli/bin/guideline.js <command>`.
 
-2. Log in. When the browser opens, log in with the admin token and click "Issue". A read token is stored in `~/.config/guideline/credentials.json` (mode 600).
+2. Log in. If the server is public (`PUBLIC_READ=1`, the default), fetching guidelines (pick/update/list) works without a login, so you only need one to send proposals. When the browser opens, log in with the admin token and click "Issue". A read token is stored in `~/.config/guideline/credentials.json` (mode 600).
 
    ```bash
    guideline login --server {{SERVER}}
@@ -127,5 +127,5 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 
 ## More
 
-- [Admin web]({{SERVER}}/): view, edit and browse the history of guidelines, review proposals, issue tokens (log in with the admin token)
+- [Web]({{SERVER}}/): anyone can view guidelines and their history (log in if the server is private); editing, reverting, reviewing proposals and issuing tokens need a login with the admin token
 - `docs/guide.md` in the repository: the user guide for people

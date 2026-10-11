@@ -10,10 +10,21 @@ export function checkOrigin(ctx) {
   }
 }
 
+/** 관리자 세션(또는 관리자 Bearer)인가. 바꾸기는 관리자만 한다. */
+export const isAdmin = ctx => ctx.auth?.kind === 'admin';
+
+/** 이 화면으로 돌아오는 로그인 주소. */
+export const loginHref = ctx => `/login?next=${encodeURIComponent(ctx.url.pathname + ctx.url.search)}`;
+
+/** 지침 보기 화면. PUBLIC_READ 면 누구나, 아니면 관리자 세션이 없을 때 로그인으로 보내고 false. */
+export function requireReadWeb(ctx) {
+  return ctx.config.publicRead || requireAdminWeb(ctx);
+}
+
 /** 관리자 세션이 없으면 로그인으로 보내고 false. */
 export function requireAdminWeb(ctx) {
-  if (ctx.auth?.kind === 'admin') return true;
-  redirect(ctx.res, `/login?next=${encodeURIComponent(ctx.url.pathname + ctx.url.search)}`);
+  if (isAdmin(ctx)) return true;
+  redirect(ctx.res, loginHref(ctx));
   return false;
 }
 
@@ -37,11 +48,12 @@ function loginPage(ctx, { status = 200, error = null, next = '/' } = {}) {
 <label>${t('web.adminToken')} <input type="password" name="token" autocomplete="current-password" required autofocus></label>
 <button>${t('web.login')}</button>
 </form>
+<p class="meta"><a href="/">${t('web.backHome')}</a></p>
 <p class="meta">${t('web.firstTime.before')} <a href="/llms.txt">${t('web.firstTime.link')}</a> ${t('web.firstTime.after')}</p>`,
   });
 }
 
-/** /login, /logout 을 등록한다. */
+/** /login, /logout 을 등록한다. 로그인은 관리자가 바꾸는 일을 할 때만 필요하다. */
 export function registerAuth(router) {
   router.add('GET', '/login', ctx => loginPage(ctx, { next: safeNext(ctx.url.searchParams.get('next')) }));
 
@@ -68,6 +80,6 @@ export function registerAuth(router) {
 
   router.add('POST', '/logout', ctx => {
     checkOrigin(ctx);
-    redirect(ctx.res, '/login', { 'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0` });
+    redirect(ctx.res, '/', { 'Set-Cookie': `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0` });
   });
 }
