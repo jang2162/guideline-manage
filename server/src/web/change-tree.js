@@ -79,11 +79,13 @@ const countChip = c => (c ? html`<span class="cnt">${c.add ? html`<span class="a
  * @param {string} current
  * @param {(p: string) => string} hrefOf
  * @param {Map<string, { add: number, del: number }>} counts
+ * @param {Set<string>} [conflicts] 충돌 표시를 붙일 경로
  */
-export function changeTree(groups, current, hrefOf, counts) {
+export function changeTree(groups, current, hrefOf, counts, conflicts = new Set()) {
   const file = f => {
     const on = f.path === current;
-    return html`<li><a${on ? html` class="on"` : ''} href="${hrefOf(f.path)}" title="${f.path}"${on ? html` aria-current="page"` : ''}><span class="nm">${f.rel}</span>${countChip(counts.get(f.path))}</a></li>
+    const cls = [on ? 'on' : '', conflicts.has(f.path) ? 'conflict' : ''].filter(Boolean).join(' ');
+    return html`<li><a${cls ? html` class="${cls}"` : ''} href="${hrefOf(f.path)}" title="${f.path}"${on ? html` aria-current="page"` : ''}><span class="nm">${f.rel}</span>${countChip(counts.get(f.path))}</a></li>
 `;
   };
   return html`<h2>${t('web.change.files')}</h2>
@@ -112,8 +114,8 @@ export function changeCrumb(groups, current) {
   return '';
 }
 
-/** 고를 파일: ?file= 이 바뀐 파일이면 그것, 아니면 트리의 첫 파일. */
-export function pickCurrent(groups, wanted) {
+/** 고를 파일: ?file= 이 바뀐 파일이면 그것, 아니면 first(먼저 볼 파일, 예: 첫 충돌) 중 트리 순서로 첫 것, 그것도 없으면 트리의 첫 파일. */
+export function pickCurrent(groups, wanted, first = new Set()) {
   const all = groups.flatMap(g => g.blocks.flatMap(b => b.files.map(f => f.path)));
-  return all.includes(wanted) ? wanted : all[0] ?? null;
+  return all.includes(wanted) ? wanted : all.find(p => first.has(p)) ?? all[0] ?? null;
 }

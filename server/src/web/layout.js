@@ -160,10 +160,13 @@ export function errorPage(res, status, message, headers = {}) {
 /** 목록 한 쪽의 행 수. */
 export const PAGE_SIZE = 30;
 
-/** `?page=` 를 1 이상 정수로. 아니면 1. */
+// 이 위의 쪽 번호는 1쪽으로 본다. offset 이 SQLite 정수 범위를 넘으면 쿼리가 실패한다.
+const MAX_PAGE = 1_000_000;
+
+/** `?page=` 를 1 이상 MAX_PAGE 이하 정수로. 아니면 1. */
 export function pageOf(url) {
   const n = Number(url.searchParams.get('page'));
-  return Number.isInteger(n) && n >= 1 ? n : 1;
+  return Number.isSafeInteger(n) && n >= 1 && n <= MAX_PAGE ? n : 1;
 }
 
 /**

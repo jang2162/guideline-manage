@@ -26,7 +26,7 @@ test('이력은 최신순으로 30개씩, 아래에 이전·다음', async t => 
   assert.equal(rowsOf(third), 5);
   assert.ok(third.includes('href="/history?page=2"'));
   assert.ok(!third.includes('href="/history?page=4"'));
-  for (const q of ['?page=0', '?page=-1', '?page=x', '?before=2']) {
+  for (const q of ['?page=0', '?page=-1', '?page=x', '?before=2', '?page=1e20', '?page=1e308']) {
     const r = await getAs(s, cookie, `/history${q}`);
     assert.equal(r.status, 200, q);
     assert.ok(r.text.includes('href="/r/65"'), q);

@@ -72,3 +72,17 @@ test('categoriesValue 는 항목마다 필요할 때만 따옴표를 단다', ()
   assert.equal(categoriesValue(['a]', 'b: c', 'd,e']), '["a]", "b: c", "d,e"]');
   assert.deepEqual(parseCategories(categoriesValue(['a]', 'b: c', 'd,e'])).categories, ['a]', 'b: c', 'd,e']);
 });
+
+test('setFrontmatterValue 는 CRLF 파일의 frontmatter 를 그대로 고치고 줄바꿈을 지킨다', () => {
+  const crlf = '---\r\nname: w\r\ndescription: d\r\n---\r\n# t\r\n';
+  assert.equal(setFrontmatterValue(crlf, 'label', 'L'), '---\r\nname: w\r\ndescription: d\r\nlabel: L\r\n---\r\n# t\r\n');
+  assert.equal(setFrontmatterValue(crlf, 'name', 'w2'), '---\r\nname: w2\r\ndescription: d\r\n---\r\n# t\r\n');
+});
+
+test('setFrontmatterValue 는 YAML 지시 문자로 시작하는 값도 감싸서 다시 읽으면 원래 값', () => {
+  for (const v of ['- item', '| x', '> x', '? x', ', a', '] a', '} a', ':x', 'a:']) {
+    const raw = frontmatter(setFrontmatterValue('---\nname: a\n---\n', 'label', v)).label;
+    assert.ok(raw.startsWith('"'), `${v} → ${raw}`);
+    assert.equal(readQuoted(raw), v);
+  }
+});

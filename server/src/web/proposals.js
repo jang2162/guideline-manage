@@ -103,15 +103,17 @@ function detailPage(ctx, p) {
     const d = proposalDiff(ctx, c);
     return [c.path, d === null ? null : diffCounts(d)];
   }));
+  const conflicts = new Set((pl?.files ?? []).filter(f => f.result === 'conflict').map(f => f.path));
+  const total = [...counts.values()].reduce((a, n) => ({ add: a.add + (n?.add ?? 0), del: a.del + (n?.del ?? 0) }), { add: 0, del: 0 });
   const groups = groupChanges(p.changes.map(c => c.path), catalogAt(ctx.store).summary);
-  const current = pickCurrent(groups, (ctx.url.searchParams.get('file') ?? '').normalize('NFC'));
+  const current = pickCurrent(groups, (ctx.url.searchParams.get('file') ?? '').normalize('NFC'), conflicts);
   const c = p.changes.find(x => x.path === current);
   view(ctx, 200, {
     title: t('web.proposal.titleNo', { id: p.id }),
     h1: t('web.proposal.titleFull', { id: p.id, title: p.title }),
     crumbs: [{ label: t('web.nav.proposals'), href: '/proposals' }],
-    detail: { left: changeTree(groups, current, q => `/proposals/${p.id}?file=${encodeURIComponent(q)}`, counts), right: null },
-    body: html`<p class="meta">${STATUS_LABEL[p.status]} · ${p.author}${p.project ? ` · ${p.project}` : ''} · ${day(p.createdAt)}${p.revisionId ? html` · <a href="/r/${p.revisionId}">r${p.revisionId}</a>` : ''}</p>
+    detail: { left: changeTree(groups, current, q => `/proposals/${p.id}?file=${encodeURIComponent(q)}`, counts, conflicts), right: null },
+    body: html`<p class="meta">${STATUS_LABEL[p.status]} · ${p.author}${p.project ? ` · ${p.project}` : ''} · ${day(p.createdAt)}${p.revisionId ? html` · <a href="/r/${p.revisionId}">r${p.revisionId}</a>` : ''} · ${t('web.change.summary', { n: p.changes.length, add: total.add, del: total.del })}</p>
 ${p.description ? html`<p>${p.description}</p>` : ''}
 ${p.status === 'rejected' && p.note ? html`<p class="warn">${t('web.proposal.rejectedNote', { note: p.note })}</p>` : ''}
 ${pl && pl.conflicts.length ? html`<p class="error">${t('web.proposal.outdated')}</p>` : ''}
@@ -174,8 +176,9 @@ export function registerProposals(router) {
     checkOrigin(ctx);
     const form = await readForm(ctx.req, 4 * 1024 * 1024);
     const p = proposalOf(ctx);
-    ctx.proposals.setChange(p.id, (form.get('path') ?? '').normalize('NFC'), Buffer.from(lf(form.get('content') ?? '')));
-    redirect(ctx.res, `/proposals/${p.id}`);
+    const path = (form.get('path') ?? '').normalize('NFC');
+    ctx.proposals.setChange(p.id, path, Buffer.from(lf(form.get('content') ?? '')));
+    redirect(ctx.res, `/proposals/${p.id}?file=${encodeURIComponent(path)}`);
   });
   router.add('POST', '/proposals/:id/drop', async ctx => {
     if (!requireAdminWeb(ctx)) return;

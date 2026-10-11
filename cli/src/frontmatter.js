@@ -38,7 +38,8 @@ export function yamlString(raw) {
 }
 
 /** 따옴표 없이 쓰면 다르게 읽히는 값: 앞뒤 공백, 따옴표·특수 문자로 시작, `: `, ` #`. */
-const NEEDS_QUOTES = v => v !== v.trim() || /^['"]/.test(v) || PLAIN_START_BAD.test(v) || v.includes(': ') || / #/.test(v) || v.endsWith(':');
+// YAML 지시 문자(`|`·`>`·`,`·`]`·`}`)로 시작하거나 `- `·`? `·`:` 로 시작하는 값도 여기에 든다. 프로젝트로 복사된 SKILL.md 는 실제 YAML 파서가 읽는다.
+const NEEDS_QUOTES = v => v !== v.trim() || /^['"|>,\]}:]/.test(v) || /^[-?](\s|$)/.test(v) || PLAIN_START_BAD.test(v) || v.includes(': ') || / #/.test(v) || v.endsWith(':');
 
 /** 값을 한 줄 YAML 문자열로. 필요할 때만 큰따옴표로 감싸고 `\` 와 `"` 를 이스케이프한다. */
 function quoteValue(v) {
@@ -74,6 +75,8 @@ export function categoriesValue(items) {
  * @param {{ raw?: boolean }} [opts]
  */
 export function setFrontmatterValue(text, key, value, { raw = false } = {}) {
+  // CRLF 파일은 LF 로 고친 뒤 원래 줄바꿈으로 되돌린다. 그대로 두면 `---\r` 을 frontmatter 로 못 알아보고 하나를 더 붙인다.
+  if (text.includes('\r\n')) return setFrontmatterValue(text.replace(/\r\n/g, '\n'), key, value, { raw }).replace(/\n/g, '\r\n');
   const line = value ? `${key}: ${raw ? value : quoteValue(value)}` : null;
   const lines = text.split('\n');
   const end = lines[0] === '---' ? lines.findIndex((l, i) => i > 0 && l.trimEnd() === '---') : -1;

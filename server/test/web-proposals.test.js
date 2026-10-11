@@ -114,3 +114,29 @@ test('제안 상세는 파일 트리와 고른 파일 하나, 편집·빼기는 
   assert.ok(second.includes('+n') && !second.includes('+B'));
   assert.ok(second.includes('value="rules/base/01-n.md"'), '빼기 폼은 고른 파일');
 });
+
+test('제안 상세: 충돌 파일은 트리에 표시되고 처음 열면 그 파일, 머리말에 파일 수와 +N −M', async t => {
+  const { s, cookie } = await setup(t);
+  const id2 = s.proposals.create({
+    title: 'b', author: 'p1', tokenId: null,
+    changes: [
+      { path: 'rules/base/00-a.md', content: Buffer.from('a\nT\nc\n'), base: h('a\nb\nc\n') },
+      { path: 'rules/base/02-z.md', content: Buffer.from('z\n'), base: null },
+    ],
+  });
+  s.store.commit({ ...META, changes: { 'rules/base/00-a.md': 'a\nO\nc\n' } });
+  const page = (await getAs(s, cookie, `/proposals/${id2}`)).text;
+  assert.match(page, /<a class="on conflict" href="\/proposals\/\d+\?file=rules%2Fbase%2F00-a\.md"/);
+  assert.match(page, /<a class="conflict"|class="on conflict"/);
+  assert.match(page, /파일 2개 · \+2 −1/);
+  const first = (await getAs(s, cookie, `/proposals/${id2}?file=rules%2Fbase%2F02-z.md`)).text;
+  assert.match(first, /<a class="on" href="\/proposals\/\d+\?file=rules%2Fbase%2F02-z\.md"/);
+});
+
+test('편집 저장·빼기 뒤에는 고르던 파일(빼면 남은 첫 파일)로 돌아온다', async t => {
+  const { s, cookie, id } = await setup(t);
+  const saved = await postForm(s, `/proposals/${id}/edit`, { path: 'rules/base/01-n.md', content: 'n2\n' }, { cookie });
+  assert.equal(saved.headers.location, `/proposals/${id}?file=rules%2Fbase%2F01-n.md`);
+  const dropped = await postForm(s, `/proposals/${id}/drop`, { path: 'rules/base/01-n.md' }, { cookie });
+  assert.equal(dropped.headers.location, `/proposals/${id}`);
+});
