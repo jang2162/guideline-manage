@@ -73,7 +73,10 @@ export function crumbsFor(p, cat) {
 }
 
 /** 지금 저장소 기준의 화면 주소(저장 직후에도 새 목록으로 판단한다). */
-export const hereHref = (store, p) => viewHref(p, catalogAt(store).summary);
+export const hereHref = (store, p) => {
+  const head = store.headHashes();
+  return viewHref(p, catalogAt(store).summary, q => head.has(q));
+};
 
 const PLACEHOLDER = {
   get stacks() { return t('web.find.stacks'); },

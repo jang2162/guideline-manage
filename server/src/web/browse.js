@@ -30,8 +30,9 @@ const warnCount = (s, prefix) => s.warnings.filter(w => w.path.startsWith(prefix
 /** 마크다운 문서 블록. raw 에는 렌더러가 이스케이프를 끝낸 결과만 넣는다. 상대 링크는 블록 상세·설정 주소로 푼다. */
 const docBlock = (ctx, text, p) => {
   const { summary } = catalogAt(ctx.store);
+  const head = ctx.store.headHashes();
   return html`<div class="doc">
-${raw(renderMarkdown(text, { path: p, hrefOf: q => viewHref(q, summary) }))}
+${raw(renderMarkdown(text, { path: p, hrefOf: q => viewHref(q, summary, x => head.has(x)) }))}
 </div>`;
 };
 
@@ -195,15 +196,16 @@ ${admin ? manageForms(p, 'file') : ''}`,
 }
 
 /** 스택 README 아래에 두는 것: 경고, 다른 스택을 바꾸는 표, 세팅 문서. */
-function stackExtras(cat, name) {
+function stackExtras(ctx, cat, name) {
   const s = cat.summary;
+  const head = ctx.store.headHashes();
   const st = s.stacks.find(x => x.name === name);
   const dir = `rules/${name}`;
   const warns = s.warnings.filter(w => w.path.startsWith(`${dir}/`));
   const short = p => (p.startsWith(`${dir}/`) ? p.slice(dir.length + 1) : p.replace(/^rules\//, ''));
   // 파일마다 분류를 단 스택에서만 분류 칸을 둔다(스택 분류는 위 칩에 있다).
   const fileCats = st.files.some(f => s.categories[f.path]?.length);
-  return html`${warns.length ? html`<div class="warn"><ul class="plain">${warns.map(w => html`<li><a href="${viewHref(w.path.replace(/\/$/, ''), s)}">${short(w.path) || name}</a> — ${w.message}</li>`)}</ul></div>` : ''}
+  return html`${warns.length ? html`<div class="warn"><ul class="plain">${warns.map(w => html`<li><a href="${viewHref(w.path.replace(/\/$/, ''), s, q => head.has(q))}">${short(w.path) || name}</a> — ${w.message}</li>`)}</ul></div>` : ''}
 <h2>${t('web.files')}</h2>
 <div class="table-wrap"><table class="list">
 <thead><tr><th>${t('web.col.file')}</th><th>${t('web.col.load')}</th><th>${t('web.col.when')}</th>${fileCats ? html`<th>${t('web.categories')}</th>` : ''}</tr></thead>
@@ -267,7 +269,7 @@ function blockPage(ctx, kind) {
     tab: TAB[kind],
     actions: view.actions,
     detail: { left: blockList(cat, kind, name), right: filesPanel(ctx, kind, name, files, current) },
-    body: html`${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(cat, name) : ''}`,
+    body: html`${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(ctx, cat, name) : ''}`,
   });
 }
 

@@ -47,11 +47,16 @@ export function blockHref(kind, name, rel = '') {
   return rel && kind !== 'agent' ? `${base}/${rel.split('/').map(encodeURIComponent).join('/')}` : base;
 }
 
-/** 저장 경로의 화면 주소: 블록 안이면 블록 상세, 아니면 설정. */
-export function viewHref(p, summary) {
+/**
+ * 저장 경로의 화면 주소: 블록 안이면 블록 상세, 아니면 설정.
+ * isFile 을 주면 파일이 아닌 경로(디렉터리, 지운 파일)는 블록 첫 화면이나 설정 첫 화면으로 보낸다. 상세·설정은 파일 주소만 열기 때문이다.
+ * @param {(p: string) => boolean} [isFile]
+ */
+export function viewHref(p, summary, isFile) {
   const b = blockOf(p, summary);
-  if (b) return blockHref(b.kind, b.name, b.rel);
-  return p ? hrefFor('/settings/', p) : '/settings';
+  const file = !isFile || isFile(p);
+  if (b) return blockHref(b.kind, b.name, file ? b.rel : '');
+  return p && file ? hrefFor('/settings/', p) : '/settings';
 }
 
 /**
