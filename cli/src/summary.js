@@ -1,4 +1,4 @@
-import { stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpServers, ignored, warnings, elementCategories } from './catalog.js';
+import { stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpServers, ignored, warnings, elementCategories, elementLabels } from './catalog.js';
 import { asTree } from './tree.js';
 
 /**
@@ -21,5 +21,6 @@ export function catalogSummary(src) {
     ignored: ignored(tree),
     warnings: warnings(tree),
     categories: elementCategories(tree).categories,
+    labels: elementLabels(tree).labels,
   };
 }

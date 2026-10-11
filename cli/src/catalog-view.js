@@ -1,5 +1,5 @@
 import {
-  stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpDefinitions, elementCategories, fileCategories,
+  stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpDefinitions, elementCategories, elementLabels, fileCategories,
 } from './catalog.js';
 
 /**
@@ -8,16 +8,19 @@ import {
  */
 export function catalogView(root) {
   const { categories } = elementCategories(root);
+  const { labels } = elementLabels(root);
+  const label = key => labels[key] ?? null;
   return {
     stacks: stacks(root).map(name => ({
       name,
+      label: label(`rules/${name}`),
       categories: categories[`rules/${name}`] ?? [],
       setup: stackSetup(name, root),
       files: stackTiers(name, root).map(f => ({ path: f.path, load: f.load, when: f.when, categories: fileCategories(categories, f.path) })),
       overrides: stackOverrides(name, root).overrides,
     })),
-    skills: skills(root).map(name => ({ name, categories: categories[`skills/${name}`] ?? [] })),
-    subagents: subagents(root).map(name => ({ name, categories: categories[`agents/${name}.md`] ?? [] })),
-    mcp: mcpDefinitions(root).map(d => ({ name: d.name, build: d.build, categories: categories[`mcp/${d.name}`] ?? [] })),
+    skills: skills(root).map(name => ({ name, label: label(`skills/${name}`), categories: categories[`skills/${name}`] ?? [] })),
+    subagents: subagents(root).map(name => ({ name, label: label(`agents/${name}.md`), categories: categories[`agents/${name}.md`] ?? [] })),
+    mcp: mcpDefinitions(root).map(d => ({ name: d.name, label: label(`mcp/${d.name}`), build: d.build, categories: categories[`mcp/${d.name}`] ?? [] })),
   };
 }

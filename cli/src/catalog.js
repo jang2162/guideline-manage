@@ -248,6 +248,23 @@ export function elementCategories(src) {
 }
 
 /**
+ * 블록마다 표시 이름(frontmatter `label`). 키는 elementCategories 와 같고, 지침 파일 키는 쓰지 않는다.
+ * 값이 없거나 비면 키가 없다. 화면에만 쓰는 값이라 경고는 내지 않는다.
+ * @returns {{ labels: Record<string, string> }}
+ */
+export function elementLabels(src) {
+  const tree = asTree(src);
+  const labels = {};
+  for (const { key, file } of categorySources(tree)) {
+    if (key === file && key.startsWith('rules/')) continue;
+    const raw = frontmatter(readText(tree, file) ?? '')?.label;
+    const value = raw === undefined ? '' : (yamlString(raw.trim()) ?? raw.trim()).trim();
+    if (value) labels[key] = value;
+  }
+  return { labels };
+}
+
+/**
  * 지침 파일의 분류: 스택 분류 ∪ 파일 분류.
  * @param {Record<string, string[]>} categories elementCategories 의 categories
  * @param {string} rel `rules/<스택>/<파일>`
