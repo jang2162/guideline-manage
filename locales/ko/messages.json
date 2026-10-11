@@ -516,7 +516,7 @@
   "web.tokens.confirmRevoke": "{name} 토큰을 폐기할까요?",
   "web.tokens.copyNow": "이 값은 다시 볼 수 없음. 지금 복사해서 에이전트의 환경 변수에 저장.",
   "web.tokens.created": "만든 날",
-  "web.tokens.intro": "에이전트가 API 에 쓰는 토큰. read 는 읽기, propose 는 읽기와 제안까지 가능.",
+  "web.tokens.intro": "에이전트가 API 에 쓰는 토큰. read 는 읽기, propose 는 제안까지, admin 은 제안 수락·바로 반영까지 가능.",
   "web.tokens.issueHeading": "발급",
   "web.tokens.issued": "토큰 발급",
   "web.tokens.lastUsed": "마지막 사용",
@@ -537,5 +537,8 @@
   "web.warnings": "경고 {n}",
   "web.warningsHeading": "경고",
   "workspace.unknownSource": "출처 {name} 가 {dir} 의 guideline.json 에 없음",
-  "web.source.seed": "씨앗"
+  "web.source.seed": "씨앗",
+  "web.tokens.delete": "삭제",
+  "web.tokens.confirmDelete": "{name} 토큰을 삭제할까요?",
+  "web.tokens.adminWarning": "admin 토큰은 제안 검토 없이 원본을 바로 바꿀 수 있음. 믿을 수 있는 에이전트에만 발급."
 }

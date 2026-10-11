@@ -123,3 +123,12 @@ if (search) {
     }
   });
 }
+
+// 토큰 발급 폼: admin 범위를 고르면 경고를 보인다.
+const scopeSelect = document.querySelector('[data-scope-select]');
+const scopeWarning = document.querySelector('[data-scope-warning]');
+if (scopeSelect && scopeWarning) {
+  const syncScope = () => { scopeWarning.hidden = scopeSelect.value !== 'admin'; };
+  scopeSelect.addEventListener('change', syncScope);
+  syncScope();
+}

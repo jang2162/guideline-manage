@@ -19,13 +19,14 @@ function tokensPage(ctx, { status = 200, error = null } = {}) {
 <div class="table-wrap"><table>
 <tr><th>${t('web.tokens.name')}</th><th>${t('web.tokens.scope')}</th><th>${t('web.tokens.created')}</th><th>${t('web.tokens.lastUsed')}</th><th>${t('web.tokens.status')}</th></tr>
 ${rows.map(r => html`<tr><td>${r.name}</td><td>${r.scope}</td><td>${day(r.createdAt)}</td><td>${day(r.lastUsedAt)}</td><td>${r.revokedAt
-    ? t('web.tokens.revokedOn', { day: day(r.revokedAt) })
+    ? html`${t('web.tokens.revokedOn', { day: day(r.revokedAt) })} <form method="post" action="/tokens/${r.id}/delete" class="inline" data-confirm="${t('web.tokens.confirmDelete', { name: r.name })}"><button class="link">${t('web.tokens.delete')}</button></form>`
     : html`<form method="post" action="/tokens/${r.id}/revoke" data-confirm="${t('web.tokens.confirmRevoke', { name: r.name })}"><button class="danger">${t('web.tokens.revoke')}</button></form>`}</td></tr>`)}
 </table></div>
 <h2>${t('web.tokens.issueHeading')}</h2>
 <form method="post" action="/tokens" class="stack">
 <label>${t('web.tokens.nameLabel')} <input name="name" required pattern="[A-Za-z0-9._\\-]{1,64}"></label>
-<label>${t('web.tokens.scope')} <select name="scope"><option value="propose">propose</option><option value="read">read</option></select></label>
+<label>${t('web.tokens.scope')} <select name="scope" data-scope-select><option value="propose">propose</option><option value="read">read</option><option value="admin">admin</option></select></label>
+<p class="warn" data-scope-warning hidden>${t('web.tokens.adminWarning')}</p>
 <button>${t('web.issue')}</button>
 </form>`,
   });
@@ -62,6 +63,14 @@ export function registerTokens(router) {
     checkOrigin(ctx);
     if (!/^\d+$/.test(ctx.params.id)) throw new HttpError(404, t('web.tokens.notFound'));
     ctx.tokens.revoke(Number(ctx.params.id));
+    redirect(ctx.res, '/tokens');
+  });
+  // 폐기한 토큰만 목록에서 숨긴다. 쓰는 중인 토큰은 먼저 폐기해야 한다(tokens.remove 가 무시한다).
+  router.add('POST', '/tokens/:id/delete', async ctx => {
+    if (!requireAdminWeb(ctx)) return;
+    checkOrigin(ctx);
+    if (!/^\d+$/.test(ctx.params.id)) throw new HttpError(404, t('web.tokens.notFound'));
+    ctx.tokens.remove(Number(ctx.params.id));
     redirect(ctx.res, '/tokens');
   });
 }

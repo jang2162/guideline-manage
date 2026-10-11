@@ -516,7 +516,7 @@
   "web.tokens.confirmRevoke": "Revoke the token {name}",
   "web.tokens.copyNow": "You cannot see this value again. Copy it now into the agent's environment.",
   "web.tokens.created": "Created",
-  "web.tokens.intro": "Tokens that agents use for the API. read can read; propose can read and propose.",
+  "web.tokens.intro": "Tokens agents use for the API. read can read, propose can also propose, and admin can also accept proposals and apply changes directly.",
   "web.tokens.issueHeading": "Issue",
   "web.tokens.issued": "Token issued",
   "web.tokens.lastUsed": "Last used",
@@ -537,5 +537,8 @@
   "web.warnings": "warnings {n}",
   "web.warningsHeading": "Warnings",
   "workspace.unknownSource": "Source {name} is not in guideline.json in {dir}",
-  "web.source.seed": "Seed"
+  "web.source.seed": "Seed",
+  "web.tokens.delete": "Delete",
+  "web.tokens.confirmDelete": "Delete the token {name}?",
+  "web.tokens.adminWarning": "An admin token can change the source directly, without proposal review. Issue it only to agents you trust."
 }
