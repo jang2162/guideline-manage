@@ -28,7 +28,7 @@ Run them in a unit directory (one with `.ruler/`). Common options: `--project <p
 | `guideline propose` | Turns edited copies back into source form and proposes them. With an `admin` scope token it applies them directly instead (no review); `--review` sends a proposal anyway, `--apply` applies explicitly (an error with a non-admin token). `--dry-run` (also says which of the two sending would do), `--title`, `--message`, `--only <item,…>`, `--from <folder>`. `--json` adds `mode`: `apply` or `proposal` (absent when there is nothing to send). The dry run is the authoritative way to see the mode: it asks with the same token and server the real send uses, while `status` may resolve a different token (several sources, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | Logs in to a server and stores a token, or deletes it. `--token-stdin` stores a token without a browser. After saving, `login` prints the token's scope (`read`, `propose` or `admin`) |
 
-`pick` and `update` print the written files, deleted files and **to-dos**. The kinds of to-dos are listed in the "What agents do" table of the server's `/llms.txt`.
+`pick` and `update` print the written files, deleted files and **to-dos**; `status` prints to-dos too. The kinds of to-dos are listed in the "What agents do" table of the server's `/llms.txt`. `update` and `status` report a `missing-requires` to-do for each received block that needs (`requires`) blocks the project has not received — for example when the source gained a new `requires` after the project received the block. `data.missing` lists the missing block keys; add them with `guideline pick`. With several sources, each source is judged by its own `requires` and its own blocks, before aliases.
 
 ## Source commands
 

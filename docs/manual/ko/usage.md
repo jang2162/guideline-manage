@@ -28,7 +28,7 @@
 | `guideline propose` | 고친 사본을 원본 모양으로 되돌려 제안한다. 범위 `admin` 토큰이면 제안 대신 바로 반영한다(검토 없음). `--review` 는 그래도 제안으로 보내고, `--apply` 는 명시해서 바로 반영한다(admin 토큰이 아니면 오류). `--dry-run`(보내면 둘 중 어느 쪽인지도 알린다), `--title`, `--message`, `--only <항목,…>`, `--from <폴더>`. `--json` 에는 `mode`: `apply` 또는 `proposal` 이 더해진다(보낼 것이 없으면 없다). 방식은 dry-run 으로 보는 것이 정확하다 — 실제로 보낼 때와 같은 토큰·서버로 묻지만, `status` 는 다른 토큰을 쓸 수 있다(출처가 여럿일 때, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | 서버에 로그인해 토큰을 저장하거나 지운다. `--token-stdin` 은 브라우저 없이 토큰을 넣는다. `login` 은 저장한 뒤 토큰의 범위(`read`·`propose`·`admin`)를 알린다 |
 
-`pick`·`update` 는 쓴 파일, 지운 파일, **할 일**을 낸다. 할 일 종류는 서버의 `/llms.txt` 「에이전트가 할 일」 표에 있다.
+`pick`·`update` 는 쓴 파일, 지운 파일, **할 일**을 낸다. `status` 도 할 일을 낸다. 할 일 종류는 서버의 `/llms.txt` 「에이전트가 할 일」 표에 있다. `update`·`status` 는 받은 블록이 필요로 하는(`requires`) 블록을 프로젝트가 받지 않았으면 요구하는 블록마다 `missing-requires` 할 일을 낸다 — 예를 들어 블록을 받은 뒤 원본에 새 `requires` 가 생긴 경우다. `data.missing` 에 빠진 블록 키가 있고, `guideline pick` 으로 더한다. 출처가 여럿이면 출처마다 그 출처의 `requires` 와 그 출처에서 받은 블록(별칭 전 이름)으로 판정한다.
 
 ## 원본 명령
 

@@ -265,7 +265,7 @@ export function elementLabels(src) {
 }
 
 /** 원본 블록 키 집합(rules/<스택>, skills/<이름>, agents/<이름>.md, mcp/<이름>). */
-function blockKeys(tree) {
+export function blockKeys(tree) {
   return new Set(categorySources(tree).filter(({ key, file }) => !(key === file && key.startsWith('rules/'))).map(({ key }) => key));
 }
 

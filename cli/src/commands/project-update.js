@@ -3,7 +3,7 @@ import { readManifest, readLock, ManifestError } from '../manifest.js';
 import { diskReader, newFiles } from '../project-state.js';
 import { unitInfo, unitProblem } from '../unit.js';
 import { render } from '../render/index.js';
-import { fetchSources, virtualize, toRealLock, aliasMoveTodos, showId, protectedPaths, manifestClashes } from '../workspace.js';
+import { fetchSources, virtualize, toRealLock, aliasMoveTodos, missingRequiresTodos, showId, protectedPaths, manifestClashes } from '../workspace.js';
 import { finishApply, report } from './sync-common.js';
 import { t } from '../i18n.js';
 
@@ -87,6 +87,7 @@ export async function projectUpdate({
   for (const f of newFiles(v.tree, v.view)) {
     rendered.todos.push({ kind: 'new-file', item: show(f), message: t('todo.newFile', { item: show(f) }) });
   }
+  rendered.todos.push(...missingRequiresTodos({ manifest, trees, many: v.many }));
   const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   return failures.length && done.code === 0 ? 1 : done.code;

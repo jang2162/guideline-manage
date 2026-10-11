@@ -109,6 +109,7 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 | `adopted` | A copy `propose` left out. It already differed from the source when first received (it may be an old version). Use `guideline propose --only <item>` only if the project really edited it; if it is an old version, `guideline update --force` |
 | `alias` | An alias problem. For "the stack moved", move the override files to `.ruler/<new name>/`. Otherwise fix `aliases` in `guideline.json` |
 | `new-file`, `removed-upstream` | Tell the user, and suggest `guideline pick` to choose or remove it |
+| `missing-requires` | A received block (`item`) needs blocks that were not received (`data.missing`; from `update` and `status`). Tell the user which blocks are missing, and run `guideline pick --recommend <file> --json` with a recommendation file holding them; submitting the form is the confirmation |
 | `blocked` | Not applied because of a source warning (or because it is a nested directory). The copy stays as it is. Report the reason |
 | `leftover` | Unchecked, but the copy differs from the source, so it was not deleted. Show the diff and ask whether to delete it |
 

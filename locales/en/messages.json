@@ -265,6 +265,7 @@
   "todo.leftoverGenerated": "{where}: generated files of unchecked items remain — check them and delete them",
   "todo.mcpBuild": "{name}: build the entry as the README's build section says and write it (agent)",
   "todo.mcpManual": "{id}: MCP edits are not proposed automatically — edit server.json in a folder from guideline source and propose it with guideline propose --from",
+  "todo.missingRequires": "{item}: needs blocks that were not received ({missing}) — add them with guideline pick",
   "todo.nestedOff": "Turn on nested = true in .ruler/ruler.toml at the git root ({root}) — otherwise ruler does not build this directory's guidelines",
   "todo.newFile": "{item}: new in a chosen stack — choose it with guideline pick",
   "todo.removedUpstream": "{item}: removed from the source — remove it in guideline pick",

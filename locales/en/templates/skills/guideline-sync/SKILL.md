@@ -47,7 +47,7 @@ First check the state with `guideline status --json` and report it in one line (
 
 ## Handling to-dos
 
-Handle the `todos` in the JSON from `pick` or `update` one by one.
+Handle the `todos` in the JSON from `pick`, `update` or `status` one by one.
 
 | kind | What to do |
 | --- | --- |
@@ -60,6 +60,7 @@ Handle the `todos` in the JSON from `pick` or `update` one by one.
 | `subagents-off` | Ask whether to turn on `[agents] enabled = true` in `.ruler/ruler.toml` (it adds generated files to `.gitignore`) |
 | `ruler-apply` | Ask whether you may run the suggested command |
 | `new-file`, `removed-upstream` | Tell the user, and suggest `guideline pick` to choose or remove it |
+| `missing-requires` | A received block (`item`) needs blocks that were not received (`data.missing`, source keys). Tell the user which blocks are missing, write a recommendation file with them (`{"<missing block>": "needed by <item>"}`) and run `guideline pick --recommend <file> --json` as in "Recommend and receive" — submitting the form is the confirmation. With several sources (`item` starts with `<source>:`), add `--source <source>` |
 | `blocked` | Not applied because of a source warning. The copy stays as it is. Report that the source should be fixed |
 | `leftover` | Unchecked in the form, but the copy differs from the source, so it was not deleted. Show the diff and ask whether to delete it |
 | `nested-off` | Ask whether to turn on `nested = true` in `.ruler/ruler.toml` at the git root. Otherwise ruler does not build this directory's guidelines |

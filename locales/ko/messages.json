@@ -265,6 +265,7 @@
   "todo.leftoverGenerated": "{where}: 체크를 푼 항목의 생성물이 남음 — 확인 후 삭제",
   "todo.mcpBuild": "{name}: README 의 「반영할 때 항목 만들기」 절대로 항목을 만들어 쓰기(에이전트)",
   "todo.mcpManual": "{id}: MCP 수정은 자동으로 올리지 않음 — guideline source 로 받은 폴더에서 server.json 을 고쳐 guideline propose --from 으로 올리기",
+  "todo.missingRequires": "{item}: 필요로 하는 블록을 받지 않음({missing}) — guideline pick 으로 더하기",
   "todo.nestedOff": "git 루트({root})의 .ruler/ruler.toml 에서 nested = true 켜기 — 켜지 않으면 ruler 가 이 디렉터리의 지침을 만들지 않음",
   "todo.newFile": "{item}: 고른 스택에 새로 생김 — guideline pick 으로 선택",
   "todo.removedUpstream": "{item}: 원본에서 사라짐 — guideline pick 에서 해제",

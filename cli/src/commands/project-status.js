@@ -2,7 +2,7 @@ import { expandPath, runGit } from '../projects.js';
 import { diskReader, itemStates, newFiles, statusTodos, STATE_ORDER, stateLabel } from '../project-state.js';
 import { unitInfo, rootNestedOn, nestedOffTodo } from '../unit.js';
 import { printTodos } from '../todos.js';
-import { fetchSources, virtualize, showId, protectedPaths } from '../workspace.js';
+import { fetchSources, virtualize, showId, protectedPaths, missingRequiresTodos } from '../workspace.js';
 import { tokenInfo } from '../remote.js';
 import { openProject, revisionLabel } from './project-update.js';
 import { t } from '../i18n.js';
@@ -34,7 +34,7 @@ export async function projectStatus({
   const { states, outputs } = itemStates({ tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management });
   const show = id => showId(id, v.sources, v.many);
   const fresh = newFiles(v.tree, v.view);
-  const todos = [...statusTodos(states, fresh, show), ...v.problems];
+  const todos = [...statusTodos(states, fresh, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   const head = revisionLabel(Object.fromEntries([...trees].map(([name, t]) => [name, t.revision])));
   const applied = revisionLabel(Object.fromEntries([...trees.keys()].map(name => [name, lock.revisions[name] ?? 0])));

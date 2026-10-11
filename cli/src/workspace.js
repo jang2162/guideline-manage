@@ -5,6 +5,7 @@ import { getToken } from './credentials.js';
 import { qualify, splitQualified, readManifest } from './manifest.js';
 import { sourceView, mergeViews, toVirtual, realOf, aliasProblems, unitOf, finalUnit, unitName, collisions, collisionMessage } from './sources.js';
 import { readText } from './tree.js';
+import { blockKeys, elementRequires } from './catalog.js';
 import { t } from './i18n.js';
 
 // 여러 출처의 원본을 받아 하나의 가상 원본으로 합치고(렌더링·상태 코드가 그대로 쓰게), 결과 잠금을 출처 붙은 id 로 되돌린다.
@@ -208,6 +209,30 @@ export function aliasMoveTodos({ previous, next, project }) {
     const base = path.join(project, '.ruler', d);
     const which = fs.existsSync(path.join(base, 'override.md')) ? 'override.md' : fs.existsSync(path.join(base, 'override.d')) ? 'override.d/' : null;
     if (which) out.push({ kind: 'alias', item: null, message: t('todo.aliasMoved', { dir: d, file: which }) });
+  }
+  return out;
+}
+
+/**
+ * 받은 블록이 requires 로 요구하는데 받지 않은 블록을 알리는 할 일. 요구하는 블록 하나에 하나.
+ * 출처마다 그 출처의 원본 requires 와 매니페스트의 실제 id(별칭을 입히기 전)로 판정한다 — requires 는 원본 키라
+ * 별칭을 입히지 않은 쪽끼리 견줘야 맞고, 다른 출처의 같은 이름 블록은 다른 블록이다.
+ * 스택은 그 스택의 파일이 하나라도 받혀 있으면 받은 것이다. 원본에 없는 블록은 pick 으로 더할 수 없으므로 알리지 않는다.
+ * @param {{ manifest: import('./manifest.js').Manifest, trees: Map<string, { tree: import('./tree.js').Tree }>, many: boolean }} opts
+ */
+export function missingRequiresTodos({ manifest, trees, many }) {
+  const out = [];
+  for (const name of [...trees.keys()].sort(byStr)) {
+    const tree = trees.get(name).tree;
+    const received = new Set((manifest.sources[name]?.items ?? []).map(unitOf).filter(Boolean));
+    const { requires } = elementRequires(tree);
+    const exists = blockKeys(tree);
+    for (const unit of [...received].sort(byStr)) {
+      const missing = (requires[unit] ?? []).filter(k => !received.has(k) && exists.has(k));
+      if (!missing.length) continue;
+      const item = many ? qualify(name, unit) : unit;
+      out.push({ kind: 'missing-requires', item, message: t('todo.missingRequires', { item, missing: missing.join(', ') }), data: { missing } });
+    }
   }
   return out;
 }
