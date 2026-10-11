@@ -38,7 +38,7 @@ test('문서에 지운 명령과 옛 모드가 없다', () => {
   }
 });
 
-test('언어 설정과 언어팩 안내가 있고, 버전은 0.19.2 이다', () => {
+test('언어 설정과 언어팩 안내가 있고, 버전은 0.20.0 이다', () => {
   for (const file of ['README.md', 'README.ko.md', 'docs/manual/usage.md', 'docs/manual/ko/usage.md', 'docs/manual/server.md', 'docs/manual/ko/server.md']) {
     assert.match(read(file), /GUIDELINE_LANG/, file);
   }
@@ -48,5 +48,5 @@ test('언어 설정과 언어팩 안내가 있고, 버전은 0.19.2 이다', () 
       assert.ok(text.includes(want), `${file}: ${want}`);
     }
   }
-  assert.equal(JSON.parse(read('package.json')).version, '0.19.2');
+  assert.equal(JSON.parse(read('package.json')).version, '0.20.0');
 });

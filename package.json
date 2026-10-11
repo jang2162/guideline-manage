@@ -1,6 +1,6 @@
 {
   "name": "guideline-manage",
-  "version": "0.19.2",
+  "version": "0.20.0",
   "description": "Keep shared coding-agent guidelines on a guideline server and pick them into ruler projects",
   "keywords": [
     "ai",
