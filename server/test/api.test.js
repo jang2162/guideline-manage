@@ -110,3 +110,24 @@ test('없는 경로는 404, 메서드가 틀리면 405 와 Allow', async t => {
   assert.equal(m.status, 405);
   assert.equal(m.headers.allow, 'GET');
 });
+
+test('whoami 는 토큰의 종류·이름·범위를 내고, 토큰이 없거나 틀리면 공개 여부와 상관없이 401', async t => {
+  for (const publicRead of [true, false]) {
+    const s = await startApp(t, { config: testConfig({ publicRead }) });
+    assert.deepEqual((await s.req('/api/v1/whoami', { auth: ADMIN })).json(), { kind: 'admin', name: null, scope: 'admin' });
+    for (const scope of ['read', 'propose', 'admin']) {
+      const { token } = s.tokens.issue({ name: `t-${scope}`, scope });
+      const r = await s.req('/api/v1/whoami', { auth: token });
+      assert.equal(r.status, 200);
+      assert.deepEqual(r.json(), { kind: 'token', name: `t-${scope}`, scope });
+    }
+    const none = await s.req('/api/v1/whoami');
+    assert.equal(none.status, 401, `publicRead=${publicRead}`);
+    assert.deepEqual(none.json(), { error: '토큰 필요' });
+    assert.equal(none.headers['www-authenticate'], 'Bearer');
+    assert.equal((await s.req('/api/v1/whoami', { auth: 'glt_wrong' })).status, 401);
+    const { id, token } = s.tokens.issue({ name: 'gone', scope: 'admin' });
+    s.tokens.revoke(id);
+    assert.equal((await s.req('/api/v1/whoami', { auth: token })).status, 401);
+  }
+});

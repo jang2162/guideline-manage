@@ -20,7 +20,7 @@ export const ALLOWED_OPTIONS = {
   status: ['project', 'server', 'source', 'json'],
   login: ['server', 'token-stdin'],
   logout: ['server'],
-  propose: ['project', 'server', 'source', 'title', 'message', 'only', 'from', 'dry-run', 'apply', 'json'],
+  propose: ['project', 'server', 'source', 'title', 'message', 'only', 'from', 'dry-run', 'apply', 'review', 'json'],
   source: ['server', 'source'],
   locale: ['json'],
   help: [],
@@ -44,6 +44,7 @@ export const OPTIONS = {
   force: { type: 'boolean' },
   'token-stdin': { type: 'boolean' },
   apply: { type: 'boolean' },
+  review: { type: 'boolean' },
 };
 
 /**
@@ -112,7 +113,7 @@ export async function main(argv) {
     return propose({
       project: values.project, server: values.server, source: values.source, title: values.title, message: values.message,
       only: values.only?.split(',').map(s => s.trim()).filter(Boolean), from: values.from,
-      dryRun: values['dry-run'], apply: values.apply, json: values.json, cwd,
+      dryRun: values['dry-run'], apply: values.apply, review: values.review, json: values.json, cwd,
     });
   }
 

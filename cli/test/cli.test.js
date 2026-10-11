@@ -142,10 +142,11 @@ test('help 에 propose·source 가 있고, 옵션 검사를 받는다', t => {
   assert.match(h.out, /propose +고친 사본을 원본 모양으로 되돌려 지침 서버에 제안/);
   assert.match(h.out, /source +지침 서버의 최신 원본을 빈 폴더에 풀기/);
   assert.match(h.out, /--from <폴더>/);
-  assert.match(h.out, /--apply +admin 토큰이면 제안 대신 바로 반영/);
+  assert.match(h.out, /--apply +바로 반영/);
+  assert.match(h.out, /--review +admin 토큰이어도 바로 반영하지 않고 검토를 기다리는 제안으로 보냄/);
   const bad = run(['propose', '--force'], dir);
   assert.equal(bad.code, 2);
-  assert.match(bad.out, /propose 에서 쓸 수 있는 옵션: --project, --server, --source, --title, --message, --only, --from, --dry-run, --apply, --json/);
+  assert.match(bad.out, /propose 에서 쓸 수 있는 옵션: --project, --server, --source, --title, --message, --only, --from, --dry-run, --apply, --review, --json/);
   const noDir = run(['source'], dir);
   assert.equal(noDir.code, 2);
   assert.match(noDir.out, /풀 폴더 지정 필요/);
@@ -188,4 +189,12 @@ test('propose --apply 를 명령줄에서 받는다', () => {
   const r = run(['propose', '--from', folder, '--title', 'x', '--apply'], folder);
   assert.doesNotMatch(r.out, /Unknown option/);
   assert.equal(r.code, 2);
+});
+
+test('propose --apply --review 는 명령줄에서 2', () => {
+  const folder = tmpDir('guideline-not-source-');
+  const r = run(['propose', '--from', folder, '--title', 'x', '--apply', '--review'], folder);
+  assert.equal(r.code, 2);
+  assert.match(r.out, /--apply 와 --review 는 같이 쓸 수 없음/);
+  fs.rmSync(folder, { recursive: true, force: true });
 });

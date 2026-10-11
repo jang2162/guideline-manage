@@ -81,6 +81,13 @@ export function registerApi(router, { store, config }) {
     ok: true, version: packageVersion(), schema: SCHEMA_VERSION, api: 2, revision: store.headRevision(), publicRead: config.publicRead,
   }));
 
+  // 보낸 토큰이 무엇인가. CLI 가 범위를 보고 propose 를 바로 반영할지 정한다. 공개 서버여도 토큰이 있어야 한다.
+  router.add('GET', '/api/v1/whoami', ctx => {
+    requireToken(ctx);
+    const a = ctx.auth;
+    sendJson(ctx.res, 200, a.kind === 'admin' ? { kind: 'admin', name: null, scope: 'admin' } : { kind: 'token', name: a.name, scope: a.scope });
+  });
+
   router.add('GET', '/api/v1/catalog', ctx => {
     requireRead(ctx);
     const r = rev(ctx);

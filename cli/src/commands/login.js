@@ -1,7 +1,7 @@
 import http from 'node:http';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { serverOf, remoteClient, explain } from '../remote.js';
+import { serverOf, remoteClient, explain, tokenInfo } from '../remote.js';
 import { saveToken, getToken, removeToken } from '../credentials.js';
 import { openBrowser } from '../browser.js';
 import { t } from '../i18n.js';
@@ -68,6 +68,12 @@ async function callbackServer() {
   return { url: `http://127.0.0.1:${server.address().port}/cb`, got, close };
 }
 
+/** 저장한 토큰의 범위를 알린다. 서버가 whoami 를 모르면(옛 서버) 조용히 넘어간다. */
+async function printScope(client, out) {
+  const info = await tokenInfo(client);
+  if (info) out(t('login.scope', { scope: info.scope }));
+}
+
 /**
  * 지침 서버에 로그인해 읽기 토큰을 저장한다. 브라우저 승인(PKCE) 또는 --token-stdin.
  * @returns {Promise<number>}
@@ -96,14 +102,16 @@ export async function login({
       err(t('login.noStdinToken'));
       return 2;
     }
+    const client = remoteClient({ server: url, token, fetchImpl });
     try {
-      await remoteClient({ server: url, token, fetchImpl }).tree();
+      await client.tree();
     } catch (e) {
       err(t('login.tokenCheckFailed', { reason: explain(e, url) }));
       return 1;
     }
     saveToken(url, { token, name: 'stdin' }, { env, home });
     out(t('login.saved', { url }));
+    await printScope(client, out);
     return 0;
   }
 
@@ -133,6 +141,7 @@ export async function login({
     const r = await remoteClient({ server: url, fetchImpl }).exchange(got.code, verifier);
     saveToken(url, { token: r.token, name: r.name }, { env, home });
     out(t('login.done', { url, name: r.name }));
+    await printScope(remoteClient({ server: url, token: r.token, fetchImpl }), out);
     return 0;
   } catch (e) {
     err(explain(e, url));

@@ -33,6 +33,7 @@ test('브라우저로 승인하면 읽기 토큰을 받아 저장한다', async 
   assert.equal(code, 0, e.text());
   assert.match(e.text(), /^로그인: http:\/\/127\.0\.0\.1:\d+\/cli\/login\?/m);
   assert.match(o.text(), /로그인 성공: .*\(cli-test-mac-[0-9a-f]{6}\)/);
+  assert.match(o.text(), /^토큰 범위: read$/m);
   const token = getToken(s.base, { env: {}, home });
   assert.equal(s.tokens.verify(token).scope, 'read');
   assert.equal(fs.statSync(credentialsPath({ env: {}, home })).mode & 0o777, 0o600);
@@ -55,6 +56,23 @@ test('--token-stdin 은 토큰을 확인한 뒤 저장한다', async t => {
   const e = collect();
   assert.equal(await login({ server: s.base, tokenStdin: true, stdin: Readable.from(['glt_wrong']), env: {}, home, out: () => {}, err: e.out }), 1);
   assert.match(e.text(), /토큰 확인 실패/);
+});
+
+test('--token-stdin 은 저장한 뒤 토큰 범위를 알린다. whoami 가 없는 옛 서버면 범위 줄 없이 저장한다', async t => {
+  const s = await startApp(t);
+  const home = homeOf(t);
+  const { token } = s.tokens.issue({ name: 'boss', scope: 'admin' });
+  const o = collect();
+  assert.equal(await login({ server: s.base, tokenStdin: true, stdin: Readable.from([token]), env: {}, home, out: o.out }), 0);
+  assert.match(o.text(), /저장 완료: /);
+  assert.match(o.text(), /^토큰 범위: admin$/m);
+  const old = (url, init) => (String(url).endsWith('/api/v1/whoami')
+    ? Promise.resolve(new Response(JSON.stringify({ error: '페이지 없음' }), { status: 404 }))
+    : fetch(url, init));
+  const o2 = collect();
+  assert.equal(await login({ server: s.base, tokenStdin: true, stdin: Readable.from([token]), env: {}, home, out: o2.out, fetchImpl: old }), 0);
+  assert.match(o2.text(), /저장 완료: /);
+  assert.doesNotMatch(o2.text(), /토큰 범위/);
 });
 
 test('--token-stdin 은 터미널이면 안내를 띄우고 가린 채 한 줄을 읽는다', async t => {

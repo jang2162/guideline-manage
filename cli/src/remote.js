@@ -64,7 +64,25 @@ export function remoteClient({ server, token = null, fetchImpl = fetch, version 
     exchange: (code, verifier) => call('POST', 'cli/token', { body: { code, verifier }, auth: false }),
     revokeSelf: () => call('DELETE', 'tokens/self'),
     createProposal: body => call('POST', 'proposals', { body }),
+    // 보낸 토큰의 { kind, name, scope }. whoami 가 없는 옛 서버(404)면 null.
+    whoami: () => call('GET', 'whoami').catch(e => {
+      if (e instanceof ServerError && e.status === 404) return null;
+      throw e;
+    }),
   };
+}
+
+/**
+ * 토큰의 { name, scope }. 토큰이 없거나 틀렸거나, 서버가 옛것이거나 닿지 않으면 null — 이것 때문에 명령이 실패하지는 않는다.
+ * @returns {Promise<{ name: string | null, scope: string } | null>}
+ */
+export async function tokenInfo(client) {
+  try {
+    const w = await client.whoami();
+    return w && typeof w.scope === 'string' ? { name: w.name ?? null, scope: w.scope } : null;
+  } catch {
+    return null;
+  }
 }
 
 /** 사용자에게 보일 오류 문장. */

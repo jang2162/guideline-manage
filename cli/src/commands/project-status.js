@@ -3,6 +3,7 @@ import { diskReader, itemStates, newFiles, statusTodos, STATE_ORDER, stateLabel 
 import { unitInfo, rootNestedOn, nestedOffTodo } from '../unit.js';
 import { printTodos } from '../todos.js';
 import { fetchSources, virtualize, showId, protectedPaths } from '../workspace.js';
+import { tokenInfo } from '../remote.js';
 import { openProject, revisionLabel } from './project-update.js';
 import { t } from '../i18n.js';
 
@@ -37,6 +38,10 @@ export async function projectStatus({
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   const head = revisionLabel(Object.fromEntries([...trees].map(([name, t]) => [name, t.revision])));
   const applied = revisionLabel(Object.fromEntries([...trees.keys()].map(name => [name, lock.revisions[name] ?? 0])));
+  // 서버가 본 토큰(이름·범위). 출처가 하나면 { name, scope } | null, 여럿이면 출처 이름별.
+  const tokens = {};
+  for (const [name, x] of trees) tokens[name] = await tokenInfo(x.client);
+  const token = revisionLabel(tokens);
   const code = failures.length ? 1 : 0;
   if (json) {
     out(JSON.stringify({
@@ -46,11 +51,17 @@ export async function projectStatus({
       outputs: outputs.map(o => ({ path: o.path, ...(o.key ? { key: o.key } : {}), state: o.state })),
       newFiles: fresh.map(show),
       todos,
+      token,
     }, null, 2));
     return code;
   }
   const label = r => (typeof r === 'object' ? Object.entries(r).map(([n, x]) => `${n} r${x}`).join(', ') : `r${r}`);
   out(t('status.header', { dir, applied: label(applied), head: label(head) }));
+  for (const [name, info] of Object.entries(tokens)) {
+    if (!info) continue;
+    const line = t('status.token', { name: info.name ?? t('status.adminToken'), scope: info.scope });
+    out(`  ${trees.size > 1 ? `${name}: ` : ''}${line}`);
+  }
   const counts = {};
   for (const s of states.values()) counts[s] = (counts[s] ?? 0) + 1;
   out(`  ${STATE_ORDER.filter(k => counts[k]).map(k => `${stateLabel(k)} ${counts[k]}`).join(' · ')}`);

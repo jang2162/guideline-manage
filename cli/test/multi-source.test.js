@@ -138,6 +138,11 @@ test('status: 출처가 둘이면 항목을 <출처>:<id> 로 보인다', async 
   assert.equal(await projectStatus({ project: p, env, json: true, out: o.out }), 0);
   const s = JSON.parse(o.text());
   assert.deepEqual(s.items.map(i => [i.id, i.state]).sort(), [['a:rules/base/00-a.md', 'current'], ['b:rules/base/00-a.md', 'upstream']]);
+  assert.deepEqual(s.token, { a: { name: 'cli-t', scope: 'propose' }, b: { name: 'cli-t', scope: 'propose' } });
+  const text = collect();
+  await projectStatus({ project: p, env, out: text.out });
+  assert.match(text.text(), /^ {2}a: 토큰: cli-t — 범위 propose$/m);
+  assert.match(text.text(), /^ {2}b: 토큰: cli-t — 범위 propose$/m);
 });
 
 /** 브라우저 대신: 폼 주소가 어느 서버의 것인지 찾아 열고, 출처마다 정한 대로 제출하거나 취소한다. seen 에 폼 데이터를 모은다. */

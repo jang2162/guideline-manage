@@ -68,6 +68,22 @@ test('propose --from --dry-run 은 제목 없이도 변경을 보이고 보내�
   assert.equal(s.proposals.list({}).length, 0);
 });
 
+test('propose --from 도 admin 토큰이면 바로 반영하고, --review 면 제안한다', async t => {
+  const { s, env, folder } = await setup(t);
+  const admin = { ...env, GUIDELINE_TOKEN: s.tokens.issue({ name: 'cli-a', scope: 'admin' }).token };
+  await cap(source, { dir: folder, env: admin });
+  write(folder, 'rules/base/02-new.md', '---\nload: always\n---\n\n# 새\n');
+  const reviewed = await cap(propose, { from: folder, env: admin, title: '검토', review: true });
+  assert.equal(reviewed.code, 0, reviewed.err);
+  assert.equal(s.proposals.list({ status: 'pending' }).length, 1);
+  assert.equal(s.store.headRevision(), 1);
+  const r = await cap(propose, { from: folder, env: admin, title: '바로' });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /반영 완료: r2 — /);
+  assert.match(r.out, /admin 토큰이라 검토 없이 바로 반영함/);
+  assert.equal(s.store.headRevision(), 2);
+});
+
 test('propose --from 은 표지 파일이 없으면 2', async t => {
   const { env, folder } = await setup(t);
   fs.mkdirSync(folder, { recursive: true });

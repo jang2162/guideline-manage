@@ -76,3 +76,38 @@ test('비공개 서버에 토큰이 없으면 1, 공개 서버는 토큰 없이 
   assert.match(o.text(), /^지침 상태/m);
   assert.ok(path.isAbsolute(p));
 });
+
+test('status 는 서버가 본 토큰 이름·범위를 보이고(--json 은 token), 토큰이 없으면 아무것도 더하지 않는다', async t => {
+  const { s, p, env } = await setup(t);
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env, out: o.out }), 0);
+  assert.match(o.text(), /^ {2}토큰: cli-t — 범위 read$/m);
+  const j = collect();
+  await projectStatus({ project: p, env, json: true, out: j.out });
+  assert.deepEqual(JSON.parse(j.text()).token, { name: 'cli-t', scope: 'read' });
+  const admin = { GUIDELINE_TOKEN: s.tokens.issue({ name: 'cli-a', scope: 'admin' }).token };
+  const a = collect();
+  await projectStatus({ project: p, env: admin, json: true, out: a.out });
+  assert.deepEqual(JSON.parse(a.text()).token, { name: 'cli-a', scope: 'admin' });
+  const home = tmpDir('guideline-home-');
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const none = collect();
+  assert.equal(await projectStatus({ project: p, env: {}, home, out: none.out }), 0);
+  assert.doesNotMatch(none.text(), /토큰:/);
+  const noneJson = collect();
+  await projectStatus({ project: p, env: {}, home, json: true, out: noneJson.out });
+  assert.equal(JSON.parse(noneJson.text()).token, null);
+});
+
+test('status 는 whoami 가 없는 옛 서버(404)에서도 실패하지 않고 token 은 null', async t => {
+  const { p, env } = await setup(t);
+  const old = (url, init) => (String(url).endsWith('/api/v1/whoami')
+    ? Promise.resolve(new Response(JSON.stringify({ error: '페이지 없음' }), { status: 404 }))
+    : fetch(url, init));
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o.out, fetchImpl: old }), 0);
+  assert.equal(JSON.parse(o.text()).token, null);
+  const text = collect();
+  assert.equal(await projectStatus({ project: p, env, out: text.out, fetchImpl: old }), 0);
+  assert.doesNotMatch(text.text(), /토큰:/);
+});

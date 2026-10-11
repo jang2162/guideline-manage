@@ -143,10 +143,91 @@ test('propose --apply 를 propose 토큰으로 하면 1 과 admin 토큰 안내'
   assert.equal(s.proposals.list({}).length, 0);
 });
 
-test('--apply 없이는 admin 토큰이어도 대기 제안', async t => {
+test('--review 면 admin 토큰이어도 대기 제안', async t => {
   const { s, p, env } = await setup(t, 'admin');
   write(p, '.ruler/base/00-a.md', '# 고침\n');
-  assert.equal((await run({ project: p, env })).code, 0);
+  const r = await run({ project: p, env, review: true });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /제안 등록 완료: #1 — /);
+  assert.doesNotMatch(r.out, /바로 반영/);
+  assert.equal(s.proposals.list({ status: 'pending' }).length, 1);
+  assert.equal(s.store.headRevision(), 1);
+});
+
+test('admin 토큰이면 플래그 없이도 바로 반영하고, 그렇게 했다는 줄과 --review 안내를 낸다', async t => {
+  const { s, p, env } = await setup(t, 'admin');
+  write(p, '.ruler/base/00-a.md', '# 에이\n\n기본 반영\n');
+  const r = await run({ project: p, env, title: '기본' });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /반영 완료: r2 — /);
+  assert.match(r.out, /admin 토큰이라 검토 없이 바로 반영함 — 검토를 받으려면 --review/);
+  assert.equal(s.store.headRevision(), 2);
+  assert.equal(s.proposals.list({ status: 'pending' }).length, 0);
+});
+
+test('propose 토큰이면 플래그 없이 대기 제안이고 바로 반영 안내가 없다', async t => {
+  const { s, p, env } = await setup(t);
+  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  const r = await run({ project: p, env });
+  assert.equal(r.code, 0, r.err);
+  assert.doesNotMatch(r.out, /바로 반영/);
+  assert.equal(s.proposals.list({ status: 'pending' }).length, 1);
+  assert.equal(s.store.headRevision(), 1);
+});
+
+test('--json 은 mode 로 반영인지 제안인지 알린다', async t => {
+  const admin = await setup(t, 'admin');
+  write(admin.p, '.ruler/base/00-a.md', '# 고침\n');
+  const a = JSON.parse((await run({ project: admin.p, env: admin.env, json: true })).out);
+  assert.equal(a.mode, 'apply');
+  assert.equal(a.status, 'accepted');
+  assert.equal(a.revision, 2);
+  const prop = await setup(t);
+  write(prop.p, '.ruler/base/00-a.md', '# 고침\n');
+  const b = JSON.parse((await run({ project: prop.p, env: prop.env, json: true })).out);
+  assert.equal(b.mode, 'proposal');
+  assert.equal(b.status, 'pending');
+  const admin2 = await setup(t, 'admin');
+  write(admin2.p, '.ruler/base/00-a.md', '# 고침\n');
+  const c = JSON.parse((await run({ project: admin2.p, env: admin2.env, json: true, review: true })).out);
+  assert.equal(c.mode, 'proposal');
+});
+
+test('--dry-run 은 admin 토큰이어도 보내지 않고, 보내면 어느 방식인지 알린다', async t => {
+  const { s, p, env } = await setup(t, 'admin');
+  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  const dry = await run({ project: p, env, dryRun: true });
+  assert.equal(dry.code, 0, dry.err);
+  assert.match(dry.out, /보내면 바로 반영됨\(admin 토큰\) — 검토를 받으려면 --review/);
+  const json = JSON.parse((await run({ project: p, env, dryRun: true, json: true })).out);
+  assert.equal(json.mode, 'apply');
+  const review = JSON.parse((await run({ project: p, env, dryRun: true, json: true, review: true })).out);
+  assert.equal(review.mode, 'proposal');
+  const reviewText = await run({ project: p, env, dryRun: true, review: true });
+  assert.match(reviewText.out, /보내면 검토를 기다리는 제안이 됨/);
+  assert.equal(s.store.headRevision(), 1);
+  assert.equal(s.proposals.list({}).length, 0);
+});
+
+test('--apply 와 --review 를 같이 주면 2', async t => {
+  const { s, p, env } = await setup(t, 'admin');
+  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  const r = await run({ project: p, env, apply: true, review: true });
+  assert.equal(r.code, 2);
+  assert.match(r.err, /--apply 와 --review 는 같이 쓸 수 없음/);
+  assert.equal(s.proposals.list({}).length, 0);
+  assert.equal(s.store.headRevision(), 1);
+});
+
+test('whoami 가 없는 옛 서버(404)면 admin 토큰이어도 예전처럼 대기 제안', async t => {
+  const { s, p, env } = await setup(t, 'admin');
+  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  const old = (url, init) => (String(url).endsWith('/api/v1/whoami')
+    ? Promise.resolve(new Response(JSON.stringify({ error: '페이지 없음' }), { status: 404 }))
+    : fetch(url, init));
+  const r = await run({ project: p, env, fetchImpl: old, json: true });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(JSON.parse(r.out).mode, 'proposal');
   assert.equal(s.proposals.list({ status: 'pending' }).length, 1);
   assert.equal(s.store.headRevision(), 1);
 });
