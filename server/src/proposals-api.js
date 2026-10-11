@@ -1,5 +1,5 @@
-import { HttpError, sendJson, readJson, LIMITS } from './http.js';
-import { requireToken } from './api.js';
+import { HttpError, sendJson, readJson, readBody, LIMITS } from './http.js';
+import { requireToken, requireManage, canManage } from './api.js';
 import { t } from '../../cli/src/i18n.js';
 
 const HASH = /^[0-9a-f]{64}$/;
@@ -54,18 +54,19 @@ export function proposalView(p, { proposals, config }) {
 export function registerProposalsApi(router, { proposals, config }) {
   router.add('POST', '/api/v1/proposals', async ctx => {
     requireToken(ctx);
-    const admin = ctx.auth.kind === 'admin';
-    if (!admin && ctx.auth.scope !== 'propose') throw new HttpError(403, t('proposal.denied'));
+    const manage = canManage(ctx.auth);
+    const env = ctx.auth.kind === 'admin';
+    if (!manage && ctx.auth.scope !== 'propose') throw new HttpError(403, t('proposal.denied'));
     const body = await readJson(ctx.req, LIMITS.proposal);
     if (!isObj(body)) throw new HttpError(400, t('proposal.bodyObject'));
     const apply = body.apply === true;
-    if (apply && !admin) throw new HttpError(403, t('proposal.applyAdmin'));
+    if (apply && !manage) throw new HttpError(403, t('proposal.applyAdmin'));
     const r = proposals.submit({
       title: body.title,
       description: optString(body, 'description') ?? '',
       project: optString(body, 'project'),
-      tokenId: admin ? null : ctx.auth.id,
-      author: admin ? 'admin' : ctx.auth.name,
+      tokenId: env ? null : ctx.auth.id,
+      author: env ? 'admin' : ctx.auth.name,
       changes: parseChanges(body.changes),
     }, { apply });
     sendJson(ctx.res, 201, { ...r, url: new URL(`/proposals/${r.id}`, config.publicUrl).href });
@@ -75,14 +76,44 @@ export function registerProposalsApi(router, { proposals, config }) {
     requireToken(ctx);
     const status = ctx.url.searchParams.get('status');
     if (status !== null && !STATUSES.includes(status)) throw new HttpError(400, t('proposal.badStatus', { list: STATUSES.join(', ') }));
-    const tokenId = ctx.auth.kind === 'admin' ? null : ctx.auth.id;
+    const tokenId = canManage(ctx.auth) ? null : ctx.auth.id;
     sendJson(ctx.res, 200, { proposals: proposals.list({ status, tokenId }) });
   });
 
   router.add('GET', '/api/v1/proposals/:id', ctx => {
     requireToken(ctx);
     const p = /^\d+$/.test(ctx.params.id) ? proposals.get(Number(ctx.params.id)) : null;
-    if (!p || (ctx.auth.kind !== 'admin' && p.tokenId !== ctx.auth.id)) throw new HttpError(404, t('proposal.notFound'));
+    if (!p || (!canManage(ctx.auth) && p.tokenId !== ctx.auth.id)) throw new HttpError(404, t('proposal.notFound'));
     sendJson(ctx.res, 200, proposalView(p, { proposals, config }));
+  });
+
+  const idOf = ctx => {
+    if (!/^\d+$/.test(ctx.params.id)) throw new HttpError(404, t('proposal.notFound'));
+    return Number(ctx.params.id);
+  };
+
+  router.add('POST', '/api/v1/proposals/:id/accept', ctx => {
+    requireManage(ctx);
+    const id = idOf(ctx);
+    const revision = proposals.accept(id);
+    sendJson(ctx.res, 200, { id, status: 'accepted', revision });
+  });
+
+  // 본문은 없어도 된다. 있으면 { note } 인 JSON 이다.
+  router.add('POST', '/api/v1/proposals/:id/reject', async ctx => {
+    requireManage(ctx);
+    const id = idOf(ctx);
+    const buf = await readBody(ctx.req);
+    let body = {};
+    if (buf.length) {
+      try {
+        body = JSON.parse(buf.toString('utf8'));
+      } catch {
+        throw new HttpError(400, t('http.badJson'));
+      }
+      if (!isObj(body)) throw new HttpError(400, t('proposal.bodyObject'));
+    }
+    proposals.reject(id, optString(body, 'note') ?? '');
+    sendJson(ctx.res, 200, { id, status: 'rejected' });
   });
 }

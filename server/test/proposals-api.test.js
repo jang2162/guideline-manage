@@ -85,3 +85,75 @@ test('토큰 없이는 401', async t => {
   const { s } = await setup(t);
   assert.equal((await s.req('/api/v1/proposals')).status, 401);
 });
+
+const action = (s, auth, id, what, payload) => s.req(`/api/v1/proposals/${id}/${what}`, {
+  method: 'POST', auth, headers: JSON_H, body: payload === undefined ? undefined : JSON.stringify(payload),
+});
+
+test('admin 토큰은 apply 로 바로 반영하고 리비전 작성자는 토큰 이름이다', async t => {
+  const { s, post } = await setup(t);
+  const admin = s.tokens.issue({ name: 'agent-x', scope: 'admin' }).token;
+  const r = await post(admin, body({ apply: true }));
+  assert.equal(r.status, 201);
+  assert.equal(r.json().status, 'accepted');
+  const rev = (await s.req(`/api/v1/revisions/${r.json().revision}`, { auth: admin })).json();
+  assert.equal(rev.author, 'agent-x');
+});
+
+test('admin 토큰은 모든 제안을 보고 수락·거절한다', async t => {
+  const { s, propose, other, post } = await setup(t);
+  const admin = s.tokens.issue({ name: 'agent-x', scope: 'admin' }).token;
+  const a = (await post(propose, body())).json().id;
+  const b = (await post(other, body({ title: '다른 것' }))).json().id;
+  assert.equal((await s.req('/api/v1/proposals', { auth: admin })).json().proposals.length, 2);
+  assert.equal((await s.req(`/api/v1/proposals/${b}`, { auth: admin })).status, 200);
+  const ok = await action(s, admin, a, 'accept');
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json().status, 'accepted');
+  assert.ok(ok.json().revision > 1);
+  const no = await action(s, admin, b, 'reject', { note: '중복' });
+  assert.equal(no.status, 200);
+  assert.deepEqual(no.json(), { id: b, status: 'rejected' });
+  assert.equal((await s.req(`/api/v1/proposals/${b}`, { auth: admin })).json().note, '중복');
+  assert.equal((await action(s, admin, a, 'accept')).status, 409);
+  assert.equal((await action(s, admin, 999, 'accept')).status, 404);
+  assert.equal((await action(s, admin, 'x', 'reject')).status, 404);
+});
+
+test('propose·read 토큰은 수락·거절 403, 토큰 없으면 401', async t => {
+  const { s, propose, read, post } = await setup(t);
+  const id = (await post(propose, body())).json().id;
+  assert.equal((await action(s, propose, id, 'accept')).status, 403);
+  assert.equal((await action(s, read, id, 'reject')).status, 403);
+  assert.equal((await action(s, undefined, id, 'accept')).status, 401);
+});
+
+test('충돌한 제안 수락은 409 와 conflicts', async t => {
+  const { s, propose, post } = await setup(t);
+  const id = (await post(propose, body())).json().id;
+  s.store.commit({ ...META, changes: { 'rules/base/00-a.md': 'z\n' } });
+  const r = await action(s, ADMIN, id, 'accept');
+  assert.equal(r.status, 409);
+  assert.equal(r.json().conflicts.length, 1);
+});
+
+test('admin 토큰을 Bearer 로 보내도 웹 관리는 관리자가 아니다', async t => {
+  const { s } = await setup(t);
+  const admin = s.tokens.issue({ name: 'agent-x', scope: 'admin' }).token;
+  const issue = await s.req('/tokens', {
+    method: 'POST', auth: admin,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: s.config.publicUrl.origin },
+    body: 'name=sneaky&scope=admin',
+  });
+  assert.equal(issue.status, 303);
+  assert.match(issue.headers.location, /^\/login\?next=/);
+  assert.equal(s.tokens.list().some(r => r.name === 'sneaky'), false);
+  const page = await s.req('/proposals', { auth: admin });
+  assert.equal(page.status, 303);
+});
+
+test('환경 변수 관리자 토큰도 수락 API 를 쓴다', async t => {
+  const { s, propose, post } = await setup(t);
+  const id = (await post(propose, body())).json().id;
+  assert.equal((await action(s, ADMIN, id, 'accept')).status, 200);
+});

@@ -20,6 +20,15 @@ export function requireRead(ctx) {
   if (ctx.badToken || !ctx.config.publicRead) requireToken(ctx);
 }
 
+/** 원본을 바로 바꾸고 제안을 수락·거절할 수 있는가: 환경 변수 관리자 토큰(또는 세션)이나 admin 범위 발급 토큰. */
+export const canManage = auth => auth?.kind === 'admin' || (auth?.kind === 'token' && auth.scope === 'admin');
+
+/** canManage 가 아니면 401·403. */
+export function requireManage(ctx) {
+  requireToken(ctx);
+  if (!canManage(ctx.auth)) throw new HttpError(403, t('api.adminOnly'));
+}
+
 /** 관리자가 아니면 401·403. */
 export function requireAdmin(ctx) {
   requireToken(ctx);

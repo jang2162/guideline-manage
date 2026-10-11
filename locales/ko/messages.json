@@ -172,7 +172,7 @@
   "projects.noBase": "{env} 이 없어 폴더 이름만으로 만들 수 없음 — 경로로 지정",
   "projects.notDir": "{path} 이 디렉터리가 아님",
   "projects.notEmpty": "{path} 이 이미 있고 비어 있지 않음 — 기존 프로젝트로 선택",
-  "proposal.applyAdmin": "apply 는 관리자 토큰만 사용 가능",
+  "proposal.applyAdmin": "apply 는 admin 토큰만 사용 가능",
   "proposal.badBase": "changes[{i}]: base 는 sha256(16진 64자)이나 null 이어야 함",
   "proposal.badBase64": "changes[{i}]: base64 는 문자열이어야 함",
   "proposal.badDelete": "changes[{i}]: delete 는 true 여야 함",
