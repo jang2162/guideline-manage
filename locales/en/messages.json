@@ -275,7 +275,7 @@
   "todo.skippedAdopted": "{what}: already differed from the source before it was received (it may be an old version) — use --force to match the source, or guideline propose --only {id} if the project edited it",
   "todo.unsynced": "{item}: could not be applied because an existing copy differs — check the diff in guideline pick and turn on update",
   "tokens.badName": "Names are 1–64 characters of letters, digits and . _ -",
-  "tokens.badScope": "The scope is read or propose",
+  "tokens.badScope": "The scope must be read, propose or admin",
   "tokens.nameTaken": "Name already exists: {name}",
   "toml.badValue": "value cannot be written as TOML: {value}",
   "toml.duplicate": "[{table}] appears more than once",

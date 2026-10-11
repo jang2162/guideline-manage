@@ -275,7 +275,7 @@
   "todo.skippedAdopted": "{what}: 받기 전부터 원본과 달랐음(옛 판일 수 있음) — 원본으로 맞추려면 --force, 프로젝트에서 고친 것이면 guideline propose --only {id}",
   "todo.unsynced": "{item}: 이미 있는 것과 달라 반영하지 못함 — guideline pick 에서 차이를 보고 갱신 켜기",
   "tokens.badName": "이름은 영문·숫자와 . _ - 로 1~64자",
-  "tokens.badScope": "범위는 read 나 propose",
+  "tokens.badScope": "범위는 read·propose·admin 중 하나여야 함",
   "tokens.nameTaken": "이미 있는 이름: {name}",
   "toml.badValue": "TOML 로 쓸 수 없는 값: {value}",
   "toml.duplicate": "[{table}] 같은 이름의 표가 둘 이상 있음",

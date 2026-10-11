@@ -12,7 +12,7 @@ test('health 는 인증 없이 버전·스키마·리비전을 내고, 보안 �
   assert.equal(r.status, 200);
   const body = r.json();
   assert.equal(body.ok, true);
-  assert.equal(body.schema, 4);
+  assert.equal(body.schema, 5);
   assert.equal(body.api, 2);
   assert.equal(body.revision, 0);
   assert.match(body.version, /^\d+\.\d+\.\d+/);

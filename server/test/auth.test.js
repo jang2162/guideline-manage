@@ -38,7 +38,7 @@ test('이름과 범위가 틀리면 TokenError', () => {
   const { tokens } = tokensAt();
   assert.throws(() => tokens.issue({ name: '한글', scope: 'read' }), e => e.message === '이름은 영문·숫자와 . _ - 로 1~64자');
   assert.throws(() => tokens.issue({ name: '', scope: 'read' }), TokenError);
-  assert.throws(() => tokens.issue({ name: 'a', scope: 'admin' }), e => e.message === '범위는 read 나 propose');
+  assert.throws(() => tokens.issue({ name: 'a', scope: 'owner' }), e => e.message === '범위는 read·propose·admin 중 하나여야 함');
 });
 
 test('last_used_at 은 1분에 한 번까지만 바뀐다', () => {

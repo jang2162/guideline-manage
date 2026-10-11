@@ -59,7 +59,7 @@ test('GUIDELINE_SEED=off 면 넣지 않는다', async t => {
   assert.equal((rev.revisions ?? rev).length, 0);
 });
 
-test('v3 DB 를 열면 v4 로 올라가고 기존 리비전이 그대로이며 seed 출처를 쓸 수 있다', t => {
+test('v3 DB 를 열면 최신 스키마로 올라가고 기존 리비전이 그대로이며 seed 출처를 쓸 수 있다', t => {
   const dir = tmpDir('guideline-db-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'g.db');
@@ -68,8 +68,7 @@ test('v3 DB 를 열면 v4 로 올라가고 기존 리비전이 그대로이며 s
   old.close();
   const db = openDb(file);
   t.after(() => db.close());
-  assert.equal(SCHEMA_VERSION, 4);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 4);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION);
   const store = createStore(db);
   assert.equal(store.headRevision(), 1);
   assert.equal(store.commit({ author: 'system', message: 'seed', source: 'seed', changes: { 'docs/authoring.md': '# x\n' } }), 2);

@@ -5,7 +5,7 @@ import { t } from '../../cli/src/i18n.js';
 export class TokenError extends Error {}
 
 const NAME = /^[A-Za-z0-9._-]{1,64}$/;
-const SCOPES = ['read', 'propose'];
+const SCOPES = ['read', 'propose', 'admin'];
 const TOUCH_EVERY_MS = 60_000;
 
 /**
@@ -16,11 +16,12 @@ const TOUCH_EVERY_MS = 60_000;
 export function createTokens(db, { now = () => new Date() } = {}) {
   const q = {
     insert: db.prepare('INSERT INTO tokens (name, hash, scope, created_at) VALUES (?, ?, ?, ?)'),
-    byName: db.prepare('SELECT id FROM tokens WHERE name = ?'),
-    list: db.prepare('SELECT id, name, scope, created_at AS createdAt, last_used_at AS lastUsedAt, revoked_at AS revokedAt FROM tokens ORDER BY id'),
+    byName: db.prepare('SELECT id FROM tokens WHERE name = ? AND deleted_at IS NULL'),
+    list: db.prepare('SELECT id, name, scope, created_at AS createdAt, last_used_at AS lastUsedAt, revoked_at AS revokedAt FROM tokens WHERE deleted_at IS NULL ORDER BY id'),
     byHash: db.prepare('SELECT id, name, scope, last_used_at AS lastUsedAt, revoked_at AS revokedAt FROM tokens WHERE hash = ?'),
     touch: db.prepare('UPDATE tokens SET last_used_at = ? WHERE id = ?'),
     revoke: db.prepare('UPDATE tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL'),
+    remove: db.prepare('UPDATE tokens SET deleted_at = ? WHERE id = ? AND revoked_at IS NOT NULL AND deleted_at IS NULL'),
   };
   const hashOf = token => sha256(Buffer.from(token, 'utf8'));
 
@@ -47,6 +48,14 @@ export function createTokens(db, { now = () => new Date() } = {}) {
   }
 
   /**
+   * 폐기한 토큰을 목록에서 숨긴다. 행은 리비전이 가리키므로 지우지 않는다.
+   * @returns {boolean} 이번에 숨겼으면 true(쓰는 중이거나 이미 숨긴 토큰이면 false)
+   */
+  function remove(id) {
+    return q.remove.run(now().toISOString(), id).changes > 0;
+  }
+
+  /**
    * @param {string} token
    * @returns {{ id: number, name: string, scope: string } | null} 없거나 폐기됐으면 null
    */
@@ -59,5 +68,5 @@ export function createTokens(db, { now = () => new Date() } = {}) {
     return { id: row.id, name: row.name, scope: row.scope };
   }
 
-  return { issue, list, revoke, verify };
+  return { issue, list, revoke, remove, verify };
 }

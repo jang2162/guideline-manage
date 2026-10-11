@@ -72,7 +72,7 @@ test('DB 가 더 새 스키마면 이유를 내고 code 1', async t => {
   db.close();
   const log = collector();
   assert.equal((await start({ env: e, log: log.fn, error: log.fn })).code, 1);
-  assert.deepEqual(log.lines, ['DB schema v99 is newer than this server (v4). Deploy a newer image']);
+  assert.deepEqual(log.lines, ['DB schema v99 is newer than this server (v5). Deploy a newer image']);
 });
 
 test('실행 파일은 듣기 시작하고 SIGTERM 에 0 으로 끝난다', async t => {

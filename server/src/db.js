@@ -78,6 +78,23 @@ export const MIGRATIONS = [
    INSERT INTO revisions_new SELECT id, created_at, author, token_id, message, source FROM revisions;
    DROP TABLE revisions;
    ALTER TABLE revisions_new RENAME TO revisions;`,
+  // admin 범위와 삭제(숨김). 지운 토큰의 id 를 다시 쓰지 않도록 AUTOINCREMENT, 이름은 숨기지 않은 토큰끼리만 겹치지 않는다.
+  `CREATE TABLE tokens_new (
+     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+     name         TEXT NOT NULL,
+     hash         TEXT NOT NULL UNIQUE,
+     scope        TEXT NOT NULL CHECK (scope IN ('read', 'propose', 'admin')),
+     created_at   TEXT NOT NULL,
+     last_used_at TEXT,
+     revoked_at   TEXT,
+     user_id      INTEGER,
+     deleted_at   TEXT
+   );
+   INSERT INTO tokens_new (id, name, hash, scope, created_at, last_used_at, revoked_at, user_id)
+     SELECT id, name, hash, scope, created_at, last_used_at, revoked_at, user_id FROM tokens;
+   DROP TABLE tokens;
+   ALTER TABLE tokens_new RENAME TO tokens;
+   CREATE UNIQUE INDEX tokens_live_name ON tokens(name) WHERE deleted_at IS NULL;`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
