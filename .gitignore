@@ -1,6 +1,9 @@
 node_modules/
 .worktrees/
 
+# codegraph 인덱스. 체크아웃·워크트리마다 다시 만드는 생성물이다
+.codegraph/
+
 # CI 가 잡 안에서 만드는 인증 파일. 실수로 커밋되지 않게 한다
 .npmrc
 

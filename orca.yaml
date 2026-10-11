@@ -1,4 +1,4 @@
-# Orca 워크트리 셋업. 런타임(mise) → 의존성(pnpm) → gitignore 된 로컬 설정 순서다(docs/guideline/orca/06-orca-yaml.md).
+# Orca 워크트리 셋업. 런타임(mise) → 의존성(pnpm) → gitignore 된 로컬 설정 → codegraph 인덱스 순서다(docs/guideline/orca/06-orca-yaml.md, docs/guideline/codegraph/01-orca-setup.md).
 scripts:
   setup: |
     set -e
@@ -6,4 +6,5 @@ scripts:
     mise install
     mise exec -- pnpm install --frozen-lockfile
     if [ -f "$ORCA_ROOT_PATH/.env" ]; then cp "$ORCA_ROOT_PATH/.env" "$ORCA_WORKTREE_PATH/.env"; fi
+    mise exec -- npx -y @colbymchenry/codegraph init || echo "codegraph init 실패: 인덱스 없이 진행"
 setupAgentStartupPolicy: wait-for-setup
