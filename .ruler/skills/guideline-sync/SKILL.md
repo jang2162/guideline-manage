@@ -48,7 +48,7 @@ requires: [skills/guideline-export]
 
 ## 할 일 처리
 
-`pick`·`update` 의 JSON 에 있는 `todos` 를 하나씩 처리한다.
+`pick`·`update`·`status` 의 JSON 에 있는 `todos` 를 하나씩 처리한다.
 
 | kind | 처리 |
 | --- | --- |
@@ -61,6 +61,7 @@ requires: [skills/guideline-export]
 | `subagents-off` | `.ruler/ruler.toml` 에 `[agents] enabled = true` 를 켤지 묻는다(켜면 `.gitignore` 에 생성물이 더해진다) |
 | `ruler-apply` | 안내한 명령을 실행해도 되는지 묻는다 |
 | `new-file`·`removed-upstream` | 알리고, 고르거나 지우려면 `guideline pick` 을 하자고 한다 |
+| `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`, 원본 키)을 받지 않았다. 빠진 블록을 알리고, 그 블록을 담은 추천 파일(`{"<빠진 블록>": "<item> 이 필요로 함"}`)을 써서 `guideline pick --recommend <파일> --json` 을 「추천해서 받기」 처럼 띄운다 — 폼 제출이 확인이다. 출처가 여럿이면(`item` 이 `<출처>:` 로 시작) `--source <출처>` 를 붙인다 |
 | `blocked` | 원본 경고로 반영하지 못했다. 사본은 그대로 있다. 원본을 고치자고 보고한다 |
 | `leftover` | 폼에서 체크를 풀었지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |
 | `nested-off` | git 루트의 `.ruler/ruler.toml` 에 `nested = true` 를 켤지 묻는다. 켜지 않으면 ruler 가 이 디렉터리의 지침을 만들지 않는다 |

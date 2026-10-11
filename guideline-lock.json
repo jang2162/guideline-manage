@@ -1,7 +1,7 @@
 {
   "version": 2,
   "revisions": {
-    "default": 15
+    "default": 16
   },
   "sources": {
     "default:mcp/codegraph": "01d216780214053bd3728391bbb87db603034af0d566ca43dc52bc228378cc00",
@@ -56,7 +56,7 @@
     "default:rules/tiergear/01-launch.md": "0c9ac57eb259330694b7175f4da76373e111d83f0e6b665492cf6413964b2fc0",
     "default:rules/tiergear/02-orca-spawn.md": "150896fe165ccb4508c6d302f01962c521ff5aa93ad1fecb4a8b7aa7d8255551",
     "default:skills/guideline-export": "7f7ee8d777638cfa7ec07583d730d74c93038aa28ce17d090200f70d9ec80940",
-    "default:skills/guideline-sync": "f278666bbf33142458981619cbcec1de803aed9623edcfabf06ed14058b56bc1",
+    "default:skills/guideline-sync": "853f8c2d3688e5ddce2b6a43c1ada349639f9177619a1b32ef58683ee0494dec",
     "default:skills/orca-worker": "21c16400cced87f4d35cee13adf38f62def59244408ba41aa5dc00c1074d6568"
   },
   "outputs": [
@@ -214,7 +214,7 @@
       "items": [
         "default:skills/guideline-sync"
       ],
-      "hash": "b855d730a03ab0e2867df56e8ee7491438d782ece2681ed44b2db5bb2a000a09"
+      "hash": "efd2ffda9c44a6413eb528ece1c52b67ea394c4b47118bff33d7be91e03a5c1b"
     },
     {
       "path": ".ruler/skills/orca-worker/SKILL.md",
