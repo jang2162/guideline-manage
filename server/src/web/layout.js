@@ -177,11 +177,20 @@ export function pager(page, hasNext, hrefOf) {
   return html`<nav class="pager">${page > 1 ? html`<a href="${hrefOf(page - 1)}">${t('web.pager.prev')}</a>` : ''}<span class="meta">${t('web.pager.page', { n: page })}</span>${hasNext ? html`<a href="${hrefOf(page + 1)}">${t('web.pager.next')}</a>` : ''}</nav>`;
 }
 
-/** unifiedDiff 의 결과를 색칠한 블록. 빈 문자열이면 「차이 없음」. */
-export function diffBlock(text) {
+/** diff 줄들을 색칠한 pre. */
+const diffLines = lines => html`<pre class="diff">${lines.map(l => {
+  const cls = l.startsWith('+') && !l.startsWith('+++') ? 'add' : l.startsWith('-') && !l.startsWith('---') ? 'del' : '';
+  return cls ? html`<span class="${cls}">${l}</span>` : html`${l}\n`;
+})}</pre>`;
+
+/**
+ * unifiedDiff 의 결과를 색칠한 블록. 빈 문자열이면 「차이 없음」.
+ * limit 줄이 넘으면 앞 limit 줄만 보이고 나머지는 「나머지 N줄 보기」 로 접는다.
+ */
+export function diffBlock(text, { limit = 80 } = {}) {
   if (!text) return html`<p class="meta">${t('web.noDiff')}</p>`;
-  return html`<pre class="diff">${text.split('\n').map(l => {
-    const cls = l.startsWith('+') && !l.startsWith('+++') ? 'add' : l.startsWith('-') && !l.startsWith('---') ? 'del' : '';
-    return cls ? html`<span class="${cls}">${l}</span>` : html`${l}\n`;
-  })}</pre>`;
+  const lines = text.split('\n');
+  if (lines.length <= limit) return diffLines(lines);
+  const rest = lines.slice(limit);
+  return html`${diffLines(lines.slice(0, limit))}<details class="diff-more"><summary>${t('web.diff.more', { n: rest.length })}</summary>${diffLines(rest)}</details>`;
 }

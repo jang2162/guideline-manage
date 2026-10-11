@@ -574,5 +574,8 @@
   "web.docs.protected": "This document is also read by agents, so it cannot be renamed or deleted on the web",
   "web.pager.prev": "← Previous",
   "web.pager.next": "Next →",
-  "web.pager.page": "Page {n}"
+  "web.pager.page": "Page {n}",
+  "web.diff.more": "Show the remaining {n} lines",
+  "web.change.files": "Changed files",
+  "web.change.summary": "{n} files · +{add} −{del}"
 }

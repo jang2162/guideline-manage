@@ -1,7 +1,8 @@
 import { HttpError, readForm, redirect } from '../http.js';
 import { checkOrigin, requireAdminWeb } from './auth.js';
 import { html, diffBlock, pageOf, pager, PAGE_SIZE } from './layout.js';
-import { sendView } from './frame.js';
+import { sendView, catalogAt } from './frame.js';
+import { groupChanges, changeTree, changeCrumb, diffCounts, pickCurrent } from './change-tree.js';
 import { unifiedDiff } from '../../../cli/src/diff.js';
 import { sha256 } from '../store.js';
 import { t } from '../../../cli/src/i18n.js';
@@ -56,13 +57,12 @@ ${pager(page, fetched.length > PAGE_SIZE, n => `/proposals?status=${encodeURICom
 
 /** 파일 하나: 기준 대비 제안 차이, 원본이 바뀌었으면 합친 결과나 충돌. */
 function changeBlock(ctx, p, c, f) {
-  const baseBuf = c.base ? ctx.store.contentByHash(c.base) : null;
-  const bt = baseBuf === null ? '' : textOf(baseBuf);
   const pt = c.content === null ? '' : textOf(c.content);
   const pending = p.status === 'pending';
-  const diff = bt === null || pt === null
+  const d = proposalDiff(ctx, c);
+  const diff = d === null
     ? html`<p class="meta">${t('web.proposal.binary', { what: c.content === null ? t('web.change.delete') : t('web.bytes', { n: c.content.length }) })}</p>`
-    : diffBlock(unifiedDiff(bt, pt, { aLabel: t('web.proposal.base'), bLabel: t('diff.proposal') }));
+    : diffBlock(d);
   let state = '';
   if (c.content !== null) {
     const h = sha256(c.content);
@@ -86,23 +86,40 @@ ${pt !== null && c.content !== null ? html`<a class="button secondary" href="/pr
   return html`<section class="change"><h2><code>${c.path}</code> <span class="tag">${KIND_LABEL[kindOf(c)]}</span></h2>${state}${diff}${actions}</section>`;
 }
 
+/** 제안 파일 하나의 기준 대비 차이 텍스트(바이너리면 null). */
+function proposalDiff(ctx, c) {
+  const baseBuf = c.base ? ctx.store.contentByHash(c.base) : null;
+  const bt = baseBuf === null ? '' : textOf(baseBuf);
+  const pt = c.content === null ? '' : textOf(c.content);
+  return bt === null || pt === null ? null : unifiedDiff(bt, pt, { aLabel: t('web.proposal.base'), bLabel: t('diff.proposal') });
+}
+
+/** 제안 상세: 위에 전체 수락·거절, 왼쪽에 파일 트리, 가운데에 고른 파일 하나와 그 파일의 편집·빼기. */
 function detailPage(ctx, p) {
   const pl = p.status === 'pending' ? ctx.proposals.plan(p.changes) : null;
   const byPath = new Map((pl?.files ?? []).map(f => [f.path, f]));
   const blocked = pl ? pl.conflicts.length > 0 : true;
+  const counts = new Map(p.changes.map(c => {
+    const d = proposalDiff(ctx, c);
+    return [c.path, d === null ? null : diffCounts(d)];
+  }));
+  const groups = groupChanges(p.changes.map(c => c.path), catalogAt(ctx.store).summary);
+  const current = pickCurrent(groups, (ctx.url.searchParams.get('file') ?? '').normalize('NFC'));
+  const c = p.changes.find(x => x.path === current);
   view(ctx, 200, {
     title: t('web.proposal.titleNo', { id: p.id }),
     h1: t('web.proposal.titleFull', { id: p.id, title: p.title }),
     crumbs: [{ label: t('web.nav.proposals'), href: '/proposals' }],
+    detail: { left: changeTree(groups, current, q => `/proposals/${p.id}?file=${encodeURIComponent(q)}`, counts), right: null },
     body: html`<p class="meta">${STATUS_LABEL[p.status]} · ${p.author}${p.project ? ` · ${p.project}` : ''} · ${day(p.createdAt)}${p.revisionId ? html` · <a href="/r/${p.revisionId}">r${p.revisionId}</a>` : ''}</p>
 ${p.description ? html`<p>${p.description}</p>` : ''}
 ${p.status === 'rejected' && p.note ? html`<p class="warn">${t('web.proposal.rejectedNote', { note: p.note })}</p>` : ''}
 ${pl && pl.conflicts.length ? html`<p class="error">${t('web.proposal.outdated')}</p>` : ''}
-${p.changes.map(c => changeBlock(ctx, p, c, byPath.get(c.path)))}
 ${p.status === 'pending' ? html`<div class="actions">
 <form method="post" action="/proposals/${p.id}/accept"><button${blocked ? html` disabled` : ''}>${t('web.proposal.accept')}</button></form>
 <form method="post" action="/proposals/${p.id}/reject" class="inline"><input name="note" placeholder="${t('web.proposal.rejectReason')}"><button class="danger">${t('web.proposal.reject')}</button></form>
-</div>` : ''}`,
+</div>` : ''}
+${c ? html`${changeCrumb(groups, current)}${changeBlock(ctx, p, c, byPath.get(c.path))}` : ''}`,
   });
 }
 

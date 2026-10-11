@@ -3,7 +3,8 @@ import { isTextPath } from '../../../cli/src/store-paths.js';
 import { unifiedDiff } from '../../../cli/src/diff.js';
 import { checkOrigin, requireAdminWeb, requireReadWeb, isAdmin } from './auth.js';
 import { html, hrefFor, diffBlock, pageOf, pager, PAGE_SIZE } from './layout.js';
-import { sendView, hereHref } from './frame.js';
+import { sendView, hereHref, catalogAt } from './frame.js';
+import { groupChanges, changeTree, changeCrumb, diffCounts, pickCurrent } from './change-tree.js';
 import { t } from '../../../cli/src/i18n.js';
 
 /** 이력 쪽 화면: 사이드바 없이 상단의 「이력」 을 켠다. */
@@ -63,26 +64,40 @@ ${isAdmin(ctx) ? html`<details class="manage"><summary>${t('web.revert')}</summa
   });
 }
 
-function changeBlock(store, id, c) {
-  const before = store.fileAt(c.path, id - 1);
-  const after = store.fileAt(c.path, id);
-  const detail = isTextPath(c.path)
-    ? diffBlock(unifiedDiff(text(before), text(after), { aLabel: `r${id - 1}`, bLabel: `r${id}` }))
-    : html`<p class="meta">${t('web.binaryChange', { from: size(before), to: size(after) })}</p>`;
-  return html`<section><h3>${KIND[c.kind]} <a href="${hereHref(store, c.path)}">${c.path}</a> <a class="meta" href="${hrefFor('/history/', c.path)}">${t('web.nav.history')}</a></h3>${detail}</section>`;
+/** 리비전에서 파일 하나의 차이 텍스트(바이너리면 null). */
+function changeDiff(store, id, path) {
+  if (!isTextPath(path)) return null;
+  return unifiedDiff(text(store.fileAt(path, id - 1)), text(store.fileAt(path, id)), { aLabel: `r${id - 1}`, bLabel: `r${id}` });
 }
 
+function changeBlock(store, id, c, diff) {
+  const detail = diff !== null
+    ? diffBlock(diff)
+    : html`<p class="meta">${t('web.binaryChange', { from: size(store.fileAt(c.path, id - 1)), to: size(store.fileAt(c.path, id)) })}</p>`;
+  const href = hereHref(store, c.path);
+  return html`<section><h3>${KIND[c.kind]} ${href === '/' ? c.path : html`<a href="${href}">${c.path}</a>`} <a class="meta" href="${hrefFor('/history/', c.path)}">${t('web.nav.history')}</a></h3>${detail}</section>`;
+}
+
+/** 리비전 상세: 왼쪽에 바뀐 파일 트리, 가운데에 고른 파일 하나. */
 function revisionPage(ctx) {
   const id = parseId(ctx.params.id);
   const info = ctx.store.revision(id);
   if (!info) throw new HttpError(404, t('api.noRevision'));
+  const changes = ctx.store.changes(id);
+  const diffs = new Map(changes.map(c => [c.path, changeDiff(ctx.store, id, c.path)]));
+  const counts = new Map([...diffs].map(([p, d]) => [p, d === null ? null : diffCounts(d)]));
+  const total = [...counts.values()].reduce((a, c) => ({ add: a.add + (c?.add ?? 0), del: a.del + (c?.del ?? 0) }), { add: 0, del: 0 });
+  const groups = groupChanges(changes.map(c => c.path), catalogAt(ctx.store).summary);
+  const current = pickCurrent(groups, (ctx.url.searchParams.get('file') ?? '').normalize('NFC'));
+  const c = changes.find(x => x.path === current);
   view(ctx, 200, {
     title: `r${id}`,
-    body: html`<p class="meta">${info.createdAt.replace('T', ' ').slice(0, 19)} · ${info.author} · ${SOURCE[info.source] ?? info.source}</p>
+    detail: { left: changeTree(groups, current, p => `/r/${id}?file=${encodeURIComponent(p)}`, counts), right: null },
+    body: html`<p class="meta">${info.createdAt.replace('T', ' ').slice(0, 19)} · ${info.author} · ${SOURCE[info.source] ?? info.source} · ${t('web.change.summary', { n: changes.length, add: total.add, del: total.del })}</p>
 <p>${info.message}</p>
-${ctx.store.changes(id).map(c => changeBlock(ctx.store, id, c))}
 ${isAdmin(ctx) ? html`<form method="post" action="/revert" class="row"><input type="hidden" name="kind" value="revision"><input type="hidden" name="rev" value="${id}">
-<button class="secondary">${t('web.revertRevision')}</button></form>` : ''}`,
+<button class="secondary">${t('web.revertRevision')}</button></form>` : ''}
+${c ? html`${changeCrumb(groups, current)}${changeBlock(ctx.store, id, c, diffs.get(c.path))}` : ''}`,
   });
 }
 

@@ -57,13 +57,14 @@ test('파일 이력은 그 파일의 리비전과 삭제를 보인다', async t 
   assert.ok(r.text.includes('삭제'));
 });
 
-test('리비전 화면은 바뀐 파일마다 이스케이프한 줄 차이를, 바이너리는 크기를 보인다', async t => {
+test('리비전 화면은 고른 파일의 이스케이프한 줄 차이를, 바이너리는 크기를 보인다', async t => {
   const { s, cookie } = await seeded(t);
   const r = await getAs(s, cookie, '/r/2');
   assert.equal(r.status, 200);
   assert.ok(r.text.includes('<span class="del">-&lt;b&gt;a1&lt;/b&gt;</span>'));
   assert.ok(r.text.includes('<span class="add">+a2</span>'));
-  assert.ok(r.text.includes('바이너리 · 없음 → 3 바이트'));
+  const bin = await getAs(s, cookie, '/r/2?file=skills%2Fs%2Flogo.png');
+  assert.ok(bin.text.includes('바이너리 · 없음 → 3 바이트'));
   assert.ok(r.text.includes('둘째'));
   assert.equal((await getAs(s, cookie, '/r/9')).status, 404);
   assert.equal((await getAs(s, cookie, '/r/abc')).status, 404);
@@ -121,4 +122,36 @@ test('토큰은 발급 직후 한 번만 보이고, API 에 쓰이고, 폐기하
   assert.ok(dup.text.includes('이미 있는 이름: jang-macbook'));
   assert.equal((await postForm(s, '/tokens', { name: 'x', scope: 'read' }, { cookie, origin: 'http://evil.test' })).status, 403);
   assert.ok(!(await getAs(s, cookie, '/tokens')).text.includes(ADMIN));
+});
+
+test('리비전 상세는 왼쪽에 바뀐 파일 트리, 가운데에 고른 파일 하나의 diff', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: { 'rules/base/README.md': '---\nlabel: 기본 규칙\n---\n# b\n', 'rules/base/00-a.md': '---\nload: always\n---\n# a\n' } });
+  s.store.commit({
+    ...META, message: '여럿',
+    changes: { 'rules/base/00-a.md': '---\nload: always\n---\n# a\nAAA\n', 'skills/s/SKILL.md': '---\nname: s\ndescription: d\n---\nSSS\n', 'rules/한글/01-a.md': 'KKK\n', 'rules/base/02-long.md': `${Array.from({ length: 200 }, (_, i) => `L${i}`).join('\n')}\n` },
+  });
+  const cookie = await login(s);
+  const first = (await getAs(s, cookie, '/r/2')).text;
+  assert.ok(first.includes('href="/r/2?file=skills%2Fs%2FSKILL.md"'));
+  assert.ok(first.includes('href="/r/2?file=rules%2F%ED%95%9C%EA%B8%80%2F01-a.md"'));
+  assert.ok(first.includes('AAA'), '첫 파일(스택 base 의 00-a.md)');
+  assert.ok(!first.includes('SSS') && !first.includes('KKK'), '다른 파일 내용은 없다');
+  assert.ok(first.includes('기본 규칙'), '위치 표시·트리에 표시 이름');
+  assert.match(first, /파일 4개/);
+  const skill = (await getAs(s, cookie, '/r/2?file=skills%2Fs%2FSKILL.md')).text;
+  assert.ok(skill.includes('SSS') && !skill.includes('AAA'));
+  assert.ok((await getAs(s, cookie, '/r/2?file=nope')).text.includes('AAA'), '없는 경로는 첫 파일');
+  assert.ok((await getAs(s, cookie, `/r/2?file=${encodeURIComponent('rules/한글/01-a.md')}`)).text.includes('KKK'));
+  const long = (await getAs(s, cookie, '/r/2?file=rules%2Fbase%2F02-long.md')).text;
+  assert.match(long, /나머지 \d+줄 보기/);
+});
+
+test('지운 블록의 변경도 트리에 나온다', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: { 'rules/gone/00-a.md': 'x\n', 'rules/keep/00-a.md': 'k\n' } });
+  s.store.commit({ ...META, message: '지움', changes: { 'rules/gone/00-a.md': null } });
+  const page = (await s.req('/r/2')).text;
+  assert.ok(page.includes('gone'));
+  assert.ok(page.includes('href="/r/2?file=rules%2Fgone%2F00-a.md"'));
 });

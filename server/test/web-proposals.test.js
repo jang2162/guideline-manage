@@ -100,3 +100,17 @@ test('제안 목록은 30개씩, 상태 탭 링크는 1쪽으로', async t => {
   assert.equal(rows((await getAs(s, cookie, '/proposals?status=all&page=2')).text), 5);
   assert.ok(first.includes('href="/proposals?status=pending"'));
 });
+
+test('제안 상세는 파일 트리와 고른 파일 하나, 편집·빼기는 그 파일 아래, 수락·거절은 위에 하나', async t => {
+  const { s, cookie, id } = await setup(t);
+  const page = (await getAs(s, cookie, `/proposals/${id}`)).text;
+  assert.ok(page.includes(`href="/proposals/${id}?file=rules%2Fbase%2F01-n.md"`));
+  assert.ok(page.includes('+B'), '첫 파일 00-a.md 의 차이');
+  assert.ok(!page.includes('+n'), '둘째 파일 내용은 없다');
+  assert.equal((page.match(/action="\/proposals\/\d+\/drop"/g) ?? []).length, 1);
+  assert.equal((page.match(/action="\/proposals\/\d+\/accept"/g) ?? []).length, 1);
+  assert.ok(page.indexOf('/accept"') < page.indexOf('/drop"'), '수락은 파일 diff 보다 위');
+  const second = (await getAs(s, cookie, `/proposals/${id}?file=rules%2Fbase%2F01-n.md`)).text;
+  assert.ok(second.includes('+n') && !second.includes('+B'));
+  assert.ok(second.includes('value="rules/base/01-n.md"'), '빼기 폼은 고른 파일');
+});

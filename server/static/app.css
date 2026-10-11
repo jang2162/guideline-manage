@@ -267,3 +267,8 @@ pre.diff-lines .dh { color: var(--muted); }
 .real { margin-left: .4em; color: var(--faint); font-size: .75em; font-weight: 400; font-family: ui-monospace, Menlo, monospace; }
 .domain { display: inline-block; margin-left: .35em; padding: 0 .45em; border-radius: 999px; background: var(--pill-bg); color: var(--pill-fg); font-size: .75em; font-weight: 500; vertical-align: .1em; }
 .pager { display: flex; gap: 14px; align-items: center; justify-content: center; margin: 14px 0; }
+.change-tree .cnt { flex: none; display: inline-flex; gap: 4px; font-size: 11px; }
+.change-tree .cnt .add { color: var(--accent-text); }
+.change-tree .cnt .del { color: var(--error-fg); }
+.change-tree .blk-group > summary { font-family: inherit; color: var(--fg); }
+.diff-more > summary { margin: -6px 0 12px; color: var(--link); cursor: pointer; font-size: 13px; }

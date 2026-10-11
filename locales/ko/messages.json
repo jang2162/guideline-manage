@@ -574,5 +574,8 @@
   "web.docs.protected": "에이전트도 읽는 문서라 웹에서 이름을 바꾸거나 지울 수 없음",
   "web.pager.prev": "← 이전",
   "web.pager.next": "다음 →",
-  "web.pager.page": "{n}쪽"
+  "web.pager.page": "{n}쪽",
+  "web.diff.more": "나머지 {n}줄 보기",
+  "web.change.files": "바뀐 파일",
+  "web.change.summary": "파일 {n}개 · +{add} −{del}"
 }
