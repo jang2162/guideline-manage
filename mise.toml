@@ -1,0 +1,4 @@
+[tools]
+node = "24.21.0"
+# pnpm 은 package.json 의 packageManager 와 같은 버전. 기본 backend(aqua)는 pnpm 11 을 못 받아 npm: backend 를 쓴다.
+"npm:pnpm" = "10.33.0"
