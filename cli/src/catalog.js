@@ -3,7 +3,7 @@ import { readServer, envVars, serverWarnings } from './mcp.js';
 import { readTier } from './tiers.js';
 import { overrideRows } from './overrides.js';
 import { headings } from './sections.js';
-import { readCategories } from './categories.js';
+import { readCategories, parseCategories } from './categories.js';
 import { asTree, readText } from './tree.js';
 import { t } from './i18n.js';
 import { marker } from './markers.js';
@@ -264,6 +264,37 @@ export function elementLabels(src) {
   return { labels };
 }
 
+/** 원본 블록 키 집합(rules/<스택>, skills/<이름>, agents/<이름>.md, mcp/<이름>). */
+function blockKeys(tree) {
+  return new Set(categorySources(tree).filter(({ key, file }) => !(key === file && key.startsWith('rules/'))).map(({ key }) => key));
+}
+
+/**
+ * 블록마다 필요로 하는 블록(frontmatter `requires: [rules/x, mcp/y]`). 키는 elementCategories 와 같은 블록 키다.
+ * 목록 꼴이 아니면 그 블록은 키가 없고 경고를 낸다. 원본에 없는 블록을 가리키는 것도 경고다(목록에는 남긴다).
+ * @returns {{ requires: Record<string, string[]>, warnings: { path: string, message: string }[] }}
+ */
+export function elementRequires(src) {
+  const tree = asTree(src);
+  const keys = blockKeys(tree);
+  const requires = {};
+  const found = [];
+  for (const { key, file } of categorySources(tree)) {
+    if (!keys.has(key)) continue;
+    const raw = frontmatter(readText(tree, file) ?? '')?.requires;
+    if (raw === undefined) continue;
+    const r = parseCategories(raw);
+    if (r.warning) {
+      found.push({ path: file, message: t('requires.notList') });
+      continue;
+    }
+    if (!r.categories.length) continue;
+    requires[key] = r.categories;
+    for (const unit of r.categories) if (!keys.has(unit)) found.push({ path: file, message: t('requires.missing', { unit }) });
+  }
+  return { requires, warnings: found };
+}
+
 /**
  * 지침 파일의 분류: 스택 분류 ∪ 파일 분류.
  * @param {Record<string, string[]>} categories elementCategories 의 categories
@@ -291,5 +322,5 @@ export function warnings(src) {
     ...(e.ambiguous ? [{ path: e.path, message: t('catalog.mcpBoth', { section: marker('buildSection') }) }] : []),
     ...(e.server ? serverWarnings(e.server).map(message => ({ path: `mcp/${e.name}/server.json`, message })) : []),
   ]);
-  return [...rules, ...mcp, ...elementCategories(tree).warnings].sort(byKey('path'));
+  return [...rules, ...mcp, ...elementCategories(tree).warnings, ...elementRequires(tree).warnings].sort(byKey('path'));
 }

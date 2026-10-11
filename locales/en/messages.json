@@ -577,5 +577,7 @@
   "web.pager.page": "Page {n}",
   "web.diff.more": "Show the remaining {n} lines",
   "web.change.files": "Changed files",
-  "web.change.summary": "{n} files · +{add} −{del}"
+  "web.change.summary": "{n} files · +{add} −{del}",
+  "requires.notList": "requires is not of the form [a, b]",
+  "requires.missing": "requires points to {unit}, which is not in the source"
 }

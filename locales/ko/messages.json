@@ -577,5 +577,7 @@
   "web.pager.page": "{n}쪽",
   "web.diff.more": "나머지 {n}줄 보기",
   "web.change.files": "바뀐 파일",
-  "web.change.summary": "파일 {n}개 · +{add} −{del}"
+  "web.change.summary": "파일 {n}개 · +{add} −{del}",
+  "requires.notList": "requires 가 [a, b] 꼴이 아님",
+  "requires.missing": "requires 의 {unit} 이 원본에 없음"
 }

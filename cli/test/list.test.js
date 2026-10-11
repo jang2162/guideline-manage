@@ -163,6 +163,7 @@ test('list --json 은 스택 파일의 칸과 스킬·서브에이전트·MCP·�
     warnings: [{ path: 'rules/demo/01-bad.md', message: 'load 가 always 인데 when 이 있음' }],
     categories: {},
     labels: {},
+    requires: {},
   });
 });
 
