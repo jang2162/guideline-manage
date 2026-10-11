@@ -14,6 +14,7 @@ import { registerBrowse } from './web/browse.js';
 import { registerEdit } from './web/edit.js';
 import { registerAdd } from './web/add.js';
 import { registerSettings } from './web/settings.js';
+import { registerBlockSettings } from './web/block-settings.js';
 import { registerHistory } from './web/history.js';
 import { registerTokens } from './web/tokens.js';
 import { registerCliLogin } from './web/cli-login.js';
@@ -49,6 +50,7 @@ export function createApp({ config, db, now = () => new Date(), log = line => co
   registerBrowse(router);
   registerEdit(router);
   registerAdd(router);
+  registerBlockSettings(router);
   registerSettings(router);
   registerHistory(router);
   registerTokens(router);

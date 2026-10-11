@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { frontmatter, yamlString } from '../src/frontmatter.js';
+import { frontmatter, yamlString, setFrontmatterValue, readQuoted, categoriesValue } from '../src/frontmatter.js';
+import { parseCategories } from '../src/categories.js';
 
 test('frontmatter 는 최상위 key: value 를 읽는다', () => {
   const fm = frontmatter('---\nname: code-reviewer\ndescription: 검토한다\nmodel: inherit\n---\n\n# 본문\n');
@@ -45,4 +46,29 @@ test('yamlString 은 YAML 로 읽히지 않을 값에 null', () => {
   for (const raw of ['검토: diff 를 본다', '`코드`', '"닫히지 않음', "'닫히지 않음", '[a, b]', '{a: 1}', '*alias', '@x', '#주석뿐']) {
     assert.equal(yamlString(raw), null, raw);
   }
+});
+
+test('setFrontmatterValue 는 키를 바꾸거나 더하거나 지우고, frontmatter 가 없으면 만든다', () => {
+  assert.equal(setFrontmatterValue('---\nname: a\nlabel: 옛\n---\n# t\n', 'label', '새'), '---\nname: a\nlabel: 새\n---\n# t\n');
+  assert.equal(setFrontmatterValue('---\nname: a\n---\n# t\n', 'label', '새'), '---\nname: a\nlabel: 새\n---\n# t\n');
+  assert.equal(setFrontmatterValue('---\nname: a\nlabel: 옛\n---\n# t\n', 'label', ''), '---\nname: a\n---\n# t\n');
+  assert.equal(setFrontmatterValue('---\nname: a\nlabel: 옛\n---\n# t\n', 'label', null), '---\nname: a\n---\n# t\n');
+  assert.equal(setFrontmatterValue('# t\n', 'label', '새'), '---\nlabel: 새\n---\n\n# t\n');
+  assert.equal(setFrontmatterValue('# t\n', 'label', null), '# t\n');
+});
+
+test('setFrontmatterValue 는 YAML 이 문자열로 못 읽을 값을 큰따옴표로 감싸고, 다시 읽으면 원래 값', () => {
+  for (const v of ['a: b', '#tag', ' 앞 공백', '"따옴표"', '[x]', 'a # 주석']) {
+    const text = setFrontmatterValue('---\nname: a\n---\n', 'label', v);
+    const raw = frontmatter(text).label;
+    assert.ok(raw.startsWith('"'), `${v} → ${raw}`);
+    assert.equal(readQuoted(raw), v);
+  }
+  assert.equal(frontmatter(setFrontmatterValue('---\n---\n', 'label', '사내 개발서버 배포')).label, '사내 개발서버 배포');
+});
+
+test('categoriesValue 는 항목마다 필요할 때만 따옴표를 단다', () => {
+  assert.equal(categoriesValue(['deploy', 'backend']), '[deploy, backend]');
+  assert.equal(categoriesValue(['a]', 'b: c', 'd,e']), '["a]", "b: c", "d,e"]');
+  assert.deepEqual(parseCategories(categoriesValue(['a]', 'b: c', 'd,e'])).categories, ['a]', 'b: c', 'd,e']);
 });

@@ -564,5 +564,15 @@
   "web.usage.copy": "링크 복사",
   "web.usage.raw": "원문",
   "web.client.copied": "복사됨",
-  "web.manageBlock": "이 블록 이름 바꾸기 · 삭제"
+  "web.manageBlock": "이 블록 이름 바꾸기 · 삭제",
+  "web.add.label": "표시 이름(선택)",
+  "web.blockSettings.title": "{kind} 설정 · {name}",
+  "web.blockSettings.basic": "기본 정보",
+  "web.blockSettings.metaHint": "{path} 의 frontmatter 에 저장됨",
+  "web.blockSettings.filesHint": "파일 하나의 편집·이름 바꾸기·삭제는 그 파일을 열어서 함",
+  "web.blockSettings.danger": "위험",
+  "web.blockSettings.rename": "이름 바꾸기",
+  "web.blockSettings.renameHint": "이미 받은 프로젝트에 영향이 갈 수 있음 — 보이는 이름만 바꾸려면 표시 이름",
+  "web.blockSettings.delete": "삭제",
+  "web.blockSettings.badAction": "알 수 없는 설정 동작"
 }

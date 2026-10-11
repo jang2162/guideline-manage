@@ -1,4 +1,4 @@
-import { frontmatter, yamlString } from './frontmatter.js';
+import { frontmatter, yamlString, readQuoted } from './frontmatter.js';
 import { readServer, envVars, serverWarnings } from './mcp.js';
 import { readTier } from './tiers.js';
 import { overrideRows } from './overrides.js';
@@ -258,7 +258,7 @@ export function elementLabels(src) {
   for (const { key, file } of categorySources(tree)) {
     if (key === file && key.startsWith('rules/')) continue;
     const raw = frontmatter(readText(tree, file) ?? '')?.label;
-    const value = raw === undefined ? '' : (yamlString(raw.trim()) ?? raw.trim()).trim();
+    const value = raw === undefined ? '' : (readQuoted(raw.trim()) ?? raw.trim()).trim();
     if (value) labels[key] = value;
   }
   return { labels };

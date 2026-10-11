@@ -564,5 +564,15 @@
   "web.usage.copy": "Copy link",
   "web.usage.raw": "Raw",
   "web.client.copied": "Copied",
-  "web.manageBlock": "Rename · delete this block"
+  "web.manageBlock": "Rename · delete this block",
+  "web.add.label": "Display name (optional)",
+  "web.blockSettings.title": "{kind} settings · {name}",
+  "web.blockSettings.basic": "Basics",
+  "web.blockSettings.metaHint": "Saved in the frontmatter of {path}",
+  "web.blockSettings.filesHint": "Edit, rename or delete a single file by opening it",
+  "web.blockSettings.danger": "Danger zone",
+  "web.blockSettings.rename": "Rename",
+  "web.blockSettings.renameHint": "Projects that already picked this may be affected — to change only the shown name, use the display name",
+  "web.blockSettings.delete": "Delete",
+  "web.blockSettings.badAction": "Unknown settings action"
 }

@@ -41,6 +41,16 @@ export function blockDir(kind, name) {
   return kind === 'agent' ? DIR.agent : `${DIR[kind]}/${name}`;
 }
 
+/** 블록 설정 페이지 주소. 블록 안 파일 주소(/s/<이름>/<파일>)와 겹치지 않게 /settings/<종류>/<이름> 이다. */
+export function settingsHref(kind, name) {
+  return `/settings/${kind}/${encodeURIComponent(name)}`;
+}
+
+/** 블록의 frontmatter(표시 이름·분류)를 두는 파일. */
+export function metaFile(kind, name) {
+  return { stack: `rules/${name}/README.md`, skill: `skills/${name}/SKILL.md`, agent: `agents/${name}.md`, mcp: `mcp/${name}/README.md` }[kind];
+}
+
 /** 블록 상세 주소. rel 은 블록 안 파일(서브에이전트는 무시한다). */
 export function blockHref(kind, name, rel = '') {
   const base = hrefFor(PREFIX[kind], name);
