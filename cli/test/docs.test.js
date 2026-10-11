@@ -10,10 +10,10 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const read = p => fs.readFileSync(path.join(repo, p), 'utf8');
 const PAIRS = [
   ['README.md', 'README.ko.md'],
-  ['docs/guide.md', 'docs/ko/guide.md'],
-  ['docs/usage.md', 'docs/ko/usage.md'],
-  ['docs/server.md', 'docs/ko/server.md'],
-  ['docs/locales.md', 'docs/ko/locales.md'],
+  ['docs/manual/guide.md', 'docs/manual/ko/guide.md'],
+  ['docs/manual/usage.md', 'docs/manual/ko/usage.md'],
+  ['docs/manual/server.md', 'docs/manual/ko/server.md'],
+  ['docs/manual/locales.md', 'docs/manual/ko/locales.md'],
 ];
 const HANGUL = /[가-힣]/;
 
@@ -39,10 +39,10 @@ test('문서에 지운 명령과 옛 모드가 없다', () => {
 });
 
 test('언어 설정과 언어팩 안내가 있고, 버전은 0.18.0 이다', () => {
-  for (const file of ['README.md', 'README.ko.md', 'docs/usage.md', 'docs/ko/usage.md', 'docs/server.md', 'docs/ko/server.md']) {
+  for (const file of ['README.md', 'README.ko.md', 'docs/manual/usage.md', 'docs/manual/ko/usage.md', 'docs/manual/server.md', 'docs/manual/ko/server.md']) {
     assert.match(read(file), /GUIDELINE_LANG/, file);
   }
-  for (const [file, marker] of [['docs/locales.md', 'Overrides of other stacks'], ['docs/ko/locales.md', '다른 스택을 바꾸는 것']]) {
+  for (const [file, marker] of [['docs/manual/locales.md', 'Overrides of other stacks'], ['docs/manual/ko/locales.md', '다른 스택을 바꾸는 것']]) {
     const text = read(file);
     for (const want of ['pack.json', 'messages.json', 'templates/', '{{', 'guideline locale check', 'GUIDELINE_LOCALES_DIR', marker]) {
       assert.ok(text.includes(want), `${file}: ${want}`);

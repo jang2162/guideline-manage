@@ -8,9 +8,9 @@ The `guideline` CLI (npm package `guideline-manage`) and the guideline server (`
 
 | When | Read |
 | --- | --- |
-| Changing CLI command behavior | `docs/usage.md`, `cli/test/` |
-| Changing the server, admin web or API | `docs/server.md`, `server/test/` |
-| Changing user-facing text | `locales/en/messages.json` (canonical), `locales/ko/`, `docs/locales.md` |
+| Changing CLI command behavior | `docs/manual/usage.md`, `cli/test/` |
+| Changing the server, admin web or API | `docs/manual/server.md`, `server/test/` |
+| Changing user-facing text | `locales/en/messages.json` (canonical), `locales/ko/`, `docs/manual/locales.md` |
 | Changing the seed skills, authoring rules or `/llms.txt` | `locales/<lang>/templates/` |
 | Releasing | `README.md` "Releases" |
 

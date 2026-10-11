@@ -20,7 +20,7 @@ You need Node 24 or later.
 npm install -g guideline-manage   # provides the guideline command
 ```
 
-The server runs with Docker Compose from this repository ([docs/server.md](docs/server.md)).
+The server runs with Docker Compose from this repository ([docs/manual/server.md](docs/manual/server.md)).
 
 ## Usage
 
@@ -32,18 +32,18 @@ guideline update                 # same choices, latest version
 guideline propose --dry-run      # propose edited copies upstream (preview without sending)
 ```
 
-- **New here? Start with [docs/guide.md](docs/guide.md)** — installation, running a server, receiving guidelines, overrides and troubleshooting, in order.
+- **New here? Start with [docs/manual/guide.md](docs/manual/guide.md)** — installation, running a server, receiving guidelines, overrides and troubleshooting, in order.
 - Point agents at the server's `/llms.txt` ("Usage" at the top of the admin web).
-- Command reference: [docs/usage.md](docs/usage.md). Running the server: [docs/server.md](docs/server.md). Language packs: [docs/locales.md](docs/locales.md).
+- Command reference: [docs/manual/usage.md](docs/manual/usage.md). Running the server: [docs/manual/server.md](docs/manual/server.md). Language packs: [docs/manual/locales.md](docs/manual/locales.md).
 - Projects must use ruler (`.ruler/`). Subdirectories of a monorepo receive guidelines separately.
 - A project can receive from several guideline servers (`--source`). Name clashes are resolved with aliases in `guideline.json`.
 - The source changes through proposals: edited copies with `guideline propose`, new guidelines with `guideline source` + `guideline propose --from`. An admin accepts them under "Proposals" on the web.
 
 ## Language
 
-English is the default. With **`GUIDELINE_LANG=ko`**, CLI messages, the admin web, the management guideline and index written into projects, and the seed of an empty server are in Korean. For the CLI you can instead put `{ "lang": "ko" }` in `~/.config/guideline/config.json`; the environment variable wins. Set it for the CLI and the server separately. Other languages come as language pack folders you drop in ([docs/locales.md](docs/locales.md)).
+English is the default. With **`GUIDELINE_LANG=ko`**, CLI messages, the admin web, the management guideline and index written into projects, and the seed of an empty server are in Korean. For the CLI you can instead put `{ "lang": "ko" }` in `~/.config/guideline/config.json`; the environment variable wins. Set it for the CLI and the server separately. Other languages come as language pack folders you drop in ([docs/manual/locales.md](docs/manual/locales.md)).
 
-**Coming from 0.14 or earlier:** the default language is now English. To keep Korean, set `GUIDELINE_LANG=ko` in your shell and in the server environment; otherwise the next `update` rewrites the management guideline and index in English. The 0.10 docs-repository commands (`init`, `pick`/`update` inside a guideline repository, and its management skills) are gone — see "Moving to 0.15" in [docs/usage.md](docs/usage.md).
+**Coming from 0.14 or earlier:** the default language is now English. To keep Korean, set `GUIDELINE_LANG=ko` in your shell and in the server environment; otherwise the next `update` rewrites the management guideline and index in English. The 0.10 docs-repository commands (`init`, `pick`/`update` inside a guideline repository, and its management skills) are gone — see "Moving to 0.15" in [docs/manual/usage.md](docs/manual/usage.md).
 
 ## Development
 
