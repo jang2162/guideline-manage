@@ -33,11 +33,11 @@ test('틀: 탭 넷에 개수를 보이고 지금 탭을 켠다', async t => {
   assert.match((await getAs(s, cookie, '/agents/code-reviewer')).text, tab('서브에이전트', 1, '/agents', true));
 });
 
-test('틀: 상단 바 맨 왼쪽에 서버 버전을 보인다(로그인하지 않아도)', async t => {
+test('틀: 상단 바 맨 오른쪽에 서버 버전을 보인다(로그인하지 않아도)', async t => {
   const { s } = await seeded(t);
   const version = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
   const home = (await s.req('/')).text;
-  assert.match(home, new RegExp(`<header class="top">\\s*<span class="ver"[^>]*>v${version.replaceAll('.', '\\.')}</span>`));
+  assert.match(home, new RegExp(`</nav>\\s*<span class="ver"[^>]*>v${version.replaceAll('.', '\\.')}</span>\\s*</header>`));
 });
 
 test('틀: 탭 개수는 새 리비전을 따라간다', async t => {

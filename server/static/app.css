@@ -40,7 +40,7 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 /* ---------- 상단 ---------- */
 .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 4px; height: 45px; padding: 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
 /* 어느 서버 버전을 보고 있는지 가리게 한다. */
-.ver { margin-right: 8px; font-family: var(--mono); font-size: 12px; color: var(--faint); white-space: nowrap; }
+.ver { margin-left: 16px; font-family: var(--mono); font-size: 12px; color: var(--faint); white-space: nowrap; }
 .tabs { display: flex; align-self: stretch; }
 .tab { display: flex; align-items: center; gap: 6px; padding: 0 11px; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); font-size: 13.5px; white-space: nowrap; }
 .tab:hover { color: var(--fg); text-decoration: none; }

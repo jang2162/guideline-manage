@@ -87,9 +87,9 @@ function topBar({ counts = {}, on = null, admin = false, login = '/login' }) {
     ? html`<form method="post" action="/logout"><button class="link">${t('web.logout')}</button></form>`
     : html`<a href="${login}">${t('web.login')}</a>`;
   return html`<header class="top">
-<span class="ver">v${packageVersion()}</span>
 <nav class="tabs" aria-label="${t('web.nav.kinds')}">${TABS.map(t => html`<a class="${t.key === on ? 'tab on' : 'tab'}" href="${t.href}"${cur(t.key)}>${t.label} <small>${counts[t.key] ?? 0}</small></a>`)}</nav>
 <nav class="util">${utils.map(u => html`<a${u.key === on ? html` class="on"` : ''} href="${u.href}"${cur(u.key)}>${u.label}${u.key === 'proposals' && counts.proposals ? html` <small>${counts.proposals}</small>` : ''}</a>`)}${session}</nav>
+<span class="ver">v${packageVersion()}</span>
 </header>`;
 }
 
