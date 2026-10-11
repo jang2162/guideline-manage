@@ -22,6 +22,7 @@ This document is the guide agents and people read when they first use this serve
 
    - Without a browser, store a token issued on the web "Tokens" page with `guideline login --server {{SERVER}} --token-stdin`.
    - **Uploading proposals needs a token with the `propose` scope.** An admin issues it on the web "Tokens" page; store it with `--token-stdin`.
+   - With an `admin` scope token, `guideline propose` applies directly instead of proposing. `login` shows the stored token's scope when it saves it, and `guideline status` shows it on its "Token:" line (`token` with `--json`).
    - Where files cannot be written, as in CI, use the `GUIDELINE_TOKEN` environment variable.
    - The server address is chosen in this order: `--server` > the project's `guideline.json` > the `GUIDELINE_SERVER` environment variable.
    - The language of CLI messages and of the text written into projects is `GUIDELINE_LANG`, then `lang` in `~/.config/guideline/config.json` (default `en`).
@@ -76,11 +77,11 @@ guideline update --source company    # update only that source
 
 ## Sending changes upstream (proposals)
 
-The source changes only through proposals an admin accepts. Once accepted, each project receives the change with `guideline update`.
+The source changes through proposals an admin accepts. With an `admin` scope token, `propose` applies directly instead of proposing (the source changes right away, without review); add `--review` to get a review. Once the source changes, each project receives it with `guideline update`.
 
 ```bash
 guideline propose --dry-run              # show edited copies turned back into source form (not sent)
-guideline propose --title "<title>"      # send them as a proposal
+guideline propose --title "<title>"      # send them as a proposal (applied directly with an admin token; --review proposes)
 guideline source <empty folder>          # get a working copy of the source to write new guidelines in
 guideline propose --from <that folder> --title "<title>"   # send what was added, changed or deleted there
 ```
@@ -121,10 +122,11 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 ## API (`Authorization: Bearer <token>`)
 
 - [Health]({{SERVER}}/api/v1/health): no authentication. Server version, schema, API level, latest revision
+- `GET {{SERVER}}/api/v1/whoami`: the sent token's `{ kind, name, scope }` (the admin token is `{ kind: "admin", name: null, scope: "admin" }`). No token or a wrong one is 401, even on a public server
 - `GET {{SERVER}}/api/v1/catalog`: stacks, skills, subagents, MCP servers, their categories (`categories`) and display names (`labels`, same keys as categories)
 - `GET {{SERVER}}/api/v1/archive?rev=<revision>`: the whole source (tar.gz)
 - `GET {{SERVER}}/api/v1/files/<path>?rev=<revision>`: one source file
-- `POST {{SERVER}}/api/v1/proposals`: a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. An admin token or an `admin` scope token can use `apply: true` to apply it right away without review. From the CLI: `guideline propose --apply`
+- `POST {{SERVER}}/api/v1/proposals`: a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. An admin token or an `admin` scope token can use `apply: true` to apply it right away without review. From the CLI, `guideline propose` applies directly by default with an admin token (`--review` proposes)
 - `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<number>`: the status of your proposals (an `admin` scope token sees all)
 - `POST {{SERVER}}/api/v1/proposals/<number>/accept`, `POST {{SERVER}}/api/v1/proposals/<number>/reject` (body `{ note? }`): accept or reject a proposal (admin token or `admin` scope token). A conflict is 409 with `conflicts`
 

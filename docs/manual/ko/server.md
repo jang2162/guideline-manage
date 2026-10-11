@@ -7,7 +7,7 @@
 ## 무엇이 있나
 
 - 웹: 블록 목록(스택·스킬·서브에이전트·MCP)과 블록 상세(블록 목록·문서·그 블록의 파일), 블록 추가, 블록 설정(표시 이름·분류·파일 더하기·이름 바꾸기·삭제), 파일 편집(저장 전 경고 보기), 새 파일, 블록 내려받기(tar.gz), 문서(`docs/<이름>.md`), 사용법(llms.txt 렌더링), 이력·차이·되돌리기, 토큰 발급·폐기·삭제, 제안 검토(차이·충돌·고치기·수락·거절)
-- 읽기 API `/api/v1`: `health`, `catalog`, `tree`, `files/<경로>`, `revisions`, `revisions/<번호>`. 토큰은 `Authorization: Bearer <토큰>`
+- 읽기 API `/api/v1`: `health`, `catalog`, `tree`, `files/<경로>`, `revisions`, `revisions/<번호>`, `whoami`(보낸 토큰의 종류·이름·범위). 토큰은 `Authorization: Bearer <토큰>`
 - 제안 API `/api/v1/proposals`: 범위 propose 토큰은 제안, 관리자 토큰이나 범위 admin 토큰은 `apply: true` 로 바로 반영하고 `POST /api/v1/proposals/<번호>/accept|reject` 로 수락·거절한다. 사람은 웹 「제안」 에서 검토한다
 
 ## Docker Compose 로 띄우기
@@ -107,7 +107,7 @@ TLS 와 리버스 프록시는 서버의 기존 구성에 맡긴다.
 - **웹은 블록 중심이다.** 목록은 스택·스킬·서브에이전트·MCP 를 보이고, 블록 상세는 왼쪽에 블록 목록, 가운데에 고른 문서, 오른쪽에 그 블록의 파일을 둔다. 새 파일·올리기·이름 바꾸기·삭제·내려받기는 블록 상세에 있고, 목록에서는 블록만 추가한다. 옛 파일 탐색(`/f/…`, `/d/…`)과 전체 내보내기(`/export.tar.gz`)는 없어졌다.
 - **설정**은 블록에 속하지 않는 것(작성 규칙, 뼈대 스택, 목록에서 빠진 항목, 경고)을 둔다. **사용법**은 llms.txt 를 렌더링해 보이고 「링크 복사」 버튼이 있다. `PUBLIC_READ=0` 이어도 열린다.
 - **도메인 스택**: `<도구>__<도메인>` 이름의 스택은 도구 이름 옆에 도메인 꼬리표로 보인다. 경로와 API 의 이름은 그대로다.
-- **토큰 범위 `admin`**: 바로 반영(`apply: true`, `guideline propose --apply`), 모든 제안 보기, API 로 수락·거절. 웹 로그인과 토큰 관리는 못 한다.
+- **토큰 범위 `admin`**: 바로 반영(`apply: true`, `guideline propose --apply`. 0.20 부터는 `guideline propose` 의 기본), 모든 제안 보기, API 로 수락·거절. 웹 로그인과 토큰 관리는 못 한다.
 - **토큰 삭제**: 폐기한 토큰은 목록에서 지울 수 있다. 리비전이 가리키므로 DB 행은 숨겨 두고, 이름은 다시 쓸 수 있다.
 - **스키마 5**: 토큰에 `admin` 범위와 삭제 표시가 더해진다. 0.16 서버의 DB 는 시작할 때 백업한 뒤 올린다.
 
@@ -125,6 +125,15 @@ TLS 와 리버스 프록시는 서버의 기존 구성에 맡긴다.
 - **필요한 블록**: 블록 frontmatter 의 `requires: [rules/x]`. 내보내기 폼에서 함께 체크되고, `/api/v1/catalog` 에 `requires` 맵으로 더해진다. 웹 블록 설정의 「필요한 블록」 에서 고치고, 블록 이름을 바꾸면 다른 블록의 `requires` 도 함께 고친다.
 - **에이전트 추천**: `guideline pick --recommend <파일>` 로 연 폼은 추천 블록이 미리 체크돼 있고 이유가 보인다. 폼은 단계(지침 → MCP → 서브에이전트 → 스킬 → 확인)로 고르고, 분류 버튼은 거르기만 한다.
 - **⚠️ 이미 돌고 있는 서버**: `guideline-sync` 스킬과 작성 규칙(`docs/authoring.md`)은 서버를 처음 띄울 때만 들어가는 씨앗이다. 기존 서버는 웹에서 그 스킬에 「추천해서 받기」 절을, 작성 규칙에 「필요한 블록」 절을 직접 더한다(언어팩 `templates/` 의 같은 파일을 참고). `llms.txt` 는 요청마다 새로 만들어 바로 바뀐다.
+- 스키마는 그대로다.
+
+## admin 토큰은 바로 반영 (0.20)
+
+- **`GET /api/v1/whoami`**: 보낸 토큰을 `{ kind, name, scope }` 로 돌려준다 — 관리자 토큰은 `{ kind: "admin", name: null, scope: "admin" }`, 발급 토큰은 `{ kind: "token", name, scope }`. 토큰이 없거나 틀리거나 폐기됐으면 `PUBLIC_READ=1` 이어도 401 이다.
+- **범위 `admin` 토큰이면 `guideline propose` 가 바로 반영한다.** 먼저 `whoami` 로 범위를 보고, `admin` 이면 `apply: true` 로, 아니면 예전처럼 제안으로 보낸다. `--review` 는 늘 제안으로 보내고, `--apply` 는 예전처럼 명시해서 바로 반영하며, 둘을 같이 주면 사용법 오류(종료 코드 2)다. 결과에 admin 토큰이라 바로 반영했다는 줄이 붙고, `--dry-run` 은 보내면 둘 중 어느 쪽인지 알리며, `--json` 에는 `mode`(`apply` 또는 `proposal`)가 더해진다.
+- **`guideline status` 와 `guideline login` 이 토큰 범위를 보인다**(`status --json` 은 `token`).
+- **버전이 섞일 때**: 0.20 CLI 가 옛 서버에 붙으면 `whoami` 가 404 라 예전처럼 제안으로 보내고, status·login 은 범위를 보이지 않는다. 옛 CLI 는 0.20 서버에서 예전과 같다.
+- **⚠️ 이미 돌고 있는 서버**: `guideline-export` 스킬은 서버를 처음 띄울 때만 들어가는 씨앗이다. 그 2번 단계는 사용자가 검토 없이 반영하라고 했을 때만 `--apply` 를 쓰라고 했다. 기존 서버는 웹에서 그 단계를 「admin 토큰이면 `guideline propose` 가 바로 반영하고, 검토를 받으려면 `--review`」 로 고친다(언어팩 `templates/skills/guideline-export/SKILL.md` 참고). `guideline-sync` 의 「고친 사본을 원본에 올리기」 행도 같다. `llms.txt` 는 요청마다 새로 만들어 바로 바뀐다.
 - 스키마는 그대로다.
 
 ## 로컬에서 띄우기

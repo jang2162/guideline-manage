@@ -233,7 +233,7 @@ The source changes through **proposals**. When an admin accepts one under "Propo
 
 Proposing needs a token with the `propose` scope. Get one from an admin and store it with `guideline login --server <URL> --token-stdin`.
 
-A token with the `admin` scope can apply changes without review. `guideline propose --apply` applies them directly instead of leaving a pending proposal (without `--apply`, even an admin token proposes). Agents can accept or reject other proposals with `POST /api/v1/proposals/<number>/accept` and `/reject`. An admin token cannot log in to the web or manage tokens.
+A token with the `admin` scope applies changes without review: with it, `guideline propose` applies them directly instead of leaving a pending proposal. Add `--review` to send a proposal for review anyway. `guideline status` shows the stored token's scope, and `guideline propose --dry-run` says which of the two sending would do. Agents can accept or reject other proposals with `POST /api/v1/proposals/<number>/accept` and `/reject`. An admin token cannot log in to the web or manage tokens.
 
 **If you edited a received copy**, in the project:
 

@@ -12,8 +12,10 @@ description: Proposes sections of this project's guidelines that other projects 
 ## Preconditions
 
 1. **Get the source.** Pick an empty temporary folder (for example `src` under `mktemp -d`) and run `guideline source <folder>`. If this project's `guideline.json` has more than one source, ask the user which source (guideline server) to upload to and run `guideline source <folder> --source <name>`. Below, this is the "source folder". If you see "Login required", point the user to `! guideline login --server <URL>` and stop.
-2. **Permission to propose.** If uploading says "This token cannot propose", tell the user to get a token with the `propose` scope from an admin and store it with `guideline login --server <URL> --token-stdin`, then stop.
-   - Only when the stored token has the `admin` scope and the user asked to apply without review, upload with `guideline propose --from <source folder> --title <title> --apply`. If it says "An admin token is needed", upload as a proposal without `--apply`.
+2. **Token scope.** Check the stored token's scope on the "Token:" line of `guideline status` (`token` with `--json`). `guideline propose --from <source folder> --dry-run` in step 6 also tells you what sending would do.
+   - With the `admin` scope, `guideline propose` **applies directly instead of proposing** — the source changes right away, without review. Tell the user it will be applied directly before uploading. If the user wants a review, upload as a proposal with `guideline propose --from <source folder> --title <title> --review`.
+   - With the `propose` scope it becomes a proposal, which becomes source once an admin accepts it under "Proposals" on the web.
+   - If uploading says "This token cannot propose", tell the user to get a token with the `propose` scope from an admin and store it with `guideline login --server <URL> --token-stdin`, then stop.
 3. If `<source folder>/docs/authoring.md` has no `## Subagents` or `## MCP servers` section, stop before uploading subagents or MCP servers and ask the guideline admin to add that section to the source. When uploading an MCP server built from its README, also read the `### Servers built when applied` section.
 4. If `<source folder>/docs/authoring.md` has no `## Load — always and reference` section, stop the same way before uploading guideline files. The rule for choosing the load is in that section. When uploading an override of another stack, also read the `## Overriding another stack` section.
 5. **Edits to received copies are not this skill's job.** Copies that `guideline status` shows as "edited in project" are sent with `guideline propose` (it turns the copy back into source form). This skill uploads guidelines that are new to the source. `propose` leaves out copies that already differed from the source when first received (to-do `adopted`), because proposing an old version would undo source changes.
@@ -81,13 +83,13 @@ Project-specific sections: N
    - For an MCP server built from its README because its values differ per project, do not write `server.json`; write a `## Build on apply` section in `README.md` (`docs/authoring.md` "Servers built when applied"). Do not invent where the value is read from or how it is extracted. If you cannot confirm where the value came from in this project, ask the user.
    - When done, run `guideline list <source folder>` and check that the files you wrote are not under `Ignored` or `warning` (load and override warnings included). Fix them, or tell the user about ones to leave as they are (like fixed-value warnings). For MCP servers built from README, check that the `MCP` section shows `built from README when applied`.
 
-6. **Upload as a proposal.** First show the changes and diffs with `guideline propose --from <source folder> --dry-run`, and upload once the user agrees.
+6. **Upload.** First show the changes, the diffs and whether sending applies directly or creates a proposal with `guideline propose --from <source folder> --dry-run`, and upload once the user agrees. With an `admin` scope token, add `--review` if the user wants a review.
 
 ```bash
 guideline propose --from <source folder> --title "rules: add <topic> to the <stack> stack" --message "<body>"
 ```
 
-   In the body, list the origin (`<project>` `<file>` "<section title>") and what you changed to generalize it, one line each. For subagents or MCP servers, use titles like `agents: add <name>` or `mcp: add <name>` and list the needed environment variable names in the body (never values). Report the proposal number and address. Once an admin reviews and accepts it under "Proposals" on the web, it becomes source, and each project receives it with `guideline update`.
+   In the body, list the origin (`<project>` `<file>` "<section title>") and what you changed to generalize it, one line each. For subagents or MCP servers, use titles like `agents: add <name>` or `mcp: add <name>` and list the needed environment variable names in the body (never values). If it became a proposal, report its number and address; once an admin reviews and accepts it under "Proposals" on the web, it becomes source. If it was applied directly ("Applied: r<number>"), report the revision number. Either way, each project receives it with `guideline update`.
 
 ## Rules
 
@@ -95,7 +97,7 @@ guideline propose --from <source folder> --title "rules: add <topic> to the <sta
 - Put **section titles as they are** in the tables; do not summarize them.
 - Do not upload sections the user did not choose.
 - **Do not change this project's files.** Whether to remove uploaded sections from this project is decided with the user later, when `guideline-sync` flags them as duplicates.
-- Never write the source folder's files to the server any other way. Always propose with `guideline propose --from`.
+- Never write the source folder's files to the server any other way. Always upload with `guideline propose --from`.
 - **Do not carry secrets.** Replace tokens, passwords and keys hard-coded in project settings with `${VARIABLE}` references before uploading. Never copy such a value into source folder files, chat output, report tables or the proposal body. In tables, give only the location, like "`env.DB_PASSWORD` has a hard-coded value".
 - Do not invent how to obtain values in an MCP `README.md`. If you do not know, ask the user.
 - An MCP server with a token hard-coded in `args` or `url` cannot be turned into a reference (and `list` does not catch it). Check the server's docs for whether it accepts the same value as an environment variable, and move it to `env`. If not, do not upload it; keep it project-specific and tell the user.

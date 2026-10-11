@@ -29,7 +29,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | 프로젝트에 맞는 지침을 골라 달라("맞는 지침 받아와", "알아서 골라") | 아래 「추천해서 받기」 |
 | 고른 그대로 최신으로("지침 최신으로") | `guideline update --json` |
 | 새 프로젝트("새 프로젝트에 지침") | `guideline pick --new <이름 또는 경로> --json` |
-| 고친 사본을 원본에 올리기("이 수정 공용으로") | `guideline propose --dry-run` 으로 보여 주고, 맞으면 `guideline propose --title "<제목>"` |
+| 고친 사본을 원본에 올리기("이 수정 공용으로") | `guideline propose --dry-run` 으로 보여 주고, 맞으면 `guideline propose --title "<제목>"`. 범위 `admin` 토큰이면 제안 대신 바로 반영된다(dry-run 이 「보내면 바로 반영됨」 으로 알린다) — 사용자가 검토를 원하면 `--review` 를 붙인다 |
 
 ## pick
 

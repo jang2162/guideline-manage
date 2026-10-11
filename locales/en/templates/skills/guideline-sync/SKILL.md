@@ -29,7 +29,7 @@ First check the state with `guideline status --json` and report it in one line (
 | Pick what fits this project ("get the right guidelines", "choose for me") | "Recommend and receive" below |
 | Same items, latest version ("update the guidelines") | `guideline update --json` |
 | New project ("guidelines for a new project") | `guideline pick --new <name or path> --json` |
-| Send an edited copy upstream ("share this fix") | show it with `guideline propose --dry-run`, and if it is right, `guideline propose --title "<title>"` |
+| Send an edited copy upstream ("share this fix") | show it with `guideline propose --dry-run`, and if it is right, `guideline propose --title "<title>"`. With an `admin` scope token it is applied directly instead of proposed (the dry run says "Sending would apply this directly") — add `--review` if the user wants a review |
 
 ## pick
 

@@ -7,7 +7,7 @@ How to run and operate the server that holds the guideline source (`guideline-se
 ## What it has
 
 - Web: block lists (stacks, skills, subagents, MCP) and block detail pages (block list · document · the block's files), adding blocks, block settings (display name, categories, adding files, rename, delete), file edit (with a warning preview before saving), new file, per-block download (tar.gz), Docs (`docs/<name>.md`), Usage (rendered llms.txt), history, diffs and revert, issuing, revoking and deleting tokens, proposal review (diff, conflicts, edit, accept, reject)
-- Read API `/api/v1`: `health`, `catalog`, `tree`, `files/<path>`, `revisions`, `revisions/<number>`. Tokens go in `Authorization: Bearer <token>`
+- Read API `/api/v1`: `health`, `catalog`, `tree`, `files/<path>`, `revisions`, `revisions/<number>`, `whoami` (the sent token's kind, name and scope). Tokens go in `Authorization: Bearer <token>`
 - Proposals API `/api/v1/proposals`: a propose-scope token proposes; the admin token or an admin-scope token applies right away with `apply: true` and accepts or rejects with `POST /api/v1/proposals/<number>/accept|reject`. People review proposals under "Proposals" on the web
 
 ## Deploying with Docker Compose
@@ -105,7 +105,7 @@ To restore:
 - **The web is organized by blocks.** Lists show stacks, skills, subagents and MCP servers; a block page shows the block list on the left, the chosen document in the middle and the block's files on the right. New file, upload, rename, delete and download live on the block page; lists only add blocks. The old file browser (`/f/…`, `/d/…`) and the whole-source export (`/export.tar.gz`) are gone.
 - **Settings** holds what belongs to no block: the authoring rules, skeleton stacks, items the lists ignore, and warnings. **Usage** renders llms.txt with a "Copy link" button; it is open even with `PUBLIC_READ=0`.
 - **Domain stacks**: a stack named `<tool>__<domain>` shows the tool name with a domain tag. Paths and API names are unchanged.
-- **Token scope `admin`**: applies directly (`apply: true`, `guideline propose --apply`), sees every proposal, and accepts or rejects through the API. It cannot log in to the web or manage tokens.
+- **Token scope `admin`**: applies directly (`apply: true`, `guideline propose --apply`; from 0.20 `guideline propose` does it by default), sees every proposal, and accepts or rejects through the API. It cannot log in to the web or manage tokens.
 - **Deleting tokens**: a revoked token can be deleted from the list. The row stays hidden in the DB because revisions point to it; its name can be reused.
 - **Schema 5**: tokens get the `admin` scope and a deleted flag. A 0.16 server's DB is backed up and upgraded at start.
 
@@ -123,6 +123,15 @@ To restore:
 - **Required blocks**: `requires: [rules/x]` in a block's frontmatter. The export form checks them too, and `/api/v1/catalog` adds a `requires` map. Edit them under "Required blocks" in the web block settings; renaming a block also fixes other blocks' `requires`.
 - **Agent recommendations**: a form opened with `guideline pick --recommend <file>` has the recommended blocks checked, with reasons. The form goes in steps (guidelines → MCP → subagents → skills → review), and category buttons only filter.
 - **⚠️ Servers already running**: the `guideline-sync` skill and the authoring rules (`docs/authoring.md`) are seeds written only when a server first starts. On an existing server, add the "Recommend and receive" section to that skill and the "Required blocks" section to the authoring rules on the web (see the same files under the language pack's `templates/`). `llms.txt` is rebuilt per request and changes right away.
+- The schema is unchanged.
+
+## Admin tokens apply directly (0.20)
+
+- **`GET /api/v1/whoami`**: returns the sent token as `{ kind, name, scope }` — the admin token is `{ kind: "admin", name: null, scope: "admin" }`, an issued token is `{ kind: "token", name, scope }`. No token, or a wrong or revoked one, gets 401 even with `PUBLIC_READ=1`.
+- **`guideline propose` applies directly with an `admin` scope token.** It asks `whoami` first; with the `admin` scope it sends `apply: true`, otherwise a proposal as before. `--review` always sends a proposal, `--apply` still applies explicitly, and both together are a usage error (exit code 2). The result says it was applied directly because of the admin token, `--dry-run` says which of the two sending would do, and `--json` adds `mode` (`apply` or `proposal`).
+- **`guideline status` and `guideline login` show the token's scope** (`token` in `status --json`).
+- **Mixed versions**: a 0.20 CLI on an older server gets 404 from `whoami` and sends proposals as before; status and login show no scope. An older CLI on a 0.20 server behaves as before.
+- **⚠️ Servers already running**: the `guideline-export` skill is a seed written only when a server first starts. Its step 2 used to say `--apply` only when the user asked to skip review. On an existing server, rewrite that step on the web to say that with an `admin` token `guideline propose` applies directly and `--review` asks for a review (see the language pack's `templates/skills/guideline-export/SKILL.md`). The same goes for the "send an edited copy upstream" row of `guideline-sync`. `llms.txt` is rebuilt per request and changes right away.
 - The schema is unchanged.
 
 ## Running locally

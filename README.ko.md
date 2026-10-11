@@ -37,7 +37,7 @@ guideline propose --dry-run      # 고친 사본을 원본에 제안(보내지 �
 - 명령 레퍼런스는 [docs/manual/ko/usage.md](docs/manual/ko/usage.md), 서버 운영은 [docs/manual/ko/server.md](docs/manual/ko/server.md), 언어팩은 [docs/manual/ko/locales.md](docs/manual/ko/locales.md).
 - 프로젝트는 ruler 를 써야 한다(`.ruler/`). 모노레포의 하위 디렉터리는 따로 받는다.
 - 여러 지침 서버에서 함께 받을 수 있다(`--source`). 이름이 겹치면 `guideline.json` 의 별칭으로 구분한다.
-- 원본은 제안으로 바뀐다: 고친 사본은 `guideline propose`, 새 지침은 `guideline source` + `guideline propose --from`. 관리자가 웹 「제안」 에서 수락한다.
+- 원본은 제안으로 바뀐다: 고친 사본은 `guideline propose`, 새 지침은 `guideline source` + `guideline propose --from`. 관리자가 웹 「제안」 에서 수락한다. 범위 `admin` 토큰이면 `propose` 가 바로 반영한다(`--review` 면 제안).
 
 ## 언어
 

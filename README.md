@@ -37,7 +37,7 @@ guideline propose --dry-run      # propose edited copies upstream (preview witho
 - Command reference: [docs/manual/usage.md](docs/manual/usage.md). Running the server: [docs/manual/server.md](docs/manual/server.md). Language packs: [docs/manual/locales.md](docs/manual/locales.md).
 - Projects must use ruler (`.ruler/`). Subdirectories of a monorepo receive guidelines separately.
 - A project can receive from several guideline servers (`--source`). Name clashes are resolved with aliases in `guideline.json`.
-- The source changes through proposals: edited copies with `guideline propose`, new guidelines with `guideline source` + `guideline propose --from`. An admin accepts them under "Proposals" on the web.
+- The source changes through proposals: edited copies with `guideline propose`, new guidelines with `guideline source` + `guideline propose --from`. An admin accepts them under "Proposals" on the web; with an `admin` scope token, `propose` applies them directly (`--review` proposes instead).
 
 ## Language
 
