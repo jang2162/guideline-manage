@@ -91,7 +91,7 @@ The CLI downloads the source from the server, compares it with the project, crea
 
 ### Choosing in the form
 
-A domain stack (`<tool>__<domain>`, e.g. `deploy-package__gitlab.develma.com`) shows the tool name with a domain tag. The same tool has different rules on different servers, so pick the stack for the server your project uses.
+A domain stack (`<tool>__<domain>`, e.g. `deploy-package__gitlab.develma.com`) shows the tool name with a domain tag. The same tool has different rules on different servers, so pick the stack for the server your project uses. When a block has a display name (`label`), that name is the title and the real name sits next to it in small type.
 
 | Shown | Meaning | When checked |
 | --- | --- | --- |

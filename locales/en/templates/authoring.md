@@ -10,6 +10,7 @@
 | An MCP server used by several projects | `mcp/<name>/server.json`, `mcp/<name>/README.md`. Only `README.md` when values differ per project |
 | One stack overriding a section of another stack in a specific environment | the `## Overrides of other stacks` table in the overriding stack's `rules/<stack>/README.md` (→ "Overriding another stack") |
 | Categories for picking items together | `categories` in each item's frontmatter (→ "Categories") |
+| A display name people can read | `label` in each block's frontmatter (→ "Display name") |
 | Setup done when a stack is adopted or on every clone | `rules/<stack>/SETUP.md` (→ "Setup docs") |
 | A rule that holds in only one project | Not here. Keep it in that project's own guidelines |
 
@@ -91,6 +92,23 @@ categories: [backend, spring]
 
 - **Why:** a malformed category is silently dropped, and the item is then missed when picking by category.
 - **How to apply:** after tagging, check that `[…]` appears next to the name in `guideline list <source folder>` and that the file is not in the `warning` section.
+
+## Display name
+
+When a block name (`deploy-agent__deploy.kbrainc.dev`) is a tool name that says little, add `label` to the frontmatter. The web, the export form and `guideline list` show it next to the real name.
+
+```markdown
+---
+label: Internal dev server deploy
+---
+```
+
+- It goes where the block rows of the "Categories" table say (stack README, `SKILL.md`, subagent file, MCP README). Not on guideline files.
+- One line. Quote it with double quotes when it contains `: `.
+- Only the shown name changes. The folder name, the project's `.ruler/<stack>/` and the name CLI commands take stay the same. It differs from source aliases (`aliases` in `guideline.json`), which change the folder name inside projects.
+
+- **Why:** people cannot tell what a rule set is from its name, so they skip it or pick the wrong one.
+- **How to apply:** after adding it, check that `guideline list <source folder>` shows the display name right after the name.
 
 ## Setup docs
 

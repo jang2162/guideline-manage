@@ -77,6 +77,7 @@ ${kind === 'stack' ? html`<label>${t('web.add.domain')} <input name="domain" val
 <button class="secondary">${t('web.blockSettings.rename')}</button>
 <p class="meta">${t('web.blockSettings.renameHint')}</p>
 </form>
+<hr>
 <form method="post" class="stack" data-confirm="${t('web.confirmDeleteDir', { path: kind === 'agent' ? metaFile(kind, name) : dir })}">
 <input type="hidden" name="action" value="delete">
 <label>${t('web.message')} <input name="message" required></label>

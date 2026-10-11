@@ -120,7 +120,7 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 ## API (`Authorization: Bearer <token>`)
 
 - [Health]({{SERVER}}/api/v1/health): no authentication. Server version, schema, API level, latest revision
-- `GET {{SERVER}}/api/v1/catalog`: stacks, skills, subagents, MCP servers and their categories
+- `GET {{SERVER}}/api/v1/catalog`: stacks, skills, subagents, MCP servers, their categories (`categories`) and display names (`labels`, same keys as categories)
 - `GET {{SERVER}}/api/v1/archive?rev=<revision>`: the whole source (tar.gz)
 - `GET {{SERVER}}/api/v1/files/<path>?rev=<revision>`: one source file
 - `POST {{SERVER}}/api/v1/proposals`: a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. An admin token or an `admin` scope token can use `apply: true` to apply it right away without review. From the CLI: `guideline propose --apply`

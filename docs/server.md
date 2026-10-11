@@ -6,7 +6,7 @@ How to run and operate the server that holds the guideline source (`guideline-se
 
 ## What it has
 
-- Web: block lists (stacks, skills, subagents, MCP) and block detail pages (block list · document · the block's files), adding blocks, file edit (with a warning preview before saving), new file, delete, rename, upload, per-block download (tar.gz), Settings (files outside blocks, ignored items, warnings), Usage (rendered llms.txt), history, diffs and revert, issuing, revoking and deleting tokens, proposal review (diff, conflicts, edit, accept, reject)
+- Web: block lists (stacks, skills, subagents, MCP) and block detail pages (block list · document · the block's files), adding blocks, block settings (display name, categories, adding files, rename, delete), file edit (with a warning preview before saving), new file, per-block download (tar.gz), Docs (`docs/<name>.md`), Usage (rendered llms.txt), history, diffs and revert, issuing, revoking and deleting tokens, proposal review (diff, conflicts, edit, accept, reject)
 - Read API `/api/v1`: `health`, `catalog`, `tree`, `files/<path>`, `revisions`, `revisions/<number>`. Tokens go in `Authorization: Bearer <token>`
 - Proposals API `/api/v1/proposals`: a propose-scope token proposes; the admin token or an admin-scope token applies right away with `apply: true` and accepts or rejects with `POST /api/v1/proposals/<number>/accept|reject`. People review proposals under "Proposals" on the web
 
@@ -108,6 +108,15 @@ To restore:
 - **Token scope `admin`**: applies directly (`apply: true`, `guideline propose --apply`), sees every proposal, and accepts or rejects through the API. It cannot log in to the web or manage tokens.
 - **Deleting tokens**: a revoked token can be deleted from the list. The row stays hidden in the DB because revisions point to it; its name can be reused.
 - **Schema 5**: tokens get the `admin` scope and a deleted flag. A 0.16 server's DB is backed up and upgraded at start.
+
+## Web cleanup (0.18)
+
+- **Docs** (`/docs`) replaces 0.17's Settings (`/settings`). It is the first kind tab and shows and creates `docs/<name>.md` documents. The authoring rules (`authoring.md`) and the management additions (`management.md`) are grouped as "Also read by agents" and cannot be renamed or deleted on the web. New documents are not sent to projects.
+- The pages for files outside blocks, ignored items and warnings are gone. The web handles only blocks and documents made through this service.
+- **Block settings** (`/settings/<kind>/<name>`, admin): save the display name and categories, add or upload files, rename the block (also fixing the `name:` line of subagents and skills) or delete it. The block page's right side keeps only the file tree (always ● · reference ○) and a button to this page; "Download block" moved to the top button row.
+- **Display name**: `label` in a block's frontmatter. Shown on the web, in the export form and in `guideline list`, and added to `/api/v1/catalog` as a `labels` map.
+- **History and proposals**: lists show 30 per page (`?page=`; the old `?before=` is ignored), and revision and proposal pages show the changed files as a tree (kind → block → file) on the left and one chosen file (`?file=`) in the middle. Diffs longer than 80 lines fold.
+- The schema is unchanged.
 
 ## Running locally
 
