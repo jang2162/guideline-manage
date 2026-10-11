@@ -147,7 +147,10 @@ test('프로젝트 쪽 guideline-export 는 원본 폴더에 쓰고 제안으로
   assert.match(text, /guideline propose --from <원본 폴더> --dry-run/);
   assert.match(text, /guideline propose --from <원본 폴더> --title/);
   assert.match(text, /guideline propose --from <원본 폴더> --title <제목> --review/);
-  assert.match(text, /범위 `admin` 이면 `guideline propose` 는 \*\*제안 대신 바로 반영한다\*\*/);
+  assert.match(text, /`guideline propose --from <원본 폴더> --dry-run --json` 의 `mode` 로 판단한다/);
+  assert.match(text, /`mode` 가 `apply` 면 `guideline propose` 는 \*\*제안 대신 바로 반영한다\*\*/);
+  assert.match(text, /보내기 전에 사용자에게 「검토 없이 바로 반영된다」 고 알린다/);
+  assert.doesNotMatch(text, /저장된 토큰의 범위를 `guideline status` 의 「토큰:」 줄\(`--json` 이면 `token`\)로 본다/);
   assert.doesNotMatch(text, /사용자가 검토 없이 바로 반영하라고 했을 때만/);
   assert.match(text, /받은 사본을 고친 것은 이 스킬이 아니다/);
   assert.doesNotMatch(text, /문서 저장소의 로컬 경로를 사용자에게 묻는다/);
@@ -166,4 +169,10 @@ test('프로젝트 쪽 스킬이 여러 출처를 다룬다', () => {
   assert.match(sync, /이름 충돌/);
   assert.match(sync, /`alias`/);
   assert.match(skillText('skills', 'guideline-export'), /--source <이름>/);
+});
+
+test('guideline-sync 는 고친 사본을 올리기 전에 dry-run 의 mode 를 보고 바로 반영이면 먼저 알린다', () => {
+  const text = skillText('skills', 'guideline-sync');
+  assert.match(text, /dry-run 이 알린다\(`--json` 이면 `mode`\)/);
+  assert.match(text, /`apply`\(「보내면 바로 반영됨」\)면 보내기 전에 사용자에게 검토 없이 바로 반영된다고 알리고/);
 });
