@@ -57,6 +57,30 @@ test('--token-stdin 은 토큰을 확인한 뒤 저장한다', async t => {
   assert.match(e.text(), /토큰을 확인하지 못했다/);
 });
 
+test('--token-stdin 은 터미널이면 안내를 띄우고 가린 채 한 줄을 읽는다', async t => {
+  const s = await startApp(t);
+  const home = homeOf(t);
+  const { token } = s.tokens.issue({ name: 'tty', scope: 'read' });
+  const tty = (text) => {
+    const r = new Readable({ read() {} });
+    r.isTTY = true;
+    const modes = [];
+    r.setRawMode = on => modes.push(on);
+    r.modes = modes;
+    setImmediate(() => r.push(text));
+    return r;
+  };
+  const shown = collect();
+  const stdin = tty(`${token.slice(0, 5)}x\u007f${token.slice(5)}\r`);
+  const p = s => shown.out(s);
+  assert.equal(await login({ server: s.base, tokenStdin: true, stdin, env: {}, home, out: () => {}, prompt: p }), 0);
+  assert.equal(getToken(s.base, { env: {}, home }), token);
+  assert.match(shown.text(), /토큰을 붙여 넣고 Enter/);
+  assert.ok(!shown.text().includes(token), '토큰은 화면에 나오지 않는다');
+  assert.deepEqual(stdin.modes, [true, false]);
+  assert.equal(await login({ server: s.base, tokenStdin: true, stdin: tty('\u0003'), env: {}, home, out: () => {}, prompt: () => {} }), 130);
+});
+
 test('서버 주소가 없으면 2', async t => {
   const e = collect();
   assert.equal(await login({ env: {}, home: homeOf(t), err: e.out }), 2);

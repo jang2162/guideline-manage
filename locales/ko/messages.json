@@ -91,6 +91,7 @@
   "login.callbackPage": "로그인 정보를 받았다. 이 탭은 닫아도 된다.",
   "login.done": "로그인했다: {url} ({name})",
   "login.loggedOut": "로그아웃했다: {url}",
+  "login.pasteToken": "토큰을 붙여 넣고 Enter (화면에 보이지 않는다): ",
   "login.noStdinToken": "표준 입력에 토큰이 없다",
   "login.notLoggedIn": "로그인돼 있지 않다",
   "login.openUrl": "로그인: {url}",

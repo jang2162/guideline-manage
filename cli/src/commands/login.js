@@ -14,6 +14,36 @@ async function readAll(stream) {
   return s;
 }
 
+/**
+ * 터미널에서 토큰 한 줄을 읽는다. 입력한 글자는 화면에 보이지 않는다.
+ * 파이프가 아닌 터미널은 EOF 가 오지 않아서, readAll 로는 아무 안내 없이 멈춘 것처럼 보인다.
+ * @returns {Promise<string | null>} Ctrl-C 면 null
+ */
+function readHiddenLine(stdin, write) {
+  return new Promise(resolve => {
+    let s = '';
+    const done = value => {
+      stdin.removeListener('data', onData);
+      stdin.setRawMode?.(false);
+      stdin.pause();
+      write('\n');
+      resolve(value);
+    };
+    const onData = chunk => {
+      for (const ch of String(chunk)) {
+        if (ch === '\r' || ch === '\n' || ch === '\u0004') return done(s);
+        if (ch === '\u0003') return done(null);
+        if (ch === '\u007f' || ch === '\b') s = s.slice(0, -1);
+        else s += ch;
+      }
+    };
+    stdin.setRawMode?.(true);
+    stdin.setEncoding?.('utf8');
+    stdin.on('data', onData);
+    stdin.resume();
+  });
+}
+
 /** 127.0.0.1 의 임시 포트에서 /cb 한 번을 기다린다. */
 async function callbackServer() {
   let resolve;
@@ -45,6 +75,7 @@ async function callbackServer() {
 export async function login({
   server, tokenStdin = false, env = process.env, out = console.log, err = console.error, open = openBrowser, fetchImpl = fetch,
   home, stdin = process.stdin, hostname = os.hostname(), timeoutMs = LOGIN_TIMEOUT_MS,
+  prompt = s => process.stderr.write(s),
 }) {
   const url = serverOf({ flag: server, env });
   if (!url) {
@@ -52,7 +83,15 @@ export async function login({
     return 2;
   }
   if (tokenStdin) {
-    const token = (await readAll(stdin)).trim();
+    let token;
+    if (stdin.isTTY) {
+      prompt(t('login.pasteToken'));
+      token = await readHiddenLine(stdin, prompt);
+      if (token === null) return 130;
+    } else {
+      token = await readAll(stdin);
+    }
+    token = token.trim();
     if (!token) {
       err(t('login.noStdinToken'));
       return 2;

@@ -91,6 +91,7 @@
   "login.callbackPage": "Login received. You can close this tab.",
   "login.done": "Logged in: {url} ({name})",
   "login.loggedOut": "Logged out: {url}",
+  "login.pasteToken": "Paste the token and press Enter (it is not shown): ",
   "login.noStdinToken": "No token on standard input",
   "login.notLoggedIn": "Not logged in",
   "login.openUrl": "Log in: {url}",
