@@ -1,6 +1,7 @@
 import { sendBody } from '../http.js';
 import { t, currentLocale, messageKeys } from '../../../cli/src/i18n.js';
 import { splitStackName } from '../../../cli/src/stack-name.js';
+import { packageVersion } from '../../../cli/src/paths.js';
 
 /** 이스케이프하지 않고 그대로 넣을 HTML. */
 class Raw {
@@ -86,6 +87,7 @@ function topBar({ counts = {}, on = null, admin = false, login = '/login' }) {
     ? html`<form method="post" action="/logout"><button class="link">${t('web.logout')}</button></form>`
     : html`<a href="${login}">${t('web.login')}</a>`;
   return html`<header class="top">
+<span class="ver">v${packageVersion()}</span>
 <nav class="tabs" aria-label="${t('web.nav.kinds')}">${TABS.map(t => html`<a class="${t.key === on ? 'tab on' : 'tab'}" href="${t.href}"${cur(t.key)}>${t.label} <small>${counts[t.key] ?? 0}</small></a>`)}</nav>
 <nav class="util">${utils.map(u => html`<a${u.key === on ? html` class="on"` : ''} href="${u.href}"${cur(u.key)}>${u.label}${u.key === 'proposals' && counts.proposals ? html` <small>${counts.proposals}</small>` : ''}</a>`)}${session}</nav>
 </header>`;

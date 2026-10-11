@@ -9,6 +9,7 @@
   --add-bg: #dafbe1; --del-bg: #ffebe9;
   --shadow: 0 1px 3px rgba(31, 35, 40, .08);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --control-h: 32px;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -38,6 +39,8 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 
 /* ---------- 상단 ---------- */
 .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 4px; height: 45px; padding: 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+/* 어느 서버 버전을 보고 있는지 가리게 한다. */
+.ver { margin-right: 8px; font-family: var(--mono); font-size: 12px; color: var(--faint); white-space: nowrap; }
 .tabs { display: flex; align-self: stretch; }
 .tab { display: flex; align-items: center; gap: 6px; padding: 0 11px; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); font-size: 13.5px; white-space: nowrap; }
 .tab:hover { color: var(--fg); text-decoration: none; }
@@ -95,13 +98,15 @@ main.bare { max-width: 440px; margin: 10vh auto 0; padding: 24px 16px; }
 .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 
 /* ---------- 버튼·폼 ---------- */
-button, .button { display: inline-flex; align-items: center; font: inherit; font-size: 13px; line-height: 1.4; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer; white-space: nowrap; }
+button, .button { display: inline-flex; align-items: center; font: inherit; font-size: 13px; line-height: 1.4; padding: 0 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg); cursor: pointer; white-space: nowrap; }
 .button:hover, button:hover { text-decoration: none; filter: brightness(1.06); }
 .button.secondary, button.secondary { background: var(--bg); color: var(--fg); border-color: var(--input-line); }
 .button.secondary:hover, button.secondary:hover { background: var(--side-bg); filter: none; }
 button.danger { border-color: var(--error-fg); background: var(--error-fg); color: var(--bg); }
 button.link { background: none; border: none; padding: 0; color: var(--link); }
-input, select { font: inherit; padding: 6px 9px; background: var(--bg); color: var(--fg); border: 1px solid var(--input-line); border-radius: 6px; max-width: 100%; }
+input, select { font: inherit; padding: 0 9px; background: var(--bg); color: var(--fg); border: 1px solid var(--input-line); border-radius: 6px; max-width: 100%; }
+/* 버튼과 입력 칸이 한 줄에 나란히 놓여도 높이가 같게 한 값으로 맞춘다. 칩·단계·링크 버튼은 제 모양을 가진다. */
+button:not(.link):not(.chip):not(.step), .button, select, input:not([type=checkbox]):not([type=radio]):not([type=file]) { height: var(--control-h); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 textarea { width: 100%; min-height: 60vh; padding: 12px; background: var(--pre-bg); color: var(--fg); border: 1px solid var(--input-line); border-radius: 6px; line-height: 1.55; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
