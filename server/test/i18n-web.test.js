@@ -55,9 +55,9 @@ test('영어 서버: 화면과 API 오류 본문에 한글이 없다', async t =
     for (const l of visibleTool(r.text)) if (HANGUL.test(l)) bad.push(`${p}: ${l}`);
   }
   const cookie = await login(s);
-  for (const p of ['/', '/s/base', '/skills', '/agents', '/mcp', '/f/rules/base/00-a.md', '/f/rules/base/00-a.md?raw=1', '/d/skills/s',
+  for (const p of ['/', '/s/base', '/skills', '/agents', '/mcp', '/s/base/00-a.md', '/s/base/00-a.md?raw=1', '/skills/s',
     '/edit/rules/base/00-a.md', '/new', '/history', '/history/rules/base/00-a.md', '/r/1', '/tokens', '/proposals', '/proposals/1', '/proposals/1/edit?path=rules/base/00-a.md',
-    '/cli/login?port=1234&state=x&challenge=y&host=h', '/f/no/such']) {
+    '/cli/login?port=1234&state=x&challenge=y&host=h', '/s/base/no-such.md']) {
     const r = await getAs(s, cookie, p);
     for (const l of visibleTool(r.text)) if (HANGUL.test(l)) bad.push(`${p}: ${l}`);
   }

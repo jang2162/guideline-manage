@@ -37,7 +37,7 @@ export function html(strings, ...values) {
   return new Raw(out);
 }
 
-/** 경로 조각마다 인코딩한 주소. hrefFor('/f/', 'rules/한/a.md') → '/f/rules/%ED%95%9C/a.md' */
+/** 경로 조각마다 인코딩한 주소. hrefFor('/raw/', 'rules/한/a.md') → '/raw/rules/%ED%95%9C/a.md' */
 export function hrefFor(prefix, p) {
   return prefix + p.split('/').map(encodeURIComponent).join('/');
 }
@@ -65,8 +65,8 @@ const UTILS = [
   { key: 'proposals', get label() { return t('web.nav.proposals'); }, href: '/proposals', admin: true },
   { key: 'history', get label() { return t('web.nav.history'); }, href: '/history' },
   { key: 'tokens', get label() { return t('web.tokens'); }, href: '/tokens', admin: true },
-  { key: 'export', get label() { return t('web.nav.export'); }, href: '/export.tar.gz' },
-  { key: 'llms', get label() { return t('web.nav.usage'); }, href: '/llms.txt' },
+  { key: 'settings', get label() { return t('web.nav.settings'); }, href: '/settings' },
+  { key: 'usage', get label() { return t('web.nav.usage'); }, href: '/usage' },
 ];
 
 /**
@@ -81,7 +81,6 @@ function topBar({ counts = {}, on = null, admin = false, login = '/login' }) {
     ? html`<form method="post" action="/logout"><button class="link">${t('web.logout')}</button></form>`
     : html`<a href="${login}">${t('web.login')}</a>`;
   return html`<header class="top">
-<a class="brand" href="/"><span class="logo" aria-hidden="true"></span>${t('web.brand')}</a>
 <nav class="tabs" aria-label="${t('web.nav.kinds')}">${TABS.map(t => html`<a class="${t.key === on ? 'tab on' : 'tab'}" href="${t.href}"${cur(t.key)}>${t.label} <small>${counts[t.key] ?? 0}</small></a>`)}</nav>
 <nav class="util">${utils.map(u => html`<a${u.key === on ? html` class="on"` : ''} href="${u.href}"${cur(u.key)}>${u.label}${u.key === 'proposals' && counts.proposals ? html` <small>${counts.proposals}</small>` : ''}</a>`)}${session}</nav>
 </header>`;
@@ -98,9 +97,11 @@ ${crumbs.length ? html`<nav class="crumbs">${crumbs.map((c, i) => html`${i ? ' �
 
 /**
  * 한 화면의 HTML. nav 가 false 면 틀 없이(로그인·오류) 그린다.
- * frame 은 상단 탭의 개수와 켜진 탭, 사이드바(없으면 null)다. frame.js 의 frameFor 가 만든다.
+ * frame 은 상단 탭의 개수와 켜진 탭이다. frame.js 의 frameFor 가 만든다.
  * @param {{ title: string, body: unknown, nav?: boolean, h1?: string, crumbs?: { label: string, href: string }[], actions?: unknown,
- *   frame?: { counts?: Record<string, number>, on?: string | null, sidebar?: unknown, admin?: boolean, login?: string }, scripts?: string[], wide?: boolean }} opts
+ *   frame?: { counts?: Record<string, number>, on?: string | null, admin?: boolean, login?: string }, detail?: { left: unknown, right?: unknown } | null,
+ *   scripts?: string[], wide?: boolean }} opts
+ * detail 이 있으면 블록 상세의 3단(왼쪽 블록 목록 · 가운데 본문 · 오른쪽 파일 목록)으로 그린다.
  * @returns {string}
  */
 /** 브라우저 스크립트가 쓰는 문구(web.client.*)를 JSON 으로. < 는 \u003c 로 바꿔 script 블록을 닫지 못하게 한다. */
@@ -109,15 +110,16 @@ function clientMessages() {
   return JSON.stringify(m).replace(/</g, '\\u003c');
 }
 
-export function page({ title, body, nav = true, h1 = title, crumbs = [], actions = null, frame = {}, scripts = [], wide = false }) {
+export function page({ title, body, nav = true, h1 = title, crumbs = [], actions = null, frame = {}, detail = null, scripts = [], wide = false }) {
   const head = headBlock({ h1, crumbs, actions });
-  const main = nav && frame.sidebar
-    ? html`<div class="shell">
-${frame.sidebar}
+  const main = nav && detail
+    ? html`<div class="detail">
+<aside class="blocks">${detail.left}</aside>
 <main>
 ${head}
 ${body}
 </main>
+${detail.right ? html`<aside class="files">${detail.right}</aside>` : ''}
 </div>`
     : html`<main class="${nav ? 'solo' : wide ? 'bare wide' : 'bare'}">
 ${head}
@@ -129,7 +131,7 @@ ${body}
 <meta charset="utf-8">
 <script type="application/json" id="i18n">${raw(clientMessages())}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${title} · ${t('web.brand')}</title>
+<title>${title}</title>
 <link rel="stylesheet" href="/static/app.css">
 <script src="/static/app.js" defer></script>
 ${scripts.map(src => html`<script type="module" src="${src}"></script>`)}

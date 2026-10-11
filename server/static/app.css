@@ -38,9 +38,6 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 
 /* ---------- 상단 ---------- */
 .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 4px; height: 45px; padding: 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
-.brand { display: flex; align-items: center; gap: 8px; margin-right: 18px; font-weight: 700; color: var(--fg); white-space: nowrap; }
-.brand:hover { text-decoration: none; }
-.logo { width: 16px; height: 16px; border-radius: 4px; background: var(--accent); flex: none; }
 .tabs { display: flex; align-self: stretch; }
 .tab { display: flex; align-items: center; gap: 6px; padding: 0 11px; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--muted); font-size: 13.5px; white-space: nowrap; }
 .tab:hover { color: var(--fg); text-decoration: none; }
@@ -53,31 +50,32 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 .util form { margin: 0; }
 
 /* ---------- 사이드바와 본문 ---------- */
-.shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: calc(100vh - 45px); background: linear-gradient(to right, var(--side-bg) 219px, var(--line) 219px, var(--line) 220px, transparent 220px); }
-.side { position: sticky; top: 45px; align-self: start; height: calc(100vh - 45px); overflow-y: auto; background: var(--side-bg); border-right: 1px solid var(--line); }
-.side > summary { display: none; }
-.side-in { padding: 12px 10px 24px; }
 .side-find { position: relative; display: block; margin-bottom: 10px; }
 .side-search { width: 100%; padding: 6px 30px 6px 9px; font-size: 12.5px; }
 .side-find kbd { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); padding: 0 5px; border: 1px solid var(--input-line); border-radius: 4px; font-size: 11px; color: var(--faint); background: var(--bg); pointer-events: none; }
+/* ---------- 블록 상세: 왼쪽 블록 목록 · 가운데 본문 · 오른쪽 파일 ---------- */
+.detail { display: grid; grid-template-columns: 220px minmax(0, 1fr) 240px; min-height: calc(100vh - 45px); }
+.detail > aside { position: sticky; top: 45px; align-self: start; max-height: calc(100vh - 45px); overflow-y: auto; padding: 12px 10px 24px; background: var(--side-bg); }
+.detail > aside.blocks { border-right: 1px solid var(--line); }
+.detail > aside.files { border-left: 1px solid var(--line); }
+.detail > main { max-width: 980px; }
 .side-list, .side-list ul { list-style: none; margin: 0; padding: 0; }
-.side-list .it, .side-list > .grp > .f { display: flex; justify-content: space-between; gap: 6px; padding: 4px 8px; border-radius: 6px; color: var(--fg); font-size: 13px; overflow-wrap: anywhere; }
-.side-list > .grp > .f { display: block; font-family: inherit; font-size: 13px; }
-.side-list .it > span:not(.nm) { flex: none; color: var(--faint); font-size: 12px; }
-.side-list .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.side-list .it:hover, .side-list .f:hover { background: var(--line-soft); text-decoration: none; }
-.side-list .it.on { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
-.side-list .files { margin: 2px 0 6px; }
-.side-list .files .f { display: block; padding: 2px 8px 2px 20px; border-radius: 6px; color: var(--muted); font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
-.side-list .f.on { color: var(--fg); font-weight: 700; background: var(--line-soft); }
-.side-list > .grp > .f.on { background: var(--accent-soft); color: var(--accent-text); }
-.side-list .empty, .side-none { color: var(--faint); font-size: 12.5px; padding: 4px 8px; margin: 0; }
-.side-foot { margin: 16px 8px 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--faint); }
+.side-list .blk { display: block; padding: 6px 8px; border-radius: 6px; color: var(--fg); font-size: 13px; overflow-wrap: anywhere; }
+.side-list .blk span:not(.nm):not(.domain) { display: block; color: var(--faint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-list .blk:hover { background: var(--line-soft); text-decoration: none; }
+.side-list .blk.on { background: var(--accent-soft); color: var(--accent-text); }
+.side-none { color: var(--faint); font-size: 12.5px; padding: 4px 8px; margin: 0; }
+.tree { list-style: none; margin: 0 0 14px; padding: 0; }
+.tree a { display: flex; justify-content: space-between; gap: 6px; padding: 3px 8px; border-radius: 6px; color: var(--fg); font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.tree a:hover { background: var(--line-soft); text-decoration: none; }
+.tree a.on { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+.tree .k { flex: none; }
+.files h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); margin: 4px 8px 8px; }
+.files .tools { display: flex; flex-direction: column; gap: 8px; padding: 0 4px; }
 
 main { min-width: 0; padding: 20px 32px 56px; }
 main.solo { max-width: 1160px; margin: 0 auto; }
 main.bare { max-width: 440px; margin: 10vh auto 0; padding: 24px 16px; }
-.shell > main { max-width: 1064px; }
 
 .head { margin-bottom: 12px; }
 .crumbs { font-size: 12.5px; color: var(--muted); margin-bottom: 4px; overflow-wrap: anywhere; }
@@ -196,14 +194,13 @@ details.manage form { margin-top: 12px; }
 /* ---------- 휴대폰 폭 ---------- */
 @media (max-width: 760px) {
   .top { flex-wrap: wrap; height: auto; padding: 0 12px; gap: 0; }
-  .brand { height: 42px; margin-right: 8px; }
   .util { gap: 12px; }
   .tabs { order: 3; width: 100%; border-top: 1px solid var(--line-soft); }
   .tab { flex: 1 1 auto; justify-content: center; height: 40px; padding: 0 4px; font-size: 13px; gap: 4px; }
-  .shell { display: block; min-height: 0; background: none; }
-  .side { position: static; height: auto; overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); }
-  .side > summary { display: list-item; padding: 10px 16px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
-  .side-in { padding: 0 12px 14px; }
+  .detail { display: flex; flex-direction: column; min-height: 0; }
+  .detail > aside { position: static; max-height: none; border: 0; border-bottom: 1px solid var(--line); }
+  .detail > aside.files { order: -1; }
+  .detail > aside.blocks { order: 2; border-top: 1px solid var(--line); }
   main { padding: 14px 16px 40px; }
   main.solo { padding: 14px 16px 40px; }
   .head-row h1 { font-size: 1.2rem; }

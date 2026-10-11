@@ -28,7 +28,7 @@ test('편집 화면은 원문과 base 해시를 담고, 저장하면 CRLF 를 LF
     content: '---\r\nload: always\r\n---\r\n\r\n# x\r\n\r\n고침\r\n', base: sha256(Buffer.from(RULE)), message: '고친다', action: 'save',
   }, { cookie });
   assert.equal(r.status, 303);
-  assert.equal(r.headers.location, '/f/rules/base/00-x.md');
+  assert.equal(r.headers.location, '/s/base/00-x.md');
   assert.equal(textOf(s, 'rules/base/00-x.md'), '---\nload: always\n---\n\n# x\n\n고침\n');
   assert.deepEqual(s.store.revision(2), { ...s.store.revision(2), author: 'admin', source: 'web', message: '고친다' });
 });
@@ -84,7 +84,7 @@ test('새 파일은 틀을 채운 화면에서 만들고, 이미 있는 경로�
   assert.ok(page.text.includes('load: reference'));
   const ok = await postForm(s, '/new', { path: 'rules/base/01-new.md', content: RULE, message: '새 규칙', action: 'save' }, { cookie });
   assert.equal(ok.status, 303);
-  assert.equal(ok.headers.location, '/f/rules/base/01-new.md');
+  assert.equal(ok.headers.location, '/s/base/01-new.md');
   assert.equal(textOf(s, 'rules/base/01-new.md'), RULE);
   const dup = await postForm(s, '/new', { path: 'rules/base/01-new.md', content: 'x', message: '또', action: 'save' }, { cookie });
   assert.equal(dup.status, 409);
@@ -99,10 +99,10 @@ test('삭제는 파일 하나나 디렉터리 전체를 한 리비전으로 지�
   assert.equal((await postForm(s, '/delete/skills/demo/ref.md', { message: '' }, { cookie })).status, 400);
   const one = await postForm(s, '/delete/skills/demo/ref.md', { message: '지운다' }, { cookie });
   assert.equal(one.status, 303);
-  assert.equal(one.headers.location, '/d/skills/demo');
+  assert.equal(one.headers.location, '/skills/demo');
   assert.equal(textOf(s, 'skills/demo/ref.md'), null);
   const dir = await postForm(s, '/delete/skills/demo', { message: '스킬을 지운다' }, { cookie });
-  assert.equal(dir.headers.location, '/d/skills');
+  assert.equal(dir.headers.location, '/skills');
   assert.deepEqual(s.store.pathsAt().map(f => f.path), ['rules/base/00-x.md']);
   assert.deepEqual(s.store.changes(3).map(c => c.kind), ['delete', 'delete']);
   assert.equal((await postForm(s, '/delete/skills/nope', { message: 'm' }, { cookie })).status, 404);
@@ -111,11 +111,11 @@ test('삭제는 파일 하나나 디렉터리 전체를 한 리비전으로 지�
 test('이름 바꾸기는 파일과 디렉터리를 한 리비전으로 옮기고, 자리가 차 있거나 자기 아래면 거부한다', async t => {
   const { s, cookie } = await seeded(t);
   const f = await postForm(s, '/rename', { from: 'rules/base/00-x.md', to: 'rules/base/05-x.md', message: '번호' }, { cookie });
-  assert.equal(f.headers.location, '/f/rules/base/05-x.md');
+  assert.equal(f.headers.location, '/s/base/05-x.md');
   assert.equal(textOf(s, 'rules/base/05-x.md'), RULE);
   assert.equal(textOf(s, 'rules/base/00-x.md'), null);
   const d = await postForm(s, '/rename', { from: 'skills/demo', to: 'skills/demo2', message: '이름' }, { cookie });
-  assert.equal(d.headers.location, '/d/skills/demo2');
+  assert.equal(d.headers.location, '/skills/demo2');
   assert.deepEqual(s.store.pathsAt().map(x => x.path), ['rules/base/05-x.md', 'skills/demo2/SKILL.md', 'skills/demo2/logo.png', 'skills/demo2/ref.md']);
   assert.ok(s.store.fileAt('skills/demo2/logo.png').equals(Buffer.from([0x89, 0x50])));
   assert.equal((await postForm(s, '/rename', { from: 'skills/demo2/ref.md', to: 'skills/demo2/SKILL.md', message: 'm' }, { cookie })).status, 409);

@@ -7,7 +7,8 @@ import { isTextPath, writeProblems } from '../../../cli/src/store-paths.js';
 import { unifiedDiff } from '../../../cli/src/diff.js';
 import { checkOrigin, requireAdminWeb } from './auth.js';
 import { html, hrefFor, parentOf, diffBlock } from './layout.js';
-import { sendView, whereOf, crumbsOf, catalogAt } from './frame.js';
+import { sendView, tabOf, crumbsFor, hereHref, catalogAt } from './frame.js';
+import { blockOf, LIST_HREF } from './blocks.js';
 import { TEMPLATES } from './templates.js';
 import { t } from '../../../cli/src/i18n.js';
 
@@ -63,9 +64,9 @@ async function postEdit(ctx) {
   const baseField = form.get('base') ?? 'none';
   const again = (status, extra) => sendView(ctx, status, {
     title: t('web.edit.title', { path: p }),
-    where: whereOf(p),
-    crumbs: crumbsOf(p, catalogAt(ctx.store)),
-    body: editBody({ action: hrefFor('/edit/', p), path: p, content, base: baseField, message, cancel: hrefFor('/f/', p), ...extra }),
+    tab: tabOf(p, catalogAt(store).summary),
+    crumbs: crumbsFor(p, catalogAt(store)),
+    body: editBody({ action: hrefFor('/edit/', p), path: p, content, base: baseField, message, cancel: hereHref(store, p), ...extra }),
   });
   if (form.get('action') === 'preview') {
     again(200, preview(store, p, content));
@@ -89,7 +90,7 @@ async function postEdit(ctx) {
     }
     throw e;
   }
-  redirect(ctx.res, hrefFor('/f/', p));
+  redirect(ctx.res, hereHref(store, p));
 }
 
 function newPage(ctx) {
@@ -100,8 +101,9 @@ function newPage(ctx) {
   const links = Object.entries(TEMPLATES).map(([k, v]) => html` <a class="${k === key ? 'chip on' : 'chip'}" href="${`/new?dir=${encodeURIComponent(dir)}&template=${k}`}">${v.label}</a>`);
   sendView(ctx, 200, {
     title: t('web.newFile'),
-    where: whereOf(dir),
-    body: html`<nav class="chips" aria-label="${t('web.templates')}"><span class="meta">${t('web.templates')}</span>${links}</nav>${editBody({ action: '/new', path: p, content: tpl.content, base: 'none', cancel: hrefFor('/d/', dir), isNew: true })}`,
+    tab: tabOf(dir, catalogAt(ctx.store).summary),
+    crumbs: crumbsFor(dir, catalogAt(ctx.store)),
+    body: html`<nav class="chips" aria-label="${t('web.templates')}"><span class="meta">${t('web.templates')}</span>${links}</nav>${editBody({ action: '/new', path: p, content: tpl.content, base: 'none', cancel: hereHref(ctx.store, dir), isNew: true })}`,
   });
 }
 
@@ -114,8 +116,8 @@ async function postNew(ctx) {
   const message = (form.get('message') ?? '').trim();
   const again = (status, extra) => sendView(ctx, status, {
     title: t('web.newFile'),
-    where: whereOf(parentOf(p)),
-    body: editBody({ action: '/new', path: p, content, base: 'none', message, cancel: hrefFor('/d/', parentOf(p)), isNew: true, ...extra }),
+    tab: tabOf(parentOf(p), catalogAt(store).summary),
+    body: editBody({ action: '/new', path: p, content, base: 'none', message, cancel: hereHref(store, parentOf(p)), isNew: true, ...extra }),
   });
   if (form.get('action') === 'preview') {
     again(200, preview(store, p, content));
@@ -138,7 +140,7 @@ async function postNew(ctx) {
     }
     throw e;
   }
-  redirect(ctx.res, hrefFor('/f/', p));
+  redirect(ctx.res, hereHref(store, p));
 }
 
 /** 경로가 파일이면 [그 경로], 디렉터리면 그 아래 파일들. */
@@ -157,12 +159,14 @@ async function postDelete(ctx) {
   const hashes = store.headHashes();
   const targets = p ? filesUnder(hashes, p) : [];
   if (!targets.length) throw new HttpError(404, t('web.noPath'));
+  const block = blockOf(p, catalogAt(store).summary);
   store.commit({
     ...META, message,
     changes: Object.fromEntries(targets.map(q => [q, null])),
     base: Object.fromEntries(targets.map(q => [q, hashes.get(q)])),
   });
-  redirect(ctx.res, hrefFor('/d/', parentOf(p)));
+  // 블록 전체를 지웠으면 그 탭 목록으로, 아니면 남은 상위(블록 상세나 설정)로.
+  redirect(ctx.res, block && block.rel === '' ? LIST_HREF[block.kind] : hereHref(store, parentOf(p)));
 }
 
 async function postRename(ctx) {
@@ -176,7 +180,6 @@ async function postRename(ctx) {
   if (!from || !to || from === to) throw new HttpError(400, t('web.rename.same'));
   if (to.startsWith(`${from}/`)) throw new HttpError(400, t('web.rename.intoSelf'));
   const hashes = store.headHashes();
-  const isFile = hashes.has(from);
   const moved = filesUnder(hashes, from).map(q => [q, to + q.slice(from.length)]);
   if (!moved.length) throw new HttpError(404, t('web.noPath'));
   if (filesUnder(hashes, to).length) throw new HttpError(409, t('web.rename.taken', { path: to }));
@@ -189,7 +192,7 @@ async function postRename(ctx) {
     base[b] = null;
   }
   store.commit({ ...META, message, changes, base });
-  redirect(ctx.res, hrefFor(isFile ? '/f/' : '/d/', to));
+  redirect(ctx.res, hereHref(store, to));
 }
 
 /** 브라우저 JS 가 부른다. 응답은 언제나 JSON 이다. */
@@ -235,9 +238,9 @@ export function registerEdit(router) {
     if (content === null) throw new HttpError(404, t('web.edit.noFile'));
     sendView(ctx, 200, {
       title: t('web.edit.title', { path: p }),
-      where: whereOf(p),
-      crumbs: crumbsOf(p, catalogAt(ctx.store)),
-      body: editBody({ action: hrefFor('/edit/', p), path: p, content: content.toString('utf8'), base: ctx.store.hashAt(p), cancel: hrefFor('/f/', p) }),
+      tab: tabOf(p, catalogAt(ctx.store).summary),
+      crumbs: crumbsFor(p, catalogAt(ctx.store)),
+      body: editBody({ action: hrefFor('/edit/', p), path: p, content: content.toString('utf8'), base: ctx.store.hashAt(p), cancel: hereHref(ctx.store, p) }),
     });
   });
   router.add('POST', '/edit/*path', async ctx => {

@@ -40,61 +40,23 @@ async function upload(form) {
   status.textContent = body.error ?? String(res.status);
 }
 
-// 사이드바는 넓은 화면에서 늘 펼치고, 휴대폰 폭에서는 본문 위의 접힌 「목록」 으로 둔다.
-const side = document.querySelector('details.side');
-if (side) {
-  const narrow = window.matchMedia('(max-width: 760px)');
-  const sync = () => {
-    side.open = !narrow.matches;
-  };
-  sync();
-  narrow.addEventListener('change', sync);
-}
-
-// 사이드바 찾기: 묶음 이름이나 파일 이름에 찾는 글자가 있는 것만 남긴다. 펼치지 않은 묶음의 파일도 찾는다.
+// 블록 상세 왼쪽의 블록 찾기: 이름이나 설명에 찾는 글자가 있는 블록만 남긴다.
 const search = document.querySelector('input[data-side-search]');
 if (search) {
-  const groups = [...document.querySelectorAll('.side-list > .grp')];
+  const items = [...document.querySelectorAll('.side-list > li')];
   const none = document.querySelector('.side-none');
-  const collapsed = new Map(groups.map(g => [g, g.querySelector('.files')?.hidden ?? true]));
-  const label = el => (el.firstChild?.textContent ?? el.textContent).toLowerCase();
 
   const filter = () => {
     const q = search.value.trim().toLowerCase();
     let shown = 0;
-    for (const g of groups) {
-      const files = g.querySelector('.files');
-      const items = files ? [...files.children] : [];
-      if (!q) {
-        g.hidden = false;
-        if (files) files.hidden = collapsed.get(g);
-        for (const li of items) li.hidden = false;
-        shown++;
-        continue;
-      }
-      const nameHit = label(g.firstElementChild).includes(q);
-      let fileHit = false;
-      for (const li of items) {
-        const hit = li.textContent.toLowerCase().includes(q);
-        li.hidden = !hit && !nameHit;
-        fileHit ||= hit;
-      }
-      if (files) files.hidden = !(fileHit || (nameHit && !collapsed.get(g)));
-      g.hidden = !(nameHit || fileHit);
-      if (!g.hidden) shown++;
+    for (const li of items) {
+      li.hidden = Boolean(q) && !li.textContent.toLowerCase().includes(q);
+      if (!li.hidden) shown++;
     }
     if (none) none.hidden = shown > 0;
   };
 
-  /** 찾기 결과의 첫 링크: 맞는 파일이 있으면 그 파일, 없으면 묶음. */
-  const firstHit = () => {
-    for (const g of groups) {
-      if (g.hidden) continue;
-      const file = [...g.querySelectorAll('.files > li')].find(li => !li.hidden && !li.parentElement.hidden);
-      return (file ?? g).querySelector('a');
-    }
-    return null;
-  };
+  const firstHit = () => items.find(li => !li.hidden)?.querySelector('a') ?? null;
 
   search.addEventListener('input', filter);
   search.addEventListener('keydown', event => {
@@ -117,7 +79,6 @@ if (search) {
       const t = event.target;
       if (t instanceof Element && t.closest('input, textarea, select, [contenteditable]')) return;
       event.preventDefault();
-      if (side) side.open = true;
       search.focus();
       search.select();
     }

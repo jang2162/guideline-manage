@@ -3,7 +3,7 @@ import { isTextPath } from '../../../cli/src/store-paths.js';
 import { unifiedDiff } from '../../../cli/src/diff.js';
 import { checkOrigin, requireAdminWeb, requireReadWeb, isAdmin } from './auth.js';
 import { html, hrefFor, diffBlock } from './layout.js';
-import { sendView } from './frame.js';
+import { sendView, hereHref } from './frame.js';
 import { t } from '../../../cli/src/i18n.js';
 
 /** 이력 쪽 화면: 사이드바 없이 상단의 「이력」 을 켠다. */
@@ -53,7 +53,7 @@ function fileHistoryPage(ctx) {
 <button class="secondary">${t('web.revertTo', { rev: r.id })}</button></form>`);
   view(ctx, 200, {
     title: t('web.historyOf', { path: p }),
-    body: html`<p class="meta"><a href="${hrefFor('/f/', p)}">${t('web.viewFile')}</a></p>${revisionRows(rows, { withHash: true })}
+    body: html`<p class="meta"><a href="${hereHref(ctx.store, p)}">${t('web.viewFile')}</a></p>${revisionRows(rows, { withHash: true })}
 ${isAdmin(ctx) ? html`<details class="manage"><summary>${t('web.revert')}</summary>${revertForms}</details>` : ''}`,
   });
 }
@@ -64,7 +64,7 @@ function changeBlock(store, id, c) {
   const detail = isTextPath(c.path)
     ? diffBlock(unifiedDiff(text(before), text(after), { aLabel: `r${id - 1}`, bLabel: `r${id}` }))
     : html`<p class="meta">${t('web.binaryChange', { from: size(before), to: size(after) })}</p>`;
-  return html`<section><h3>${KIND[c.kind]} <a href="${hrefFor('/f/', c.path)}">${c.path}</a> <a class="meta" href="${hrefFor('/history/', c.path)}">${t('web.nav.history')}</a></h3>${detail}</section>`;
+  return html`<section><h3>${KIND[c.kind]} <a href="${hereHref(store, c.path)}">${c.path}</a> <a class="meta" href="${hrefFor('/history/', c.path)}">${t('web.nav.history')}</a></h3>${detail}</section>`;
 }
 
 function revisionPage(ctx) {

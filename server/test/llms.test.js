@@ -21,9 +21,8 @@ test('/llms.txt 는 로그인 없이 열리고, 이 서버의 주소로 사용·
   assert.match(text, /"aliases"/);
 });
 
-test('관리자 화면 상단과 로그인 화면에 사용법(/llms.txt) 링크가 있다', async t => {
+test('화면 상단에 사용법(/usage) 링크가 있다', async t => {
   const s = await startApp(t);
-  assert.match((await s.req('/login')).text, /href="\/llms\.txt"/);
   const cookie = await login(s);
-  assert.match((await s.req('/', { headers: { Cookie: cookie } })).text, /<a href="\/llms\.txt">사용법<\/a>/);
+  assert.match((await s.req('/', { headers: { Cookie: cookie } })).text, /<a href="\/usage">사용법<\/a>/);
 });

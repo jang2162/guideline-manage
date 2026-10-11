@@ -70,15 +70,15 @@ test('로그아웃은 쿠키를 지우고 목록으로 보낸다', async t => {
 
 test('보기는 로그인 없이 되고, 바꾸는 버튼·관리자 링크는 숨기고 로그인 링크를 둔다', async t => {
   const { s } = await seeded(t);
-  for (const p of ['/', '/s/base', '/skills', '/agents', '/mcp', '/d/', '/d/rules/base', '/f/rules/base/02-git.md', '/history', '/history/rules/base/02-git.md', '/r/1', '/raw/rules/base/02-git.md', '/export.tar.gz']) {
+  for (const p of ['/', '/s/base', '/s/base/02-git.md', '/skills', '/skills/demo-skill', '/agents', '/agents/code-reviewer', '/mcp', '/mcp/gitlab', '/history', '/history/rules/base/02-git.md', '/r/1', '/raw/rules/base/02-git.md', '/archive/rules/base']) {
     const r = await s.req(p);
     assert.equal(r.status, 200, p);
   }
-  const file = (await s.req('/f/rules/base/02-git.md')).text;
-  assert.match(file, /<a href="\/login\?next=%2Ff%2Frules%2Fbase%2F02-git\.md">로그인<\/a>/);
+  const file = (await s.req('/s/base/02-git.md')).text;
+  assert.match(file, /<a href="\/login\?next=%2Fs%2Fbase%2F02-git\.md">로그인<\/a>/);
   for (const [p, text] of [
-    ['/f/rules/base/02-git.md', file],
-    ['/d/rules/base', (await s.req('/d/rules/base')).text],
+    ['/s/base/02-git.md', file],
+    ['/s/base', (await s.req('/s/base')).text],
     ['/history/rules/base/02-git.md', (await s.req('/history/rules/base/02-git.md')).text],
     ['/r/1', (await s.req('/r/1')).text],
   ]) {
@@ -86,8 +86,8 @@ test('보기는 로그인 없이 되고, 바꾸는 버튼·관리자 링크는 �
       assert.ok(!text.includes(bit), `${p}: ${bit}`);
     }
   }
-  const admin = (await getAs(s, await login(s), '/f/rules/base/02-git.md')).text;
-  for (const bit of ['href="/edit/', 'action="/rename"', 'href="/tokens"', 'href="/proposals"', 'action="/logout"']) assert.ok(admin.includes(bit), bit);
+  const admin = (await getAs(s, await login(s), '/s/base/02-git.md')).text;
+  for (const bit of ['href="/edit/', 'href="/new', 'data-upload=', 'action="/rename"', 'href="/tokens"', 'href="/proposals"', 'action="/logout"']) assert.ok(admin.includes(bit), bit);
   assert.ok(!admin.includes('href="/login'));
 });
 
@@ -96,13 +96,13 @@ test('비공개(PUBLIC_READ=0)면 보기 화면도 로그인으로 보낸다', a
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const s = await startApp(t, { config: testConfig({ publicRead: false }) });
   s.store.commit({ ...META, source: 'import', changes: filesOf(root) });
-  for (const p of ['/', '/s/base', '/skills', '/d/rules', '/f/rules/base/02-git.md', '/raw/rules/base/02-git.md', '/export.tar.gz', '/history', '/r/1']) {
+  for (const p of ['/', '/s/base', '/skills', '/s/base/02-git.md', '/raw/rules/base/02-git.md', '/archive/rules/base', '/history', '/r/1']) {
     const r = await s.req(p);
     assert.equal(r.status, 303, p);
     assert.equal(r.headers.location, `/login?next=${encodeURIComponent(p)}`, p);
   }
   assert.equal((await s.req('/llms.txt')).status, 200);
-  assert.equal((await getAs(s, await login(s), '/d/rules')).status, 200);
+  assert.equal((await getAs(s, await login(s), '/s/base')).status, 200);
 });
 
 test('세션 없이 바꾸는 요청은 로그인으로 보내고 아무것도 바꾸지 않는다', async t => {
@@ -152,7 +152,7 @@ test('목록은 스택·세팅 문서·무시됨·경고를, 탭은 스킬·서�
     const page = (await getAs(s, cookie, p)).text;
     for (const n of names) assert.ok(page.includes(n), `${p} ${n}`);
   }
-  const demo = (await getAs(s, cookie, '/s/demo')).text;
+  const demo = (await getAs(s, cookie, '/s/demo/02-xss.md')).text;
   assert.ok(demo.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.ok(!demo.includes('<script>alert'));
   assert.ok(!r.text.includes('<script>alert'));
@@ -161,19 +161,16 @@ test('목록은 스택·세팅 문서·무시됨·경고를, 탭은 스킬·서�
   assert.ok(!filtered.text.includes('<a class="card" href="/s/demo">'));
 });
 
-test('파일 보기는 텍스트를 이스케이프해 보이고, 바이너리는 크기와 내려받기, 디렉터리는 /d/ 로 보낸다', async t => {
+test('파일 보기는 텍스트를 이스케이프해 보이고, 바이너리는 크기와 내려받기를 보인다', async t => {
   const { s, cookie } = await seeded(t);
   s.store.commit({ ...META, changes: { 'skills/demo-skill/logo.png': Buffer.from([0x89, 0x50, 0x00]), 'rules/base/03-html.md': '<b>굵게</b>\n' } });
-  const text = await getAs(s, cookie, '/f/rules/base/03-html.md');
+  const text = await getAs(s, cookie, '/s/base/03-html.md');
   assert.ok(text.text.includes('&lt;b&gt;굵게&lt;/b&gt;'));
   assert.ok(text.text.includes('/edit/rules/base/03-html.md'));
-  const bin = await getAs(s, cookie, '/f/skills/demo-skill/logo.png');
+  const bin = await getAs(s, cookie, '/skills/demo-skill/logo.png');
   assert.match(bin.text, /바이너리 파일 · 3 바이트/);
   assert.ok(!bin.text.includes('/edit/skills/demo-skill/logo.png'));
-  const dir = await getAs(s, cookie, '/f/rules/base');
-  assert.equal(dir.status, 303);
-  assert.equal(dir.headers.location, '/d/rules/base');
-  const missing = await getAs(s, cookie, '/f/rules/nope.md');
+  const missing = await getAs(s, cookie, '/s/base/nope.md');
   assert.equal(missing.status, 404);
   assert.equal(missing.headers['content-type'], 'text/html; charset=utf-8');
   const raw = await getAs(s, cookie, '/raw/skills/demo-skill/logo.png');
@@ -181,32 +178,12 @@ test('파일 보기는 텍스트를 이스케이프해 보이고, 바이너리�
   assert.equal(raw.headers['content-disposition'], "attachment; filename*=UTF-8''logo.png");
 });
 
-test('디렉터리 보기는 항목과 올리기 폼(현재 해시 포함)을 보이고, 루트는 최상위를 보인다', async t => {
+test('블록 상세의 오른쪽에는 파일 목록과 올리기 폼(현재 해시 포함)이 있다', async t => {
   const { s, cookie } = await seeded(t);
-  const r = await getAs(s, cookie, '/d/skills/demo-skill');
-  assert.ok(r.text.includes('href="/f/skills/demo-skill/SKILL.md"'));
+  const r = await getAs(s, cookie, '/skills/demo-skill');
+  assert.ok(r.text.includes('href="/skills/demo-skill/SKILL.md"'));
   assert.ok(r.text.includes('data-upload="skills/demo-skill"'));
   assert.match(r.text, /data-hashes="\{&quot;SKILL\.md&quot;:&quot;[0-9a-f]{64}&quot;\}"/);
-  const root = await getAs(s, cookie, '/d/');
-  for (const name of ['agents/', 'mcp/', 'rules/', 'skills/']) assert.ok(root.text.includes(`>${name}</a>`), name);
-  assert.equal((await getAs(s, cookie, '/d/rules/nope')).status, 404);
-});
-
-test('내보내기는 최신 상태를 옛 저장소 구조의 tar.gz 로 준다', async t => {
-  const { s, cookie } = await seeded(t);
-  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]);
-  s.store.commit({ ...META, changes: { 'skills/demo-skill/logo.png': png } });
-  const r = await getAs(s, cookie, '/export.tar.gz');
-  assert.equal(r.status, 200);
-  assert.equal(r.headers['content-disposition'], 'attachment; filename="guideline-r2.tar.gz"');
-  const dir = tmpDir('guideline-export-');
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  fs.writeFileSync(path.join(dir, 'x.tar.gz'), r.body);
-  fs.mkdirSync(path.join(dir, 'out'));
-  execFileSync('tar', ['-xzf', path.join(dir, 'x.tar.gz'), '-C', path.join(dir, 'out')]);
-  const got = filesOf(path.join(dir, 'out'));
-  assert.deepEqual(Object.keys(got).sort(), s.store.pathsAt().map(f => f.path));
-  assert.ok(got['skills/demo-skill/logo.png'].equals(png));
 });
 
 test('정적 파일은 로그인 없이 받고, 없는 이름은 404', async t => {
@@ -233,4 +210,70 @@ test('올리기 JS 는 macOS 의 NFD 파일 이름을 NFC 로 맞춰 해시를 �
   assert.match(js, /const name = file\.name\.normalize\('NFC'\);/);
   assert.match(js, /hashes\[name\]/);
   assert.match(js, /`\$\{form\.dataset\.upload\}\/\$\{name\}`/);
+});
+
+test('스택 상세는 왼쪽 목록·가운데 README·오른쪽 파일 트리를 보인다', async t => {
+  const { s } = await seeded(t);
+  const page = (await s.req('/s/base')).text;
+  assert.ok(page.includes('class="detail"'));
+  assert.ok(page.includes('<aside class="blocks">'));
+  assert.ok(page.includes('<aside class="files">'));
+  assert.match(page, /<a class="blk on" href="\/s\/base" aria-current="page">/);
+  assert.ok(page.includes('href="/s/base/02-git.md"'));
+  assert.ok(page.includes('href="/s/base/README.md"'));
+  assert.ok(page.includes('href="/archive/rules/base"'));
+  assert.match(page, /<h1>/);
+});
+
+test('상세에서 파일을 고르면 그 파일을 렌더링하고 트리에서 강조한다', async t => {
+  const { s } = await seeded(t);
+  const page = (await s.req('/s/base/02-git.md')).text;
+  assert.ok(page.includes('<h2>워크트리는 저장소 안에</h2>'));
+  assert.match(page, /<a class="on" href="\/s\/base\/02-git\.md"/);
+});
+
+test('옛 주소와 전체 내보내기는 404', async t => {
+  const { s } = await seeded(t);
+  for (const p of ['/f/rules/base/02-git.md', '/d/', '/d/rules', '/export.tar.gz']) assert.equal((await s.req(p)).status, 404, p);
+});
+
+test('블록 밖 파일·없는 블록·없는 파일은 404', async t => {
+  const { s } = await seeded(t);
+  assert.equal((await s.req('/s/nope')).status, 404);
+  assert.equal((await s.req('/s/base/nope.md')).status, 404);
+  assert.equal((await s.req('/s/base/..%2F..%2Fdocs%2Fauthoring.md')).status, 404);
+  assert.equal((await s.req('/skills/no-skill')).status, 404);
+});
+
+test('블록 내려받기는 그 블록 파일만 담는다', async t => {
+  const { s } = await seeded(t);
+  const r = await s.req('/archive/rules/base');
+  assert.equal(r.status, 200);
+  assert.match(r.headers['content-disposition'], /attachment; filename="base-r1\.tar\.gz"/);
+  const dir = tmpDir('guideline-arc-');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'a.tgz'), r.body);
+  const list = execFileSync('tar', ['-tzf', path.join(dir, 'a.tgz')], { encoding: 'utf8' }).trim().split('\n');
+  assert.ok(list.length > 0);
+  assert.ok(list.every(p => p.startsWith('rules/base/')), list.join(','));
+  assert.equal((await s.req('/archive/docs')).status, 404);
+  assert.equal((await s.req('/archive/rules/nope')).status, 404);
+});
+
+test('서브에이전트 상세는 오른쪽 트리가 없다', async t => {
+  const { s } = await seeded(t);
+  const page = (await s.req('/agents/code-reviewer')).text;
+  assert.ok(page.includes('class="detail"'));
+  assert.ok(!page.includes('<aside class="files">'));
+  assert.ok(page.includes('<div class="doc">'));
+});
+
+test('비공개 서버는 블록 상세·내려받기를 로그인으로 보낸다', async t => {
+  const s = await startApp(t, { config: testConfig({ publicRead: false }) });
+  s.store.commit({ ...META, changes: { 'rules/base/00-a.md': '---\nload: always\n---\n# a\n' } });
+  for (const p of ['/s/base', '/s/base/00-a.md', '/archive/rules/base', '/agents/x']) {
+    const r = await s.req(p);
+    assert.equal(r.status, 303, p);
+    assert.match(r.headers.location, /^\/login\?next=/);
+  }
 });
