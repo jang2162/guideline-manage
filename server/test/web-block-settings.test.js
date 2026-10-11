@@ -106,3 +106,39 @@ test('블록 추가에서 표시 이름을 넣으면 첫 파일 frontmatter 에 
   assert.equal(summary(s).labels['skills/new-skill'], '새 스킬');
   assert.deepEqual(summary(s).categories['skills/new-skill'], ['a]', 'b: c']);
 });
+
+test('필요한 블록(requires)을 저장하고, 빈 값이면 줄을 지운다', async t => {
+  const { s, cookie } = await setup(t);
+  await post(s, cookie, '/settings/mcp/m', { action: 'meta', label: '', categories: '', requires: 'rules/base, skills/s' });
+  assert.equal(frontmatter(text(s, 'mcp/m/README.md')).requires, '[rules/base, skills/s]');
+  assert.deepEqual(summary(s).requires['mcp/m'], ['rules/base', 'skills/s']);
+  assert.ok((await getAs(s, cookie, '/settings/mcp/m')).text.includes('value="rules/base, skills/s"'));
+  await post(s, cookie, '/settings/mcp/m', { action: 'meta', label: '', categories: '', requires: '' });
+  assert.equal((frontmatter(text(s, 'mcp/m/README.md')) ?? {}).requires, undefined);
+});
+
+test('블록 이름을 바꾸면 다른 블록의 requires 도 새 이름으로 고친다(한 리비전)', async t => {
+  const { s, cookie } = await setup(t);
+  await post(s, cookie, '/settings/mcp/m', { action: 'meta', label: '', categories: '', requires: 'rules/base' });
+  await post(s, cookie, '/settings/agent/w', { action: 'meta', label: '', categories: '', requires: 'rules/base, mcp/m' });
+  const head = s.store.headRevision();
+  await post(s, cookie, '/settings/stack/base', { action: 'rename', name: 'core' });
+  assert.equal(s.store.headRevision(), head + 1);
+  assert.deepEqual(summary(s).requires['mcp/m'], ['rules/core']);
+  assert.deepEqual(summary(s).requires['agents/w.md'], ['rules/core', 'mcp/m']);
+  await post(s, cookie, '/settings/agent/w', { action: 'rename', name: 'w2' });
+  await post(s, cookie, '/settings/mcp/m', { action: 'rename', name: 'm2' });
+  assert.deepEqual(summary(s).requires['agents/w2.md'], ['rules/core', 'mcp/m2']);
+});
+
+test('블록 상세에 필요한 블록 링크가 보인다', async t => {
+  const { s, cookie } = await setup(t);
+  await post(s, cookie, '/settings/mcp/m', { action: 'meta', label: '', categories: '', requires: 'rules/base' });
+  assert.ok((await s.req('/mcp/m')).text.includes('href="/s/base"'));
+});
+
+test('블록 추가에서 필요한 블록을 넣으면 첫 파일 frontmatter 에 requires 가 들어간다', async t => {
+  const { s, cookie } = await setup(t);
+  await postForm(s, '/add', { kind: 'mcp', name: 'new-mcp', requires: 'rules/base' }, { cookie });
+  assert.deepEqual(summary(s).requires['mcp/new-mcp'], ['rules/base']);
+});

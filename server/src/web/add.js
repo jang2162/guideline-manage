@@ -20,9 +20,10 @@ function fillName(text, name) {
 }
 
 /** 표시 이름과 분류를 frontmatter 에 넣는다. frontmatter 가 없으면 만든다. */
-function withMeta(text, { label = '', categories = [] }) {
-  const withCats = categories.length ? setFrontmatterValue(text, 'categories', categoriesValue(categories), { raw: true }) : text;
-  return label ? setFrontmatterValue(withCats, 'label', label) : withCats;
+function withMeta(text, { label = '', categories = [], requires = [] }) {
+  let out = categories.length ? setFrontmatterValue(text, 'categories', categoriesValue(categories), { raw: true }) : text;
+  if (requires.length) out = setFrontmatterValue(out, 'requires', categoriesValue(requires), { raw: true });
+  return label ? setFrontmatterValue(out, 'label', label) : out;
 }
 
 /**
@@ -55,6 +56,7 @@ function addForm(ctx, kind, { status = 200, error = null, values = {} } = {}) {
 ${kind === 'stack' ? html`<label>${t('web.add.domain')} <input name="domain" value="${values.domain ?? ''}" placeholder="gitlab.example.com"></label>` : ''}
 <label>${t('web.add.label')} <input name="label" value="${values.label ?? ''}"></label>
 <label>${t('web.add.categories')} <input name="categories" value="${values.categories ?? ''}"></label>
+<label>${t('web.add.requires')} <input name="requires" value="${values.requires ?? ''}"></label>
 <button>${t('web.add.submit')}</button>
 </form>`,
   });
@@ -74,13 +76,14 @@ export function registerAdd(router) {
     const form = await readForm(ctx.req);
     const kind = form.get('kind') ?? '';
     if (!KINDS.includes(kind)) throw new HttpError(404, t('web.noBlock'));
-    const values = { name: (form.get('name') ?? '').trim(), domain: (form.get('domain') ?? '').trim(), categories: (form.get('categories') ?? '').trim(), label: (form.get('label') ?? '').trim() };
+    const values = { name: (form.get('name') ?? '').trim(), domain: (form.get('domain') ?? '').trim(), categories: (form.get('categories') ?? '').trim(), label: (form.get('label') ?? '').trim(), requires: (form.get('requires') ?? '').trim() };
     const fail = error => addForm(ctx, kind, { status: 400, error, values });
     if (!NAME.test(values.name)) return fail(t('web.add.badName'));
     if (kind === 'stack' && values.domain && !DOMAIN.test(values.domain)) return fail(t('web.add.badDomain'));
     const name = kind === 'stack' && values.domain ? `${values.name}__${values.domain}` : values.name;
     const categories = values.categories.split(',').map(c => c.trim()).filter(Boolean);
-    const files = blockStarter(kind, name, { label: values.label, categories });
+    const requires = [...new Set(values.requires.split(',').map(c => c.trim()).filter(Boolean))];
+    const files = blockStarter(kind, name, { label: values.label, categories, requires });
     const prefix = kind === 'agent' ? null : `${Object.keys(files)[0].split('/').slice(0, 2).join('/')}/`;
     const taken = [...ctx.store.headHashes().keys()].some(p => (prefix ? p.startsWith(prefix) : p in files));
     if (taken) return fail(t('web.add.exists'));

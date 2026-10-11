@@ -5,7 +5,7 @@ import { WriteError, ConflictError } from '../store.js';
 import { checkOrigin, requireAdminWeb } from './auth.js';
 import { html } from './layout.js';
 import { catalogAt, sendView, labelOf } from './frame.js';
-import { KINDS, TAB, LIST_HREF, namesOf, blockDir, blockHref, metaFile, settingsHref } from './blocks.js';
+import { KINDS, TAB, LIST_HREF, namesOf, blockDir, blockHref, metaFile, settingsHref, blockOfKey, keyOfBlock } from './blocks.js';
 import { NAME, DOMAIN } from './add.js';
 import { frontmatter, setFrontmatterValue, categoriesValue, readQuoted } from '../../../cli/src/frontmatter.js';
 import { parseCategories } from '../../../cli/src/categories.js';
@@ -35,6 +35,7 @@ function settingsPage(ctx, { kind, name }, { status = 200, error = null } = {}) 
   const fm = frontmatter(store.fileAt(metaPath)?.toString('utf8') ?? '') ?? {};
   const label = fm.label ? (readQuoted(fm.label) ?? fm.label) : '';
   const cats = fm.categories ? (parseCategories(fm.categories).categories ?? []).join(', ') : '';
+  const needs = fm.requires ? (parseCategories(fm.requires).categories ?? []).join(', ') : '';
   const dir = blockDir(kind, name);
   const { tool, domain } = splitStackName(name);
   const hashes = JSON.stringify(Object.fromEntries(filesOf(store.headHashes(), kind, name).filter(p => !p.slice(dir.length + 1).includes('/')).map(p => [p.slice(dir.length + 1), store.hashAt(p)])));
@@ -51,6 +52,7 @@ function settingsPage(ctx, { kind, name }, { status = 200, error = null } = {}) 
 <input type="hidden" name="action" value="meta">
 <label>${t('web.add.label')} <input name="label" value="${label}"></label>
 <label>${t('web.add.categories')} <input name="categories" value="${cats}"></label>
+<label>${t('web.add.requires')} <input name="requires" value="${needs}" placeholder="rules/browseros-neo, mcp/context7"></label>
 <label>${t('web.message')} <input name="message" required></label>
 <button>${t('web.save')}</button>
 <p class="meta">${t('web.blockSettings.metaHint', { path: metaPath })}</p>
@@ -95,6 +97,8 @@ function saveMeta(ctx, { kind, name }, form, message) {
   let text = before?.toString('utf8') ?? '';
   text = setFrontmatterValue(text, 'label', (form.get('label') ?? '').trim() || null);
   text = setFrontmatterValue(text, 'categories', cats.length ? categoriesValue([...new Set(cats)]) : null, { raw: true });
+  const needs = [...new Set((form.get('requires') ?? '').split(',').map(c => c.trim()).filter(Boolean))];
+  text = setFrontmatterValue(text, 'requires', needs.length ? categoriesValue(needs) : null, { raw: true });
   if (before !== null && text === before.toString('utf8')) return settingsHref(kind, name);
   ctx.store.commit({ ...META, message, changes: { [p]: text }, base: { [p]: ctx.store.headHashes().get(p) ?? null } });
   return settingsHref(kind, name);
@@ -125,6 +129,18 @@ function rename(ctx, { kind, name }, form, message) {
     changes[q] = content;
     baseHashes[p] = hashes.get(p);
     baseHashes[q] = null;
+  }
+  // 다른 블록의 requires 가 옛 키를 가리키면 같은 리비전에서 새 키로 고친다.
+  const oldKey = keyOfBlock(kind, name);
+  const newKey = keyOfBlock(kind, to);
+  for (const [key, list] of Object.entries(catalogAt(ctx.store).summary.requires ?? {})) {
+    if (!list.includes(oldKey)) continue;
+    const b = blockOfKey(key === oldKey ? newKey : key);
+    const file = metaFile(b.kind, b.name);
+    const before = Object.hasOwn(changes, file) ? changes[file] : ctx.store.fileAt(file);
+    if (before === null) continue;
+    changes[file] = setFrontmatterValue(before.toString('utf8'), 'requires', categoriesValue(list.map(u => (u === oldKey ? newKey : u))), { raw: true });
+    if (!Object.hasOwn(baseHashes, file)) baseHashes[file] = hashes.get(file) ?? null;
   }
   ctx.store.commit({ ...META, message, changes, base: baseHashes });
   return settingsHref(kind, to);

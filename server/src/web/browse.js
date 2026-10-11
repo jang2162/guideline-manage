@@ -12,7 +12,7 @@ import { catalogAt, blockList, sendView, labelOf } from './frame.js';
 import { renderMarkdown, splitFrontmatter } from './markdown.js';
 import { t, template } from '../../../cli/src/i18n.js';
 import { marker } from '../../../cli/src/markers.js';
-import { viewHref, blockHref, blockOf, blockFiles, blockDir, namesOf, settingsHref, PROTECTED_DOCS, TAB, LIST_HREF } from './blocks.js';
+import { viewHref, blockHref, blockOf, blockFiles, blockDir, namesOf, settingsHref, PROTECTED_DOCS, TAB, LIST_HREF, blockOfKey, keyOfBlock } from './blocks.js';
 
 const STATIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../static');
 const STATIC_FILES = {
@@ -296,8 +296,20 @@ function blockPage(ctx, kind) {
     tab: TAB[kind],
     actions: html`${view.actions}<a class="button secondary" href="${hrefFor('/archive/', dir)}">${t('web.archive')}</a>`,
     detail: { left: blockList(cat, kind, name), right: filesPanel(ctx, kind, name, files, current) },
-    body: html`${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(ctx, cat, name) : ''}`,
+    body: html`${requiresLine(cat, kind, name)}${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(ctx, cat, name) : ''}`,
   });
+}
+
+/** 블록이 필요로 하는 블록 링크 한 줄. 원본에 없는 블록은 글자만. */
+function requiresLine(cat, kind, name) {
+  const list = cat.summary.requires?.[keyOfBlock(kind, name)] ?? [];
+  if (!list.length) return '';
+  const link = key => {
+    const b = blockOfKey(key);
+    return b && namesOf(cat.summary, b.kind).includes(b.name)
+      ? html`<a href="${blockHref(b.kind, b.name)}">${blockLabel(b.name, labelOf(cat.summary, b.kind, b.name))}</a>` : html`<code>${key}</code>`;
+  };
+  return html`<p class="meta requires-line">${t('web.requires.line')} ${list.map((k, i) => html`${i ? ', ' : ''}${link(k)}`)}</p>`;
 }
 
 /** 서브에이전트 상세: 파일 하나라 오른쪽 트리가 없다. */
@@ -313,7 +325,7 @@ function agentPage(ctx) {
     tab: TAB.agent,
     actions: html`${view.actions}${isAdmin(ctx) ? html`<a class="button secondary" href="${settingsHref('agent', name)}">${t('web.tree.settings', { kind: t('web.add.kind.agent') })}</a>` : ''}`,
     detail: { left: blockList(cat, 'agent', name), right: null },
-    body: view.body,
+    body: html`${requiresLine(cat, 'agent', name)}${view.body}`,
   });
 }
 

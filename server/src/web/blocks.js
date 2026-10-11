@@ -60,6 +60,23 @@ export function metaFile(kind, name) {
   return { stack: `rules/${name}/README.md`, skill: `skills/${name}/SKILL.md`, agent: `agents/${name}.md`, mcp: `mcp/${name}/README.md` }[kind];
 }
 
+const KIND_OF_DIR = { rules: 'stack', skills: 'skill', agents: 'agent', mcp: 'mcp' };
+
+/** 블록 키(rules/<스택>, skills/<이름>, agents/<이름>.md, mcp/<이름>) → { kind, name }. 블록 키가 아니면 null. */
+export function blockOfKey(key) {
+  const i = key.indexOf('/');
+  const kind = KIND_OF_DIR[key.slice(0, i)];
+  if (!kind || i < 0) return null;
+  const rest = key.slice(i + 1);
+  if (kind === 'agent') return rest.endsWith('.md') && !rest.includes('/') ? { kind, name: rest.slice(0, -'.md'.length) } : null;
+  return rest && !rest.includes('/') ? { kind, name: rest } : null;
+}
+
+/** { kind, name } → 블록 키. */
+export function keyOfBlock(kind, name) {
+  return kind === 'agent' ? `agents/${name}.md` : `${DIR[kind]}/${name}`;
+}
+
 /** 블록 상세 주소. rel 은 블록 안 파일(서브에이전트는 무시한다). */
 export function blockHref(kind, name, rel = '') {
   const base = hrefFor(PREFIX[kind], name);
