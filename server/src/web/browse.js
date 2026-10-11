@@ -12,7 +12,7 @@ import { catalogAt, blockList, sendView, labelOf } from './frame.js';
 import { renderMarkdown, splitFrontmatter } from './markdown.js';
 import { t, template } from '../../../cli/src/i18n.js';
 import { marker } from '../../../cli/src/markers.js';
-import { viewHref, blockHref, blockOf, blockFiles, blockDir, namesOf, TAB, LIST_HREF } from './blocks.js';
+import { viewHref, blockHref, blockOf, blockFiles, blockDir, namesOf, settingsHref, TAB, LIST_HREF } from './blocks.js';
 
 const STATIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../static');
 const STATIC_FILES = {
@@ -224,29 +224,53 @@ ${st.overrides.map(o => html`<tr><td><a href="${viewHref(o.from.path, s)}">${sho
 </table></div>` : ''}`;
 }
 
-/** 오른쪽: 블록의 파일 트리와 관리 도구. */
+/**
+ * 블록 안 파일 경로들을 폴더 트리로. 폴더는 접히고, 지금 파일을 담은 폴더는 펼쳐 둔다.
+ * 지침 파일은 이름 앞에 점 하나(채운 점 상시, 빈 점 참조). 이름은 한 줄로 줄이고 title 에 전체를 둔다.
+ * @param {string[]} files 블록 안 경로(이름순)
+ * @param {string} current
+ * @param {(rel: string) => string} hrefOf
+ * @param {Map<string, string | null>} loads 블록 안 경로 → load(경고면 null)
+ */
+function fileTree(files, current, hrefOf, loads) {
+  const root = { dirs: new Map(), files: [] };
+  for (const rel of files) {
+    const parts = rel.split('/');
+    let node = root;
+    for (const dir of parts.slice(0, -1)) {
+      if (!node.dirs.has(dir)) node.dirs.set(dir, { dirs: new Map(), files: [] });
+      node = node.dirs.get(dir);
+    }
+    node.files.push(rel);
+  }
+  const dot = rel => {
+    if (!loads.has(rel)) return '';
+    const load = loads.get(rel);
+    return html`<span class="${load === 'always' ? 'dot a' : load === 'reference' ? 'dot r' : 'dot w'}" aria-label="${load ?? t('web.warning')}"></span>`;
+  };
+  const render = (node, prefix) => html`<ul class="tree">
+${[...node.dirs].map(([dir, child]) => {
+    const path = `${prefix}${dir}/`;
+    return html`<li><details${current.startsWith(path) ? html` open` : ''}><summary>${dir}</summary>${render(child, path)}</details></li>
+`;
+  })}${node.files.map(rel => {
+    const name = rel.slice(rel.lastIndexOf('/') + 1);
+    const on = rel === current;
+    return html`<li><a${on ? html` class="on"` : ''} href="${hrefOf(rel)}" title="${name}"${on ? html` aria-current="page"` : ''}>${dot(rel)}<span class="nm">${name}</span></a></li>
+`;
+  })}</ul>`;
+  return render(root, '');
+}
+
+/** 오른쪽: 블록의 파일 트리. 관리자에게는 아래에 블록 설정 버튼 하나. */
 function filesPanel(ctx, kind, name, files, current) {
   const cat = catalogAt(ctx.store);
   const dir = blockDir(kind, name);
   const loads = new Map((cat.summary.stacks.find(x => x.name === name && kind === 'stack')?.files ?? []).map(f => [f.path.slice(dir.length + 1), f.load]));
-  const admin = isAdmin(ctx);
-  const topHashes = JSON.stringify(Object.fromEntries(files.filter(f => !f.includes('/')).map(f => [f, ctx.store.hashAt(`${dir}/${f}`)])));
   return html`<h2>${t('web.files')}</h2>
-<ul class="tree">
-${files.map(f => html`<li><a${f === current ? html` class="on"` : ''} href="${blockHref(kind, name, f)}"${f === current ? html` aria-current="page"` : ''}><span>${f}</span>${loads.has(f) ? loadChip(loads.get(f)) : ''}</a></li>
-`)}</ul>
-<div class="tools">
-<a class="button secondary" href="${hrefFor('/archive/', dir)}">${t('web.archive')}</a>
-${admin ? html`<a class="button secondary" href="${`/new?dir=${encodeURIComponent(dir)}`}">${t('web.newFile')}</a>
-<form class="stack upload" data-upload="${dir}" data-hashes="${topHashes}">
-<h2>${t('web.upload.heading')}</h2>
-<label>${t('web.upload.file')} <input type="file" name="file" required></label>
-<label>${t('web.message')} <input name="message" required></label>
-<button>${t('web.upload.button')}</button>
-<p class="upload-status" aria-live="polite"></p>
-</form>
-${manageForms(dir, 'dir')}` : ''}
-</div>`;
+${fileTree(files, current, rel => blockHref(kind, name, rel), loads)}
+${loads.size ? html`<p class="legend">${t('web.tree.legend')}</p>` : ''}
+${isAdmin(ctx) ? html`<div class="tools"><a class="button secondary" href="${settingsHref(kind, name)}">${t('web.tree.settings', { kind: t(`web.add.kind.${kind}`) })}</a></div>` : ''}`;
 }
 
 /** 블록 상세(스택·스킬·MCP): 왼쪽 블록 목록, 가운데 고른 파일, 오른쪽 파일 트리. */
@@ -268,7 +292,7 @@ function blockPage(ctx, kind) {
     h1: blockLabel(name, labelOf(s, kind, name)),
     crumbs: [{ label: TAB_LABEL[kind](), href: LIST_HREF[kind] }],
     tab: TAB[kind],
-    actions: view.actions,
+    actions: html`${view.actions}<a class="button secondary" href="${hrefFor('/archive/', dir)}">${t('web.archive')}</a>`,
     detail: { left: blockList(cat, kind, name), right: filesPanel(ctx, kind, name, files, current) },
     body: html`${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(ctx, cat, name) : ''}`,
   });
@@ -285,7 +309,7 @@ function agentPage(ctx) {
     h1: blockLabel(name, labelOf(cat.summary, 'agent', name)),
     crumbs: [{ label: TAB_LABEL.agent(), href: LIST_HREF.agent }],
     tab: TAB.agent,
-    actions: view.actions,
+    actions: html`${view.actions}${isAdmin(ctx) ? html`<a class="button secondary" href="${settingsHref('agent', name)}">${t('web.tree.settings', { kind: t('web.add.kind.agent') })}</a>` : ''}`,
     detail: { left: blockList(cat, 'agent', name), right: null },
     body: view.body,
   });
@@ -335,9 +359,11 @@ export function registerBrowse(router) {
     const b = blockOf(p, catalogAt(ctx.store).summary);
     if (!b || b.rel !== '' || b.kind === 'agent') throw new HttpError(404, t('web.noBlock'));
     const head = ctx.store.headRevision();
-    const files = blockFiles(ctx.store, b.kind, b.name).map(rel => ({ path: `${p}/${rel}`, content: ctx.store.fileAt(`${p}/${rel}`, head) }));
+    const dir = blockDir(b.kind, b.name);
+    if (p !== dir) throw new HttpError(404, t('web.noBlock'));
+    const files = blockFiles(ctx.store, b.kind, b.name).map(rel => ({ path: `${dir}/${rel}`, content: ctx.store.fileAt(`${dir}/${rel}`, head) }));
     sendBody(ctx.res, 200, tarGz(files, { mtime: ctx.now() }), 'application/gzip', {
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(b.name)}-r${head}.tar.gz"`,
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(`${b.name}-r${head}.tar.gz`)}`,
     });
   });
   // llms.txt 를 사람이 읽는 화면. 원문과 같이 비밀이 없어 PUBLIC_READ 와 상관없이 연다.

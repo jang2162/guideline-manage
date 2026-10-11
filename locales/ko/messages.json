@@ -537,7 +537,7 @@
   "propose.applyDenied": "admin 토큰 필요 — 관리자에게 admin 범위 토큰을 받아 guideline login --server {server} --token-stdin 으로 등록",
   "catalog.badDomain": "`__` 뒤가 도메인 모양이 아님 — <도구>__<도메인> 형식이어야 함",
   "web.nav.settings": "설정",
-  "web.archive": "내려받기(.tar.gz)",
+  "web.archive": "블록 내려받기(.tar.gz)",
   "web.noBlock": "블록 없음",
   "web.add.stack": "+ 스택 추가",
   "web.add.skill": "+ 스킬 추가",
@@ -574,5 +574,7 @@
   "web.blockSettings.rename": "이름 바꾸기",
   "web.blockSettings.renameHint": "이미 받은 프로젝트에 영향이 갈 수 있음 — 보이는 이름만 바꾸려면 표시 이름",
   "web.blockSettings.delete": "삭제",
-  "web.blockSettings.badAction": "알 수 없는 설정 동작"
+  "web.blockSettings.badAction": "알 수 없는 설정 동작",
+  "web.tree.legend": "● 상시 ○ 참조",
+  "web.tree.settings": "{kind} 설정"
 }

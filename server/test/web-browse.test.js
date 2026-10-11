@@ -87,7 +87,7 @@ test('보기는 로그인 없이 되고, 바꾸는 버튼·관리자 링크는 �
     }
   }
   const admin = (await getAs(s, await login(s), '/s/base/02-git.md')).text;
-  for (const bit of ['href="/edit/', 'href="/new', 'data-upload=', 'action="/rename"', 'href="/tokens"', 'href="/proposals"', 'action="/logout"']) assert.ok(admin.includes(bit), bit);
+  for (const bit of ['href="/edit/', 'href="/settings/stack/base"', 'action="/rename"', 'href="/tokens"', 'href="/proposals"', 'action="/logout"']) assert.ok(admin.includes(bit), bit);
   assert.ok(!admin.includes('href="/login'));
 });
 
@@ -182,10 +182,10 @@ test('파일 보기는 텍스트를 이스케이프해 보이고, 바이너리�
   assert.equal(raw.headers['content-disposition'], "attachment; filename*=UTF-8''logo.png");
 });
 
-test('블록 상세의 오른쪽에는 파일 목록과 올리기 폼(현재 해시 포함)이 있다', async t => {
+test('블록 설정 페이지에 올리기 폼(현재 해시 포함)이 있다', async t => {
   const { s, cookie } = await seeded(t);
-  const r = await getAs(s, cookie, '/skills/demo-skill');
-  assert.ok(r.text.includes('href="/skills/demo-skill/SKILL.md"'));
+  assert.ok((await getAs(s, cookie, '/skills/demo-skill')).text.includes('href="/skills/demo-skill/SKILL.md"'));
+  const r = await getAs(s, cookie, '/settings/skill/demo-skill');
   assert.ok(r.text.includes('data-upload="skills/demo-skill"'));
   assert.match(r.text, /data-hashes="\{&quot;SKILL\.md&quot;:&quot;[0-9a-f]{64}&quot;\}"/);
 });
@@ -253,7 +253,7 @@ test('블록 내려받기는 그 블록 파일만 담는다', async t => {
   const { s } = await seeded(t);
   const r = await s.req('/archive/rules/base');
   assert.equal(r.status, 200);
-  assert.match(r.headers['content-disposition'], /attachment; filename="base-r1\.tar\.gz"/);
+  assert.match(r.headers['content-disposition'], /attachment; filename\*=UTF-8''base-r1\.tar\.gz/);
   const dir = tmpDir('guideline-arc-');
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   fs.writeFileSync(path.join(dir, 'a.tgz'), r.body);

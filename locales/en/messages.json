@@ -537,7 +537,7 @@
   "propose.applyDenied": "An admin token is needed — get a token with scope admin from an admin and store it with guideline login --server {server} --token-stdin",
   "catalog.badDomain": "the part after __ is not a domain — use <tool>__<domain>",
   "web.nav.settings": "Settings",
-  "web.archive": "Download (.tar.gz)",
+  "web.archive": "Download block (.tar.gz)",
   "web.noBlock": "No such block",
   "web.add.stack": "+ Add stack",
   "web.add.skill": "+ Add skill",
@@ -574,5 +574,7 @@
   "web.blockSettings.rename": "Rename",
   "web.blockSettings.renameHint": "Projects that already picked this may be affected — to change only the shown name, use the display name",
   "web.blockSettings.delete": "Delete",
-  "web.blockSettings.badAction": "Unknown settings action"
+  "web.blockSettings.badAction": "Unknown settings action",
+  "web.tree.legend": "● always ○ reference",
+  "web.tree.settings": "{kind} settings"
 }
