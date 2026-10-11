@@ -603,5 +603,9 @@
   "web.client.allCategories": "All",
   "web.client.confirmEmpty": "Nothing chosen",
   "web.add.requires": "Required blocks (comma-separated, e.g. rules/orca)",
-  "web.requires.line": "Requires:"
+  "web.requires.line": "Requires:",
+  "web.client.step.rules": "Guidelines",
+  "web.client.step.mcp": "MCP",
+  "web.client.step.agents": "Subagents",
+  "web.client.step.skills": "Skills"
 }

@@ -11,6 +11,7 @@
 | One stack overriding a section of another stack in a specific environment | the `## Overrides of other stacks` table in the overriding stack's `rules/<stack>/README.md` (→ "Overriding another stack") |
 | Categories for picking items together | `categories` in each item's frontmatter (→ "Categories") |
 | A display name people can read | `label` in each block's frontmatter (→ "Display name") |
+| Blocks that must come along | `requires` in each block's frontmatter (→ "Required blocks") |
 | Setup done when a stack is adopted or on every clone | `rules/<stack>/SETUP.md` (→ "Setup docs") |
 | A rule that holds in only one project | Not here. Keep it in that project's own guidelines |
 
@@ -109,6 +110,23 @@ label: Internal dev server deploy
 
 - **Why:** people cannot tell what a rule set is from its name, so they skip it or pick the wrong one.
 - **How to apply:** after adding it, check that `guideline list <source folder>` shows the display name right after the name.
+
+## Required blocks
+
+When a block does not work properly without another block, add `requires` to its frontmatter. Picking it in the export form checks the required blocks too.
+
+```markdown
+---
+requires: [rules/browseros-neo]
+---
+```
+
+- It goes where the block rows of the "Categories" table say. Not on guideline files.
+- One-line list of block keys: `rules/<stack>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`. Only blocks in the same source.
+- Example: the `playwright-neo` MCP server needs the `browseros-neo` guidelines on how to connect; the `orca-worker` skill needs the `orca` guidelines.
+
+- **Why:** receiving a tool without the rules for using it makes agents use the tool wrongly.
+- **How to apply:** after adding it, check that the block shows up in the `requires` map of `guideline list --json` and that the `warning` section has no "not in the source" line.
 
 ## Setup docs
 

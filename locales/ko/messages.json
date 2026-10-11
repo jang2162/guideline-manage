@@ -603,5 +603,9 @@
   "web.client.allCategories": "전체",
   "web.client.confirmEmpty": "고른 것 없음",
   "web.add.requires": "필요한 블록(쉼표로 구분, 예: rules/orca)",
-  "web.requires.line": "필요한 블록:"
+  "web.requires.line": "필요한 블록:",
+  "web.client.step.rules": "지침",
+  "web.client.step.mcp": "MCP",
+  "web.client.step.agents": "서브에이전트",
+  "web.client.step.skills": "스킬"
 }

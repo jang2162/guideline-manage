@@ -118,6 +118,13 @@ To restore:
 - **History and proposals**: lists show 30 per page (`?page=`; the old `?before=` is ignored), and revision and proposal pages show the changed files as a tree (kind → block → file) on the left and one chosen file (`?file=`) in the middle. Diffs longer than 80 lines fold.
 - The schema is unchanged.
 
+## Pick flow (0.19)
+
+- **Required blocks**: `requires: [rules/x]` in a block's frontmatter. The export form checks them too, and `/api/v1/catalog` adds a `requires` map. Edit them under "Required blocks" in the web block settings; renaming a block also fixes other blocks' `requires`.
+- **Agent recommendations**: a form opened with `guideline pick --recommend <file>` has the recommended blocks checked, with reasons. The form goes in steps (guidelines → MCP → subagents → skills → review), and category buttons only filter.
+- **⚠️ Servers already running**: the `guideline-sync` skill and the authoring rules (`docs/authoring.md`) are seeds written only when a server first starts. On an existing server, add the "Recommend and receive" section to that skill and the "Required blocks" section to the authoring rules on the web (see the same files under the language pack's `templates/`). `llms.txt` is rebuilt per request and changes right away.
+- The schema is unchanged.
+
 ## Running locally
 
 ```bash

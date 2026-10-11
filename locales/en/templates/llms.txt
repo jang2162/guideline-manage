@@ -32,6 +32,7 @@ This document is the guide agents and people read when they first use this serve
 
 ```bash
 guideline pick                 # open the server form; submitting applies the choice right away
+guideline pick --recommend r.json   # open the form with blocks an agent chose ({"block key": "reason"}) already checked
 guideline pick --new <name>    # new project: create GUIDELINE_PROJECTS_DIR/<name>, git init, then apply (a path works too)
 guideline status               # are the applied guidelines current, and what did the project change?
 guideline update               # same items, latest version. Files edited in the project are skipped
@@ -39,7 +40,7 @@ guideline update --force       # also overwrite files edited in the project
 ```
 
 - `pick` sends only the result of comparing the project with the source to the server and prints the form address (`Form: <address>` on stderr). It waits until items are checked in the form and submitted. MCP values (secrets) are not sent.
-- Form states: "same" is already applied, "different" means the project copy differs from the source (turn on "update" to overwrite it), "missing" is not there yet (check it to add). Unchecking an existing item means "remove". Category buttons check every item in that category.
+- Form states: "same" is already applied, "different" means the project copy differs from the source (turn on "update" to overwrite it), "missing" is not there yet (check it to add). Unchecking an existing item means "remove". The form goes step by step — guidelines, MCP, subagents, skills, review — and category buttons only filter the items shown (checks do not change). Blocks a chosen block requires (`requires`) are checked too.
 - A domain stack `<tool>__<domain>` (e.g. `deploy-package__gitlab.develma.com`) holds the rules for using that tool on that server. Pick only stacks whose domain matches the server the project uses.
 - Where copies go: always-on guidelines in `.ruler/<stack>/NN-*.md`, reference guidelines in `docs/guideline/<stack>/` with the index `.ruler/<stack>/99-reference.md`, skills in `.ruler/skills/`, MCP in `.ruler/ruler.toml`. After applying, `ruler apply` runs at the git root (when ruler is installed).
 - Applying creates `guideline.json` (chosen items) and `guideline-lock.json` (applied revision and hashes). Commit them with the applied files. The CLI does not commit.

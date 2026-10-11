@@ -306,7 +306,7 @@ function confirmHtml() {
   const parts = STEPS.filter(s => s !== 'confirm').map(step => {
     const units = chosen.filter(u => stepOf({ kind: '', id: u }) === step);
     if (!units.length) return '';
-    return `<section class="confirm-step"><h3>${esc(t(`web.form.step.${step}`))}</h3><ul>`
+    return `<section class="confirm-step"><h3>${esc(t(`web.client.step.${step}`))}</h3><ul>`
       + units.map(u => `<li>${esc(unitName(u))}${unitTags(u)}${missingNotes(u).map(w => `<div class="reason warn">${esc(w)}</div>`).join('')}</li>`).join('')
       + '</ul></section>';
   }).join('');

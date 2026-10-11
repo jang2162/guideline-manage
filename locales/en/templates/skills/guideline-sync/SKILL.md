@@ -26,6 +26,7 @@ First check the state with `guideline status --json` and report it in one line (
 | Request | Command |
 | --- | --- |
 | First time, add or remove items ("export guidelines", "add this stack") | `guideline pick --json` |
+| Pick what fits this project ("get the right guidelines", "choose for me") | "Recommend and receive" below |
 | Same items, latest version ("update the guidelines") | `guideline update --json` |
 | New project ("guidelines for a new project") | `guideline pick --new <name or path> --json` |
 | Send an edited copy upstream ("share this fix") | show it with `guideline propose --dry-run`, and if it is right, `guideline propose --title "<title>"` |
@@ -35,6 +36,14 @@ First check the state with `guideline status --json` and report it in one line (
 1. Run `guideline pick --json` **in the background with no time limit**. Tell the user the `Form: <address>` line from stderr — if no browser opened, have them open that address.
 2. **Submitting the form is the user's confirmation.** Do not ask again before applying.
 3. Exit codes: 0 means applying is done (the JSON on stdout has the written files and to-dos). 3 means the user cancelled or the form expired — nothing was written; stop and say so. 1 or 2: report stderr as is.
+
+## Recommend and receive
+
+1. Read the source with `guideline list --json`. Block keys match the keys of the `categories`, `labels` and `requires` maps: `rules/<stack>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`. A guideline file's `when` says when to read it.
+2. Look at the project's config files, packages and tools, and choose blocks. Write each reason from evidence in the project (e.g. "`lefthook.yml` exists"). Leave out blocks with no evidence.
+3. Write the recommendation as a JSON file — `{"rules/base": "common to every project", "rules/lefthook": "lefthook.yml exists"}`. Required blocks (`requires`) are checked by the form, so they need not be listed.
+4. Run `guideline pick --recommend <file> --json` in the background, as in "pick". The form opens with the recommendations checked. Tell the user to review it and submit — **submitting the form is the confirmation.**
+5. With several sources, add `--source <name>` and do one source at a time (that is what exit code 2 means here). A key not in the source stops with exit code 2 naming the key — read the list again and fix it.
 
 ## Handling to-dos
 

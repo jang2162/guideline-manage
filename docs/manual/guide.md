@@ -102,7 +102,10 @@ A domain stack (`<tool>__<domain>`, e.g. `deploy-package__gitlab.develma.com`) s
 | edited in project | The project changed it after receiving it | Left as is. Turn on "overwrite" to revert it to the source |
 
 - **Unchecking an item that is already there means "remove".** It turns red and the submit button says "includes N removal(s)".
-- Category buttons (`backend`, `browser` …) check every item in that category. "Reset" undoes it.
+- The form goes in **steps**: 1. Guidelines → 2. MCP → 3. Subagents → 4. Skills → 5. Review. Click a step tab at any time; submit from "Review" after seeing everything. Steps with nothing to choose are skipped.
+- Category buttons (`backend`, `browser` …) **filter** the items shown. Checks do not change. "All" clears the filter.
+- When a block needs another block (`requires`), choosing it checks that block too, marked "Dependency". You can uncheck it, but a "X is missing — Y needs it" warning stays.
+- Ask an agent to "get the right guidelines" and it chooses blocks and opens the form with `guideline pick --recommend`. Recommended items carry "Agent pick" and a reason. Review and submit.
 - With uncommitted changes in the working tree you get a warning, and must check "Proceed anyway" to submit. Committing first makes the result easy to review with `git diff`.
 - Items with a source warning show as "blocked" and cannot be checked; the reason is shown.
 

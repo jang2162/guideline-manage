@@ -193,5 +193,5 @@ test('폼에는 단계 탭 다섯(지침·MCP·서브에이전트·스킬·확�
   const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
   for (const step of ['rules', 'mcp', 'agents', 'skills', 'confirm']) assert.ok(page.includes(`data-step="${step}"`), step);
   assert.ok(page.includes('id="prev"') && page.includes('id="next"'));
-  for (const key of ['web.client.stepCount', 'web.client.stepNone', 'web.client.hiddenByCategory', 'web.client.allCategories']) assert.ok(page.includes(`"${key}"`), key);
+  for (const key of ['web.client.stepCount', 'web.client.stepNone', 'web.client.hiddenByCategory', 'web.client.allCategories', 'web.client.step.rules', 'web.client.step.mcp', 'web.client.step.agents', 'web.client.step.skills']) assert.ok(page.includes(`"${key}"`), key);
 });
