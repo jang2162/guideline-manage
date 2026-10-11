@@ -13,6 +13,7 @@ import { catalogAt, crumbsOf, whereOf, sendView } from './frame.js';
 import { renderMarkdown, splitFrontmatter } from './markdown.js';
 import { t, template } from '../../../cli/src/i18n.js';
 import { marker } from '../../../cli/src/markers.js';
+import { viewHref } from './blocks.js';
 
 const STATIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../static');
 const STATIC_FILES = {
@@ -27,10 +28,13 @@ const chips = list => (list?.length ? list.map(c => html`<span class="tag">${c}<
 const loadChip = load => (load === null ? html`<span class="k warn">${t('web.warning')}</span>` : html`<span class="${load === 'always' ? 'k' : 'k ref'}">${load}</span>`);
 const warnCount = (s, prefix) => s.warnings.filter(w => w.path.startsWith(prefix)).length;
 
-/** 마크다운 문서 블록. raw 에는 렌더러가 이스케이프를 끝낸 결과만 넣는다. */
-const docBlock = (text, p) => html`<div class="doc">
-${raw(renderMarkdown(text, { path: p }))}
+/** 마크다운 문서 블록. raw 에는 렌더러가 이스케이프를 끝낸 결과만 넣는다. 상대 링크는 블록 상세·설정 주소로 푼다. */
+const docBlock = (ctx, text, p) => {
+  const { summary } = catalogAt(ctx.store);
+  return html`<div class="doc">
+${raw(renderMarkdown(text, { path: p, hrefOf: q => viewHref(q, summary) }))}
 </div>`;
+};
 
 /** 파일·디렉터리 화면 아래의 이름 바꾸기·삭제 폼. 처리는 edit.js 가 한다. */
 export function manageForms(p, kind) {
@@ -115,7 +119,7 @@ function stackPage(ctx) {
     actions: html`${admin && readme ? html`<a class="button" href="${hrefFor('/edit/', `${dir}/README.md`)}">${t('web.editReadme')}</a>` : ''}<a class="button secondary" href="${hrefFor('/d/', dir)}">${t('web.directory')}</a>${admin ? html`<a class="button secondary" href="${`/new?dir=${encodeURIComponent(dir)}`}">${t('web.newFile')}</a>` : ''}`,
     body: html`<p class="meta-row">${chips(s.categories[dir])}${st.setup ? html`<a class="badge setup" href="${hrefFor('/f/', `${dir}/SETUP.md`)}">${t('web.setupDoc')}</a>` : ''}<span class="meta">${t('web.fileCount', { n: st.files.length })}</span></p>
 ${warns.length ? html`<div class="warn"><ul class="plain">${warns.map(w => html`<li><a href="${hrefFor('/f/', w.path)}">${short(w.path)}</a> — ${w.message}</li>`)}</ul></div>` : ''}
-${fm ? docBlock(fm.body, `${dir}/README.md`) : html`<p class="meta">${t('web.noReadme')}</p>`}
+${fm ? docBlock(ctx, fm.body, `${dir}/README.md`) : html`<p class="meta">${t('web.noReadme')}</p>`}
 <h2>${t('web.files')}</h2>
 <div class="table-wrap"><table class="list">
 <thead><tr><th>${t('web.col.file')}</th><th>${t('web.col.load')}</th><th>${t('web.col.when')}</th>${fileCats ? html`<th>${t('web.categories')}</th>` : ''}</tr></thead>
@@ -224,7 +228,7 @@ function filePage(ctx) {
     where: whereOf(p),
     actions: html`${admin && text ? html`<a class="button" href="${hrefFor('/edit/', p)}">${t('web.edit')}</a>` : ''}${md ? toggle : ''}<a class="button secondary" href="${hrefFor('/history/', p)}">${t('web.nav.history')}</a><a class="button secondary" href="${hrefFor('/raw/', p)}">${t('web.download')}</a>`,
     body: html`<p class="meta-row">${fm ? frontChips(fm.fields) : ''}<span class="meta">${t('web.lastChange')} <a href="/r/${last.id}">r${last.id}</a> · ${last.author} · ${last.message}</span></p>
-${fm ? docBlock(fm.body, p)
+${fm ? docBlock(ctx, fm.body, p)
     : text ? html`<pre class="file">${source}</pre>`
       : html`<p>${t('web.binary', { n: content.length })}</p>`}
 ${admin ? manageForms(p, 'file') : ''}`,

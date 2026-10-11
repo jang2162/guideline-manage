@@ -2,7 +2,7 @@
 // 지원: 제목(#~######), 문단, 중첩 목록(- * + 1.), 펜스 코드 블록, 인라인 코드, 굵게·기울임, 링크, GFM 파이프 표, 인용, 가로줄.
 // 이미지는 링크로 보인다. 그 밖의 문법(HTML 포함)은 글자 그대로 보인다.
 // 보안: 글자는 모두 esc 를 거쳐 나간다. 태그는 이 파일이 만든 것뿐이고, 속성값도 esc 를 거친다.
-// 링크는 http·https·mailto 와 상대 경로만 <a> 가 된다. 상대 경로는 지금 파일 기준으로 풀어 /f/·/d/ 주소로 바꾸고,
+// 링크는 http·https·mailto 와 상대 경로만 <a> 가 된다. 상대 경로는 지금 파일 기준으로 풀어 저장 경로를 hrefOf 로 화면 주소로 바꾸고,
 // 저장 경로 밖으로 나가면 글자로 남긴다.
 import { esc, hrefFor, parentOf } from './layout.js';
 
@@ -30,9 +30,10 @@ const indentOf = l => l.length - l.trimStart().length;
  * 마크다운 링크 대상을 서버 주소로 바꾼다. 링크로 만들지 않을 대상이면 null.
  * @param {string} target 링크 괄호 안(제목을 뗀 것)
  * @param {string} fromPath 지금 파일의 저장 경로
+ * @param {(p: string) => string} [hrefOf] 저장 경로(디렉터리면 끝 / 없이) → 화면 주소. 없으면 설정 화면 주소
  * @returns {string | null} 이스케이프하기 전의 href
  */
-export function linkHref(target, fromPath) {
+export function linkHref(target, fromPath, hrefOf = settingsHref) {
   const t = target.trim();
   if (!t) return null;
   if (/^(?:https?:\/\/|mailto:)/i.test(t)) return t;
@@ -60,11 +61,11 @@ export function linkHref(target, fromPath) {
       parts.push(seg);
     }
   }
-  const last = segs.at(-1);
-  const isDir = last === '' || last === '.' || last === '..';
   const frag = hashAt === -1 ? '' : `#${fragment(t.slice(hashAt + 1))}`;
-  return hrefFor(isDir ? '/d/' : '/f/', parts.join('/')) + frag;
+  return hrefOf(parts.join('/')) + frag;
 }
+
+const settingsHref = p => (p ? hrefFor('/settings/', p) : '/settings');
 
 function fragment(f) {
   try {
@@ -205,7 +206,7 @@ function inline(s, ctx, depth = 0) {
       const image = c === '!';
       const link = parseLink(s, image ? i + 1 : i);
       if (link) {
-        const href = linkHref(link.target, ctx.path);
+        const href = linkHref(link.target, ctx.path, ctx.hrefOf);
         flush();
         if (href === null) out += esc(s.slice(i, link.end));
         else out += `<a href="${esc(href)}">${image ? esc(link.label || link.target) : inline(link.label, ctx, depth + 1)}</a>`;
@@ -456,11 +457,11 @@ function toLines(text) {
 /**
  * 마크다운을 HTML 로. 결과는 이스케이프가 끝나 raw 에 그대로 넣을 수 있다.
  * @param {string} text frontmatter 를 뗀 본문
- * @param {{ path?: string }} [opts] path: 지금 파일의 저장 경로(상대 링크의 기준)
+ * @param {{ path?: string, hrefOf?: (p: string) => string }} [opts] path: 지금 파일의 저장 경로(상대 링크의 기준), hrefOf: 저장 경로 → 화면 주소
  * @returns {string}
  */
-export function renderMarkdown(text, { path = '' } = {}) {
-  return blocks(toLines(text), { path }).join('\n');
+export function renderMarkdown(text, { path = '', hrefOf = settingsHref } = {}) {
+  return blocks(toLines(text), { path, hrefOf }).join('\n');
 }
 
 // ---------- frontmatter·요약 ----------

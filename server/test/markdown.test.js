@@ -23,16 +23,20 @@ test('인라인: 코드·굵게·기울임·링크', () => {
   assert.equal(md('[문서](https://example.com/a?b=1&c=2) 와 [메일](mailto:a@b.c)'),
     '<p><a href="https://example.com/a?b=1&amp;c=2">문서</a> 와 <a href="mailto:a@b.c">메일</a></p>');
   assert.equal(md('[**굵은** 링크](http://x.test "제목")'), '<p><a href="http://x.test"><strong>굵은</strong> 링크</a></p>');
-  assert.equal(md('![그림](logo.png)'), '<p><a href="/f/rules/base/logo.png">그림</a></p>');
+  assert.equal(md('![그림](logo.png)'), '<p><a href="/settings/rules/base/logo.png">그림</a></p>');
 });
 
-test('상대 링크는 지금 파일 기준으로 풀어 /f/ 주소로, 디렉터리는 /d/ 로', () => {
-  assert.equal(md('[옆](02-x.md)'), '<p><a href="/f/rules/base/02-x.md">옆</a></p>');
-  assert.equal(md('[위](../orca/README.md#절)'), '<p><a href="/f/rules/orca/README.md#%EC%A0%88">위</a></p>');
-  assert.equal(md('[한글](./한 글.md)'), '<p><a href="/f/rules/base/%ED%95%9C%20%EA%B8%80.md">한글</a></p>');
-  assert.equal(md('[디렉터리](../orca/)'), '<p><a href="/d/rules/orca">디렉터리</a></p>');
+test('상대 링크는 지금 파일 기준으로 풀어 저장 경로를 hrefOf 로 주소로 바꾼다. 없으면 설정 주소', () => {
+  const hrefOf = p => `/v/${p}`;
+  const mdv = text => renderMarkdown(text, { path: 'rules/base/01-git.md', hrefOf });
+  assert.equal(mdv('[옆](02-x.md)'), '<p><a href="/v/rules/base/02-x.md">옆</a></p>');
+  assert.equal(mdv('[위](../orca/README.md#절)'), '<p><a href="/v/rules/orca/README.md#%EC%A0%88">위</a></p>');
+  assert.equal(mdv('[디렉터리](../orca/)'), '<p><a href="/v/rules/orca">디렉터리</a></p>');
+  assert.equal(mdv('[밖](../../docs/authoring.md)'), '<p><a href="/v/docs/authoring.md">밖</a></p>');
+  assert.equal(md('[한글](./한 글.md)'), '<p><a href="/settings/rules/base/%ED%95%9C%20%EA%B8%80.md">한글</a></p>');
   assert.equal(md('[절](#how)'), '<p><a href="#how">절</a></p>');
-  assert.equal(linkHref('../../skills/x/SKILL.md', 'rules/base/01-git.md'), '/f/skills/x/SKILL.md');
+  assert.equal(linkHref('../../skills/x/SKILL.md', 'rules/base/01-git.md'), '/settings/skills/x/SKILL.md');
+  assert.equal(linkHref('../../skills/x/SKILL.md', 'rules/base/01-git.md', hrefOf), '/v/skills/x/SKILL.md');
   assert.equal(linkHref('%2e%2e/%2e%2e/%2e%2e/etc', 'rules/base/01-git.md'), null);
 });
 
@@ -96,7 +100,7 @@ test('XSS: 링크 텍스트·주소·표 칸에서 따옴표로 속성을 벗어
   assert.ok(!b.includes('<script>'), b);
   assert.ok(b.includes('href="https://x.test/&#39;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"'), b);
   const rel = md('[x](a"b.md)');
-  assert.equal(rel, '<p><a href="/f/rules/base/a%22b.md">x</a></p>');
+  assert.equal(rel, '<p><a href="/settings/rules/base/a%22b.md">x</a></p>');
   const cell = md('| a |\n| --- |\n| "><script>alert(1)</script> |');
   assert.ok(!cell.includes('<script>'), cell);
   assert.ok(cell.includes('&quot;&gt;&lt;script&gt;'));
@@ -108,7 +112,7 @@ test('상대 링크가 저장 경로 밖으로 나가면 글자로 남는다', (
   assert.equal(md('[x](../../../etc/passwd)'), '<p>[x](../../../etc/passwd)</p>');
   assert.equal(md('[x](../../etc)', 'rules/a.md'), '<p>[x](../../etc)</p>');
   assert.equal(md('[x](..)', 'a.md'), '<p>[x](..)</p>');
-  assert.equal(md('[x](../../agents/a.md)'), '<p><a href="/f/agents/a.md">x</a></p>');
+  assert.equal(md('[x](../../agents/a.md)'), '<p><a href="/settings/agents/a.md">x</a></p>');
 });
 
 test('지원하지 않는 문법은 글자 그대로', () => {

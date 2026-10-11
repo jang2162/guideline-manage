@@ -189,7 +189,7 @@ test('파일 보기: 마크다운 안의 HTML·위험한 링크는 글자로, �
   const r = (await getAs(s, cookie, '/f/rules/base/03-x.md')).text;
   assert.ok(r.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.ok(!r.includes('<script>alert'));
-  assert.ok(r.includes('<a href="/f/rules/base/02-git.md">옆</a>'));
+  assert.ok(r.includes('<a href="/s/base/02-git.md">옆</a>'));
   assert.ok(r.includes('[나쁨](javascript:alert(1))'));
   assert.ok(!r.includes('href="javascript'));
   assert.ok(r.includes('[밖](../../../etc/passwd)'));
