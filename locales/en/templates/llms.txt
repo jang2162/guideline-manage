@@ -6,7 +6,7 @@ This document is the guide agents and people read when they first use this serve
 
 ## Setup (once per machine)
 
-1. You need Node 24 or later and the `guideline` CLI (the `guideline-manage` npm package, 0.15 or later):
+1. You need Node 24 or later and the `guideline` CLI (the `guideline-manage` npm package, 0.16 or later):
 
    ```bash
    npm install -g guideline-manage

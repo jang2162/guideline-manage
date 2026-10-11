@@ -92,6 +92,14 @@ To restore:
 - **Seed**: when a server with no revisions starts, it adds `docs/authoring.md`, `skills/guideline-sync/SKILL.md` and `skills/guideline-export/SKILL.md` in the server language as revision 1 (author `system`, source `seed`).
 - **Schema 4**: `seed` is added to the revision sources. A 0.14 server's DB is backed up and upgraded at startup.
 
+## Public read (0.16)
+
+- **`PUBLIC_READ`** (default 1): viewing guidelines (web pages, read API, CLI pick/update/list) needs no login or token. With 0, the web needs an admin login and the API and CLI need a read token, as in 0.15.
+- Changing guidelines (edit, revert, upload), the proposal pages and API, token management and CLI login approval stay admin-only (tokens for the proposal API) regardless of the setting. Visitors don't see those buttons and get "Log in" at the top.
+- Even on a public server, a wrong or revoked token gets 401.
+- A public server lets anyone create a form (`POST /api/v1/forms`) without a token. Its result needs the form URL's link token in the `X-Form-Link` header.
+- `/api/v1/health` reports `publicRead`. Fetching without a token needs CLI 0.16 or later (the 0.15 CLI stops before asking the server when it has no token).
+
 ## Running locally
 
 ```bash
