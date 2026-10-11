@@ -11,17 +11,41 @@ async function seeded(t) {
   return { s, cookie: await login(s) };
 }
 
-test('이력은 최신순으로 50개씩 보이고 다음 쪽 링크를 단다', async t => {
+const rowsOf = page => (page.match(/<tr><td><a href="\/r\/\d+">/g) ?? []).length;
+
+test('이력은 최신순으로 30개씩, 아래에 이전·다음', async t => {
   const s = await startApp(t);
-  for (let i = 0; i < 51; i++) s.store.commit({ ...META, message: `m${i}`, changes: { 'rules/x/00-a.md': `v${i}` } });
+  for (let i = 0; i < 65; i++) s.store.commit({ ...META, message: `m${i}`, changes: { 'rules/x/00-a.md': `v${i}` } });
   const cookie = await login(s);
-  const first = await getAs(s, cookie, '/history');
-  assert.ok(first.text.includes('href="/r/51"'));
-  assert.ok(!first.text.includes('href="/r/1"'));
-  assert.ok(first.text.includes('href="/history?before=2"'));
-  const next = await getAs(s, cookie, '/history?before=2');
-  assert.ok(next.text.includes('href="/r/1"'));
-  assert.ok(!next.text.includes('?before='));
+  const first = (await getAs(s, cookie, '/history')).text;
+  assert.equal(rowsOf(first), 30);
+  assert.ok(first.includes('href="/r/65"') && !first.includes('href="/r/35"'));
+  assert.ok(first.includes('href="/history?page=2"'));
+  assert.ok(!first.includes('href="/history?page=0"'));
+  const third = (await getAs(s, cookie, '/history?page=3')).text;
+  assert.equal(rowsOf(third), 5);
+  assert.ok(third.includes('href="/history?page=2"'));
+  assert.ok(!third.includes('href="/history?page=4"'));
+  for (const q of ['?page=0', '?page=-1', '?page=x', '?before=2']) {
+    const r = await getAs(s, cookie, `/history${q}`);
+    assert.equal(r.status, 200, q);
+    assert.ok(r.text.includes('href="/r/65"'), q);
+  }
+  const far = await getAs(s, cookie, '/history?page=99');
+  assert.equal(far.status, 200);
+  assert.equal(rowsOf(far.text), 0);
+  assert.ok(far.text.includes('href="/history?page=98"'));
+});
+
+test('파일 하나의 이력도 30개씩 나누고, 되돌리기 폼은 그 쪽 행만', async t => {
+  const s = await startApp(t);
+  for (let i = 0; i < 35; i++) s.store.commit({ ...META, message: `m${i}`, changes: { 'rules/x/00-a.md': `v${i}` } });
+  const cookie = await login(s);
+  const first = (await getAs(s, cookie, '/history/rules/x/00-a.md')).text;
+  assert.equal(rowsOf(first), 30);
+  assert.ok(first.includes('href="/history/rules/x/00-a.md?page=2"'));
+  assert.equal((first.match(/name="rev" value="\d+"/g) ?? []).length, 30);
+  assert.equal(rowsOf((await getAs(s, cookie, '/history/rules/x/00-a.md?page=2')).text), 5);
 });
 
 test('파일 이력은 그 파일의 리비전과 삭제를 보인다', async t => {

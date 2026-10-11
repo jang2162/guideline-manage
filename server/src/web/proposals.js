@@ -1,6 +1,6 @@
 import { HttpError, readForm, redirect } from '../http.js';
 import { checkOrigin, requireAdminWeb } from './auth.js';
-import { html, diffBlock } from './layout.js';
+import { html, diffBlock, pageOf, pager, PAGE_SIZE } from './layout.js';
 import { sendView } from './frame.js';
 import { unifiedDiff } from '../../../cli/src/diff.js';
 import { sha256 } from '../store.js';
@@ -39,7 +39,9 @@ function proposalOf(ctx) {
 
 function listPage(ctx) {
   const status = ctx.url.searchParams.get('status') ?? 'pending';
-  const rows = ctx.proposals.list({ status: status === 'all' ? null : status in STATUS_LABEL ? status : 'pending' });
+  const page = pageOf(ctx.url);
+  const fetched = ctx.proposals.list({ status: status === 'all' ? null : status in STATUS_LABEL ? status : 'pending', limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
+  const rows = fetched.slice(0, PAGE_SIZE);
   const tab = (key, label) => html`<a class="${key === status ? 'tab on' : 'tab'}" href="/proposals?status=${key}">${label}</a>`;
   view(ctx, 200, {
     title: t('web.nav.proposals'),
@@ -47,7 +49,8 @@ function listPage(ctx) {
 ${rows.length ? html`<div class="table-wrap"><table>
 <tr><th>${t('web.proposal.colNo')}</th><th>${t('web.proposal.colTitle')}</th><th>${t('web.col.source')}</th><th>${t('web.proposal.colBy')}</th><th>${t('web.tokens.status')}</th><th>${t('web.proposal.colWhen')}</th><th>${t('web.col.file')}</th></tr>
 ${rows.map(r => html`<tr><td>#${r.id}</td><td><a href="/proposals/${r.id}">${r.title}</a></td><td>${r.project ?? ''}</td><td>${r.author}</td><td>${STATUS_LABEL[r.status]}</td><td>${day(r.createdAt)}</td><td>${r.changeCount}</td></tr>`)}
-</table></div>` : html`<p class="meta">${t('web.proposal.none')}</p>`}`,
+</table></div>` : html`<p class="meta">${t('web.proposal.none')}</p>`}
+${pager(page, fetched.length > PAGE_SIZE, n => `/proposals?status=${encodeURIComponent(status)}&page=${n}`)}`,
   });
 }
 

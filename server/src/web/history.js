@@ -2,14 +2,13 @@ import { HttpError, readForm, redirect } from '../http.js';
 import { isTextPath } from '../../../cli/src/store-paths.js';
 import { unifiedDiff } from '../../../cli/src/diff.js';
 import { checkOrigin, requireAdminWeb, requireReadWeb, isAdmin } from './auth.js';
-import { html, hrefFor, diffBlock } from './layout.js';
+import { html, hrefFor, diffBlock, pageOf, pager, PAGE_SIZE } from './layout.js';
 import { sendView, hereHref } from './frame.js';
 import { t } from '../../../cli/src/i18n.js';
 
 /** 이력 쪽 화면: 사이드바 없이 상단의 「이력」 을 켠다. */
 const view = (ctx, status, opts) => sendView(ctx, status, { on: 'history', ...opts });
 
-const PAGE = 50;
 const SOURCE = {
   get import() { return t('web.source.import'); },
   get web() { return t('web.source.web'); },
@@ -37,23 +36,29 @@ function parseId(value) {
   return /^\d+$/.test(value ?? '') ? Number(value) : 0;
 }
 
+/** 한 쪽의 행과 다음 쪽이 있는지. 한 행을 더 가져와 본다. */
+function onePage(fetch, page) {
+  const rows = fetch({ limit: PAGE_SIZE + 1, offset: (page - 1) * PAGE_SIZE });
+  return { rows: rows.slice(0, PAGE_SIZE), hasNext: rows.length > PAGE_SIZE };
+}
+
 function historyPage(ctx) {
-  const before = parseId(ctx.url.searchParams.get('before')) || undefined;
-  const rows = ctx.store.revisions({ before, limit: PAGE });
-  const next = rows.length === PAGE ? html`<p><a href="/history?before=${rows.at(-1).id}">${t('web.older')}</a></p>` : '';
-  view(ctx, 200, { title: t('web.nav.history'), body: html`${revisionRows(rows)}${next}` });
+  const page = pageOf(ctx.url);
+  const { rows, hasNext } = onePage(o => ctx.store.revisions(o), page);
+  view(ctx, 200, { title: t('web.nav.history'), body: html`${revisionRows(rows)}${pager(page, hasNext, n => `/history?page=${n}`)}` });
 }
 
 function fileHistoryPage(ctx) {
   const p = ctx.params.path.normalize('NFC');
-  const rows = ctx.store.fileHistory(p, { limit: 200 });
-  if (!rows.length) throw new HttpError(404, t('web.noHistory'));
+  const page = pageOf(ctx.url);
+  const { rows, hasNext } = onePage(o => ctx.store.fileHistory(p, o), page);
+  if (!rows.length && page === 1) throw new HttpError(404, t('web.noHistory'));
   const revertForms = rows.map(r => html`<form method="post" action="/revert" class="row">
 <input type="hidden" name="kind" value="file"><input type="hidden" name="path" value="${p}"><input type="hidden" name="rev" value="${r.id}">
 <button class="secondary">${t('web.revertTo', { rev: r.id })}</button></form>`);
   view(ctx, 200, {
     title: t('web.historyOf', { path: p }),
-    body: html`<p class="meta"><a href="${hereHref(ctx.store, p)}">${t('web.viewFile')}</a></p>${revisionRows(rows, { withHash: true })}
+    body: html`<p class="meta"><a href="${hereHref(ctx.store, p)}">${t('web.viewFile')}</a></p>${revisionRows(rows, { withHash: true })}${pager(page, hasNext, n => `${hrefFor('/history/', p)}?page=${n}`)}
 ${isAdmin(ctx) ? html`<details class="manage"><summary>${t('web.revert')}</summary>${revertForms}</details>` : ''}`,
   });
 }

@@ -157,6 +157,26 @@ export function errorPage(res, status, message, headers = {}) {
   sendPage(res, status, { title: String(status), nav: false, body: html`<p class="error">${message}</p><p><a href="/">${t('web.backHome')}</a></p>` }, headers);
 }
 
+/** 목록 한 쪽의 행 수. */
+export const PAGE_SIZE = 30;
+
+/** `?page=` 를 1 이상 정수로. 아니면 1. */
+export function pageOf(url) {
+  const n = Number(url.searchParams.get('page'));
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+
+/**
+ * 목록 아래의 「이전」·「N쪽」·「다음」.
+ * @param {number} page
+ * @param {boolean} hasNext
+ * @param {(n: number) => string} hrefOf
+ */
+export function pager(page, hasNext, hrefOf) {
+  if (page === 1 && !hasNext) return '';
+  return html`<nav class="pager">${page > 1 ? html`<a href="${hrefOf(page - 1)}">${t('web.pager.prev')}</a>` : ''}<span class="meta">${t('web.pager.page', { n: page })}</span>${hasNext ? html`<a href="${hrefOf(page + 1)}">${t('web.pager.next')}</a>` : ''}</nav>`;
+}
+
 /** unifiedDiff 의 결과를 색칠한 블록. 빈 문자열이면 「차이 없음」. */
 export function diffBlock(text) {
   if (!text) return html`<p class="meta">${t('web.noDiff')}</p>`;

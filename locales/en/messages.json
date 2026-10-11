@@ -423,7 +423,6 @@
   "web.none": "none",
   "web.noneYet": "None yet.",
   "web.notFound": "Not found",
-  "web.older": "Older",
   "web.path": "Path",
   "web.pathExists": "The path already exists",
   "web.preview": "Check warnings",
@@ -572,5 +571,8 @@
   "web.tab.docs": "Docs",
   "web.docs.forAgents": "Also read by agents",
   "web.docs.add": "+ Add document",
-  "web.docs.protected": "This document is also read by agents, so it cannot be renamed or deleted on the web"
+  "web.docs.protected": "This document is also read by agents, so it cannot be renamed or deleted on the web",
+  "web.pager.prev": "← Previous",
+  "web.pager.next": "Next →",
+  "web.pager.page": "Page {n}"
 }

@@ -85,3 +85,18 @@ test('제안 내용이 그 파일의 옛 버전과 같으면 되돌림 경고를
   assert.match((await getAs(s, cookie, `/proposals/${id}`)).text, new RegExp(`r${old} 의 옛 버전과 같음`));
   assert.doesNotMatch((await getAs(s, cookie, `/proposals/${id - 1}`)).text, /옛 버전과 같다/);
 });
+
+test('제안 목록은 30개씩, 상태 탭 링크는 1쪽으로', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: { 'rules/base/00-a.md': 'a\n' } });
+  const cookie = await login(s);
+  for (let i = 0; i < 35; i++) {
+    s.proposals.create({ title: `p${i}`, author: 'p1', tokenId: null, project: null, changes: [{ path: `rules/base/${String(i + 10)}-n.md`, content: Buffer.from('n\n'), base: null }] });
+  }
+  const rows = page => (page.match(/<a href="\/proposals\/\d+">/g) ?? []).length;
+  const first = (await getAs(s, cookie, '/proposals?status=all')).text;
+  assert.equal(rows(first), 30);
+  assert.ok(first.includes('href="/proposals?status=all&amp;page=2"'));
+  assert.equal(rows((await getAs(s, cookie, '/proposals?status=all&page=2')).text), 5);
+  assert.ok(first.includes('href="/proposals?status=pending"'));
+});

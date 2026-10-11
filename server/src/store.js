@@ -55,12 +55,12 @@ export function createStore(db, { now = () => new Date() } = {}) {
     revisions: db.prepare(`SELECT r.id AS id, r.created_at AS createdAt, r.author AS author, r.token_id AS tokenId,
         r.message AS message, r.source AS source,
         (SELECT COUNT(*) FROM file_versions f WHERE f.revision_id = r.id) AS files
-      FROM revisions r WHERE r.id < ? ORDER BY r.id DESC LIMIT ?`),
+      FROM revisions r WHERE r.id < ? ORDER BY r.id DESC LIMIT ? OFFSET ?`),
     versionsIn: db.prepare('SELECT path, hash FROM file_versions WHERE revision_id = ? ORDER BY path'),
     fileHistory: db.prepare(`SELECT r.id AS id, r.created_at AS createdAt, r.author AS author, r.token_id AS tokenId,
         r.message AS message, r.source AS source, f.hash AS hash
       FROM file_versions f JOIN revisions r ON r.id = f.revision_id
-      WHERE f.path = ? AND r.id < ? ORDER BY r.id DESC LIMIT ?`),
+      WHERE f.path = ? AND r.id < ? ORDER BY r.id DESC LIMIT ? OFFSET ?`),
     touchedAfter: db.prepare('SELECT 1 AS x FROM file_versions WHERE path = ? AND revision_id > ? LIMIT 1'),
   };
 
@@ -160,10 +160,10 @@ export function createStore(db, { now = () => new Date() } = {}) {
 
   /**
    * 리비전 목록, 최신순.
-   * @param {{ before?: number, limit?: number }} [opts] before 보다 작은 번호만
+   * @param {{ before?: number, limit?: number, offset?: number }} [opts] before 보다 작은 번호만, 앞에서 offset 개 건너뜀
    */
-  function revisions({ before = headRevision() + 1, limit = 50 } = {}) {
-    return q.revisions.all(before, limit).map(plain);
+  function revisions({ before = headRevision() + 1, limit = 50, offset = 0 } = {}) {
+    return q.revisions.all(before, limit, offset).map(plain);
   }
 
   /** 리비전 id 가 바꾼 파일. 경로순. */
@@ -178,10 +178,10 @@ export function createStore(db, { now = () => new Date() } = {}) {
   /**
    * 파일 하나를 바꾼 리비전, 최신순. hash 가 null 이면 그 리비전에서 지운 것이다.
    * @param {string} path
-   * @param {{ before?: number, limit?: number }} [opts]
+   * @param {{ before?: number, limit?: number, offset?: number }} [opts]
    */
-  function fileHistory(path, { before = headRevision() + 1, limit = 50 } = {}) {
-    return q.fileHistory.all(path, before, limit).map(plain);
+  function fileHistory(path, { before = headRevision() + 1, limit = 50, offset = 0 } = {}) {
+    return q.fileHistory.all(path, before, limit, offset).map(plain);
   }
 
   /**

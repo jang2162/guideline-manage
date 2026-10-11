@@ -266,3 +266,4 @@ pre.diff-lines .dh { color: var(--muted); }
 /* 도메인 스택의 도메인 꼬리표 */
 .real { margin-left: .4em; color: var(--faint); font-size: .75em; font-weight: 400; font-family: ui-monospace, Menlo, monospace; }
 .domain { display: inline-block; margin-left: .35em; padding: 0 .45em; border-radius: 999px; background: var(--pill-bg); color: var(--pill-fg); font-size: .75em; font-weight: 500; vertical-align: .1em; }
+.pager { display: flex; gap: 14px; align-items: center; justify-content: center; margin: 14px 0; }

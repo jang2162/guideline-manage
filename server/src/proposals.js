@@ -49,7 +49,7 @@ export function createProposals(db, store, { now = () => new Date() } = {}) {
       p.revision_id AS revisionId, (SELECT COUNT(*) FROM proposal_changes c WHERE c.proposal_id = p.id) AS changeCount
       FROM proposals p
       WHERE (? IS NULL OR p.status = ?) AND (? IS NULL OR p.token_id = ?)
-      ORDER BY p.id DESC`),
+      ORDER BY p.id DESC LIMIT ? OFFSET ?`),
     pending: db.prepare("SELECT COUNT(*) AS n FROM proposals WHERE status = 'pending'"),
     decide: db.prepare("UPDATE proposals SET status = ?, decided_at = ?, note = ?, revision_id = ? WHERE id = ? AND status = 'pending'"),
     setChange: db.prepare('UPDATE proposal_changes SET content = ?, base_hash = ? WHERE proposal_id = ? AND path = ?'),
@@ -216,8 +216,9 @@ export function createProposals(db, store, { now = () => new Date() } = {}) {
     q.dropChange.run(id, path);
   }
 
-  function list({ status = null, tokenId = null } = {}) {
-    return q.list.all(status, status, tokenId, tokenId).map(plain);
+  /** 제안 목록, 최신순. limit 이 -1 이면 전부(API 가 그렇게 쓴다). */
+  function list({ status = null, tokenId = null, limit = -1, offset = 0 } = {}) {
+    return q.list.all(status, status, tokenId, tokenId, limit, offset).map(plain);
   }
 
   return { create, submit, get, list, pendingCount: () => q.pending.get().n, plan, accept, reject, setChange, dropChange };

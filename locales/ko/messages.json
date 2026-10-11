@@ -423,7 +423,6 @@
   "web.none": "없음",
   "web.noneYet": "아직 없음.",
   "web.notFound": "페이지 없음",
-  "web.older": "더 이전",
   "web.path": "경로",
   "web.pathExists": "이미 있는 경로",
   "web.preview": "경고 보기",
@@ -572,5 +571,8 @@
   "web.tab.docs": "문서",
   "web.docs.forAgents": "에이전트도 읽는 문서",
   "web.docs.add": "+ 문서 추가",
-  "web.docs.protected": "에이전트도 읽는 문서라 웹에서 이름을 바꾸거나 지울 수 없음"
+  "web.docs.protected": "에이전트도 읽는 문서라 웹에서 이름을 바꾸거나 지울 수 없음",
+  "web.pager.prev": "← 이전",
+  "web.pager.next": "다음 →",
+  "web.pager.page": "{n}쪽"
 }
