@@ -27,3 +27,6 @@ node_modules/
 # Server-specific Compose overrides (ports, networks): kept on each server
 compose.override.yaml
 /.superpowers/
+
+# Playwright MCP page snapshots and screenshots
+/.playwright-mcp/
