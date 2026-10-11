@@ -35,6 +35,7 @@
         "rules/browseros-neo/01-limits.md",
         "rules/browseros-neo/02-playwright.md",
         "rules/browseros-neo/03-tabs.md",
+        "rules/browseros-neo/SETUP.md",
         "rules/komodo/00-stack.md",
         "rules/komodo/01-environment.md",
         "rules/komodo/02-override.md",

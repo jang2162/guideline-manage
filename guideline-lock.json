@@ -1,7 +1,7 @@
 {
   "version": 2,
   "revisions": {
-    "default": 2
+    "default": 3
   },
   "sources": {
     "default:mcp/codegraph": "f6e4c3dc8b10c412e418c0d5e68bc69d7061cfb424e79aa75cfa11fa8ad40b5a",
@@ -30,6 +30,7 @@
     "default:rules/browseros-neo/01-limits.md": "5cf79db60eb9bc05b2640a9ac81a9257109532a7613472df216aeb7b9323d494",
     "default:rules/browseros-neo/02-playwright.md": "4619f8275a4a8b27bf7314726124df94b554aefc7f91d208a03fefea91f4a149",
     "default:rules/browseros-neo/03-tabs.md": "5ef01cc4bffdc79f36b1fa3c319547c72eb62717d89d55124ef767f5b93aa1d4",
+    "default:rules/browseros-neo/SETUP.md": "b7376822d2ad4eae0857a1654bc5ddf6c1304c75ec2c898097c4362f0d46a80f",
     "default:rules/komodo/00-stack.md": "7d7ab0f97703387858f6119ba1de8b3da781f7698925bd1bcc44c41c4e9b9fc2",
     "default:rules/komodo/01-environment.md": "780196b6c9aac72d48ccfb0fd1454cad16cc4bb160afd68ce52a555531b349c8",
     "default:rules/komodo/02-override.md": "6b7f39fa6bf5488cfb10f72056d0daba18611e1d1ef6d83b02ffb5a4004c61d8",
@@ -116,7 +117,7 @@
     {
       "path": ".ruler/guideline.md",
       "items": [],
-      "hash": "7f454383f41a700413a4ef105beca71c14059744b732fe0786d1ded2eeca3cde"
+      "hash": "763ba2d38c63db234cdad52e4a28e6069b4024e1f2417f0d3b57096095998c7c"
     },
     {
       "path": ".ruler/komodo/99-reference.md",
@@ -384,6 +385,13 @@
         "default:rules/browseros-neo/03-tabs.md"
       ],
       "hash": "6fa9645781cd5cc9c467181c93d548d0a946faee048968e81b9109708d7680fd"
+    },
+    {
+      "path": "docs/guideline/browseros-neo/SETUP.md",
+      "items": [
+        "default:rules/browseros-neo/SETUP.md"
+      ],
+      "hash": "b7376822d2ad4eae0857a1654bc5ddf6c1304c75ec2c898097c4362f0d46a80f"
     },
     {
       "path": "docs/guideline/komodo/00-stack.md",

@@ -10,5 +10,6 @@
 | 스택 | 세팅 문서 |
 | --- | --- |
 | base | `docs/guideline/base/SETUP.md` |
+| browseros-neo | `docs/guideline/browseros-neo/SETUP.md` |
 | mise | `docs/guideline/mise/SETUP.md` |
 | orca | `docs/guideline/orca/SETUP.md` |
