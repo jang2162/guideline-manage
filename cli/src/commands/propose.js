@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expandPath } from '../projects.js';
-import { remoteClient, loadRevision, explain, ServerError, tokenInfo } from '../remote.js';
+import { remoteClient, loadRevision, explain, ServerError } from '../remote.js';
 import { getToken } from '../credentials.js';
 import { fetchSources, virtualize, showId } from '../workspace.js';
 import { realOf } from '../sources.js';
@@ -18,13 +18,20 @@ const textOr = buf => (buf === null ? '' : buf.includes(0) ? null : buf.toString
 
 /**
  * 보낼 방식. --apply 면 반영, --review 면 제안, 둘 다 없으면 토큰이 admin 범위일 때만 반영(auto).
- * 범위를 알 수 없으면(옛 서버, 토큰 없음, 오류) 제안이다.
+ * 범위를 알 수 없으면 제안이다. 옛 서버(404)와 토큰 없음(401 — 보낼 때 로그인 안내가 나온다)은 조용히,
+ * 그 밖의 오류(500, 프록시의 403, 네트워크)는 경고 한 줄을 낸다.
  * @returns {Promise<{ mode: 'apply' | 'proposal', auto: boolean }>}
  */
-async function sendMode({ client, apply, review }) {
+async function sendMode({ client, apply, review, err }) {
   if (apply) return { mode: 'apply', auto: false };
   if (review) return { mode: 'proposal', auto: false };
-  const info = await tokenInfo(client);
+  let info;
+  try {
+    info = await client.whoami();
+  } catch (e) {
+    if (!(e instanceof ServerError && e.status === 401)) err(t('propose.scopeUnknown'));
+    info = null;
+  }
   return info?.scope === 'admin' ? { mode: 'apply', auto: true } : { mode: 'proposal', auto: false };
 }
 
@@ -44,7 +51,7 @@ export async function sendProposal({
     return 0;
   }
   const listed = changes.map(c => ({ path: c.path, kind: c.content === null ? 'delete' : c.base === null ? 'add' : 'modify' }));
-  const { mode, auto } = await sendMode({ client, apply, review });
+  const { mode, auto } = await sendMode({ client, apply, review, err });
   if (dryRun) {
     if (json) {
       out(JSON.stringify({ changes: listed, todos, mode }, null, 2));

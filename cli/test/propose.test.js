@@ -228,8 +228,42 @@ test('whoami 가 없는 옛 서버(404)면 admin 토큰이어도 예전처럼 �
   const r = await run({ project: p, env, fetchImpl: old, json: true });
   assert.equal(r.code, 0, r.err);
   assert.equal(JSON.parse(r.out).mode, 'proposal');
+  assert.equal(r.err, '', '옛 서버는 경고 없이 조용히 제안');
   assert.equal(s.proposals.list({ status: 'pending' }).length, 1);
   assert.equal(s.store.headRevision(), 1);
+});
+
+test('whoami 가 없는 옛 서버(404)에서도 --apply 는 예전처럼 바로 반영한다', async t => {
+  const { s, p, env } = await setup(t, 'admin');
+  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  const old = (url, init) => (String(url).endsWith('/api/v1/whoami')
+    ? Promise.resolve(new Response(JSON.stringify({ error: '페이지 없음' }), { status: 404 }))
+    : fetch(url, init));
+  const r = await run({ project: p, env, fetchImpl: old, apply: true });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /반영 완료: r2 — /);
+  assert.doesNotMatch(r.out, /admin 토큰이라/);
+  assert.equal(s.store.headRevision(), 2);
+});
+
+test('whoami 가 404 가 아닌 오류(500·프록시 403·네트워크)면 경고 한 줄을 내고 제안으로 보낸다', async t => {
+  const failures = {
+    500: () => Promise.resolve(new Response(JSON.stringify({ error: '서버 오류' }), { status: 500 })),
+    403: () => Promise.resolve(new Response('<html>forbidden</html>', { status: 403 })),
+    network: () => Promise.reject(new TypeError('fetch failed')),
+  };
+  for (const [name, fail] of Object.entries(failures)) {
+    const { s, p, env } = await setup(t, 'admin');
+    write(p, '.ruler/base/00-a.md', '# 고침\n');
+    const broken = (url, init) => (String(url).endsWith('/api/v1/whoami') ? fail() : fetch(url, init));
+    const r = await run({ project: p, env, fetchImpl: broken, json: true });
+    assert.equal(r.code, 0, `${name}: ${r.err}`);
+    assert.equal(JSON.parse(r.out).mode, 'proposal', name);
+    assert.equal(r.err.trim().split('\n').length, 1, name);
+    assert.match(r.err, /토큰 범위를 확인하지 못해 제안으로 보냄 — 바로 반영하려면 --apply/, name);
+    assert.equal(s.proposals.list({ status: 'pending' }).length, 1, name);
+    assert.equal(s.store.headRevision(), 1, name);
+  }
 });
 
 test('--apply --json 은 status 와 revision 을 낸다', async t => {

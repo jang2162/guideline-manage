@@ -256,6 +256,25 @@ test('propose 는 출처마다 제안 하나를 그 서버에 올리고, 별칭�
   assert.match(o.text(), /b: 제안 등록 완료: #1/);
 });
 
+test('propose: 출처마다 범위를 따로 본다 — admin 토큰 출처는 바로 반영, propose 토큰 출처는 대기 제안', async t => {
+  const { a, b, env } = await servers(t);
+  saveToken(a.base, { token: a.tokens.issue({ name: 'boss', scope: 'admin' }).token, name: 'boss' }, { env });
+  const p = project(t, { 'guideline.json': twoSources(a, b) });
+  await projectUpdate({ project: p, env, ...quiet, out: () => {} });
+  write(p, '.ruler/base/00-a.md', `${read(p, '.ruler/base/00-a.md')}에이 고침\n`);
+  write(p, '.ruler/b-base/00-a.md', `${read(p, '.ruler/b-base/00-a.md')}비 고침\n`);
+  const o = collect();
+  assert.equal(await propose({ project: p, title: '섞임', env, out: o.out, err: () => {} }), 0);
+  assert.equal(a.store.headRevision(), 2);
+  assert.equal(a.proposals.list({ status: 'pending' }).length, 0);
+  assert.equal(b.store.headRevision(), 1);
+  assert.equal(b.proposals.list({ status: 'pending' }).length, 1);
+  assert.match(o.text(), /a: 반영 완료: r2/);
+  assert.match(o.text(), /a: admin 토큰이라 검토 없이 바로 반영함/);
+  assert.match(o.text(), /b: 제안 등록 완료: #1/);
+  assert.doesNotMatch(o.text(), /b: admin 토큰이라/);
+});
+
 test('propose --source 는 그 출처만, 한 출처가 권한이 없으면 나머지는 올리고 1', async t => {
   const { a, b, env } = await servers(t);
   const p = project(t, { 'guideline.json': twoSources(a, b) });

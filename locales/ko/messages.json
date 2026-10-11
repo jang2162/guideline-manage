@@ -536,6 +536,7 @@
   "propose.willApply": "보내면 바로 반영됨(--apply)",
   "propose.willApplyAdmin": "보내면 바로 반영됨(admin 토큰) — 검토를 받으려면 --review",
   "propose.willPropose": "보내면 검토를 기다리는 제안이 됨",
+  "propose.scopeUnknown": "토큰 범위를 확인하지 못해 제안으로 보냄 — 바로 반영하려면 --apply",
   "status.token": "토큰: {name} — 범위 {scope}",
   "status.adminToken": "서버 관리자 토큰",
   "login.scope": "토큰 범위: {scope}",

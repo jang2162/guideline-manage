@@ -536,6 +536,7 @@
   "propose.willApply": "Sending would apply this directly (--apply)",
   "propose.willApplyAdmin": "Sending would apply this directly (admin token) — add --review to send a proposal for review instead",
   "propose.willPropose": "Sending would create a proposal that waits for review",
+  "propose.scopeUnknown": "Could not check the token's scope, so this is sent as a proposal — use --apply to apply directly",
   "status.token": "Token: {name} — scope {scope}",
   "status.adminToken": "the server's admin token",
   "login.scope": "Token scope: {scope}",
