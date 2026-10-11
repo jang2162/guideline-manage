@@ -375,10 +375,10 @@
   "web.edit.warnings": "Saving leaves these warnings in the list (saving still works).",
   "web.empty": "No guidelines yet. Create one with \"New file\", or upload many at once with an admin token through the proposals API (POST /api/v1/proposals, apply: true).",
   "web.files": "Files",
-  "web.find.agents": "Find subagents",
-  "web.find.mcp": "Find MCP servers",
-  "web.find.skills": "Find skills and files",
-  "web.find.stacks": "Find stacks and files",
+  "web.find.agents": "Find a subagent",
+  "web.find.mcp": "Find an MCP server",
+  "web.find.skills": "Find a skill",
+  "web.find.stacks": "Find a stack",
   "web.firstTime.after": "",
   "web.firstTime.before": "New here? Read the",
   "web.firstTime.link": "usage guide",
@@ -405,7 +405,7 @@
   "web.login": "Log in",
   "web.loginNeeded": "Login required",
   "web.logout": "Log out",
-  "web.manage": "Rename · Delete",
+  "web.manage": "Rename · delete this file",
   "web.message": "Message",
   "web.methodNotAllowed": "Method not allowed",
   "web.nav.history": "History",
@@ -563,5 +563,6 @@
   "web.usage.title": "Usage",
   "web.usage.copy": "Copy link",
   "web.usage.raw": "Raw",
-  "web.client.copied": "Copied"
+  "web.client.copied": "Copied",
+  "web.manageBlock": "Rename · delete this block"
 }

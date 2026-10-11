@@ -377,8 +377,8 @@
   "web.files": "파일",
   "web.find.agents": "서브에이전트 찾기",
   "web.find.mcp": "MCP 찾기",
-  "web.find.skills": "스킬·파일 찾기",
-  "web.find.stacks": "스택·파일 찾기",
+  "web.find.skills": "스킬 찾기",
+  "web.find.stacks": "스택 찾기",
   "web.firstTime.after": "참고.",
   "web.firstTime.before": "처음이면",
   "web.firstTime.link": "사용법",
@@ -405,7 +405,7 @@
   "web.login": "로그인",
   "web.loginNeeded": "로그인 필요",
   "web.logout": "로그아웃",
-  "web.manage": "이름 바꾸기 · 삭제",
+  "web.manage": "이 파일 이름 바꾸기 · 삭제",
   "web.message": "메시지",
   "web.methodNotAllowed": "허용하지 않는 메서드",
   "web.nav.history": "이력",
@@ -563,5 +563,6 @@
   "web.usage.title": "사용법",
   "web.usage.copy": "링크 복사",
   "web.usage.raw": "원문",
-  "web.client.copied": "복사됨"
+  "web.client.copied": "복사됨",
+  "web.manageBlock": "이 블록 이름 바꾸기 · 삭제"
 }

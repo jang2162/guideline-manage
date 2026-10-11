@@ -6,9 +6,9 @@ How to run and operate the server that holds the guideline source (`guideline-se
 
 ## What it has
 
-- Admin web: list, file view and edit (with a warning preview before saving), new file, delete, rename, upload, history, diffs and revert, issuing and revoking tokens, export (tar.gz), proposal review (diff, conflicts, edit, accept, reject)
+- Web: block lists (stacks, skills, subagents, MCP) and block detail pages (block list · document · the block's files), adding blocks, file edit (with a warning preview before saving), new file, delete, rename, upload, per-block download (tar.gz), Settings (files outside blocks, ignored items, warnings), Usage (rendered llms.txt), history, diffs and revert, issuing, revoking and deleting tokens, proposal review (diff, conflicts, edit, accept, reject)
 - Read API `/api/v1`: `health`, `catalog`, `tree`, `files/<path>`, `revisions`, `revisions/<number>`. Tokens go in `Authorization: Bearer <token>`
-- Proposals API `/api/v1/proposals`: a propose-scope token proposes; an admin token applies right away with `apply: true`. Proposals are reviewed and accepted under "Proposals" on the web
+- Proposals API `/api/v1/proposals`: a propose-scope token proposes; the admin token or an admin-scope token applies right away with `apply: true` and accepts or rejects with `POST /api/v1/proposals/<number>/accept|reject`. People review proposals under "Proposals" on the web
 
 ## Deploying with Docker Compose
 
@@ -46,7 +46,7 @@ Leave TLS and the reverse proxy to the server's existing setup.
 2. Create an admin token with `openssl rand -base64 48` and put it in `.env` as `ADMIN_TOKEN`.
 3. Run `docker compose up -d --build`. The log (`docker compose logs`) shows `guideline-server listening on port 3000`, and on an empty DB also `seeded the empty server with <language> guidelines (r1)`.
 4. Open `PUBLIC_URL`. Anyone can browse guidelines and history and download them without logging in (with `PUBLIC_READ=0`, a login is required). To edit, revert, review proposals or manage tokens, use "Log in" at the top (`/login`) with the admin token.
-5. Fill in guidelines: "New file" on the admin web, or `POST /api/v1/proposals` with `apply: true` and the admin token (→ [guide.md](guide.md) "Running a guideline server").
+5. Fill in guidelines: add blocks from the lists and use "New file" on a block page, or `POST /api/v1/proposals` with `apply: true` and the admin token (→ [guide.md](guide.md) "Running a guideline server").
 
 ## Upgrades
 
@@ -65,7 +65,7 @@ Operating logs and configuration errors are in English whatever the language set
 ## Backup and restore
 
 - At startup and every 24 hours after, the server writes `backups/guideline-<YYYYMMDD-HHmmss>.db` (UTC) and deletes ones beyond `BACKUP_KEEP`.
-- "Export" on the web gives the latest guidelines as a tar.gz in the source layout. That is the backup people download.
+- "Download (.tar.gz)" on a block page gives that block in the source layout. The whole source is `GET /api/v1/archive` (what the CLI uses).
 
 To restore:
 
@@ -99,6 +99,15 @@ To restore:
 - Even on a public server, a wrong or revoked token gets 401.
 - A public server lets anyone create a form (`POST /api/v1/forms`) without a token. Its result needs the form URL's link token in the `X-Form-Link` header.
 - `/api/v1/health` reports `publicRead`. Fetching without a token needs CLI 0.16 or later (the 0.15 CLI stops before asking the server when it has no token).
+
+## Blocks and admin tokens (0.17)
+
+- **The web is organized by blocks.** Lists show stacks, skills, subagents and MCP servers; a block page shows the block list on the left, the chosen document in the middle and the block's files on the right. New file, upload, rename, delete and download live on the block page; lists only add blocks. The old file browser (`/f/…`, `/d/…`) and the whole-source export (`/export.tar.gz`) are gone.
+- **Settings** holds what belongs to no block: the authoring rules, skeleton stacks, items the lists ignore, and warnings. **Usage** renders llms.txt with a "Copy link" button; it is open even with `PUBLIC_READ=0`.
+- **Domain stacks**: a stack named `<tool>__<domain>` shows the tool name with a domain tag. Paths and API names are unchanged.
+- **Token scope `admin`**: applies directly (`apply: true`, `guideline propose --apply`), sees every proposal, and accepts or rejects through the API. It cannot log in to the web or manage tokens.
+- **Deleting tokens**: a revoked token can be deleted from the list. The row stays hidden in the DB because revisions point to it; its name can be reused.
+- **Schema 5**: tokens get the `admin` scope and a deleted flag. A 0.16 server's DB is backed up and upgraded at start.
 
 ## Running locally
 

@@ -53,7 +53,7 @@ node --env-file=.env server/bin/guideline-server.js
 - `GUIDELINE_LANG` 은 관리자 웹과 빈 서버에 넣는 씨앗의 언어다(기본 영어).
 - Docker Compose 로 띄우는 법은 [server.md](server.md).
 
-처음 띄운 서버에는 **씨앗**이 리비전 1 로 들어간다: 작성 규칙 `docs/authoring.md` 와 씨앗 스킬 `guideline-sync`·`guideline-export`(서버 언어로). 지침은 관리 웹의 「새 파일」 로 만들거나, 관리자 토큰으로 제안 API 에 `apply: true` 를 주어 한꺼번에 올린다(변경 500개·20MB 까지). 옛 문서 저장소 클론을 통째로 옮길 때는 `GUIDELINE_SEED=off` 로 빈 서버를 띄운 뒤 올린다 — 씨앗과 같은 경로가 충돌하지 않게.
+처음 띄운 서버에는 **씨앗**이 리비전 1 로 들어간다: 작성 규칙 `docs/authoring.md` 와 씨앗 스킬 `guideline-sync`·`guideline-export`(서버 언어로). 지침은 목록의 「+ 스택 추가」 등으로 블록을 만들고 블록 상세의 「새 파일」 로 채우거나, 관리자 토큰으로 제안 API 에 `apply: true` 를 주어 한꺼번에 올린다(변경 500개·20MB 까지). 옛 문서 저장소 클론을 통째로 옮길 때는 `GUIDELINE_SEED=off` 로 빈 서버를 띄운 뒤 올린다 — 씨앗과 같은 경로가 충돌하지 않게.
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/proposals \

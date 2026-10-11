@@ -38,7 +38,7 @@ ${raw(renderMarkdown(text, { path: p, hrefOf: q => viewHref(q, summary) }))}
 /** 파일·디렉터리 화면 아래의 이름 바꾸기·삭제 폼. 처리는 edit.js 가 한다. */
 export function manageForms(p, kind) {
   const confirm = kind === 'dir' ? t('web.confirmDeleteDir', { path: p }) : t('web.confirmDelete', { path: p });
-  return html`<details class="manage"><summary>${t('web.manage')}</summary>
+  return html`<details class="manage"><summary>${kind === 'dir' ? t('web.manageBlock') : t('web.manage')}</summary>
 <form method="post" action="/rename" class="stack">
 <input type="hidden" name="from" value="${p}">
 <label>${t('web.newPath')} <input name="to" value="${p}" required></label>
@@ -267,7 +267,7 @@ function blockPage(ctx, kind) {
     tab: TAB[kind],
     actions: view.actions,
     detail: { left: blockList(cat, kind, name), right: filesPanel(ctx, kind, name, files, current) },
-    body: html`${chips(s.categories[dir])}${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(cat, name) : ''}`,
+    body: html`${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(cat, name) : ''}`,
   });
 }
 

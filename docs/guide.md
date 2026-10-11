@@ -53,7 +53,7 @@ node --env-file=.env server/bin/guideline-server.js
 - `GUIDELINE_LANG` is the language of the admin web and of the seed put into an empty server (default English).
 - Running with Docker Compose: see [server.md](server.md).
 
-A freshly started server gets a **seed** as revision 1: the authoring rules `docs/authoring.md` and the seed skills `guideline-sync` and `guideline-export` (in the server language). Create guidelines with "New file" on the admin web, or upload many at once through the proposals API with an admin token and `apply: true` (up to 500 changes and 20 MB). To move an old guideline repository clone in wholesale, start an empty server with `GUIDELINE_SEED=off` first, so its files do not clash with the seed.
+A freshly started server gets a **seed** as revision 1: the authoring rules `docs/authoring.md` and the seed skills `guideline-sync` and `guideline-export` (in the server language). Create guidelines by adding a block from a list ("+ Add stack" and so on) and "New file" on the block page, or upload many at once through the proposals API with an admin token and `apply: true` (up to 500 changes and 20 MB). To move an old guideline repository clone in wholesale, start an empty server with `GUIDELINE_SEED=off` first, so its files do not clash with the seed.
 
 ```bash
 curl -s -X POST http://localhost:3000/api/v1/proposals \
