@@ -93,3 +93,18 @@ if (scopeSelect && scopeWarning) {
   scopeSelect.addEventListener('change', syncScope);
   syncScope();
 }
+
+// 사용법 화면의 「링크 복사」: 에이전트에게 넘길 llms.txt 주소를 클립보드에 넣고 잠깐 「복사됨」 을 보인다.
+const CLIENT = JSON.parse(document.getElementById('i18n')?.textContent || '{}');
+for (const button of document.querySelectorAll('[data-copy]')) {
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(button.dataset.copy);
+    } catch {
+      return;
+    }
+    const label = button.textContent;
+    button.textContent = CLIENT['web.client.copied'] ?? label;
+    setTimeout(() => { button.textContent = label; }, 1500);
+  });
+}

@@ -49,7 +49,7 @@ function loginPage(ctx, { status = 200, error = null, next = '/' } = {}) {
 <button>${t('web.login')}</button>
 </form>
 <p class="meta"><a href="/">${t('web.backHome')}</a></p>
-<p class="meta">${t('web.firstTime.before')} <a href="/llms.txt">${t('web.firstTime.link')}</a> ${t('web.firstTime.after')}</p>`,
+<p class="meta">${t('web.firstTime.before')} <a href="/usage">${t('web.firstTime.link')}</a> ${t('web.firstTime.after')}</p>`,
   });
 }
 

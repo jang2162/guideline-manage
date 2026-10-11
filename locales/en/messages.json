@@ -381,7 +381,7 @@
   "web.find.stacks": "Find stacks and files",
   "web.firstTime.after": "",
   "web.firstTime.before": "New here? Read the",
-  "web.firstTime.link": "usage guide (llms.txt)",
+  "web.firstTime.link": "usage guide",
   "web.form.agents": "Agents",
   "web.form.badLink": "The form link is wrong or the form is gone",
   "web.form.byCategory": "Pick by category",
@@ -559,5 +559,9 @@
   "web.settings.title": "Settings",
   "web.settings.files": "Files outside blocks",
   "web.settings.intro": "Files that belong to no block, items left out of the lists, and warnings.",
-  "web.settings.problems": "Warnings {warnings} · ignored {ignored} — see Settings"
+  "web.settings.problems": "Warnings {warnings} · ignored {ignored} — see Settings",
+  "web.usage.title": "Usage",
+  "web.usage.copy": "Copy link",
+  "web.usage.raw": "Raw",
+  "web.client.copied": "Copied"
 }

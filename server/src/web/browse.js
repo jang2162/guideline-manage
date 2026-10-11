@@ -337,6 +337,19 @@ export function registerBrowse(router) {
       'Content-Disposition': `attachment; filename="${encodeURIComponent(b.name)}-r${head}.tar.gz"`,
     });
   });
+  // llms.txt 를 사람이 읽는 화면. 원문과 같이 비밀이 없어 PUBLIC_READ 와 상관없이 연다.
+  router.add('GET', '/usage', ctx => {
+    const origin = ctx.config.publicUrl.origin;
+    const text = template('llms.txt', { SERVER: origin });
+    sendView(ctx, 200, {
+      title: t('web.usage.title'),
+      on: 'usage',
+      actions: html`<button type="button" class="button" data-copy="${`${origin}/llms.txt`}">${t('web.usage.copy')}</button><a class="button secondary" href="/llms.txt">${t('web.usage.raw')}</a>`,
+      body: html`<div class="doc">
+${raw(renderMarkdown(text, { path: 'llms.txt', hrefOf: () => '/usage' }))}
+</div>`,
+    });
+  });
   // 에이전트·사람이 읽는 사용·세팅 안내. 비밀이 없어 로그인 없이 연다.
   router.add('GET', '/llms.txt', ctx => {
     const text = template('llms.txt', { SERVER: ctx.config.publicUrl.origin });

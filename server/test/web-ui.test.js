@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeRichDocsRepo, filesOf } from '../../cli/test/helpers.js';
-import { startApp, login, getAs, META } from './helpers.js';
+import { startApp, login, getAs, testConfig, META } from './helpers.js';
 
 async function seeded(t) {
   const root = makeRichDocsRepo();
@@ -231,4 +231,21 @@ test('목록 화면에는 사이드바도 3단 틀도 없다', async t => {
     assert.ok(!page.includes('class="side"'), p);
     assert.ok(!page.includes('class="detail"'), p);
   }
+});
+
+test('사용법 화면은 llms.txt 를 렌더링하고 링크 복사 버튼에 PUBLIC_URL 의 llms.txt 를 단다', async t => {
+  const s = await startApp(t);
+  const r = await s.req('/usage');
+  assert.equal(r.status, 200);
+  assert.ok(r.text.includes('data-copy="http://guideline.test/llms.txt"'));
+  assert.ok(r.text.includes('링크 복사'));
+  assert.ok(r.text.includes('href="/llms.txt"'));
+  assert.match(r.text, /<div class="doc">\s*<h1>/);
+  assert.match(r.text, /<a class="on" href="\/usage" aria-current="page">사용법<\/a>/);
+});
+
+test('비공개 서버에서도 사용법은 로그인 없이 열리고, 로그인 화면은 /usage 로 안내한다', async t => {
+  const s = await startApp(t, { config: testConfig({ publicRead: false }) });
+  assert.equal((await s.req('/usage')).status, 200);
+  assert.match((await s.req('/login')).text, /href="\/usage"/);
 });

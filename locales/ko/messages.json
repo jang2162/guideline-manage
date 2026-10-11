@@ -381,7 +381,7 @@
   "web.find.stacks": "스택·파일 찾기",
   "web.firstTime.after": "참고.",
   "web.firstTime.before": "처음이면",
-  "web.firstTime.link": "사용법(llms.txt)",
+  "web.firstTime.link": "사용법",
   "web.form.agents": "에이전트",
   "web.form.badLink": "폼 링크가 틀렸거나 사라진 폼",
   "web.form.byCategory": "분류로 고르기",
@@ -559,5 +559,9 @@
   "web.settings.title": "설정",
   "web.settings.files": "블록 밖 파일",
   "web.settings.intro": "블록에 속하지 않는 파일, 목록에서 빠진 항목과 경고.",
-  "web.settings.problems": "경고 {warnings} · 무시됨 {ignored} — 설정에서 확인"
+  "web.settings.problems": "경고 {warnings} · 무시됨 {ignored} — 설정에서 확인",
+  "web.usage.title": "사용법",
+  "web.usage.copy": "링크 복사",
+  "web.usage.raw": "원문",
+  "web.client.copied": "복사됨"
 }
