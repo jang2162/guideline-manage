@@ -146,6 +146,7 @@ test('프로젝트 쪽 guideline-export 는 원본 폴더에 쓰고 제안으로
   assert.match(text, /guideline source <폴더>/);
   assert.match(text, /guideline propose --from <원본 폴더> --dry-run/);
   assert.match(text, /guideline propose --from <원본 폴더> --title/);
+  assert.match(text, /guideline propose --from <원본 폴더> --title <제목> --apply/);
   assert.match(text, /받은 사본을 고친 것은 이 스킬이 아니다/);
   assert.doesNotMatch(text, /문서 저장소의 로컬 경로를 사용자에게 묻는다/);
   assert.doesNotMatch(text, /기본 브랜치에 바로 커밋하지 않는다/);

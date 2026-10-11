@@ -141,9 +141,10 @@ test('help 에 propose·source 가 있고, 옵션 검사를 받는다', t => {
   assert.match(h.out, /propose +고친 사본을 원본 모양으로 되돌려 지침 서버에 제안/);
   assert.match(h.out, /source +지침 서버의 최신 원본을 빈 폴더에 풀기/);
   assert.match(h.out, /--from <폴더>/);
+  assert.match(h.out, /--apply +admin 토큰이면 제안 대신 바로 반영/);
   const bad = run(['propose', '--force'], dir);
   assert.equal(bad.code, 2);
-  assert.match(bad.out, /propose 에서 쓸 수 있는 옵션: --project, --server, --source, --title, --message, --only, --from, --dry-run, --json/);
+  assert.match(bad.out, /propose 에서 쓸 수 있는 옵션: --project, --server, --source, --title, --message, --only, --from, --dry-run, --apply, --json/);
   const noDir = run(['source'], dir);
   assert.equal(noDir.code, 2);
   assert.match(noDir.out, /풀 폴더 지정 필요/);

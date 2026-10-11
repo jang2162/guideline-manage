@@ -122,8 +122,9 @@ guideline propose --from <그 폴더> --title "<제목>"   # 그 폴더에서 �
 - `GET {{SERVER}}/api/v1/catalog`: 스택·스킬·서브에이전트·MCP 목록과 분류
 - `GET {{SERVER}}/api/v1/archive?rev=<리비전>`: 원본 전체(tar.gz)
 - `GET {{SERVER}}/api/v1/files/<경로>?rev=<리비전>`: 원본 파일 하나
-- `POST {{SERVER}}/api/v1/proposals`: 제안(범위 `propose` 토큰). 본문 `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. 관리자 토큰은 `apply: true` 로 검토 없이 바로 반영한다
-- `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<번호>`: 자기 제안의 상태
+- `POST {{SERVER}}/api/v1/proposals`: 제안(범위 `propose` 토큰). 본문 `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. 관리자 토큰이나 범위 `admin` 토큰은 `apply: true` 로 검토 없이 바로 반영한다. CLI 는 `guideline propose --apply`
+- `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<번호>`: 자기 제안의 상태(범위 `admin` 토큰은 모든 제안)
+- `POST {{SERVER}}/api/v1/proposals/<번호>/accept`, `POST {{SERVER}}/api/v1/proposals/<번호>/reject`(본문 `{ note? }`): 제안 수락·거절(관리자 토큰이나 범위 `admin` 토큰). 충돌이면 409 와 `conflicts`
 
 ## 더 보기
 

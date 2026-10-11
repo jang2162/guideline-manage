@@ -20,7 +20,7 @@ const textOr = buf => (buf === null ? '' : buf.includes(0) ? null : buf.toString
  * 변경 묶음을 보이거나(dry-run) 제안으로 보낸다. propose 와 propose --from 이 같이 쓴다.
  * @returns {Promise<number>}
  */
-export async function sendProposal({ client, server, title, message, project, changes, todos, dryRun, json, out, err, baseTree }) {
+export async function sendProposal({ client, server, title, message, project, changes, todos, dryRun, apply = false, json, out, err, baseTree }) {
   if (changes.length === 0) {
     if (json) out(JSON.stringify({ changes: [], todos }, null, 2));
     else {
@@ -47,18 +47,20 @@ export async function sendProposal({ client, server, title, message, project, ch
   }
   let r;
   try {
-    r = await client.createProposal({ title, description: message ?? '', project, changes: changes.map(toApiChange) });
+    r = await client.createProposal({ title, description: message ?? '', project, changes: changes.map(toApiChange), ...(apply ? { apply: true } : {}) });
   } catch (e) {
     if (e instanceof ServerError && e.status === 403) {
-      err(PROPOSE_DENIED(server));
+      err(apply ? t('propose.applyDenied', { server }) : PROPOSE_DENIED(server));
       return 1;
     }
     err(explain(e, server));
     return 1;
   }
-  if (json) out(JSON.stringify({ id: r.id, url: r.url, changes: listed, todos }, null, 2));
+  if (json) out(JSON.stringify({ id: r.id, url: r.url, status: r.status, revision: r.revision ?? null, changes: listed, todos }, null, 2));
   else {
-    out(t('propose.sent', { id: r.id, url: r.url }));
+    if (r.status !== 'accepted') out(t('propose.sent', { id: r.id, url: r.url }));
+    else if (r.revision) out(t('propose.applied', { rev: r.revision, url: r.url }));
+    else out(t('propose.appliedNothing'));
     for (const c of changes) out(`  ${KIND(c)}  ${c.path}`);
     printTodos(todos, out);
   }
@@ -70,7 +72,7 @@ export async function sendProposal({ client, server, title, message, project, ch
  * @returns {Promise<number>}
  */
 export async function propose({
-  project, server, source, from, title, message, only, dryRun = false, json = false,
+  project, server, source, from, title, message, only, dryRun = false, apply = false, json = false,
   env = process.env, out = console.log, err = console.error, fetchImpl = fetch, home, cwd = process.cwd(),
 }) {
   if (from !== undefined) {
@@ -101,7 +103,7 @@ export async function propose({
       return 1;
     }
     return sendProposal({
-      client, server: url, title, message, project: null, changes: folderChanges({ base, folder }), todos: [], dryRun, json, out, err, baseTree: base,
+      client, server: url, title, message, project: null, changes: folderChanges({ base, folder }), todos: [], dryRun, apply, json, out, err, baseTree: base,
     });
   }
   const dir = project !== undefined ? expandPath(project) : cwd;
@@ -139,7 +141,7 @@ export async function propose({
     const prefix = many ? line => out(`${name}: ${line}`) : out;
     const c = await sendProposal({
       client, server: url, title: title ?? t('propose.defaultTitle', { project: projectName }), message, project: projectName,
-      changes: list, todos: many ? [] : shown, dryRun, json, out: prefix, err, baseTree: base,
+      changes: list, todos: many ? [] : shown, dryRun, apply, json, out: prefix, err, baseTree: base,
     });
     if (c !== 0) code = c;
   }

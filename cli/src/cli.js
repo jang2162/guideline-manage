@@ -20,7 +20,7 @@ const ALLOWED_OPTIONS = {
   status: ['project', 'server', 'source', 'json'],
   login: ['server', 'token-stdin'],
   logout: ['server'],
-  propose: ['project', 'server', 'source', 'title', 'message', 'only', 'from', 'dry-run', 'json'],
+  propose: ['project', 'server', 'source', 'title', 'message', 'only', 'from', 'dry-run', 'apply', 'json'],
   source: ['server', 'source'],
   locale: ['json'],
   help: [],
@@ -107,7 +107,7 @@ export async function main(argv) {
     return propose({
       project: values.project, server: values.server, source: values.source, title: values.title, message: values.message,
       only: values.only?.split(',').map(s => s.trim()).filter(Boolean), from: values.from,
-      dryRun: values['dry-run'], json: values.json, cwd,
+      dryRun: values['dry-run'], apply: values.apply, json: values.json, cwd,
     });
   }
 

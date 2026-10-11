@@ -123,3 +123,40 @@ test('toRealChanges: 별칭 스킬의 name 줄을 되돌리고 기준 해시는 
   assert.match(c.content.toString(), /더한 줄\n$/);
   assert.equal(c.base, sha256(Buffer.from(SOURCE['skills/s/SKILL.md'])));
 });
+
+test('propose --apply 는 admin 토큰이면 바로 반영하고 리비전을 알린다', async t => {
+  const { s, p, env } = await setup(t, 'admin');
+  write(p, '.ruler/base/00-a.md', '# 에이\n\n바로 반영\n');
+  const r = await run({ project: p, env, title: '바로', apply: true });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, /반영 완료: r2 — /);
+  assert.equal(s.store.headRevision(), 2);
+  assert.equal(s.proposals.list({ status: 'pending' }).length, 0);
+});
+
+test('propose --apply 를 propose 토큰으로 하면 1 과 admin 토큰 안내', async t => {
+  const { s, p, env } = await setup(t);
+  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  const r = await run({ project: p, env, apply: true });
+  assert.equal(r.code, 1);
+  assert.match(r.err, /admin 토큰 필요 — /);
+  assert.equal(s.proposals.list({}).length, 0);
+});
+
+test('--apply 없이는 admin 토큰이어도 대기 제안', async t => {
+  const { s, p, env } = await setup(t, 'admin');
+  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  assert.equal((await run({ project: p, env })).code, 0);
+  assert.equal(s.proposals.list({ status: 'pending' }).length, 1);
+  assert.equal(s.store.headRevision(), 1);
+});
+
+test('--apply --json 은 status 와 revision 을 낸다', async t => {
+  const { p, env } = await setup(t, 'admin');
+  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  const r = await run({ project: p, env, apply: true, json: true });
+  assert.equal(r.code, 0, r.err);
+  const out = JSON.parse(r.out);
+  assert.equal(out.status, 'accepted');
+  assert.equal(out.revision, 2);
+});

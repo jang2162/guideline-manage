@@ -228,6 +228,8 @@ guideline pick              # 고른 항목 자체를 바꿀 때
 
 제안하려면 범위 `propose` 토큰이 필요하다. 관리자에게 받아 `guideline login --server <URL> --token-stdin` 으로 넣는다.
 
+범위 `admin` 토큰은 검토 없이 바로 반영할 수 있다. `guideline propose --apply` 로 올리면 제안이 대기하지 않고 바로 원본이 된다(`--apply` 가 없으면 admin 토큰이어도 제안으로 올라간다). 에이전트는 `POST /api/v1/proposals/<번호>/accept`·`/reject` 로 다른 제안을 수락·거절할 수 있다. admin 토큰은 웹 로그인과 토큰 관리에는 쓸 수 없다.
+
 **받은 사본을 고쳤으면** 프로젝트에서:
 
 ```bash

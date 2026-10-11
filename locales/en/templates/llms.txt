@@ -122,8 +122,9 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 - `GET {{SERVER}}/api/v1/catalog`: stacks, skills, subagents, MCP servers and their categories
 - `GET {{SERVER}}/api/v1/archive?rev=<revision>`: the whole source (tar.gz)
 - `GET {{SERVER}}/api/v1/files/<path>?rev=<revision>`: one source file
-- `POST {{SERVER}}/api/v1/proposals`: a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. An admin token can use `apply: true` to apply it right away without review
-- `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<number>`: the status of your proposals
+- `POST {{SERVER}}/api/v1/proposals`: a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. An admin token or an `admin` scope token can use `apply: true` to apply it right away without review. From the CLI: `guideline propose --apply`
+- `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<number>`: the status of your proposals (an `admin` scope token sees all)
+- `POST {{SERVER}}/api/v1/proposals/<number>/accept`, `POST {{SERVER}}/api/v1/proposals/<number>/reject` (body `{ note? }`): accept or reject a proposal (admin token or `admin` scope token). A conflict is 409 with `conflicts`
 
 ## More
 
