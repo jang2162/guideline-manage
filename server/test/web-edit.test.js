@@ -37,7 +37,7 @@ test('메시지가 없으면 400 이고 쓴 내용을 그대로 돌려준다', a
   const { s, cookie } = await seeded(t);
   const r = await postForm(s, '/edit/rules/base/00-x.md', { content: '새 내용', base: sha256(Buffer.from(RULE)), message: ' ', action: 'save' }, { cookie });
   assert.equal(r.status, 400);
-  assert.ok(r.text.includes('메시지를 쓴다'));
+  assert.ok(r.text.includes('메시지 입력 필요'));
   assert.ok(r.text.includes('새 내용'));
   assert.equal(s.store.headRevision(), 1);
 });
@@ -47,7 +47,7 @@ test('경고 보기는 저장하지 않고 그 내용으로 생길 목록 경고
   const r = await postForm(s, '/edit/rules/base/00-x.md', { content: '---\nload: sometimes\n---\n', base: 'x', message: '', action: 'preview' }, { cookie });
   assert.equal(r.status, 200);
   assert.ok(r.text.includes('rules/base/00-x.md'));
-  assert.ok(r.text.includes('저장하면 목록에 이런 경고가 남는다'));
+  assert.ok(r.text.includes('저장하면 목록에 아래 경고가 남음'));
   assert.equal(s.store.headRevision(), 1);
   const clean = await postForm(s, '/edit/rules/base/00-x.md', { content: RULE, base: 'x', message: '', action: 'preview' }, { cookie });
   assert.ok(clean.text.includes('경고 없음'));
@@ -59,7 +59,7 @@ test('열어 둔 사이 다른 저장이 있으면 409 충돌 화면을 보이�
   s.store.commit({ ...META, changes: { 'rules/base/00-x.md': `${RULE}다른 사람\n` } });
   const r = await postForm(s, '/edit/rules/base/00-x.md', { content: `${RULE}내 것\n`, base: oldBase, message: '내 것', action: 'save' }, { cookie });
   assert.equal(r.status, 409);
-  assert.ok(r.text.includes('열어 둔 사이 다른 저장이 있었다'));
+  assert.ok(r.text.includes('편집하는 사이 다른 저장이 있었음'));
   assert.ok(r.text.includes('<span class="del">-다른 사람</span>'));
   assert.ok(r.text.includes('<span class="add">+내 것</span>'));
   const newBase = sha256(Buffer.from(`${RULE}다른 사람\n`));
@@ -88,7 +88,7 @@ test('새 파일은 틀을 채운 화면에서 만들고, 이미 있는 경로�
   assert.equal(textOf(s, 'rules/base/01-new.md'), RULE);
   const dup = await postForm(s, '/new', { path: 'rules/base/01-new.md', content: 'x', message: '또', action: 'save' }, { cookie });
   assert.equal(dup.status, 409);
-  assert.ok(dup.text.includes('이미 있는 경로다'));
+  assert.ok(dup.text.includes('이미 있는 경로'));
   const bad = await postForm(s, '/new', { path: 'docs/x.md', content: 'x', message: 'm', action: 'save' }, { cookie });
   assert.equal(bad.status, 400);
   assert.ok(bad.text.includes('최상위는 rules/'));
@@ -136,7 +136,7 @@ test('올리기는 바이트 그대로 저장하고, base 가 틀리거나 크�
   assert.equal(s.store.revision(2).message, '그림');
   const dup = await put('/upload/skills/demo/img.png', png);
   assert.equal(dup.status, 409);
-  assert.match(dup.json().error, /그사이 같은 이름의 파일이 바뀌었다/);
+  assert.match(dup.json().error, /그사이 같은 이름의 파일이 바뀜/);
   assert.equal((await put('/upload/skills/demo/img.png', Buffer.from([1]), { 'X-Base-Hash': sha256(png) })).status, 200);
   const big = await put('/upload/skills/demo/big.bin', Buffer.alloc(1024 * 1024 + 1));
   assert.equal(big.status, 400);
@@ -145,7 +145,7 @@ test('올리기는 바이트 그대로 저장하고, base 가 틀리거나 크�
   assert.equal((await put('/upload/skills/demo/a.png', png, { Origin: 'http://evil.test' })).status, 403);
   const anon = await s.req('/upload/skills/demo/a.png', { method: 'PUT', body: png, headers: { Origin: s.config.publicUrl.origin } });
   assert.equal(anon.status, 401);
-  assert.deepEqual(anon.json(), { error: '로그인이 필요하다' });
+  assert.deepEqual(anon.json(), { error: '로그인 필요' });
 });
 
 test('첫 줄이 빈 파일도 편집 화면이 내용을 그대로 담는다(textarea 가 첫 줄바꿈 하나를 버리므로 하나를 앞에 둔다)', async t => {

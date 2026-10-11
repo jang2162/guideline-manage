@@ -49,7 +49,7 @@ test('수락하면 리비전이 생기고, 원본이 같은 곳을 바꿨으면 
   assert.equal(s.store.fileAt('rules/base/00-a.md', s.store.headRevision()).toString(), 'a\nB\nc\n');
   const r = await getAs(s, cookie, `/proposals/${id2}`);
   assert.match(r.text, /<button disabled>수락<\/button>/);
-  assert.match(r.text, /원본과 제안이 같은 곳을 고쳤다/);
+  assert.match(r.text, /원본과 제안이 같은 곳을 고침/);
   assert.equal((await postForm(s, `/proposals/${id2}/accept`, {}, { cookie })).status, 409);
 });
 
@@ -82,6 +82,6 @@ test('제안 내용이 그 파일의 옛 버전과 같으면 되돌림 경고를
   const old = s.store.headRevision();
   s.store.commit({ ...META, changes: { 'rules/base/00-a.md': 'a\nX\nc\n' } });
   const id = s.proposals.create({ title: '되돌림', author: 'p1', tokenId: null, changes: [{ path: 'rules/base/00-a.md', content: Buffer.from('a\nb\nc\n'), base: h('a\nX\nc\n') }] });
-  assert.match((await getAs(s, cookie, `/proposals/${id}`)).text, new RegExp(`r${old} 의 옛 버전과 같다`));
+  assert.match((await getAs(s, cookie, `/proposals/${id}`)).text, new RegExp(`r${old} 의 옛 버전과 같음`));
   assert.doesNotMatch((await getAs(s, cookie, `/proposals/${id - 1}`)).text, /옛 버전과 같다/);
 });

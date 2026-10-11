@@ -47,7 +47,7 @@ test('rules/ 가 없는 폴더면 종료 코드 2 와 안내를 낸다', async t
   const c = collect();
   const code = await list({ root: dir, out: c.out });
   assert.equal(code, 2);
-  assert.match(c.text(), /rules\/ 가 없다/);
+  assert.match(c.text(), /rules\/ 없음/);
 });
 
 test('list 는 서브에이전트·MCP 절을 보여 주고 MCP 에 환경 변수를 붙인다', async t => {
@@ -96,7 +96,7 @@ test('list 는 README.md 로 만드는 MCP 서버를 MCP 절에 표시와 함께
   const c = collect();
   await list({ root, out: c.out });
   const text = c.text();
-  assert.match(text, /MCP\n {2}context7\n {2}gitlab {4}반영할 때 README 로 만든다\n무시됨\n {2}mcp\/jira\/ {2}server\.json 없음$/);
+  assert.match(text, /MCP\n {2}context7\n {2}gitlab {4}반영할 때 README 로 만듦\n무시됨\n {2}mcp\/jira\/ {2}server\.json 없음$/);
 });
 
 test('list 는 server.json 과 반영할 때 항목 만들기 절이 함께 있으면 경고 절에 낸다', async t => {
@@ -106,7 +106,7 @@ test('list 는 server.json 과 반영할 때 항목 만들기 절이 함께 있�
   write(root, 'mcp/gitlab/README.md', '## 반영할 때 항목 만들기\n\n호스트를 git remote 에서 뽑는다.\n');
   const c = collect();
   await list({ root, out: c.out });
-  assert.match(c.text(), /MCP\n {2}gitlab\n경고\n {2}mcp\/gitlab\/ {2}server\.json 과 README\.md 의 「반영할 때 항목 만들기」 절이 함께 있음 — 하나만 남긴다$/);
+  assert.match(c.text(), /MCP\n {2}gitlab\n경고\n {2}mcp\/gitlab\/ {2}server\.json 과 README\.md 의 「반영할 때 항목 만들기」 절이 함께 있음 — 하나만 남겨야 함$/);
 });
 
 test('list 는 칸이 경고 대상인 지침 파일에 경고라고 표시하고 경고 절에 이유를 낸다', async t => {
@@ -173,7 +173,7 @@ test('list 는 스택 파일 아래에 바꿈을 보여 주고 --json 의 스택
   write(root, 'rules/orca/README.md', '## 다른 스택을 바꾸는 것\n\n| 이 스택의 절 | 바꾸는 절 |\n| --- | --- |\n| `05-switch.md` 「바꾸는 절」 | `base/00-alpha.md` 「기본 절」 |\n');
   const c = collect();
   await list({ root, out: c.out });
-  assert.match(c.text(), /\n {2}orca\n {4}rules\/orca\/05-switch\.md +always\n {4}바꾼다 {2}base\/00-alpha\.md 「기본 절」 {2}← {2}05-switch\.md 「바꾸는 절」\n스킬/);
+  assert.match(c.text(), /\n {2}orca\n {4}rules\/orca\/05-switch\.md +always\n {4}바꿈 {2}base\/00-alpha\.md 「기본 절」 {2}← {2}05-switch\.md 「바꾸는 절」\n스킬/);
   const j = collect();
   await list({ root, json: true, out: j.out });
   const data = JSON.parse(j.text());

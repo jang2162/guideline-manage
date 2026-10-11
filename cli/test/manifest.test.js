@@ -75,7 +75,7 @@ test('JSON 이 깨졌으면 ManifestError', t => {
   const dir = tmpDir();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   write(dir, MANIFEST, '{');
-  assert.throws(() => readManifest(dir), /guideline\.json 을 JSON 으로 읽을 수 없다/);
+  assert.throws(() => readManifest(dir), /guideline\.json 을 JSON 으로 읽을 수 없음/);
 });
 
 test('v1 잠금은 default 로 읽고 v2 로 쓴다', () => {

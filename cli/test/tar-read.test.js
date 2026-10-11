@@ -39,5 +39,5 @@ test('.. 이나 / 로 시작하는 경로는 버린다', () => {
 test('gzip 이 아니거나 잘린 tar 는 TarError', () => {
   assert.throws(() => untarGz(Buffer.from('nope')), TarError);
   const whole = zlib.gunzipSync(tarGz([{ path: 'a.md', content: Buffer.alloc(2000, 1) }]));
-  assert.throws(() => untarGz(zlib.gzipSync(whole.subarray(0, 1024))), /잘렸다/);
+  assert.throws(() => untarGz(zlib.gzipSync(whole.subarray(0, 1024))), /잘림/);
 });

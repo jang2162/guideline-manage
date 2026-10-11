@@ -153,7 +153,7 @@ test('ignored 는 YAML 로 읽히지 않을 name·description 과 BOM 을 이유
   assert.deepEqual(subagents(root), ['quoted']);
   assert.deepEqual(ignored(root), [
     { path: 'agents/bom.md', reason: 'frontmatter 없음' },
-    { path: 'agents/colon.md', reason: 'YAML 로 읽히지 않음 — 값을 따옴표로 감싼다' },
+    { path: 'agents/colon.md', reason: 'YAML 로 읽히지 않음 — 값을 따옴표로 감싸야 함' },
   ]);
 });
 
@@ -193,7 +193,7 @@ test('warnings 는 server.json 과 반영할 때 항목 만들기 절이 함께 
   write(root, 'mcp/broken/README.md', BUILD_README);
   assert.deepEqual(mcpServers(root), [{ name: 'gitlab', envVars: [] }]);
   assert.deepEqual(ignored(root), [{ path: 'mcp/broken/', reason: 'server.json 을 읽을 수 없음' }]);
-  const both = 'server.json 과 README.md 의 「반영할 때 항목 만들기」 절이 함께 있음 — 하나만 남긴다';
+  const both = 'server.json 과 README.md 의 「반영할 때 항목 만들기」 절이 함께 있음 — 하나만 남겨야 함';
   assert.deepEqual(warnings(root), [
     { path: 'mcp/broken/', message: both },
     { path: 'mcp/gitlab/', message: both },
@@ -229,7 +229,7 @@ test('warnings 는 칸 경고 다섯 종류를 지침 파일 경로로 모으고
     { path: 'rules/web/01-value.md', message: 'load 가 always·reference 가 아님' },
     { path: 'rules/web/02-no-when.md', message: 'load 가 reference 인데 when 없음' },
     { path: 'rules/web/03-when.md', message: 'load 가 always 인데 when 이 있음' },
-    { path: 'rules/web/04-yaml.md', message: 'load·when 이 YAML 문자열로 읽히지 않음 — 값을 따옴표로 감싼다' },
+    { path: 'rules/web/04-yaml.md', message: 'load·when 이 YAML 문자열로 읽히지 않음 — 값을 따옴표로 감싸야 함' },
   ]);
 });
 
@@ -290,7 +290,7 @@ test('warnings 는 바꿈 표의 틀린 행 다섯 종류를 README 경로로 �
     { path, message: '`base/00-alpha.md` 「없는 절」 — 그 파일에 이 ## 절 제목이 없음' },
     { path, message: '`00-ref.md` — 바꾸는 절의 파일이 load: always 가 아님' },
     { path, message: '`orca/00-ref.md` 「참조 절」 — 바뀌는 절이 같은 스택에 있음' },
-    { path, message: '| 05-switch.md 「바꾸는 절」 | `base/00-alpha.md` 「기본 절」 | — 셀 형식을 읽을 수 없음. `<파일>` 「<## 절 제목>」 으로 쓴다' },
+    { path, message: '| 05-switch.md 「바꾸는 절」 | `base/00-alpha.md` 「기본 절」 | — 셀 형식을 읽을 수 없음. `<파일>` 「<## 절 제목>」 형식으로 써야 함' },
   ]);
   assert.equal(stackOverrides('orca', root).overrides.length, 1);
 });

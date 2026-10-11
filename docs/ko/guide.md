@@ -69,7 +69,7 @@ curl -s -X POST http://localhost:3000/api/v1/proposals \
 guideline login --server http://localhost:3000
 ```
 
-브라우저가 열린다. 관리자 웹에 로그인돼 있지 않으면 관리자 토큰으로 로그인한 뒤 「발급」 을 누른다. 터미널에 `로그인했다: http://localhost:3000 (cli-<호스트>-…)` 가 나오면 끝이다.
+브라우저가 열린다. 관리자 웹에 로그인돼 있지 않으면 관리자 토큰으로 로그인한 뒤 「발급」 을 누른다. 터미널에 `로그인 성공: http://localhost:3000 (cli-<호스트>-…)` 가 나오면 끝이다.
 
 - 읽기 토큰은 `~/.config/guideline/credentials.json`(권한 600)에 저장된다. 서버마다 따로 저장된다.
 - 브라우저를 쓸 수 없는 곳(원격 셸)에서는 웹 「토큰」 화면에서 토큰을 발급해 `guideline login --server <URL> --token-stdin` 으로 넣는다.
@@ -78,7 +78,7 @@ guideline login --server http://localhost:3000
 
 ## 4. 프로젝트에 지침 받기
 
-**ruler 를 쓰는 프로젝트만 받을 수 있다.** 그 디렉터리에 `.ruler/` 가 있어야 한다. 없으면 「ruler 프로젝트가 아니다」 로 멈춘다 — 기존 CLAUDE.md·AGENTS.md 지침을 `.ruler/` 로 옮긴 뒤 받는다.
+**ruler 를 쓰는 프로젝트만 받을 수 있다.** 그 디렉터리에 `.ruler/` 가 있어야 한다. 없으면 「ruler 프로젝트가 아님」 로 멈춘다 — 기존 CLAUDE.md·AGENTS.md 지침을 `.ruler/` 로 옮긴 뒤 받는다.
 
 프로젝트 루트(git 저장소)에서 실행한다.
 
@@ -109,12 +109,12 @@ CLI 가 서버에서 원본을 받아 프로젝트와 비교하고, 그 결과�
 터미널에 쓴 파일, 지운 파일, **할 일**이 나온다.
 
 ```
-반영했다(r3) — 쓴 파일 5, 지운 파일 1
+반영 완료(r3) — 쓴 파일 5, 지운 파일 1
   쓰기  .ruler/base/01-git.md
   쓰기  docs/guideline/mise/SETUP.md
   지우기  docs/guideline/tiergear/02-orca-spawn.md
 할 일
-  - mise: 세팅 문서를 따라 세팅한다 — docs/guideline/mise/SETUP.md
+  - mise: 세팅 문서대로 세팅 — docs/guideline/mise/SETUP.md
 ```
 
 할 일은 CLI 가 혼자 못 하는 일이다(MCP 비밀값, 환경 변수, 세팅 문서, 이미 있는 것과의 충돌 등). 직접 하거나 에이전트에게 맡긴다(6절).
@@ -148,7 +148,7 @@ CLI 가 서버에서 원본을 받아 프로젝트와 비교하고, 그 결과�
 한 프로젝트가 여러 지침 서버(출처)에서 받을 수 있다. 예를 들어 개인 서버에서 도구 스택을, 사내 서버에서 사내 스택을 받는다.
 
 1. **출처를 더한다.** 서버마다 한 번씩 `guideline login --server <URL>` 를 한 뒤, `guideline pick --source <이름> --server <URL>` 로 그 서버의 폼을 열어 고른다. 이름은 영문 소문자로 시작하고 소문자·숫자·`-` 로 32자까지다.
-2. **이름이 겹치면 별칭을 준다.** 두 출처가 같은 이름의 스택(스킬·서브에이전트·MCP)을 주면 폼에서 「다른 출처가 이 이름을 쓴다」 로 막히고, 매니페스트로 억지로 고르면 `pick` 이 「이름이 겹친다」 로 멈춘다. 그 출처의 `guideline.json` 칸에 별칭을 적는다:
+2. **이름이 겹치면 별칭을 준다.** 두 출처가 같은 이름의 스택(스킬·서브에이전트·MCP)을 주면 폼에서 「다른 출처가 이미 쓰는 이름」 로 막히고, 매니페스트로 억지로 고르면 `pick` 이 「이름 충돌」 로 멈춘다. 그 출처의 `guideline.json` 칸에 별칭을 적는다:
 
    ```json
    "company": { "server": "https://guideline.example.com", "items": [], "aliases": { "rules/base": "company-base" } }
@@ -253,16 +253,16 @@ guideline propose --from /tmp/gl-src --title "rules: 배포 규칙을 deploy 스
 
 | 증상 | 원인과 할 것 |
 | --- | --- |
-| `서버 주소가 없다` | `--server <URL>` 을 주거나 `GUIDELINE_SERVER` 를 설정한다 |
-| `로그인이 필요하다: guideline login --server …` | 토큰이 없거나 폐기됐다. 안내된 명령을 실행한다 |
+| `서버 주소 없음` | `--server <URL>` 을 주거나 `GUIDELINE_SERVER` 를 설정한다 |
+| `로그인 필요: guideline login --server …` | 토큰이 없거나 폐기됐다. 안내된 명령을 실행한다 |
 | 메시지가 영어로 나온다 | 기본 언어는 영어다. `GUIDELINE_LANG=ko` 를 둔다(서버는 서버 환경에) |
-| `CLI 가 오래됐다 — guideline-manage 를 올린다` | 서버가 0.12.0 보다 낮은 CLI 를 거부했다. `npm install -g guideline-manage` 로 올린다 |
-| `제출하지 않았다: 만료됨` (코드 3) | 폼을 10분 안에 열지 않았거나, 탭을 닫고 90초가 지났다. 아무것도 쓰지 않았다. `pick` 을 다시 한다 |
-| 폼에 「이미 끝난 폼이다」 | 제출·취소·만료된 폼이다. 터미널에서 `pick` 을 다시 한다 |
-| `폼이 서버에서 없어졌다` | 기다리는 동안 서버 데이터가 바뀌었다. `pick` 을 다시 한다 |
+| `CLI 버전이 낮음 — guideline-manage 업데이트 필요` | 서버가 0.12.0 보다 낮은 CLI 를 거부했다. `npm install -g guideline-manage` 로 올린다 |
+| `제출되지 않음: 만료됨` (코드 3) | 폼을 10분 안에 열지 않았거나, 탭을 닫고 90초가 지났다. 아무것도 쓰지 않았다. `pick` 을 다시 한다 |
+| 폼에 「이미 끝난 폼」 | 제출·취소·만료된 폼이다. 터미널에서 `pick` 을 다시 한다 |
+| `서버에서 폼이 사라짐` | 기다리는 동안 서버 데이터가 바뀌었다. `pick` 을 다시 한다 |
 | 관리자 웹 로그인·저장이 403 | `PUBLIC_URL` 과 다른 주소로 열었다. `PUBLIC_URL` 주소로 연다 |
 | 할 일 `conflict` | 같은 이름이 이미 있고 원본과 다르다. `pick` 의 「차이 보기」 로 보고 「갱신」 을 켜거나 그대로 둔다 |
-| `ruler 프로젝트가 아니다` | 그 디렉터리에 `.ruler/` 가 없다. 기존 지침을 `.ruler/` 로 옮긴 뒤 다시 한다 |
-| `CLAUDE.md 형은 더 쓰지 않는다` | 0.12 의 CLAUDE.md 형으로 받은 프로젝트다. ruler 로 옮기고 `guideline pick` 을 다시 한다 |
-| `제안 권한이 없는 토큰이다` | 읽기 토큰이다. 관리자에게 범위 propose 토큰을 받아 `--token-stdin` 으로 넣는다 |
+| `ruler 프로젝트가 아님` | 그 디렉터리에 `.ruler/` 가 없다. 기존 지침을 `.ruler/` 로 옮긴 뒤 다시 한다 |
+| `CLAUDE.md 형은 더 이상 지원하지 않음` | 0.12 의 CLAUDE.md 형으로 받은 프로젝트다. ruler 로 옮기고 `guideline pick` 을 다시 한다 |
+| `제안 권한이 없는 토큰` | 읽기 토큰이다. 관리자에게 범위 propose 토큰을 받아 `--token-stdin` 으로 넣는다 |
 | 웹 「제안」 에서 수락 버튼이 막힘 | 원본과 같은 곳을 고쳐 충돌했다(Outdated). 「고치기」 로 풀거나 거절한다 |

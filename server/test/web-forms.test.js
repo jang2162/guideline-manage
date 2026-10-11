@@ -99,7 +99,7 @@ test('새 프로젝트는 에이전트를 골라야 하고, 형태는 늘 ruler 
   const f = await setup(t, { isNew: true, form: 'ruler', gitRepo: false });
   const cookie = await openForm(f);
   assert.doesNotMatch((await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text, /name="form"/);
-  assert.match((await postJson(f.s, `/forms/${f.id}/submit`, { choices: {} }, { cookie })).json().error, /에이전트를 하나 이상 고른다/);
+  assert.match((await postJson(f.s, `/forms/${f.id}/submit`, { choices: {} }, { cookie })).json().error, /에이전트를 하나 이상 선택/);
   const ok = await postJson(f.s, `/forms/${f.id}/submit`, { choices: {}, chosen: { agents: ['claude', 'claude'] } }, { cookie });
   assert.equal(ok.status, 200);
   assert.deepEqual((await result(f)).selection.project, { form: 'ruler', agents: ['claude'] });

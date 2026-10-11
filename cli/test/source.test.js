@@ -70,7 +70,7 @@ test('propose --from 은 표지 파일이 없으면 2', async t => {
   fs.mkdirSync(folder, { recursive: true });
   const r = await cap(propose, { from: folder, env, title: 'x' });
   assert.equal(r.code, 2);
-  assert.match(r.err, /guideline source 로 받은 폴더가 아니다/);
+  assert.match(r.err, /guideline source 로 받은 폴더가 아님/);
 });
 
 test('listFromServer 는 서버 원본의 목록을 보인다', async t => {

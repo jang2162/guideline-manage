@@ -32,7 +32,7 @@ test('매니페스트가 없으면 안내하고 0', async t => {
   fs.mkdirSync(path.join(p, '.ruler'));
   const o = collect();
   assert.equal(await projectStatus({ project: p, env: {}, out: o.out }), 0);
-  assert.match(o.text(), /아직 이 방식으로 받지 않았다: guideline pick/);
+  assert.match(o.text(), /아직 이 방식으로 받지 않음: guideline pick/);
 });
 
 test('status --json 은 원본 새로 나옴·프로젝트에서 고침·새 파일을 낸다', async t => {
@@ -69,7 +69,7 @@ test('비공개 서버에 토큰이 없으면 1, 공개 서버는 토큰 없이 
   const home = tmpDir('guideline-home-');
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   assert.equal(await projectStatus({ project: p, env: {}, home, err: e.out, out: () => {} }), 1);
-  assert.match(e.text(), /로그인이 필요하다/);
+  assert.match(e.text(), /로그인 필요/);
   const open = await setup(t);
   const o = collect();
   assert.equal(await projectStatus({ project: open.p, env: {}, home, out: o.out }), 0);

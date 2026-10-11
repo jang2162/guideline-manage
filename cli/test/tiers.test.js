@@ -41,7 +41,7 @@ test('readTier 는 always 에 when 이 있으면 경고한다', () => {
 });
 
 test('readTier 는 load·when 이 YAML 문자열로 읽히지 않으면 경고한다', () => {
-  const warning = 'load·when 이 YAML 문자열로 읽히지 않음 — 값을 따옴표로 감싼다';
+  const warning = 'load·when 이 YAML 문자열로 읽히지 않음 — 값을 따옴표로 감싸야 함';
   for (const body of ['load: reference\nwhen: 검토: diff 를 볼 때', 'load: reference\nwhen: "닫히지 않음', 'load: `always`']) {
     assert.deepEqual(readTier(fm(body)), { warning }, body);
   }

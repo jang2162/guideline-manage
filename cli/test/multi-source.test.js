@@ -193,14 +193,14 @@ test('다른 출처가 쓰는 이름은 폼에서 blocked 이고, 매니페스�
   await projectPick({ project: p, source: 'company', server: b.base, env, ...pickQuiet, open: driverMany([a, b], () => ({ cancel: true }), seen) });
   const item = seen[0].data.items.find(i => i.id === 'rules/base/00-a.md');
   assert.equal(item.state, 'blocked');
-  assert.match(item.reason, /다른 출처\(personal\)가 이 이름을 쓴다/);
+  assert.match(item.reason, /다른 출처\(personal\)가 이미 쓰는 이름/);
   const m = JSON.parse(read(p, 'guideline.json'));
   m.sources.company = { server: b.base, items: ['rules/base/01-b.md'] };
   write(p, 'guideline.json', JSON.stringify(m));
   const before = read(p, 'guideline-lock.json');
   const e = collect();
   assert.equal(await projectPick({ project: p, source: 'company', env, ...pickQuiet, err: e.out, open: driverMany([a, b], () => ({})) }), 2);
-  assert.match(e.text(), /이름이 겹친다: 스택 base — company 와 personal/);
+  assert.match(e.text(), /이름 충돌: 스택 base — company 와 personal/);
   assert.equal(read(p, 'guideline-lock.json'), before);
   assert.equal(exists(p, 'docs/guideline/base/01-b.md'), false);
 });
@@ -247,8 +247,8 @@ test('propose 는 출처마다 제안 하나를 그 서버에 올리고, 별칭�
   assert.match(a.proposals.get(1).changes[0].content.toString(), /에이 고침/);
   assert.deepEqual(b.proposals.get(1).changes.map(c => c.path), ['rules/base/00-a.md']);
   assert.match(b.proposals.get(1).changes[0].content.toString(), /^---\nload: always\n---\n/);
-  assert.match(o.text(), /a: 제안을 올렸다: #1/);
-  assert.match(o.text(), /b: 제안을 올렸다: #1/);
+  assert.match(o.text(), /a: 제안 등록 완료: #1/);
+  assert.match(o.text(), /b: 제안 등록 완료: #1/);
 });
 
 test('propose --source 는 그 출처만, 한 출처가 권한이 없으면 나머지는 올리고 1', async t => {
@@ -264,7 +264,7 @@ test('propose --source 는 그 출처만, 한 출처가 권한이 없으면 나�
   const e = collect();
   assert.equal(await propose({ project: p, title: '둘 다', env, out: () => {}, err: e.out }), 1);
   assert.equal(b.proposals.list({}).length, 2);
-  assert.match(e.text(), /제안 권한이 없는 토큰이다/);
+  assert.match(e.text(), /제안 권한이 없는 토큰/);
 });
 
 test('source --source 는 그 출처의 서버에서 원본을 푼다', async t => {
@@ -378,7 +378,7 @@ test('update·status·propose 는 매니페스트의 이름 겹침을 보면 아
   ]) {
     const e = collect();
     assert.equal(await run({ err: e.out, out: () => {} }), 2);
-    assert.match(e.text(), /이름이 겹친다: 스택 base — a 와 b/);
+    assert.match(e.text(), /이름 충돌: 스택 base — a 와 b/);
   }
   assert.deepEqual(snapshot(p), before);
   assert.equal(read(p, 'guideline-lock.json'), lockBefore);

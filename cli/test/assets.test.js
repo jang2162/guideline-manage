@@ -68,7 +68,7 @@ test('반영할 때 항목 만들기 절 제목이 CLI·작성 규칙·스킬 �
   for (const file of files) {
     const text = fs.readFileSync(file, 'utf8');
     assert.ok(text.includes(heading), `${file}: 절 제목이 없다`);
-    assert.ok(text.includes('반영할 때 README 로 만든다'), `${file}: list 표시 문구가 없다`);
+    assert.ok(text.includes('반영할 때 README 로 만듦'), `${file}: list 표시 문구가 없다`);
   }
 });
 
@@ -134,7 +134,7 @@ test('프로젝트 쪽 guideline-sync 는 CLI 를 부르고 할 일 종류를 �
   assert.doesNotMatch(text, /문서 저장소의 로컬 경로를 사용자에게 묻는다/);
   assert.doesNotMatch(text, /`old-section`|guideline:begin/);
   assert.match(text, /guideline propose --dry-run/);
-  assert.match(text, /ruler 프로젝트가 아니다/);
+  assert.match(text, /ruler 프로젝트가 아님/);
 });
 
 test('guideline-export 는 표지 블록과 매니페스트·잠금을 sync 사본으로 친다', () => {
@@ -160,7 +160,7 @@ test('작성 규칙 템플릿에 관리 지침 추가 문단 절이 있다', () 
 test('프로젝트 쪽 스킬이 여러 출처를 다룬다', () => {
   const sync = skillText('skills', 'guideline-sync');
   assert.match(sync, /--source/);
-  assert.match(sync, /이름이 겹친다/);
+  assert.match(sync, /이름 충돌/);
   assert.match(sync, /`alias`/);
   assert.match(skillText('skills', 'guideline-export'), /--source <이름>/);
 });

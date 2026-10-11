@@ -232,7 +232,7 @@ model: inherit
 - `server.json` 과 이 절을 함께 두지 않는다. 어느 쪽을 쓸지 모호해 `guideline list` 가 경고한다.
 
 - **Why:** 한 프로젝트의 값을 원본에 박으면 다른 값을 쓰는 프로젝트에 틀린 값이 퍼진다. 이 절이 있어야 `server.json` 을 실수로 빠뜨린 것과 구별된다.
-- **How to apply:** 쓴 뒤 `guideline list <원본 폴더>` 의 `MCP` 절에 `반영할 때 README 로 만든다` 로 나오는지 본다. `server.json` 이 없으니 `경고` 절의 비밀값 검사는 받지 못한다. 절에 적은 항목 모양에 비밀값이 없는지 직접 본다.
+- **How to apply:** 쓴 뒤 `guideline list <원본 폴더>` 의 `MCP` 절에 `반영할 때 README 로 만듦` 로 나오는지 본다. `server.json` 이 없으니 `경고` 절의 비밀값 검사는 받지 못한다. 절에 적은 항목 모양에 비밀값이 없는지 직접 본다.
 
 ## 프로젝트에 닿기까지
 

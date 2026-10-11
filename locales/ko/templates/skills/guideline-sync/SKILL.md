@@ -13,11 +13,11 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 
 1. `guideline help` 가 되는지 본다. 안 되면 `npm install -g guideline-manage` 로 설치하자고 안내하고 멈춘다.
 2. 서버 주소: 이 프로젝트의 `guideline.json` 의 `server`, 없으면 환경 변수 `GUIDELINE_SERVER`. 둘 다 없으면 사용자에게 묻고 명령마다 `--server <URL>` 을 붙인다.
-3. 「로그인이 필요하다」 가 나오면 사용자에게 `! guideline login --server <URL>` 을 실행하게 한다. 브라우저에서 「발급」 을 누르면 토큰이 저장된다.
-4. 이 디렉터리에 `.ruler/` 가 없으면 명령이 「ruler 프로젝트가 아니다」 로 멈춘다. 그대로 알리고 멈춘다 — 기존 지침을 ruler 로 옮기는 일은 사용자가 한다.
+3. 「로그인 필요」 가 나오면 사용자에게 `! guideline login --server <URL>` 을 실행하게 한다. 브라우저에서 「발급」 을 누르면 토큰이 저장된다.
+4. 이 디렉터리에 `.ruler/` 가 없으면 명령이 「ruler 프로젝트가 아님」 로 멈춘다. 그대로 알리고 멈춘다 — 기존 지침을 ruler 로 옮기는 일은 사용자가 한다.
 5. 모노레포의 하위 디렉터리(자기 `.ruler/` 가 있는 곳)에서 실행하면 그 디렉터리만 다룬다. 스킬·서브에이전트·MCP 는 git 루트에서 받는다(하위에서는 「반영 불가」 로 보인다).
 6. **출처가 여럿일 수 있다.** `guideline.json` 의 `sources` 에 출처(지침 서버)마다 `server`·`items`·`aliases` 가 있다. 명령은 모든 출처를 다루고, 한 출처만 다룰 때는 `--source <이름>` 을 붙인다. 새 출처는 `guideline pick --source <이름> --server <URL>` 로 더한다.
-7. **「이름이 겹친다」 로 멈추면**(코드 2) 두 출처가 같은 이름의 스택·스킬·서브에이전트·MCP 를 준 것이다. 내용은 서로 다르다. 안내에 나온 별칭(예: `"rules/base": "company-base"`)을 사용자에게 보여 주고, 고른 이름을 `guideline.json` 의 `sources.<출처>.aliases` 에 써서 다시 `guideline pick --source <출처>` 를 한다.
+7. **「이름 충돌」 로 멈추면**(코드 2) 두 출처가 같은 이름의 스택·스킬·서브에이전트·MCP 를 준 것이다. 내용은 서로 다르다. 안내에 나온 별칭(예: `"rules/base": "company-base"`)을 사용자에게 보여 주고, 고른 이름을 `guideline.json` 의 `sources.<출처>.aliases` 에 써서 다시 `guideline pick --source <출처>` 를 한다.
 
 ## 무엇을 할지
 
@@ -42,7 +42,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 
 | kind | 처리 |
 | --- | --- |
-| `mcp-build` | `data.text` 는 원본 `mcp/<이름>/README.md` 다. 그 `## 반영할 때 항목 만들기` 절대로(`guideline list` 에서는 「반영할 때 README 로 만든다」 로 보인다) 이 프로젝트의 값을 읽어 항목을 만든다. 쓰기 전에 만든 항목과 값마다 어디서 읽었는지 보여 주고 확인받는다. 읽은 원문에 사용자 정보·토큰(`https://<사용자>:<토큰>@…`)이 있으면 원문을 옮기지 않고 뽑은 값만 적는다. 자리는 `.ruler/ruler.toml` 의 `[mcp_servers.<이름>]` 이다(서버가 에이전트마다 다르면 `[agents.<에이전트>.mcp_servers.<이름>]`). 다른 서버·키·서식은 건드리지 않는다 |
+| `mcp-build` | `data.text` 는 원본 `mcp/<이름>/README.md` 다. 그 `## 반영할 때 항목 만들기` 절대로(`guideline list` 에서는 「반영할 때 README 로 만듦」 로 보인다) 이 프로젝트의 값을 읽어 항목을 만든다. 쓰기 전에 만든 항목과 값마다 어디서 읽었는지 보여 주고 확인받는다. 읽은 원문에 사용자 정보·토큰(`https://<사용자>:<토큰>@…`)이 있으면 원문을 옮기지 않고 뽑은 값만 적는다. 자리는 `.ruler/ruler.toml` 의 `[mcp_servers.<이름>]` 이다(서버가 에이전트마다 다르면 `[agents.<에이전트>.mcp_servers.<이름>]`). 다른 서버·키·서식은 건드리지 않는다 |
 | `env` | 설정할 환경 변수(`data.vars`)와 README 의 발급 방법을 알린다 |
 | `setup` | `docs/guideline/<스택>/SETUP.md` 를 읽고 `## 확인` 으로 이미 됐는지 본 뒤, 안 됐으면 `## 세팅` 을 사용자와 함께 한다 |
 | `conflict` | 같은 이름의 파일·항목이 이미 있고 원본과 다르다. 차이를 보여 주고 고르게 한다 |
@@ -56,7 +56,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `nested-off` | git 루트의 `.ruler/ruler.toml` 에 `nested = true` 를 켤지 묻는다. 켜지 않으면 ruler 가 이 디렉터리의 지침을 만들지 않는다 |
 | `mcp-local` | 프로젝트에서 MCP 설정을 고쳤다. 원본에 올리려면 `guideline-export` 스킬로 `server.json` 을 제안한다 |
 | `adopted` | `propose` 가 뺀 사본이다. 처음 받을 때 이미 원본과 달랐다 — 옛 판이면 올리는 순간 원본 변경을 되돌린다. 차이를 보여 주고, 프로젝트에서 고친 것이 맞을 때만 `guideline propose --only <항목>` 으로 올린다. 옛 판이면 `guideline update --force` 로 맞추자고 한다 |
-| `alias` | 별칭 문제다. 「스택 자리가 바뀌었다」 면 그 자리의 바꿈 파일을 새 자리(`.ruler/<새 이름>/`)로 옮기자고 한다. 「원본에 그 단위가 없다」·「같은 별칭을 두 단위에 줬다」 면 `guideline.json` 의 `aliases` 를 고친다 |
+| `alias` | 별칭 문제다. 「스택 자리가 바뀜」 면 그 자리의 바꿈 파일을 새 자리(`.ruler/<새 이름>/`)로 옮기자고 한다. 「원본에 해당 단위 없음」·「같은 별칭을 두 단위에 지정함」 면 `guideline.json` 의 `aliases` 를 고친다 |
 
 ## 멈추는 곳
 

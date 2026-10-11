@@ -58,12 +58,12 @@ test('folderNameProblem 은 빈 이름, 경로 구분자, 점으로 시작하는
 test('newProjectTarget 은 이름이면 기본 경로 아래, 경로면 그대로 쓰고 비어 있지 않은 대상을 거부한다', t => {
   const base = dir(t);
   assert.deepEqual(newProjectTarget({ name: '새 앱', base }), { path: path.join(base, '새 앱') });
-  assert.deepEqual(newProjectTarget({ name: 'x', base: null }), { error: 'GUIDELINE_PROJECTS_DIR 이 없어 폴더 이름만으로 만들 수 없음 — 경로를 쓴다' });
+  assert.deepEqual(newProjectTarget({ name: 'x', base: null }), { error: 'GUIDELINE_PROJECTS_DIR 이 없어 폴더 이름만으로 만들 수 없음 — 경로로 지정' });
   assert.deepEqual(newProjectTarget({ name: '.x', base }), { error: '폴더 이름은 . 으로 시작할 수 없음' });
   fs.mkdirSync(path.join(base, 'empty'));
   assert.deepEqual(newProjectTarget({ path: `${path.join(base, 'empty')}/`, base: null }), { path: path.join(base, 'empty') });
   write(base, 'full/a.txt', 'x');
-  assert.match(newProjectTarget({ name: 'full', base }).error, /이미 있고 비어 있지 않음 — 기존 프로젝트로 고른다$/);
+  assert.match(newProjectTarget({ name: 'full', base }).error, /이미 있고 비어 있지 않음 — 기존 프로젝트로 선택$/);
   write(base, 'file', 'x');
   assert.match(newProjectTarget({ name: 'file', base }).error, /디렉터리가 아님$/);
 });
@@ -97,7 +97,7 @@ test('createProject 는 git init 이 실패하면 이유를 돌려준다', t => 
 
 test('targetProblem 은 상대경로와 문서 저장소 자신·그 안의 경로를 막는다', t => {
   const docs = dir(t);
-  assert.equal(targetProblem('my-app', docs), '경로는 / 나 ~ 로 시작한다');
+  assert.equal(targetProblem('my-app', docs), '경로는 / 나 ~ 로 시작해야 함');
   assert.equal(targetProblem(docs, docs), '문서 저장소 자신이나 그 안은 고를 수 없음');
   assert.equal(targetProblem(`${docs}/x/`, docs), '문서 저장소 자신이나 그 안은 고를 수 없음');
   assert.equal(targetProblem('~/x', docs), null);
@@ -107,7 +107,7 @@ test('targetProblem 은 상대경로와 문서 저장소 자신·그 안의 경�
 test('newProjectTarget 은 상대경로와 문서 저장소 안의 대상을 거부한다', t => {
   const base = dir(t);
   const docs = path.join(base, 'guideline');
-  assert.deepEqual(newProjectTarget({ path: 'my-app', base, docsRoot: docs }), { error: '경로는 / 나 ~ 로 시작한다' });
+  assert.deepEqual(newProjectTarget({ path: 'my-app', base, docsRoot: docs }), { error: '경로는 / 나 ~ 로 시작해야 함' });
   assert.deepEqual(newProjectTarget({ path: path.join(docs, 'app'), base, docsRoot: docs }), { error: '문서 저장소 자신이나 그 안은 고를 수 없음' });
   assert.deepEqual(newProjectTarget({ name: 'app', base, docsRoot: docs }), { path: path.join(base, 'app') });
 });

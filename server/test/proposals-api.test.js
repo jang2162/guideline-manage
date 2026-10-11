@@ -28,7 +28,7 @@ const body = extra => ({
 test('propose 토큰은 제안을 만들고, read 토큰은 403', async t => {
   const { s, propose, read, post } = await setup(t);
   assert.equal((await post(read, body())).status, 403);
-  assert.match((await post(read, body())).json().error, /제안 권한이 없는 토큰이다/);
+  assert.match((await post(read, body())).json().error, /제안 권한이 없는 토큰/);
   const r = await post(propose, body());
   assert.equal(r.status, 201);
   const out = r.json();

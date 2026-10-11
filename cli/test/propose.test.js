@@ -43,7 +43,7 @@ test('고친 지침·세팅 문서·스킬(더함·지움)을 원본 모양으�
   fs.rmSync(path.join(p, '.ruler/skills/s/img/a.png'));
   const r = await run({ project: p, env, title: '다듬기' });
   assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /제안을 올렸다: #1 — /);
+  assert.match(r.out, /제안 등록 완료: #1 — /);
   const got = s.proposals.get(1);
   assert.equal(got.title, '다듬기');
   assert.equal(got.project, path.basename(p));
@@ -87,11 +87,11 @@ test('read 토큰이면 권한 안내와 함께 1, 잠금이 없거나 ruler 가
   write(p, '.ruler/base/00-a.md', '# 고침\n');
   const denied = await run({ project: p, env });
   assert.equal(denied.code, 1);
-  assert.match(denied.err, /제안 권한이 없는 토큰이다 — 관리자에게 범위 propose 토큰을 받아/);
+  assert.match(denied.err, /제안 권한이 없는 토큰 — 관리자에게 propose 범위 토큰을 받아/);
   fs.rmSync(path.join(p, 'guideline-lock.json'));
   assert.equal((await run({ project: p, env })).code, 2);
   fs.rmSync(path.join(p, '.ruler'), { recursive: true });
-  assert.match((await run({ project: p, env })).err, /ruler 프로젝트가 아니다/);
+  assert.match((await run({ project: p, env })).err, /ruler 프로젝트가 아님/);
 });
 
 test('받기 전부터 원본과 달랐던 사본은 기본으로 올리지 않고 할 일 adopted 로 알린다. --only 로 집으면 올린다', t => {

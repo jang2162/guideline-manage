@@ -21,7 +21,7 @@ test('관리자 화면은 세션이 없으면 로그인으로 보내고, 맞는 
   assert.equal(anon.headers.location, '/login?next=%2Fnew%3Fdir%3Drules');
   const wrong = await postForm(s, '/login', { token: 'nope', next: '/' });
   assert.equal(wrong.status, 401);
-  assert.match(wrong.text, /토큰이 맞지 않는다/);
+  assert.match(wrong.text, /토큰이 맞지 않음/);
   const ok = await postForm(s, '/login', { token: ADMIN, next: '/d/rules' });
   assert.equal(ok.status, 303);
   assert.equal(ok.headers.location, '/d/rules');
@@ -43,7 +43,7 @@ test('10분 안에 5번 틀리면 맞는 토큰도 429', async t => {
   for (let i = 0; i < 5; i++) await postForm(s, '/login', { token: 'nope' });
   const r = await postForm(s, '/login', { token: ADMIN });
   assert.equal(r.status, 429);
-  assert.match(r.text, /너무 많이 틀렸다/);
+  assert.match(r.text, /시도 횟수 초과/);
 });
 
 test('PUBLIC_URL 과 다른 출처의 POST 는 403 이고 PUBLIC_URL 로 접속하라고 알려 준다', async t => {
@@ -51,10 +51,10 @@ test('PUBLIC_URL 과 다른 출처의 POST 는 403 이고 PUBLIC_URL 로 접속�
   const other = await postForm(s, '/login', { token: ADMIN }, { origin: 'http://10.0.0.5:3000' });
   assert.equal(other.status, 403);
   assert.equal(other.headers['content-type'], 'text/html; charset=utf-8');
-  assert.match(other.text, /http:\/\/guideline\.test 로 접속해서 다시 한다/);
+  assert.match(other.text, /http:\/\/guideline\.test 로 접속해서 다시 시도/);
   assert.equal((await postForm(s, '/login', { token: ADMIN }, { origin: null })).status, 403);
   const page = await s.req('/login');
-  assert.match(page.text, /PUBLIC_URL\(http:\/\/guideline\.test\)과 다르다/);
+  assert.match(page.text, /PUBLIC_URL\(http:\/\/guideline\.test\)과 다름/);
   const same = await s.req('/login', { headers: { Host: 'guideline.test' } });
   assert.doesNotMatch(same.text, /PUBLIC_URL/);
 });

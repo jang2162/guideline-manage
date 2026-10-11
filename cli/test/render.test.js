@@ -169,7 +169,7 @@ test('이름에 . 이 든 MCP 는 TOML 에 따옴표 친 키로 쓰고, 다시 �
   assert.deepEqual(kinds(again), []);
 });
 
-test('원본 스킬이 CRLF 여도, 프로젝트의 .sh 가 CRLF 여도 다시 하면 바뀐 것이 없다', () => {
+test('원본 스킬이 CRLF 여도, 프로젝트의 .sh 가 CRLF 여도 다시 하면 바뀐 것 없음', () => {
   const tree = renderTree({ 'skills/s/SKILL.md': '---\r\nname: s\r\ndescription: 스\r\n---\r\n\r\n본문\r\n', 'skills/s/run.sh': 'echo a\n' });
   const manifest = manifestOf('ruler', ['skills/s']);
   const r = render({ tree, revision: 1, manifest, lock: null, project: memProject() });
@@ -219,7 +219,7 @@ test('중첩 단위: 루트 전용 항목은 blocked, ruler.toml 은 에이전�
   assert.match(text(r, '.ruler/base/99-reference.md'), /`docs\/guideline\/base\/01-b\.md`/);
   const blocked = r.todos.filter(t => t.kind === 'blocked');
   assert.deepEqual(blocked.map(t => t.item).sort(), ['agents/rev.md', 'mcp/c7', 'skills/s']);
-  assert.match(blocked[0].message, /중첩 디렉터리에서는 받지 않는다/);
+  assert.match(blocked[0].message, /중첩 디렉터리에서는 받을 수 없음/);
   assert.deepEqual(Object.keys(r.lock.sources).sort(), ['rules/base/00-a.md', 'rules/base/01-b.md']);
 });
 
@@ -230,7 +230,7 @@ test('받기 전부터 원본과 달랐던 사본은 잠금에 adopted 로 남�
   assert.equal(r.lock.outputs.find(o => o.path === '.ruler/base/00-a.md').adopted, true);
   assert.match(lockText(r.lock), /"adopted": true/);
   const again = render({ ...args, lock: structuredClone(r.lock) });
-  assert.match(again.todos.find(x => x.kind === 'skipped').message, /받기 전부터 원본과 달랐다/);
+  assert.match(again.todos.find(x => x.kind === 'skipped').message, /받기 전부터 원본과 달랐음/);
   assert.equal(again.lock.outputs.find(o => o.path === '.ruler/base/00-a.md').adopted, true);
   const forced = render({ ...args, lock: structuredClone(r.lock), force: true });
   assert.equal(forced.lock.outputs.find(o => o.path === '.ruler/base/00-a.md').adopted, undefined);

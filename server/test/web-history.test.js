@@ -58,7 +58,7 @@ test('파일 되돌리기는 확인 화면을 거쳐 새 리비전을 만든다'
   assert.equal(s.store.fileAt('rules/x/00-a.md').toString(), '<b>a1</b>\n');
   assert.equal(s.store.revision(4).message, '되돌리기: rules/x/00-a.md → r1');
   const same = await postForm(s, '/revert', { kind: 'file', path: 'rules/x/00-a.md', rev: '1', confirmed: '1' }, { cookie });
-  assert.ok(same.text.includes('바뀐 것 없음'));
+  assert.ok(same.text.includes('변경 없음'));
 });
 
 test('리비전 되돌리기는 뒤에 또 바뀐 파일을 알리고, 확인하면 되돌린다', async t => {
@@ -81,7 +81,7 @@ test('토큰은 발급 직후 한 번만 보이고, API 에 쓰이고, 폐기하
   const issued = await postForm(s, '/tokens', { name: 'jang-macbook', scope: 'read' }, { cookie });
   assert.equal(issued.status, 200);
   const token = /glt_[A-Za-z0-9_-]{43}/.exec(issued.text)[0];
-  assert.ok(issued.text.includes('다시 볼 수 없다'));
+  assert.ok(issued.text.includes('다시 볼 수 없음'));
   const list = await getAs(s, cookie, '/tokens');
   assert.ok(list.text.includes('jang-macbook'));
   assert.ok(!list.text.includes(token));

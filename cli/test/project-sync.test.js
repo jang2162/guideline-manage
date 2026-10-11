@@ -86,7 +86,7 @@ test('공개 서버는 토큰 없이 고르고 받는다. 비공개면 로그인
   const q = gitProject(t, { '.ruler/ruler.toml': 'default_agents = ["claude"]\n' });
   const e = collect();
   assert.equal(await projectPick({ project: q, env: { GUIDELINE_SERVER: closed.base }, home, ...quiet, err: e.out, open: () => {} }), 1);
-  assert.match(e.text(), /로그인이 필요하다: guideline login --server/);
+  assert.match(e.text(), /로그인 필요: guideline login --server/);
 });
 
 test('--new: 제출하면 폴더를 만들고 git init 한 뒤 ruler 형으로 쓴다', async t => {
@@ -125,7 +125,7 @@ test('기다리는 사이 폼이 서버에서 없어지면 1 이고 아무것도
     open: driver(s, { before: () => s.app.store.db.exec('DELETE FROM forms') }),
   });
   assert.equal(code, 1);
-  assert.match(e.text(), /폼이 서버에서 없어졌다/);
+  assert.match(e.text(), /서버에서 폼이 사라짐/);
   assert.equal(exists(p, 'guideline.json'), false);
 });
 
@@ -135,7 +135,7 @@ test('사용법 오류: --project 와 --new 를 함께, 디렉터리가 아님, 
   assert.equal(await projectPick({ project: '/no/such/dir', env: {}, err: e.out }), 2);
   const p = gitProject(t, { '.ruler/ruler.toml': '' });
   assert.equal(await projectPick({ project: p, env: {}, err: e.out }), 2);
-  assert.match(e.text(), /함께 쓸 수 없다[\s\S]*디렉터리가 아닙니다[\s\S]*서버 주소가 없다/);
+  assert.match(e.text(), /함께 쓸 수 없음[\s\S]*디렉터리 아님[\s\S]*서버 주소 없음/);
 });
 
 test('update: 원본 새로 나옴은 쓰고, 프로젝트에서 고친 파일은 건너뛰고, --force 면 덮어쓴다', async t => {
@@ -160,7 +160,7 @@ test('update 는 매니페스트가 없으면 2', async t => {
   const p = gitProject(t);
   const e = collect();
   assert.equal(await projectUpdate({ project: p, env: {}, err: e.out }), 2);
-  assert.match(e.text(), /guideline pick 을 먼저/);
+  assert.match(e.text(), /guideline pick 먼저/);
 });
 
 test('ruler 가 아닌 프로젝트와 CLAUDE.md 형 매니페스트는 2', async t => {
@@ -168,12 +168,12 @@ test('ruler 가 아닌 프로젝트와 CLAUDE.md 형 매니페스트는 2', asyn
   const errs = [];
   const p = gitProject(t, { 'CLAUDE.md': '# p\n' });
   assert.equal(await projectPick({ project: p, env, ...quiet, err: m => errs.push(m) }), 2);
-  assert.match(errs.at(-1), /ruler 프로젝트가 아니다/);
+  assert.match(errs.at(-1), /ruler 프로젝트가 아님/);
   const q = gitProject(t, { '.ruler/ruler.toml': '', 'guideline.json': manifestText({
     version: 1, server: 'http://x', form: 'instructions', instructionFiles: ['CLAUDE.md'], agents: ['claude'], items: [],
   }) });
   assert.equal(await projectUpdate({ project: q, env, ...quiet, err: m => errs.push(m) }), 2);
-  assert.match(errs.at(-1), /CLAUDE\.md 형은 더 쓰지 않는다/);
+  assert.match(errs.at(-1), /CLAUDE\.md 형은 더 이상 지원하지 않음/);
 });
 
 test('중첩 디렉터리: 그 안에만 쓰고, 루트 전용 항목은 막히고, ruler apply 는 git 루트에서, nested-off 를 알린다', async t => {

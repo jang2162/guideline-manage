@@ -32,8 +32,8 @@ test('create 는 틀린 입력을 400 으로 거부한다', () => {
   const { proposals } = setup();
   const same = [{ path: 'rules/base/00-a.md', content: Buffer.from('a\nb\nc\nd\ne\n'), base: h('a\nb\nc\nd\ne\n') }];
   const err = (fn, re) => assert.throws(fn, e => e instanceof ProposalError && e.status === 400 && re.test(e.message));
-  err(() => proposals.create(input(same)), /바뀐 것이 없다/);
-  err(() => proposals.create(input([])), /변경이 없다/);
+  err(() => proposals.create(input(same)), /바뀐 것 없음/);
+  err(() => proposals.create(input([])), /변경 없음/);
   err(() => proposals.create(input(same, { title: '' })), /제목/);
   err(() => proposals.create(input([{ path: '../x.md', content: Buffer.from('x'), base: null }])), /\.\./);
   err(() => proposals.create(input([{ path: 'rules/a.md', content: Buffer.from([0xff]), base: null }])), /UTF-8/);
@@ -110,7 +110,7 @@ test('수락 직전에 다른 저장이 끼면 409 「다시 시도한다」 이
     commit({ ...META, changes: { 'rules/base/00-a.md': 'race\n' } });
     return commit(arg);
   };
-  assert.throws(() => proposals.accept(id), e => e.status === 409 && /다시 시도한다/.test(e.message));
+  assert.throws(() => proposals.accept(id), e => e.status === 409 && /다시 시도/.test(e.message));
   assert.equal(proposals.get(id).status, 'pending');
 });
 

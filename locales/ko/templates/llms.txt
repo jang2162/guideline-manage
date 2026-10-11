@@ -28,7 +28,7 @@
 
 ## 프로젝트에 지침 받기
 
-**ruler 를 쓰는 프로젝트만 받을 수 있다** — 단위 디렉터리에 `.ruler/` 가 있어야 한다(없으면 「ruler 프로젝트가 아니다」 로 멈춘다). 그 디렉터리에서 실행한다.
+**ruler 를 쓰는 프로젝트만 받을 수 있다** — 단위 디렉터리에 `.ruler/` 가 있어야 한다(없으면 「ruler 프로젝트가 아님」 로 멈춘다). 그 디렉터리에서 실행한다.
 
 ```bash
 guideline pick                 # 서버 폼을 열고, 제출하면 바로 반영한다
@@ -66,7 +66,7 @@ guideline update --source company    # 그 출처만 최신으로
 }
 ```
 
-- 두 출처가 같은 이름(스택·스킬·서브에이전트·MCP)을 주면 `pick` 이 「이름이 겹친다」 로 멈춘다(코드 2, 아무것도 쓰지 않음). 한쪽 출처의 `aliases` 에 `"<단위>": "<새 이름>"`(단위는 `rules/<스택>`·`skills/<이름>`·`agents/<이름>.md`·`mcp/<이름>`)을 주면 그 이름으로 받는다: `.ruler/company-base/`, 스킬 `name:` 줄, `ruler.toml` 의 `[mcp_servers.<새 이름>]`.
+- 두 출처가 같은 이름(스택·스킬·서브에이전트·MCP)을 주면 `pick` 이 「이름 충돌」 로 멈춘다(코드 2, 아무것도 쓰지 않음). 한쪽 출처의 `aliases` 에 `"<단위>": "<새 이름>"`(단위는 `rules/<스택>`·`skills/<이름>`·`agents/<이름>.md`·`mcp/<이름>`)을 주면 그 이름으로 받는다: `.ruler/company-base/`, 스킬 `name:` 줄, `ruler.toml` 의 `[mcp_servers.<새 이름>]`.
 - 토큰은 서버마다 따로 `guideline login --server <URL>` 로 저장한다. 출처가 여럿이면 `GUIDELINE_TOKEN` 은 쓰지 않는다.
 - 한 출처의 서버에 닿지 못하면 그 출처는 그대로 두고 나머지를 반영한 뒤 코드 1.
 - `propose` 는 출처마다 제안 하나를 그 서버에 올린다(별칭은 원래 이름으로 되돌려 올린다).
@@ -104,7 +104,7 @@ guideline propose --from <그 폴더> --title "<제목>"   # 그 폴더에서 �
 | `nested-off` | git 루트의 `.ruler/ruler.toml` 에 `nested = true` 를 켤지 묻는다 |
 | `mcp-local` | 프로젝트에서 MCP 설정을 고쳤다. 원본에 올리려면 `guideline source` 폴더에서 `server.json` 을 고쳐 `propose --from` 으로 올린다 |
 | `adopted` | `propose` 가 뺀 사본이다. 처음 받을 때 이미 원본과 달랐다(옛 판일 수 있다). 프로젝트에서 고친 것이 맞을 때만 `guideline propose --only <항목>`, 옛 판이면 `guideline update --force` |
-| `alias` | 별칭 문제다. 「스택 자리가 바뀌었다」 면 바꿈 파일을 `.ruler/<새 이름>/` 로 옮긴다. 그 밖은 `guideline.json` 의 `aliases` 를 고친다 |
+| `alias` | 별칭 문제다. 「스택 자리가 바뀜」 면 바꿈 파일을 `.ruler/<새 이름>/` 로 옮긴다. 그 밖은 `guideline.json` 의 `aliases` 를 고친다 |
 | `new-file`·`removed-upstream` | 알리고, 고르거나 지우려면 `guideline pick` 을 하자고 한다 |
 | `blocked` | 원본 경고로(또는 중첩 디렉터리라서) 반영하지 못했다. 사본은 그대로다. 이유를 보고한다 |
 | `leftover` | 체크를 풀었지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |

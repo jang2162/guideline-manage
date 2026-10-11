@@ -29,7 +29,7 @@ test('비공개(PUBLIC_READ=0)면 토큰 없이는 401, 관리자·발급 토큰
   const none = await s.req('/api/v1/catalog');
   assert.equal(none.status, 401);
   assert.equal(none.headers['www-authenticate'], 'Bearer');
-  assert.deepEqual(none.json(), { error: '토큰이 필요하다' });
+  assert.deepEqual(none.json(), { error: '토큰 필요' });
   assert.equal((await s.req('/api/v1/catalog', { auth: ADMIN })).status, 200);
   const { id, token } = s.tokens.issue({ name: 'a', scope: 'read' });
   assert.equal((await s.req('/api/v1/catalog', { auth: token })).status, 200);
@@ -105,7 +105,7 @@ test('없는 경로는 404, 메서드가 틀리면 405 와 Allow', async t => {
   const s = await startApp(t);
   const r = await s.req('/api/v1/nope', { auth: ADMIN });
   assert.equal(r.status, 404);
-  assert.deepEqual(r.json(), { error: '없는 주소다' });
+  assert.deepEqual(r.json(), { error: '페이지 없음' });
   const m = await s.req('/api/v1/health', { method: 'POST' });
   assert.equal(m.status, 405);
   assert.equal(m.headers.allow, 'GET');

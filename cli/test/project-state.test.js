@@ -126,7 +126,7 @@ test('중첩이면 formItems 가 루트 전용 항목을 막는다', t => {
   write(p, '.ruler/ruler.toml', '');
   const { items } = formItems({ tree: renderTree(), project: p, manifest: null, lock: null, reader: diskReader(p), nested: true });
   const s = items.find(i => i.id === 'skills/s');
-  assert.deepEqual([s.state, s.reason], ['blocked', '중첩 디렉터리에서는 받지 않는다 — git 루트에서 받는다']);
+  assert.deepEqual([s.state, s.reason], ['blocked', '중첩 디렉터리에서는 받을 수 없음 — git 루트에서 받아야 함']);
   assert.equal(items.find(i => i.id === 'rules/base/00-a.md').state, 'missing');
   assert.ok(desiredOutputs);
 });

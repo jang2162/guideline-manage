@@ -152,7 +152,7 @@ test('스킬·서브에이전트·MCP 탭은 카드 목록을 보이고 디렉�
   const mcp = (await getAs(s, cookie, '/mcp')).text;
   assert.match(mcp, /<a class="card" href="\/d\/mcp\/gitlab">/);
   assert.ok(mcp.includes('GITLAB_TOKEN'));
-  assert.ok(mcp.includes('반영할 때 README 로 만든다'));
+  assert.ok(mcp.includes('반영할 때 README 로 만듦'));
   const anon = await s.req('/skills');
   assert.equal(anon.status, 200);
   assert.ok(!anon.text.includes('/new?dir='));

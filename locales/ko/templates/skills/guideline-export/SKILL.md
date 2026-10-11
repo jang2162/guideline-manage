@@ -11,8 +11,8 @@ description: 이 프로젝트의 지침 중 다른 프로젝트에서도 쓸 만
 
 ## 전제 확인
 
-1. **원본을 받는다.** 빈 임시 폴더를 정해(예: `mktemp -d` 아래의 `src`) `guideline source <폴더>` 를 실행한다. 이 프로젝트의 `guideline.json` 에 출처가 둘 이상이면 어느 출처(지침 서버)에 올릴지 사용자에게 묻고 `guideline source <폴더> --source <이름>` 으로 받는다. 이하 「원본 폴더」 다. 「로그인이 필요하다」 가 나오면 `! guideline login --server <URL>` 을 안내하고 멈춘다.
-2. **제안 권한.** 올릴 때 「제안 권한이 없는 토큰이다」 가 나오면 관리자에게 범위 `propose` 토큰을 받아 `guideline login --server <URL> --token-stdin` 으로 넣으라고 안내하고 멈춘다.
+1. **원본을 받는다.** 빈 임시 폴더를 정해(예: `mktemp -d` 아래의 `src`) `guideline source <폴더>` 를 실행한다. 이 프로젝트의 `guideline.json` 에 출처가 둘 이상이면 어느 출처(지침 서버)에 올릴지 사용자에게 묻고 `guideline source <폴더> --source <이름>` 으로 받는다. 이하 「원본 폴더」 다. 「로그인 필요」 가 나오면 `! guideline login --server <URL>` 을 안내하고 멈춘다.
+2. **제안 권한.** 올릴 때 「제안 권한이 없는 토큰」 가 나오면 관리자에게 범위 `propose` 토큰을 받아 `guideline login --server <URL> --token-stdin` 으로 넣으라고 안내하고 멈춘다.
 3. `<원본 폴더>/docs/authoring.md` 에 `## 서브에이전트`, `## MCP 서버` 절이 없으면 서브에이전트나 MCP 를 올리기 전에 멈추고, 지침 관리자에게 그 절을 원본에 더해 달라고 알린다. README 로 만드는 MCP 서버를 올릴 때는 `### 반영할 때 항목을 만드는 서버` 절도 본다.
 4. `<원본 폴더>/docs/authoring.md` 에 `## 칸 — 상시와 참조` 절이 없으면 지침 파일을 올리기 전에 같은 방법으로 멈춘다. 칸을 정하는 기준이 그 절에 있다. `다른 스택을 바꿈` 을 올릴 때는 `## 다른 스택을 바꿀 때` 절도 본다.
 5. **받은 사본을 고친 것은 이 스킬이 아니다.** `guideline status` 에 「프로젝트에서 고침」 으로 나오는 사본은 `guideline propose` 로 올린다(사본을 원본 모양으로 되돌려 준다). 이 스킬은 프로젝트 고유 지침을 새로 올린다. `propose` 는 처음 받을 때부터 원본과 달랐던 사본(할 일 `adopted`)을 빼는데, 옛 판을 올리면 원본 변경을 되돌리기 때문이다.
@@ -78,7 +78,7 @@ description: 이 프로젝트의 지침 중 다른 프로젝트에서도 쓸 만
    - 서브에이전트는 `agents/<이름>.md` 로 쓴다. frontmatter 는 `name`·`description`·`tools`·`model` 만 남기고, 값에 `: ` 가 있으면 큰따옴표로 감싼다. Codex `.toml` 에서 올리면 `developer_instructions` 를 본문으로 옮긴다.
    - MCP 는 `mcp/<이름>/server.json` 과 `README.md` 로 쓴다. `docs/authoring.md` 의 MCP 절대로 변수 참조를 쓴다. Codex 설정에서 올리면 `env_vars = ["X"]` 는 `env` 의 `"X": "${X}"` 로, `bearer_token_env_var = "X"` 는 `headers` 의 `"Authorization": "Bearer ${X}"` 로, `env_http_headers` 의 `"H" = "X"` 는 `headers` 의 `"H": "${X}"` 로, `http_headers` 는 `headers` 의 고정값으로 옮긴다.
    - 값이 프로젝트마다 달라 README 로 만드는 MCP 는 `server.json` 을 쓰지 않고 `README.md` 에 `## 반영할 때 항목 만들기` 절을 쓴다(`docs/authoring.md` 의 「반영할 때 항목을 만드는 서버」). 값을 어디서 읽어 어떻게 뽑는지 지어내지 않는다. 출처 프로젝트에서 그 값이 어디서 왔는지 확인되지 않으면 사용자에게 묻는다.
-   - 다 쓴 뒤 `guideline list <원본 폴더>` 를 돌려 이번에 쓴 파일이 `무시됨`·`경고`(칸·바꿈 경고 포함) 에 없는지 확인한다. 있으면 고치고, 고정값 경고처럼 그대로 둘 것이면 사용자에게 알린다. README 로 만드는 MCP 는 `MCP` 절에 `반영할 때 README 로 만든다` 로 나오는지 본다.
+   - 다 쓴 뒤 `guideline list <원본 폴더>` 를 돌려 이번에 쓴 파일이 `무시됨`·`경고`(칸·바꿈 경고 포함) 에 없는지 확인한다. 있으면 고치고, 고정값 경고처럼 그대로 둘 것이면 사용자에게 알린다. README 로 만드는 MCP 는 `MCP` 절에 `반영할 때 README 로 만듦` 로 나오는지 본다.
 
 6. **제안으로 올린다.** 먼저 `guideline propose --from <원본 폴더> --dry-run` 으로 올라갈 변경과 차이를 보여 주고, 맞다고 하면 올린다.
 
