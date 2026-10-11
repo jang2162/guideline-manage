@@ -226,3 +226,18 @@ test('list 는 분류 형식이 틀리면 분류를 붙이지 않고 경고 절�
   assert.match(text, /스킬\n {2}demo-skill\n/);
   assert.match(text, /경고\n {2}skills\/demo-skill\/SKILL\.md {2}categories 가 \[a, b\] 꼴이 아님$/);
 });
+
+test('list 는 표시 이름을 실제 이름 바로 뒤에 보인다', async t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/base/README.md', '---\nlabel: 공통 규칙\ncategories: [공통]\n---\n\n# base\n');
+  write(root, 'skills/demo-skill/SKILL.md', '---\nname: demo-skill\ndescription: 데모\nlabel: 데모 스킬\n---\n\n본문\n');
+  write(root, 'agents/reviewer.md', '---\nname: reviewer\ndescription: 검토\nlabel: 검토자\n---\n');
+  write(root, 'mcp/context7/server.json', JSON.stringify({ type: 'stdio', command: 'npx' }));
+  write(root, 'mcp/context7/README.md', '---\nlabel: 문서 검색\n---\n\n# context7\n');
+  const c = collect();
+  await list({ root, out: c.out });
+  const text = c.text();
+  assert.match(text, /\n {2}base {2}공통 규칙 {2}\[공통\]\n/);
+  assert.match(text, /스킬\n {2}demo-skill {2}데모 스킬\n서브에이전트\n {2}reviewer {2}검토자\nMCP\n {2}context7 {2}문서 검색$/);
+});

@@ -62,7 +62,7 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 .detail > main { max-width: 980px; }
 .side-list, .side-list ul { list-style: none; margin: 0; padding: 0; }
 .side-list .blk { display: block; padding: 6px 8px; border-radius: 6px; color: var(--fg); font-size: 13px; overflow-wrap: anywhere; }
-.side-list .blk span:not(.nm):not(.domain) { display: block; color: var(--faint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-list .blk span:not(.nm):not(.domain):not(.real) { display: block; color: var(--faint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-list .blk:hover { background: var(--line-soft); text-decoration: none; }
 .side-list .blk.on { background: var(--accent-soft); color: var(--accent-text); }
 .side-none { color: var(--faint); font-size: 12.5px; padding: 4px 8px; margin: 0; }
@@ -256,4 +256,5 @@ pre.diff-lines .dh { color: var(--muted); }
 .actions form.inline { display: inline-flex; gap: 6px; }
 
 /* 도메인 스택의 도메인 꼬리표 */
+.real { margin-left: .4em; color: var(--faint); font-size: .75em; font-weight: 400; font-family: ui-monospace, Menlo, monospace; }
 .domain { display: inline-block; margin-left: .35em; padding: 0 .45em; border-radius: 999px; background: var(--pill-bg); color: var(--pill-fg); font-size: .75em; font-weight: 500; vertical-align: .1em; }

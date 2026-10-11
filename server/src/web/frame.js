@@ -3,7 +3,7 @@ import { dbTree } from '../db-tree.js';
 import { catalogSummary } from '../../../cli/src/summary.js';
 import { frontmatter, yamlString } from '../../../cli/src/frontmatter.js';
 import { firstSentence } from './markdown.js';
-import { html, hrefFor, sendPage, stackLabel } from './layout.js';
+import { html, hrefFor, sendPage, blockLabel } from './layout.js';
 import { blockHref, blockOf, viewHref, TAB, LIST_HREF } from './blocks.js';
 import { t } from '../../../cli/src/i18n.js';
 import { isAdmin, loginHref } from './auth.js';
@@ -58,6 +58,18 @@ export function catalogAt(store) {
   return data;
 }
 
+/** 블록 종류 → labels 맵의 키. */
+const LABEL_KEY = { stack: n => `rules/${n}`, skill: n => `skills/${n}`, agent: n => `agents/${n}.md`, mcp: n => `mcp/${n}` };
+
+/**
+ * 블록의 표시 이름(frontmatter label). 없으면 null.
+ * @param {{ labels?: Record<string, string> }} summary
+ * @param {'stack' | 'skill' | 'agent' | 'mcp'} kind
+ */
+export function labelOf(summary, kind, name) {
+  return summary.labels?.[LABEL_KEY[kind](name)] ?? null;
+}
+
 /** 저장 경로가 속한 탭(블록 밖이면 null). */
 export function tabOf(p, summary) {
   const b = blockOf(p, summary);
@@ -92,10 +104,11 @@ const PLACEHOLDER = {
  * @param {string | null} current
  */
 export function blockList(cat, kind, current) {
-  const items = kind === 'stack' ? cat.summary.stacks.map(st => ({ name: st.name, label: stackLabel(st.name), desc: cat.stacks.get(st.name).intro }))
-    : kind === 'skill' ? cat.skills.map(x => ({ name: x.name, label: x.name, desc: x.description }))
-      : kind === 'agent' ? cat.agents.map(x => ({ name: x.name, label: x.name, desc: x.description }))
-        : cat.mcp.map(x => ({ name: x.name, label: x.name, desc: x.intro }));
+  const items = kind === 'stack' ? cat.summary.stacks.map(st => ({ name: st.name, desc: cat.stacks.get(st.name).intro }))
+    : kind === 'skill' ? cat.skills.map(x => ({ name: x.name, desc: x.description }))
+      : kind === 'agent' ? cat.agents.map(x => ({ name: x.name, desc: x.description }))
+        : cat.mcp.map(x => ({ name: x.name, desc: x.intro }));
+  for (const x of items) x.label = blockLabel(x.name, labelOf(cat.summary, kind, x.name));
   return html`<label class="side-find"><input type="search" class="side-search" placeholder="${PLACEHOLDER[TAB[kind]]}" aria-label="${PLACEHOLDER[TAB[kind]]}" autocomplete="off" data-side-search><kbd>/</kbd></label>
 <ul class="side-list">
 ${items.map(x => html`<li><a class="${x.name === current ? 'blk on' : 'blk'}" href="${blockHref(kind, x.name)}"${x.name === current ? html` aria-current="page"` : ''}><b>${x.label}</b>${x.desc ? html`<span>${x.desc}</span>` : ''}</a></li>

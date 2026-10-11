@@ -7,8 +7,8 @@ import { contentType } from '../api.js';
 import { fileCategories } from '../../../cli/src/catalog.js';
 import { isTextPath } from '../../../cli/src/store-paths.js';
 import { isAdmin, requireReadWeb } from './auth.js';
-import { html, raw, hrefFor, stackLabel } from './layout.js';
-import { catalogAt, blockList, sendView } from './frame.js';
+import { html, raw, hrefFor, blockLabel } from './layout.js';
+import { catalogAt, blockList, sendView, labelOf } from './frame.js';
 import { renderMarkdown, splitFrontmatter } from './markdown.js';
 import { t, template } from '../../../cli/src/i18n.js';
 import { marker } from '../../../cli/src/markers.js';
@@ -58,7 +58,7 @@ function stackCard(st, cat) {
   const warns = warnCount(s, `rules/${st.name}/`);
   const { intro } = cat.stacks.get(st.name);
   return html`<a class="card" href="${blockHref('stack', st.name)}">
-<span class="card-t"><b>${stackLabel(st.name)}</b><span class="n">${t('web.count', { n: st.files.length })}</span></span>
+<span class="card-t"><b>${blockLabel(st.name, labelOf(s, 'stack', st.name))}</b><span class="n">${t('web.count', { n: st.files.length })}</span></span>
 ${intro ? html`<p class="card-d">${intro}</p>` : ''}
 <span class="card-m">${count('always') ? html`<span class="k">always ${count('always')}</span>` : ''}${count('reference') ? html`<span class="k ref">reference ${count('reference')}</span>` : ''}${chips(s.categories[`rules/${st.name}`])}${st.setup ? html`<span class="badge setup">${t('web.setupDoc')}</span>` : ''}${warns ? html`<span class="badge warn">${t('web.warnings', { n: warns })}</span>` : ''}</span>
 </a>`;
@@ -141,13 +141,14 @@ const TAB_PAGES = {
 
 function tabPage(ctx, tab) {
   const def = TAB_PAGES[tab];
-  const items = def.list(catalogAt(ctx.store));
+  const cat = catalogAt(ctx.store);
+  const items = def.list(cat);
   sendView(ctx, 200, {
     title: def.title,
     tab,
     body: items.length || isAdmin(ctx) ? html`<div class="grid">
 ${items.map(x => html`<a class="card" href="${x.href}">
-<span class="card-t"><b>${x.name}</b>${x.meta ? html`<span class="n">${x.meta}</span>` : ''}</span>
+<span class="card-t"><b>${blockLabel(x.name, labelOf(cat.summary, KIND_OF_TAB[tab], x.name))}</b>${x.meta ? html`<span class="n">${x.meta}</span>` : ''}</span>
 ${x.desc ? html`<p class="card-d">${x.desc}</p>` : ''}
 ${x.cats?.length || x.warn ? html`<span class="card-m">${chips(x.cats)}${x.warn ? html`<span class="badge warn">${t('web.warnings', { n: x.warn })}</span>` : ''}</span>` : ''}
 </a>`)}
@@ -264,7 +265,7 @@ function blockPage(ctx, kind) {
   const view = fileView(ctx, p);
   sendView(ctx, 200, {
     title: `${name} · ${current}`,
-    h1: kind === 'stack' ? stackLabel(name) : name,
+    h1: blockLabel(name, labelOf(s, kind, name)),
     crumbs: [{ label: TAB_LABEL[kind](), href: LIST_HREF[kind] }],
     tab: TAB[kind],
     actions: view.actions,
@@ -281,7 +282,7 @@ function agentPage(ctx) {
   const view = fileView(ctx, `agents/${name}.md`);
   sendView(ctx, 200, {
     title: name,
-    h1: name,
+    h1: blockLabel(name, labelOf(cat.summary, 'agent', name)),
     crumbs: [{ label: TAB_LABEL.agent(), href: LIST_HREF.agent }],
     tab: TAB.agent,
     actions: view.actions,

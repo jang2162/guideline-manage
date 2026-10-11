@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpServers, ignored, warnings, elementCategories } from '../catalog.js';
+import { stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpServers, ignored, warnings, elementCategories, elementLabels } from '../catalog.js';
 import { catalogSummary } from '../summary.js';
 import { remoteClient, loadSource, explain } from '../remote.js';
 import { serverFor } from '../workspace.js';
@@ -58,6 +58,8 @@ export async function list({ root, tree = null, json = false, out = console.log 
   const indented = rows => alignColumns(rows).forEach(line => out(`  ${line}`));
   const { categories } = elementCategories(src);
   const catNote = key => (categories[key] ? `[${categories[key].join(', ')}]` : '');
+  const { labels } = elementLabels(src);
+  const labelNote = key => labels[key] ?? '';
   const notes = (...parts) => parts.filter(Boolean).join('  ');
 
   out(t('list.stacks'));
@@ -65,16 +67,16 @@ export async function list({ root, tree = null, json = false, out = console.log 
   const tiers = stacks(src).map(name => ({ name, files: stackTiers(name, src) }));
   const lines = alignColumns(tiers.flatMap(s => s.files.map(f => [f.path, notes(catNote(f.path), tierNote(f))])));
   for (const s of tiers) {
-    out(`  ${notes(s.name, catNote(`rules/${s.name}`), stackSetup(s.name, src) ? t('list.setupDoc') : '')}`);
+    out(`  ${notes(s.name, labelNote(`rules/${s.name}`), catNote(`rules/${s.name}`), stackSetup(s.name, src) ? t('list.setupDoc') : '')}`);
     for (const line of lines.splice(0, s.files.length)) out(`    ${line}`);
     for (const o of stackOverrides(s.name, src).overrides) out(`    ${overrideLine(s.name, o)}`);
   }
   out(t('list.skills'));
-  indented(skills(src).map(name => [name, catNote(`skills/${name}`)]));
+  indented(skills(src).map(name => [name, notes(labelNote(`skills/${name}`), catNote(`skills/${name}`))]));
   out(t('list.subagents'));
-  indented(subagents(src).map(name => [name, catNote(`agents/${name}.md`)]));
+  indented(subagents(src).map(name => [name, notes(labelNote(`agents/${name}.md`), catNote(`agents/${name}.md`))]));
   out('MCP');
-  indented(mcpServers(src).map(s => [s.name, notes(catNote(`mcp/${s.name}`), mcpNote(s))]));
+  indented(mcpServers(src).map(s => [s.name, notes(labelNote(`mcp/${s.name}`), catNote(`mcp/${s.name}`), mcpNote(s))]));
 
   const ig = ignored(src);
   if (ig.length > 0) {

@@ -7,10 +7,13 @@ const $ = sel => document.querySelector(sel);
 const MESSAGES = JSON.parse(document.getElementById('i18n')?.textContent || '{}');
 const t = (key, params = {}) => (MESSAGES[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-// 도메인 스택(`<도구>__<도메인>`)은 도구 이름과 도메인 꼬리표로 나눠 보인다(서버 layout.js 의 stackLabel 과 같은 모양).
-const stackHtml = name => {
+// 블록 이름: 도메인 스택(`<도구>__<도메인>`)은 도구 이름과 도메인 꼬리표로 나누고, 표시 이름(label)이 있으면 제목으로 쓴다.
+// 서버 layout.js 의 blockLabel 과 같은 모양.
+const blockHtml = (name, label) => {
   const i = name.indexOf('__');
-  return i === -1 ? esc(name) : `<span class="nm" title="${esc(name)}">${esc(name.slice(0, i))}</span><span class="domain">${esc(name.slice(i + 2))}</span>`;
+  const tool = i === -1 ? name : name.slice(0, i);
+  return `<span class="nm" title="${esc(name)}">${esc(label || tool)}</span>${label ? `<span class="real">${esc(tool)}</span>` : ''}`
+    + `${i === -1 ? '' : `<span class="domain">${esc(name.slice(i + 2))}</span>`}`;
 };
 const app = $('#form-app');
 const base = `/forms/${encodeURIComponent(app.dataset.id)}`;
@@ -63,6 +66,15 @@ function itemCategories(item) {
   return list.find(x => x.name === name)?.categories ?? [];
 }
 
+/** 스킬·서브에이전트·MCP 항목의 표시 이름(label). 없으면 null. */
+function itemLabel(item) {
+  const cat = state.data.catalog;
+  const list = { skill: cat.skills, subagent: cat.subagents, mcp: cat.mcp }[item.kind];
+  if (!list) return null;
+  const name = item.id.split('/')[1].replace(/\.md$/, '');
+  return list.find(x => x.name === name)?.label ?? null;
+}
+
 // 지침 파일을 켜면 그 스택의 세팅 문서가 없을 때 함께 켠다. 따로 끌 수 있다.
 function check(item, on) {
   state.choices[itemKey(item)].checked = on;
@@ -86,7 +98,7 @@ function stackNotes(stack, rules) {
   return notes;
 }
 
-function rowHtml(item, label, meta, { badges = [], cats = [] } = {}) {
+function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null } = {}) {
   const key = itemKey(item);
   const choice = state.choices[key];
   const action = actionOf(item, choice);
@@ -106,7 +118,7 @@ function rowHtml(item, label, meta, { badges = [], cats = [] } = {}) {
   if (ACTION_LABEL[action]) extra.push(`<span class="act act-${action}">${esc(ACTION_LABEL[action])}</span>`);
   return `<div class="row${action === 'remove' ? ' remove' : ''}${blocked ? ' blocked' : ''}">`
     + `<label class="main"><input type="checkbox" data-key="${esc(key)}" ${choice.checked ? 'checked' : ''} ${blocked ? 'disabled' : ''}>`
-    + `<span class="name">${esc(label)}</span>${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}</label>`
+    + `<span class="name">${nameHtml ?? esc(label)}</span>${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}</label>`
     + `<span class="meta">${esc(meta)}</span>`
     + `<span class="state ${esc(stateCls)}">${esc(stateText)}</span>`
     + `<span class="extra">${extra.join('')}</span>`
@@ -141,7 +153,7 @@ function renderList() {
     ];
     out.push(`<details class="group" data-group="${esc(id)}" ${state.open.has(id) ? 'open' : ''}><summary>`
       + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${live.length && on === live.length ? 'checked' : ''} ${on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length ? '' : 'disabled'}>`
-      + `<b>${stackHtml(s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}`
+      + `<b>${blockHtml(s.name, s.label)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}`
       + `${(project().rootStacks ?? []).includes(s.name) ? `<span class="cats">${esc(t('web.client.inRoot'))}</span>` : ''}`
       + `<span class="meta count">${on}/${live.length}</span></summary>${rows.join('')}</details>`);
   }
@@ -150,7 +162,7 @@ function renderList() {
     const on = list.filter(i => isChecked(itemKey(i))).length;
     out.push(`<details class="group" data-group="${id}" ${state.open.has(id) ? 'open' : ''}><summary><b>${esc(title)}</b>`
       + `<span class="meta count">${on}/${list.length}</span></summary>`
-      + list.map(i => rowHtml(i, label(i), meta(i), { cats: itemCategories(i) })).join('') + '</details>');
+      + list.map(i => rowHtml(i, label(i), meta(i), { cats: itemCategories(i), nameHtml: itemLabel(i) ? blockHtml(label(i), itemLabel(i)) : null })).join('') + '</details>');
   };
   const of = kind => items.filter(i => i.kind === kind && !isRemoved(i));
   simple('gone', t('web.client.orphan'), items.filter(i => i.state === 'orphan' || isRemoved(i)), i => i.id, () => t('web.client.uncheckDeletes'));

@@ -47,7 +47,7 @@ test('틀: 블록 상세의 왼쪽은 같은 종류 블록 목록과 찾기 칸,
   assert.match(r, /<a class="on" href="\/s\/base\/02-git\.md" aria-current="page"><span>02-git\.md<\/span><span class="k">always<\/span><\/a>/);
   assert.ok(!r.includes('href="/skills/demo-skill"'));
   const skill = (await getAs(s, cookie, '/skills/demo-skill')).text;
-  assert.match(skill, /<a class="blk on" href="\/skills\/demo-skill" aria-current="page"><b>demo-skill<\/b>/);
+  assert.match(skill, /<a class="blk on" href="\/skills\/demo-skill" aria-current="page"><b><span class="nm" title="demo-skill">demo-skill<\/span><\/b>/);
   assert.ok(!skill.includes('href="/s/base"'));
 });
 

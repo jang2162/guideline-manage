@@ -42,10 +42,15 @@ export function hrefFor(prefix, p) {
   return prefix + p.split('/').map(encodeURIComponent).join('/');
 }
 
-/** 스택 이름. 도메인 스택(`<도구>__<도메인>`)은 도구 이름 옆에 도메인 꼬리표를 붙이고, 전체 이름은 title 로 둔다. */
-export function stackLabel(name) {
+/**
+ * 블록 이름. 도메인 스택(`<도구>__<도메인>`)은 도구 이름 옆에 도메인 꼬리표를 붙이고, 전체 이름은 title 로 둔다.
+ * 표시 이름(label)이 있으면 그것을 제목으로, 도구 이름은 옆에 작게 둔다.
+ * @param {string} name
+ * @param {string | null} [label]
+ */
+export function blockLabel(name, label = null) {
   const { tool, domain } = splitStackName(name);
-  return html`<span class="nm" title="${name}">${tool}</span>${domain ? html`<span class="domain">${domain}</span>` : ''}`;
+  return html`<span class="nm" title="${name}">${label || tool}</span>${label ? html`<span class="real">${tool}</span>` : ''}${domain ? html`<span class="domain">${domain}</span>` : ''}`;
 }
 
 /** 상위 디렉터리 경로. 최상위면 ''. */
