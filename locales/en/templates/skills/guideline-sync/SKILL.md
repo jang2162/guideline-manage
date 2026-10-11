@@ -42,7 +42,7 @@ First check the state with `guideline status --json` and report it in one line (
 1. Read the source with `guideline list --json`. Block keys match the keys of the `categories`, `labels` and `requires` maps: `rules/<stack>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`. A guideline file's `when` says when to read it.
 2. Look at the project's config files, packages and tools, and choose blocks. Write each reason from evidence in the project (e.g. "`lefthook.yml` exists"). Leave out blocks with no evidence.
 3. Write the recommendation as a JSON file — `{"rules/base": "common to every project", "rules/lefthook": "lefthook.yml exists"}`. Required blocks (`requires`) are checked by the form, so they need not be listed.
-4. Run `guideline pick --recommend <file> --json` in the background, as in "pick". The form opens with the recommendations checked. Tell the user to review it and submit — **submitting the form is the confirmation.**
+4. Run `guideline pick --recommend <file> --json` in the background, as in "pick". The form opens with the recommendations checked. Tell the user to review it and submit — **submitting the form is the confirmation.** If the form shows no "Agent pick" marks, the server is older than 0.19 — tell the user and have them choose in the form directly.
 5. With several sources, add `--source <name>` and do one source at a time (that is what exit code 2 means here). A key not in the source stops with exit code 2 naming the key — read the list again and fix it.
 
 ## Handling to-dos

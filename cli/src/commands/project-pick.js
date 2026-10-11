@@ -147,7 +147,8 @@ export async function projectPick({
     });
     const aliases = sources[name].aliases ?? {};
     if (recommended) {
-      const unknown = Object.keys(recommended.value).filter(k => !blockKeys(src.tree).has(k));
+      const keys = blockKeys(src.tree);
+      const unknown = Object.keys(recommended.value).filter(k => !keys.has(k));
       if (unknown.length) {
         err(t('pick.recommendUnknown', { keys: unknown.join(', ') }));
         return 2;

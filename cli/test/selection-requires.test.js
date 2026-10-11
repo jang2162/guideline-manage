@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { blockKey, stepOf, requiredClosure, missingRequires, releasable } from '../src/selection.js';
+import { blockKey, stepOf, requiredClosure, missingRequires, releasable, pullRequired } from '../src/selection.js';
 import { unitOf } from '../src/sources.js';
 
 test('blockKey 는 sources.js 의 unitOf 와 같은 블록 키를 낸다', () => {
@@ -42,4 +42,40 @@ test('releasable 은 자동으로 켰고, 사람이 건드리지 않았고, 남�
   assert.deepEqual(releasable('mcp/p', { ...base, chosen: new Set([...base.chosen, 'skills/s']), requires: { ...requires, 'skills/s': ['rules/b'] } }), []);
   assert.deepEqual(releasable('mcp/p', { ...base, touched: new Set(['rules/b']) }), []);
   assert.deepEqual(releasable('mcp/p', { ...base, auto: new Set(['rules/c']) }), []);
+});
+
+/** 켤 수 있는 블록(open)만 켜지고, 켠 것을 기록하는 시험용 상태. */
+function pullState(chosen, open) {
+  const on = new Set(chosen);
+  return {
+    on,
+    opts: { isChosen: u => on.has(u), turnOn: u => (open.has(u) ? (on.add(u), true) : false) },
+  };
+}
+
+test('pullRequired 는 실제로 켜진 블록에서만 넓힌다 — 켤 수 없는 블록을 거쳐서는 켜지 않는다', () => {
+  const requires = { 'mcp/p': ['rules/blk'], 'rules/blk': ['rules/zz'] };
+  const s = pullState(['mcp/p'], new Set(['rules/zz']));
+  assert.deepEqual(pullRequired(['mcp/p'], requires, s.opts), []);
+  assert.equal(s.on.has('rules/zz'), false);
+});
+
+test('pullRequired 는 골라지지 않은 시작 블록(반영 불가 추천)에서 출발하지 않는다', () => {
+  const s = pullState([], new Set(['rules/zz']));
+  assert.deepEqual(pullRequired(['rules/blk'], { 'rules/blk': ['rules/zz'] }, s.opts), []);
+});
+
+test('pullRequired 는 켠 블록과 그 블록을 직접 필요로 한 블록을 내고, 이미 골라진 블록은 거쳐 간다', () => {
+  const requires = { 'mcp/p': ['rules/b'], 'rules/b': ['rules/c'], 'skills/s': ['rules/a'], 'rules/a': ['rules/d'] };
+  const s = pullState(['mcp/p', 'skills/s', 'rules/a'], new Set(['rules/b', 'rules/c', 'rules/d']));
+  assert.deepEqual(pullRequired(['mcp/p', 'skills/s'], requires, s.opts), [
+    { by: 'mcp/p', needs: 'rules/b' },
+    { by: 'rules/b', needs: 'rules/c' },
+    { by: 'rules/a', needs: 'rules/d' },
+  ]);
+});
+
+test('pullRequired 는 순환·자기 참조에서 끝나고 같은 블록을 두 번 켜지 않는다', () => {
+  const s = pullState(['a'], new Set(['b']));
+  assert.deepEqual(pullRequired(['a'], { a: ['a', 'b'], b: ['a', 'b'] }, s.opts), [{ by: 'a', needs: 'b' }]);
 });

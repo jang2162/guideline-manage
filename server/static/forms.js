@@ -1,6 +1,6 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, requiredClosure, missingRequires, releasable } from './selection.js';
+import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired } from './selection.js';
 
 const $ = sel => document.querySelector(sel);
 // 문구는 서버가 페이지의 i18n JSON 블록에 실어 준다(서버 언어).
@@ -108,14 +108,11 @@ function turnOn(unit) {
   return items.length > 0;
 }
 
-/** units 가 필요로 하는 블록을 켜고 안내를 남긴다. */
+/** units 가 필요로 하는 블록을 켜고 안내를 남긴다. 실제로 켜진 블록에서만 넓힌다(selection.js pullRequired). */
 function pullRequires(units) {
-  const req = requiresMap();
-  for (const need of requiredClosure(units, req)) {
-    if (!turnOn(need)) continue;
-    state.auto.add(need);
-    const by = units.find(u => requiredClosure([u], req).includes(need)) ?? units[0];
-    state.notes.push(t('web.client.autoChecked', { by: unitName(by), needs: unitName(need) }));
+  for (const { by, needs } of pullRequired(units, requiresMap(), { isChosen: u => chosenUnits().has(u), turnOn })) {
+    state.auto.add(needs);
+    state.notes.push(t('web.client.autoChecked', { by: unitName(by), needs: unitName(needs) }));
   }
 }
 
@@ -132,6 +129,7 @@ function userCheck(item, on) {
     for (const u of releasable(unit, { chosen: before, auto: state.auto, touched: state.touched, requires: requiresMap() })) {
       for (const i of unitItems(u)) state.choices[itemKey(i)].checked = false;
       state.auto.delete(u);
+      state.notes.push(t('web.client.autoReleased', { by: unitName(unit), needs: unitName(u) }));
     }
   }
 }
@@ -310,7 +308,15 @@ function confirmHtml() {
       + units.map(u => `<li>${esc(unitName(u))}${unitTags(u)}${missingNotes(u).map(w => `<div class="reason warn">${esc(w)}</div>`).join('')}</li>`).join('')
       + '</ul></section>';
   }).join('');
-  return parts || `<p class="meta">${esc(t('web.client.confirmEmpty'))}</p>`;
+  return (parts || `<p class="meta">${esc(t('web.client.confirmEmpty'))}</p>`) + changeList('remove') + changeList('update');
+}
+
+/** 확인 단계: 제거·갱신할 항목. 단계마다 흩어진 변화를 제출 전에 한곳에서 보게 한다. */
+function changeList(action) {
+  const items = state.data.items.filter(i => actionOf(i, state.choices[itemKey(i)]) === action);
+  if (!items.length) return '';
+  return `<section class="confirm-step confirm-${action}"><h3>${esc(t(`web.client.confirm.${action}`, { n: items.length }))}</h3><ul>`
+    + items.map(i => `<li><code>${esc(i.id)}</code></li>`).join('') + '</ul></section>';
 }
 
 function renderChips() {

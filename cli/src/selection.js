@@ -154,6 +154,33 @@ export function requiredClosure(units, requires) {
 }
 
 /**
+ * units 가 필요로 하는 블록을 켠다. 실제로 골라진 블록에서만 넓힌다 — 켤 수 없는 블록(반영 불가·사라짐)을
+ * 거쳐서 그 너머를 켜면, 필요로 하는 쪽이 골라지지 않아 풀릴 계기가 없는 블록이 반영된다.
+ * @param {string[]} units 막 골라진 블록(골라지지 않은 것은 출발점이 되지 않는다)
+ * @param {Record<string, string[]>} requires
+ * @param {{ isChosen: (unit: string) => boolean, turnOn: (unit: string) => boolean }} ops turnOn 은 켰으면 true
+ * @returns {{ by: string, needs: string }[]} 켠 블록과 그것을 직접 필요로 한 블록
+ */
+export function pullRequired(units, requires, { isChosen, turnOn }) {
+  const seen = new Set(units);
+  const queue = units.filter(isChosen);
+  const out = [];
+  while (queue.length) {
+    const by = queue.shift();
+    for (const needs of requires[by] ?? []) {
+      if (seen.has(needs)) continue;
+      seen.add(needs);
+      if (isChosen(needs)) queue.push(needs);
+      else if (turnOn(needs)) {
+        out.push({ by, needs });
+        queue.push(needs);
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * 골라진 블록이 필요로 하는데 골라지지 않은 것.
  * @param {Set<string>} chosen
  * @param {Record<string, string[]>} requires

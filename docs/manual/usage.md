@@ -22,7 +22,7 @@ Run them in a unit directory (one with `.ruler/`). Common options: `--project <p
 
 | Command | What it does |
 | --- | --- |
-| `guideline pick` | Opens the server form and applies the chosen items on submit. `--new <name\|path>` creates a new project (`git init`) and applies. `--no-browser` only prints the address. `--recommend <file\|->` opens the form with blocks an agent chose (JSON `{"block key": "reason"}`) already checked — one source at a time (add `--source` when there are several) |
+| `guideline pick` | Opens the server form and applies the chosen items on submit. `--new <name\|path>` creates a new project (`git init`) and applies. `--no-browser` only prints the address. `--recommend <file\|->` opens the form with blocks an agent chose (JSON `{"block key": "reason"}`) already checked — one source at a time (add `--source` when there are several). Needs a 0.19+ server; an older server opens the form without the recommendations |
 | `guideline update` | Re-applies the chosen items from the latest server revision. Skips files edited in the project; `--force` overwrites them |
 | `guideline status` | Shows whether the applied guidelines are current and what the project changed |
 | `guideline propose` | Turns edited copies back into source form and proposes them. `--dry-run`, `--title`, `--message`, `--only <item,…>`, `--from <folder>` |
