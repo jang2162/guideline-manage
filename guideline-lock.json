@@ -1,7 +1,7 @@
 {
   "version": 2,
   "revisions": {
-    "default": 6
+    "default": 7
   },
   "sources": {
     "default:mcp/codegraph": "f6e4c3dc8b10c412e418c0d5e68bc69d7061cfb424e79aa75cfa11fa8ad40b5a",
@@ -53,7 +53,7 @@
     "default:rules/tiergear/01-launch.md": "0c9ac57eb259330694b7175f4da76373e111d83f0e6b665492cf6413964b2fc0",
     "default:rules/tiergear/02-orca-spawn.md": "150896fe165ccb4508c6d302f01962c521ff5aa93ad1fecb4a8b7aa7d8255551",
     "default:skills/guideline-export": "2d8b52f724d911802e39c6d8fefc65fe0ca3b0e91fd2470fb0f35c463bbef928",
-    "default:skills/guideline-sync": "a3c56d5174db16271895fbe5eeb6023c2ef63fc3e6013b18d9dca9dc1f127d2a",
+    "default:skills/guideline-sync": "171e5ae8019c383d12052ff28bfcd4c22fb014f603676e9a392a44a83ac47c37",
     "default:skills/orca-worker": "1d719c952f0af1e22d2ec1c6e8b287512df3f7e715708e64665d7d766fb0074b"
   },
   "outputs": [
@@ -117,7 +117,7 @@
     {
       "path": ".ruler/guideline.md",
       "items": [],
-      "hash": "763ba2d38c63db234cdad52e4a28e6069b4024e1f2417f0d3b57096095998c7c"
+      "hash": "a06e148c39f79a49390762daf828c34c84e3b130279b5ba29bb989a8cafd6651"
     },
     {
       "path": ".ruler/komodo/99-reference.md",
@@ -206,7 +206,7 @@
       "items": [
         "default:skills/guideline-sync"
       ],
-      "hash": "6fad77880f188c568e9a8fa4116b7ac53ca3f26e60507c026d5a209073ec534c"
+      "hash": "da70592e82fa4ab3d834082e55b49342e8c691bb92c9d8112809d03e3ec7cba2"
     },
     {
       "path": ".ruler/skills/orca-worker/SKILL.md",
