@@ -34,14 +34,16 @@ test('blockOf 는 카탈로그 블록만 알아보고 rel 을 낸다', () => {
   assert.equal(blockOf('agents/README.md', summary), null);
 });
 
-test('viewHref 는 블록이면 상세 주소, 아니면 설정 주소이고 조각마다 인코딩한다', () => {
+test('viewHref 는 블록이면 상세 주소, docs/ 면 문서 화면, 그 밖은 null 이고 조각마다 인코딩한다', () => {
   const { summary } = setup();
   assert.equal(viewHref('rules/한글 스택/00-a.md', summary), '/s/%ED%95%9C%EA%B8%80%20%EC%8A%A4%ED%83%9D/00-a.md');
   assert.equal(viewHref('rules/base', summary), '/s/base');
   assert.equal(viewHref('agents/x.md', summary), '/agents/x');
   assert.equal(viewHref('skills/s/references/x.md', summary), '/skills/s/references/x.md');
-  assert.equal(viewHref('docs/authoring.md', summary), '/settings/docs/authoring.md');
-  assert.equal(viewHref('', summary), '/settings');
+  assert.equal(viewHref('docs/authoring.md', summary), '/docs/authoring.md');
+  assert.equal(viewHref('docs', summary), '/docs');
+  assert.equal(viewHref('agents/README.md', summary), null);
+  assert.equal(viewHref('', summary), null);
   assert.equal(blockHref('mcp', 'm'), '/mcp/m');
   assert.equal(blockDir('agent', 'x'), 'agents');
   assert.equal(blockDir('stack', 'base'), 'rules/base');

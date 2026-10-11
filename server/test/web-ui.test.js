@@ -23,7 +23,9 @@ test('틀: 탭 넷에 개수를 보이고 지금 탭을 켠다', async t => {
   assert.match(home, tab('스킬', 2, '/skills'));
   assert.match(home, tab('서브에이전트', 1, '/agents'));
   assert.match(home, tab('MCP', 5, '/mcp'));
-  for (const util of ['href="/history"', 'href="/tokens"', 'href="/settings"', 'action="/logout"']) assert.ok(home.includes(util), util);
+  for (const util of ['href="/history"', 'href="/tokens"', 'action="/logout"']) assert.ok(home.includes(util), util);
+  assert.match(home, tab('문서', 0, '/docs'));
+  assert.ok(home.indexOf('href="/docs"') < home.indexOf('href="/"'), '문서 탭이 맨 앞');
   const skill = (await getAs(s, cookie, '/skills/demo-skill/SKILL.md')).text;
   assert.match(skill, tab('스킬', 2, '/skills', true));
   assert.match(skill, tab('스택', 3, '/'));
@@ -212,14 +214,14 @@ test('목록 카드는 도메인 스택을 도구 이름과 도메인 꼬리표�
   assert.match(home, /<span class="nm" title="deploy-package__gitlab\.develma\.com">deploy-package<\/span><span class="domain">gitlab\.develma\.com<\/span>/);
 });
 
-test('상단 바에 브랜드·전체 파일·내보내기가 없고 설정·사용법(/usage)이 있다', async t => {
+test('상단 바에 브랜드·전체 파일·내보내기·설정이 없고 사용법(/usage)이 있다', async t => {
   const { s, cookie } = await seeded(t);
   const home = (await getAs(s, cookie, '/')).text;
   const top = home.slice(home.indexOf('<header'), home.indexOf('</header>'));
   assert.ok(!top.includes('class="brand"'));
   assert.ok(!top.includes('/export.tar.gz'));
   assert.ok(!home.includes('전체 파일'));
-  assert.ok(top.includes('href="/settings"'));
+  assert.ok(!top.includes('href="/settings"'));
   assert.ok(top.includes('href="/usage"'));
   assert.ok(!top.includes('href="/llms.txt"'));
 });

@@ -60,6 +60,7 @@ export function parentOf(p) {
 }
 
 const TABS = [
+  { key: 'docs', get label() { return t('web.tab.docs'); }, href: '/docs' },
   { key: 'stacks', get label() { return t('web.tab.stacks'); }, href: '/' },
   { key: 'skills', get label() { return t('web.tab.skills'); }, href: '/skills' },
   { key: 'agents', get label() { return t('web.tab.agents'); }, href: '/agents' },
@@ -70,7 +71,6 @@ const UTILS = [
   { key: 'proposals', get label() { return t('web.nav.proposals'); }, href: '/proposals', admin: true },
   { key: 'history', get label() { return t('web.nav.history'); }, href: '/history' },
   { key: 'tokens', get label() { return t('web.tokens'); }, href: '/tokens', admin: true },
-  { key: 'settings', get label() { return t('web.nav.settings'); }, href: '/settings' },
   { key: 'usage', get label() { return t('web.nav.usage'); }, href: '/usage' },
 ];
 

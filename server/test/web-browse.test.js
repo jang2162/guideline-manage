@@ -139,19 +139,16 @@ test('빈 저장소의 목록은 새 파일과 제안 API 를 안내한다', asy
   assert.doesNotMatch(r.text, /server-import/);
 });
 
-test('목록은 스택·세팅 문서와 설정 안내를, 설정은 무시됨·경고를, 탭은 스킬·서브에이전트·MCP 를 보이고, 분류로 거르고, 내용을 이스케이프한다', async t => {
+test('목록은 스택·세팅 문서를, 탭은 스킬·서브에이전트·MCP 를 보이고, 분류로 거르고, 내용을 이스케이프한다', async t => {
   const { s, cookie } = await seeded(t);
   s.store.commit({ ...META, changes: { 'rules/demo/02-xss.md': `${reference('<script>alert(1)</script> 할 때')}# x\n` } });
   const r = await getAs(s, cookie, '/');
   assert.equal(r.status, 200);
   assert.equal(r.headers['content-type'], 'text/html; charset=utf-8');
-  for (const s2 of ['base', 'orca', '세팅 문서', '설정에서 확인']) {
+  for (const s2 of ['base', 'orca', '세팅 문서']) {
     assert.ok(r.text.includes(s2), s2);
   }
-  const settings = (await getAs(s, cookie, '/settings')).text;
-  for (const s2 of ['무시됨', 'rules/base/오타.md', '경고', 'rules/demo/01-bad.md']) {
-    assert.ok(settings.includes(s2), s2);
-  }
+  assert.ok(!r.text.includes('설정에서 확인'), '경고·무시됨 줄 없음');
   for (const [p, names] of [['/skills', ['demo-skill']], ['/agents', ['code-reviewer']], ['/mcp', ['gitlab', 'GITLAB_TOKEN']]]) {
     const page = (await getAs(s, cookie, p)).text;
     for (const n of names) assert.ok(page.includes(n), `${p} ${n}`);

@@ -4,7 +4,7 @@
 // 보안: 글자는 모두 esc 를 거쳐 나간다. 태그는 이 파일이 만든 것뿐이고, 속성값도 esc 를 거친다.
 // 링크는 http·https·mailto 와 상대 경로만 <a> 가 된다. 상대 경로는 지금 파일 기준으로 풀어 저장 경로를 hrefOf 로 화면 주소로 바꾸고,
 // 저장 경로 밖으로 나가면 글자로 남긴다.
-import { esc, hrefFor, parentOf } from './layout.js';
+import { esc, parentOf } from './layout.js';
 
 const PUNCT = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
 const WORD = /[\p{L}\p{N}]/u;
@@ -27,13 +27,14 @@ const indentOf = l => l.length - l.trimStart().length;
 // ---------- 링크 ----------
 
 /**
- * 마크다운 링크 대상을 서버 주소로 바꾼다. 링크로 만들지 않을 대상이면 null.
+ * 마크다운 링크 대상을 서버 주소로 바꾼다. 링크로 만들지 않을 대상(위험한 스킴, 저장소 밖)이면 null 이라 원문을 글자로 남기고,
+ * 저장 경로이지만 화면이 없으면(hrefOf 가 null) 빈 문자열이라 링크 글자만 남긴다.
  * @param {string} target 링크 괄호 안(제목을 뗀 것)
  * @param {string} fromPath 지금 파일의 저장 경로
- * @param {(p: string) => string} [hrefOf] 저장 경로(디렉터리면 끝 / 없이) → 화면 주소. 없으면 설정 화면 주소
+ * @param {(p: string) => string | null} [hrefOf] 저장 경로(디렉터리면 끝 / 없이) → 화면 주소. 없으면 화면 없음
  * @returns {string | null} 이스케이프하기 전의 href
  */
-export function linkHref(target, fromPath, hrefOf = settingsHref) {
+export function linkHref(target, fromPath, hrefOf = noHref) {
   const t = target.trim();
   if (!t) return null;
   if (/^(?:https?:\/\/|mailto:)/i.test(t)) return t;
@@ -62,10 +63,12 @@ export function linkHref(target, fromPath, hrefOf = settingsHref) {
     }
   }
   const frag = hashAt === -1 ? '' : `#${fragment(t.slice(hashAt + 1))}`;
-  return hrefOf(parts.join('/')) + frag;
+  const href = hrefOf(parts.join('/'));
+  return href === null ? '' : href + frag;
 }
 
-const settingsHref = p => (p ? hrefFor('/settings/', p) : '/settings');
+/** 기본: 상대 링크를 화면 주소로 바꾸지 않는다(부르는 쪽이 hrefOf 를 준다). */
+const noHref = () => null;
 
 function fragment(f) {
   try {
@@ -209,6 +212,7 @@ function inline(s, ctx, depth = 0) {
         const href = linkHref(link.target, ctx.path, ctx.hrefOf);
         flush();
         if (href === null) out += esc(s.slice(i, link.end));
+        else if (href === '') out += image ? esc(link.label || link.target) : inline(link.label, ctx, depth + 1);
         else out += `<a href="${esc(href)}">${image ? esc(link.label || link.target) : inline(link.label, ctx, depth + 1)}</a>`;
         i = link.end;
         continue;
@@ -460,7 +464,7 @@ function toLines(text) {
  * @param {{ path?: string, hrefOf?: (p: string) => string }} [opts] path: 지금 파일의 저장 경로(상대 링크의 기준), hrefOf: 저장 경로 → 화면 주소
  * @returns {string}
  */
-export function renderMarkdown(text, { path = '', hrefOf = settingsHref } = {}) {
+export function renderMarkdown(text, { path = '', hrefOf = noHref } = {}) {
   return blocks(toLines(text), { path, hrefOf }).join('\n');
 }
 

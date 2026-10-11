@@ -6,6 +6,7 @@ import { firstSentence } from './markdown.js';
 import { html, hrefFor, sendPage, blockLabel } from './layout.js';
 import { blockHref, blockOf, viewHref, TAB, LIST_HREF } from './blocks.js';
 import { t } from '../../../cli/src/i18n.js';
+import { DOC_PATH } from '../../../cli/src/store-paths.js';
 import { isAdmin, loginHref } from './auth.js';
 
 /**
@@ -70,24 +71,25 @@ export function labelOf(summary, kind, name) {
   return summary.labels?.[LABEL_KEY[kind](name)] ?? null;
 }
 
-/** 저장 경로가 속한 탭(블록 밖이면 null). */
+/** 저장 경로가 속한 탭(docs/ 는 문서, 그 밖은 null). */
 export function tabOf(p, summary) {
   const b = blockOf(p, summary);
-  return b ? TAB[b.kind] : null;
+  if (b) return TAB[b.kind];
+  return p === 'docs' || p.startsWith('docs/') ? 'docs' : null;
 }
 
-/** 편집·새 파일 화면의 빵부스러기: 블록 안이면 탭 목록 › 블록, 밖이면 설정. */
+/** 편집·새 파일 화면의 빵부스러기: 블록 안이면 탭 목록 › 블록, docs/ 면 문서, 그 밖은 없음. */
 export function crumbsFor(p, cat) {
   const b = blockOf(p, cat.summary);
-  if (!b) return [{ label: t('web.nav.settings'), href: '/settings' }];
+  if (!b) return p === 'docs' || p.startsWith('docs/') ? [{ label: t('web.tab.docs'), href: '/docs' }] : [];
   const label = { stack: t('web.tab.stacks'), skill: t('web.tab.skills'), agent: t('web.tab.agents'), mcp: 'MCP' }[b.kind];
   return [{ label, href: LIST_HREF[b.kind] }, { label: b.name, href: blockHref(b.kind, b.name) }];
 }
 
-/** 지금 저장소 기준의 화면 주소(저장 직후에도 새 목록으로 판단한다). */
+/** 지금 저장소 기준의 화면 주소(저장 직후에도 새 목록으로 판단한다). 화면이 없는 경로면 홈. */
 export const hereHref = (store, p) => {
   const head = store.headHashes();
-  return viewHref(p, catalogAt(store).summary, q => head.has(q));
+  return viewHref(p, catalogAt(store).summary, q => head.has(q)) ?? '/';
 };
 
 const PLACEHOLDER = {
@@ -120,7 +122,7 @@ ${items.map(x => html`<li><a class="${x.name === current ? 'blk on' : 'blk'}" hr
  * 틀에 넣을 것: 상단 탭의 개수와 켜진 탭(또는 상단 링크).
  * @param {{ store: object }} ctx
  * @param {string | null} tab 켜진 탭(stacks, skills, agents, mcp)
- * @param {string | null} [on] 탭 대신 켤 상단 링크(history, tokens, settings, usage, proposals)
+ * @param {string | null} [on] 탭 대신 켤 상단 링크(history, tokens, usage, proposals)
  */
 export function frameFor(ctx, tab, on = null) {
   const cat = catalogAt(ctx.store);
@@ -128,6 +130,7 @@ export function frameFor(ctx, tab, on = null) {
   const admin = isAdmin(ctx);
   return {
     counts: {
+      docs: [...ctx.store.headHashes().keys()].filter(p => DOC_PATH.test(p)).length,
       stacks: s.stacks.length, skills: s.skills.length, agents: s.subagents.length, mcp: s.mcp.length,
       proposals: admin && ctx.proposals ? ctx.proposals.pendingCount() : 0,
     },

@@ -12,7 +12,7 @@ import { catalogAt, blockList, sendView, labelOf } from './frame.js';
 import { renderMarkdown, splitFrontmatter } from './markdown.js';
 import { t, template } from '../../../cli/src/i18n.js';
 import { marker } from '../../../cli/src/markers.js';
-import { viewHref, blockHref, blockOf, blockFiles, blockDir, namesOf, settingsHref, TAB, LIST_HREF } from './blocks.js';
+import { viewHref, blockHref, blockOf, blockFiles, blockDir, namesOf, settingsHref, PROTECTED_DOCS, TAB, LIST_HREF } from './blocks.js';
 
 const STATIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../static');
 const STATIC_FILES = {
@@ -93,8 +93,7 @@ ${stacks.length || isAdmin(ctx) ? html`<div class="grid">
 ${stacks.map(st => stackCard(st, cat))}
 ${isAdmin(ctx) ? addCard('stack') : ''}
 </div>` : ''}
-${!stacks.length ? html`<p class="meta">${t('web.noStacksInCategory')}</p>` : ''}
-${s.warnings.length || s.ignored.length ? html`<p class="meta"><a href="/settings">${t('web.settings.problems', { warnings: s.warnings.length, ignored: s.ignored.length })}</a></p>` : ''}`,
+${!stacks.length ? html`<p class="meta">${t('web.noStacksInCategory')}</p>` : ''}`,
   });
 }
 
@@ -192,7 +191,7 @@ export function fileView(ctx, p) {
 ${fm ? docBlock(ctx, fm.body, p)
     : text ? html`<pre class="file">${source}</pre>`
       : html`<p>${t('web.binary', { n: content.length })}</p>`}
-${admin ? manageForms(p, 'file') : ''}`,
+${admin && !PROTECTED_DOCS.includes(p) ? manageForms(p, 'file') : ''}`,
   };
 }
 
@@ -206,7 +205,10 @@ function stackExtras(ctx, cat, name) {
   const short = p => (p.startsWith(`${dir}/`) ? p.slice(dir.length + 1) : p.replace(/^rules\//, ''));
   // 파일마다 분류를 단 스택에서만 분류 칸을 둔다(스택 분류는 위 칩에 있다).
   const fileCats = st.files.some(f => s.categories[f.path]?.length);
-  return html`${warns.length ? html`<div class="warn"><ul class="plain">${warns.map(w => html`<li><a href="${viewHref(w.path.replace(/\/$/, ''), s, q => head.has(q))}">${short(w.path) || name}</a> — ${w.message}</li>`)}</ul></div>` : ''}
+  return html`${warns.length ? html`<div class="warn"><ul class="plain">${warns.map(w => {
+    const href = viewHref(w.path.replace(/\/$/, ''), s, q => head.has(q));
+    return html`<li>${href ? html`<a href="${href}">${short(w.path) || name}</a>` : short(w.path) || name} — ${w.message}</li>`;
+  })}</ul></div>` : ''}
 <h2>${t('web.files')}</h2>
 <div class="table-wrap"><table class="list">
 <thead><tr><th>${t('web.col.file')}</th><th>${t('web.col.load')}</th><th>${t('web.col.when')}</th>${fileCats ? html`<th>${t('web.categories')}</th>` : ''}</tr></thead>

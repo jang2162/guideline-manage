@@ -8,7 +8,7 @@ import { unifiedDiff } from '../../../cli/src/diff.js';
 import { checkOrigin, requireAdminWeb } from './auth.js';
 import { html, hrefFor, parentOf, diffBlock } from './layout.js';
 import { sendView, tabOf, crumbsFor, hereHref, catalogAt } from './frame.js';
-import { blockOf, LIST_HREF } from './blocks.js';
+import { blockOf, LIST_HREF, PROTECTED_DOCS } from './blocks.js';
 import { TEMPLATES } from './templates.js';
 import { t } from '../../../cli/src/i18n.js';
 
@@ -159,6 +159,7 @@ async function postDelete(ctx) {
   const hashes = store.headHashes();
   const targets = p ? filesUnder(hashes, p) : [];
   if (!targets.length) throw new HttpError(404, t('web.noPath'));
+  if (targets.some(q => PROTECTED_DOCS.includes(q))) throw new HttpError(400, t('web.docs.protected'));
   const block = blockOf(p, catalogAt(store).summary);
   store.commit({
     ...META, message,
@@ -179,6 +180,7 @@ async function postRename(ctx) {
   if (!message) throw new HttpError(400, t('web.needMessage'));
   if (!from || !to || from === to) throw new HttpError(400, t('web.rename.same'));
   if (to.startsWith(`${from}/`)) throw new HttpError(400, t('web.rename.intoSelf'));
+  if (PROTECTED_DOCS.includes(from) || PROTECTED_DOCS.some(d => d.startsWith(`${from}/`))) throw new HttpError(400, t('web.docs.protected'));
   const hashes = store.headHashes();
   const moved = filesUnder(hashes, from).map(q => [q, to + q.slice(from.length)]);
   if (!moved.length) throw new HttpError(404, t('web.noPath'));

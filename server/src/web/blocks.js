@@ -1,6 +1,15 @@
 // 블록(스택·스킬·서브에이전트·MCP)과 화면 주소. 저장 경로를 화면 주소로 바꾸는 일은 모두 여기서 한다.
-// 카탈로그가 인정하는 블록 안의 경로는 블록 상세로, 그 밖(작성 규칙, 뼈대 스택, 목록에서 빠진 항목)은 설정 화면으로 간다.
+// 카탈로그가 인정하는 블록 안의 경로는 블록 상세로, docs/ 문서는 문서 화면으로 간다. 그 밖은 화면이 없다(웹은 이 서비스로 만든 것만 다룬다).
 import { hrefFor } from './layout.js';
+import { DOC_PATH } from '../../../cli/src/store-paths.js';
+
+/** 웹에서 이름 바꾸기·삭제를 막는 문서. 작성 규칙과 프로젝트 관리 지침에 덧붙는 문서라 에이전트도 읽는다. */
+export const PROTECTED_DOCS = ['docs/authoring.md', 'docs/management.md'];
+
+/** 문서 화면 주소. */
+export function docHref(p) {
+  return `/docs/${encodeURIComponent(p.slice('docs/'.length))}`;
+}
 
 export const KINDS = ['stack', 'skill', 'agent', 'mcp'];
 export const PREFIX = { stack: '/s/', skill: '/skills/', agent: '/agents/', mcp: '/mcp/' };
@@ -58,15 +67,17 @@ export function blockHref(kind, name, rel = '') {
 }
 
 /**
- * 저장 경로의 화면 주소: 블록 안이면 블록 상세, 아니면 설정.
- * isFile 을 주면 파일이 아닌 경로(디렉터리, 지운 파일)는 블록 첫 화면이나 설정 첫 화면으로 보낸다. 상세·설정은 파일 주소만 열기 때문이다.
+ * 저장 경로의 화면 주소: 블록 안이면 블록 상세, docs/ 이면 문서 화면, 그 밖은 null.
+ * isFile 을 주면 파일이 아닌 경로(디렉터리, 지운 파일)는 블록 첫 화면이나 문서 목록으로 보낸다. 상세는 파일 주소만 열기 때문이다.
  * @param {(p: string) => boolean} [isFile]
+ * @returns {string | null}
  */
 export function viewHref(p, summary, isFile) {
   const b = blockOf(p, summary);
   const file = !isFile || isFile(p);
   if (b) return blockHref(b.kind, b.name, file ? b.rel : '');
-  return p && file ? hrefFor('/settings/', p) : '/settings';
+  if (p === 'docs' || DOC_PATH.test(p)) return file && DOC_PATH.test(p) ? docHref(p) : '/docs';
+  return null;
 }
 
 /**

@@ -63,8 +63,8 @@ test('base 의 해시가 지금과 다르면 아무것도 쓰지 않고 Conflict
 test('경로·내용 규칙을 어기거나 메시지가 비면 WriteError', () => {
   const store = memoryStore();
   store.commit({ ...META, changes: { 'skills/a/SKILL.md': 's' } });
-  assert.throws(() => store.commit({ ...META, changes: { 'docs/x.md': 'x' } }), e => (
-    e instanceof WriteError && e.problems[0].message === '최상위는 rules/, skills/, agents/, mcp/ 또는 docs/authoring.md·docs/management.md 여야 함'
+  assert.throws(() => store.commit({ ...META, changes: { 'docs/x.txt': 'x' } }), e => (
+    e instanceof WriteError && e.problems[0].message === '최상위는 rules/, skills/, agents/, mcp/ 또는 docs/<이름>.md 여야 함'
   ));
   assert.throws(() => store.commit({ ...META, changes: { 'skills/a': 'x' } }), WriteError);
   assert.throws(() => store.commit({ ...META, message: '  ', changes: { 'rules/a/00-x.md': 'x' } }), e => (

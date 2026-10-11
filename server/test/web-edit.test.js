@@ -89,7 +89,7 @@ test('새 파일은 틀을 채운 화면에서 만들고, 이미 있는 경로�
   const dup = await postForm(s, '/new', { path: 'rules/base/01-new.md', content: 'x', message: '또', action: 'save' }, { cookie });
   assert.equal(dup.status, 409);
   assert.ok(dup.text.includes('이미 있는 경로'));
-  const bad = await postForm(s, '/new', { path: 'docs/x.md', content: 'x', message: 'm', action: 'save' }, { cookie });
+  const bad = await postForm(s, '/new', { path: 'docs/a/x.md', content: 'x', message: 'm', action: 'save' }, { cookie });
   assert.equal(bad.status, 400);
   assert.ok(bad.text.includes('최상위는 rules/'));
 });

@@ -6,7 +6,8 @@ export const MAX_FILE_BYTES = 1024 * 1024;
 export const TEXT_EXTENSIONS = ['.md', '.json', '.toml', '.yaml', '.yml', '.txt'];
 
 const ROOTS = ['rules/', 'skills/', 'agents/', 'mcp/'];
-const EXACT = ['docs/authoring.md', 'docs/management.md'];
+/** docs/ 의 문서: 한 단계, 마크다운만. 웹에서 사람이 읽는 문서이고 프로젝트로 보내지 않는다(sources.js). */
+export const DOC_PATH = /^docs\/[^/]+\.md$/;
 const ROOTS_MESSAGE = () => t('paths.badRoot');
 const utf8 = new TextDecoder('utf-8', { fatal: true });
 
@@ -19,7 +20,7 @@ export function isTextPath(p) {
 
 /** 최상위 규칙만 본다. 가져오기가 저장소의 다른 파일(package.json 등)을 조용히 건너뛸 때 쓴다. */
 export function inStoreRoots(p) {
-  return EXACT.includes(p) || ROOTS.some(r => p.startsWith(r));
+  return DOC_PATH.test(p) || ROOTS.some(r => p.startsWith(r));
 }
 
 /**

@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderMarkdown, splitFrontmatter, firstSentence, linkHref } from '../src/web/markdown.js';
 
-const md = (text, path = 'rules/base/01-git.md') => renderMarkdown(text, { path });
+// 화면 주소 규칙은 blocks.js 의 몫이라, 여기서는 저장 경로를 그대로 담는 주소로 확인한다.
+const pathHref = p => `/settings/${p.split('/').map(encodeURIComponent).join('/')}`;
+const md = (text, path = 'rules/base/01-git.md') => renderMarkdown(text, { path, hrefOf: pathHref });
 
 test('제목·문단·가로줄', () => {
   assert.equal(md('# 하나\n\n## 둘 ##\n\n###### 여섯'), '<h1>하나</h1>\n<h2>둘</h2>\n<h6>여섯</h6>');
@@ -35,7 +37,7 @@ test('상대 링크는 지금 파일 기준으로 풀어 저장 경로를 hrefOf
   assert.equal(mdv('[밖](../../docs/authoring.md)'), '<p><a href="/v/docs/authoring.md">밖</a></p>');
   assert.equal(md('[한글](./한 글.md)'), '<p><a href="/settings/rules/base/%ED%95%9C%20%EA%B8%80.md">한글</a></p>');
   assert.equal(md('[절](#how)'), '<p><a href="#how">절</a></p>');
-  assert.equal(linkHref('../../skills/x/SKILL.md', 'rules/base/01-git.md'), '/settings/skills/x/SKILL.md');
+  assert.equal(linkHref('../../skills/x/SKILL.md', 'rules/base/01-git.md'), '', '화면이 없는 저장 경로는 빈 문자열');
   assert.equal(linkHref('../../skills/x/SKILL.md', 'rules/base/01-git.md', hrefOf), '/v/skills/x/SKILL.md');
   assert.equal(linkHref('%2e%2e/%2e%2e/%2e%2e/etc', 'rules/base/01-git.md'), null);
 });
@@ -148,4 +150,9 @@ test('깊은 중첩과 닫히지 않는 괄호가 많아도 빨리 끝나고 터
   assert.ok(md('_a'.repeat(50000)).length > 0);
   assert.ok(md('`'.repeat(1) + 'a`'.repeat(1) + ' `x'.repeat(30000)).length > 0);
   assert.ok(Date.now() - started < 3000, `${Date.now() - started}ms`);
+});
+
+test('화면이 없는 저장 경로를 가리키는 링크는 링크 글자만 남긴다', () => {
+  assert.equal(renderMarkdown('[**링크**](x.md) 와 ![그림](a.png)', { path: 'docs/a.md' }), '<p><strong>링크</strong> 와 그림</p>');
+  assert.equal(renderMarkdown('[x](../../../etc/passwd)', { path: 'docs/a.md' }), '<p>[x](../../../etc/passwd)</p>');
 });
