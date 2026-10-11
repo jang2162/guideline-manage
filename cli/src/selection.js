@@ -105,3 +105,83 @@ export function buildSelection({ revision, items, choices, project }) {
     blocked: items.filter(i => i.state === 'blocked').map(({ kind, id, stack, reason }) => ({ kind, id, stack, reason })),
   };
 }
+
+/**
+ * 항목·경로 id 의 블록 키(rules/<스택>, skills/<이름>, agents/<이름>.md, mcp/<이름>). 블록이 아니면 null.
+ * sources.js 의 unitOf 와 같다 — 이 파일은 브라우저에서도 돌아 import 하지 않고 복제한다(테스트가 둘을 묶는다).
+ * @param {string} id
+ */
+export function blockKey(id) {
+  const parts = id.split('/');
+  if (parts.length < 2 || !parts[1]) return null;
+  if (parts[0] === 'rules' || parts[0] === 'skills' || parts[0] === 'mcp') return `${parts[0]}/${parts[1]}`;
+  if (parts[0] === 'agents' && parts.length === 2 && parts[1].endsWith('.md')) return id;
+  return null;
+}
+
+const STEP_OF_KIND = { rule: 'rules', setup: 'rules', mcp: 'mcp', subagent: 'agents', skill: 'skills' };
+const STEP_OF_DIR = { rules: 'rules', mcp: 'mcp', agents: 'agents', skills: 'skills' };
+
+/**
+ * 폼 항목이 놓일 단계. 원본에서 사라진 항목은 경로 앞 조각으로 정하고, 모르면 지침 단계.
+ * @param {{ kind: string, id: string }} item
+ * @returns {'rules' | 'mcp' | 'agents' | 'skills'}
+ */
+export function stepOf(item) {
+  return STEP_OF_KIND[item.kind] ?? STEP_OF_DIR[item.id.split('/')[0]] ?? 'rules';
+}
+
+/**
+ * units 가 (간접으로) 필요로 하는 블록. units 자신은 빼고, 중복 없이 처음 만난 순서로. 순환은 이미 본 블록에서 끝난다.
+ * @param {string[]} units
+ * @param {Record<string, string[]>} requires
+ * @returns {string[]}
+ */
+export function requiredClosure(units, requires) {
+  const start = new Set(units);
+  const seen = new Set(units);
+  const out = [];
+  const queue = [...units];
+  while (queue.length) {
+    for (const need of requires[queue.shift()] ?? []) {
+      if (seen.has(need)) continue;
+      seen.add(need);
+      if (!start.has(need)) out.push(need);
+      queue.push(need);
+    }
+  }
+  return out;
+}
+
+/**
+ * 골라진 블록이 필요로 하는데 골라지지 않은 것.
+ * @param {Set<string>} chosen
+ * @param {Record<string, string[]>} requires
+ * @returns {{ unit: string, needs: string }[]}
+ */
+export function missingRequires(chosen, requires) {
+  const out = [];
+  for (const unit of chosen) {
+    for (const needs of requires[unit] ?? []) if (!chosen.has(needs)) out.push({ unit, needs });
+  }
+  return out;
+}
+
+/**
+ * unit 을 풀 때 함께 풀 블록: 의존성으로 자동으로 켰고(auto), 사람이 건드리지 않았고(touched 아님),
+ * 남는 골라진 블록이 (간접으로도) 필요로 하지 않는 것. 함께 풀리는 블록끼리의 의존은 남기는 이유가 되지 않는다.
+ * @param {string} unit
+ * @param {{ chosen: Set<string>, auto: Set<string>, touched: Set<string>, requires: Record<string, string[]> }} state
+ * @returns {string[]}
+ */
+export function releasable(unit, { chosen, auto, touched, requires }) {
+  const candidates = requiredClosure([unit], requires).filter(u => chosen.has(u) && auto.has(u) && !touched.has(u));
+  let released = new Set(candidates);
+  for (;;) {
+    const remaining = [...chosen].filter(u => u !== unit && !released.has(u));
+    const keep = new Set([...remaining, ...requiredClosure(remaining, requires)]);
+    const next = new Set(candidates.filter(u => !keep.has(u)));
+    if (next.size === released.size) return [...next];
+    released = next;
+  }
+}
