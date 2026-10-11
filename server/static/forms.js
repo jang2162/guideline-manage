@@ -7,6 +7,11 @@ const $ = sel => document.querySelector(sel);
 const MESSAGES = JSON.parse(document.getElementById('i18n')?.textContent || '{}');
 const t = (key, params = {}) => (MESSAGES[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+// 도메인 스택(`<도구>__<도메인>`)은 도구 이름과 도메인 꼬리표로 나눠 보인다(서버 layout.js 의 stackLabel 과 같은 모양).
+const stackHtml = name => {
+  const i = name.indexOf('__');
+  return i === -1 ? esc(name) : `<span class="nm" title="${esc(name)}">${esc(name.slice(0, i))}</span><span class="domain">${esc(name.slice(i + 2))}</span>`;
+};
 const app = $('#form-app');
 const base = `/forms/${encodeURIComponent(app.dataset.id)}`;
 const PING_MS = 30_000;
@@ -136,7 +141,7 @@ function renderList() {
     ];
     out.push(`<details class="group" data-group="${esc(id)}" ${state.open.has(id) ? 'open' : ''}><summary>`
       + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${live.length && on === live.length ? 'checked' : ''} ${on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length ? '' : 'disabled'}>`
-      + `<b>${esc(s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}`
+      + `<b>${stackHtml(s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}`
       + `${(project().rootStacks ?? []).includes(s.name) ? `<span class="cats">${esc(t('web.client.inRoot'))}</span>` : ''}`
       + `<span class="meta count">${on}/${live.length}</span></summary>${rows.join('')}</details>`);
   }

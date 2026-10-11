@@ -128,6 +128,13 @@ Setup that must be done when adopting a stack or on every clone (config files, h
 
 Do not invent a Why. If you do not know the reason, hold off on adding the rule.
 
+## Domain stacks
+
+The same tool can need different rules on different servers (companies, instances). Then name the stack `<tool>__<domain>`. Examples: `deploy-package__gitlab.develma.com`, `deploy-agent__deploy.kbrainc.dev`.
+
+- Use `__` once. The part after it must look like a domain (lowercase letters, digits, `-`, and at least one dot). Otherwise `guideline list` shows a warning (the stack still works).
+- The web shows the tool name with the domain as a tag. Project paths (`.ruler/<stack>/`) and CLI output keep the full name.
+
 ## Skeleton stacks
 
 A `rules/<stack>/` with only `README.md` is a skeleton and does not appear in `guideline list`. It becomes a stack the moment its first guideline file (`NN-*.md`) is added.

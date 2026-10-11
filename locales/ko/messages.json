@@ -543,5 +543,6 @@
   "web.tokens.adminWarning": "admin 토큰은 제안 검토 없이 원본을 바로 바꿀 수 있음. 믿을 수 있는 에이전트에만 발급.",
   "propose.applied": "반영 완료: r{rev} — {url}",
   "propose.appliedNothing": "바뀐 것 없음 — 원본과 같음",
-  "propose.applyDenied": "admin 토큰 필요 — 관리자에게 admin 범위 토큰을 받아 guideline login --server {server} --token-stdin 으로 등록"
+  "propose.applyDenied": "admin 토큰 필요 — 관리자에게 admin 범위 토큰을 받아 guideline login --server {server} --token-stdin 으로 등록",
+  "catalog.badDomain": "`__` 뒤가 도메인 모양이 아님 — <도구>__<도메인> 형식이어야 함"
 }

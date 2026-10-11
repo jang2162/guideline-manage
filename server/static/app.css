@@ -254,3 +254,6 @@ pre.diff-lines .dh { color: var(--muted); }
 .change { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin: 0 0 14px; }
 .change h2 { font-size: 14px; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
 .actions form.inline { display: inline-flex; gap: 6px; }
+
+/* 도메인 스택의 도메인 꼬리표 */
+.domain { display: inline-block; margin-left: .35em; padding: 0 .45em; border-radius: 999px; background: var(--pill-bg); color: var(--pill-fg); font-size: .75em; font-weight: 500; vertical-align: .1em; }

@@ -8,7 +8,7 @@ import { contentType } from '../api.js';
 import { fileCategories } from '../../../cli/src/catalog.js';
 import { isTextPath } from '../../../cli/src/store-paths.js';
 import { isAdmin, requireReadWeb } from './auth.js';
-import { html, raw, hrefFor, parentOf } from './layout.js';
+import { html, raw, hrefFor, parentOf, stackLabel } from './layout.js';
 import { catalogAt, crumbsOf, whereOf, sendView } from './frame.js';
 import { renderMarkdown, splitFrontmatter } from './markdown.js';
 import { t, template } from '../../../cli/src/i18n.js';
@@ -54,7 +54,7 @@ function stackCard(st, cat) {
   const warns = warnCount(s, `rules/${st.name}/`);
   const { intro } = cat.stacks.get(st.name);
   return html`<a class="card" href="${hrefFor('/s/', st.name)}">
-<span class="card-t"><b>${st.name}</b><span class="n">${t('web.count', { n: st.files.length })}</span></span>
+<span class="card-t"><b>${stackLabel(st.name)}</b><span class="n">${t('web.count', { n: st.files.length })}</span></span>
 ${intro ? html`<p class="card-d">${intro}</p>` : ''}
 <span class="card-m">${count('always') ? html`<span class="k">always ${count('always')}</span>` : ''}${count('reference') ? html`<span class="k ref">reference ${count('reference')}</span>` : ''}${chips(s.categories[`rules/${st.name}`])}${st.setup ? html`<span class="badge setup">${t('web.setupDoc')}</span>` : ''}${warns ? html`<span class="badge warn">${t('web.warnings', { n: warns })}</span>` : ''}</span>
 </a>`;

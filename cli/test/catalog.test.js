@@ -320,3 +320,12 @@ test('fileCategories 는 스택 분류와 파일 분류를 합친다', () => {
   assert.deepEqual(fileCategories({ 'rules/base': ['a', 'b'], 'rules/base/00-x.md': ['b', 'c'] }, 'rules/base/00-x.md'), ['a', 'b', 'c']);
   assert.deepEqual(fileCategories({}, 'rules/base/00-x.md'), []);
 });
+
+test('warnings 는 도메인 모양이 아닌 __ 스택을 rules/<스택>/ 경로로 내고 스택은 그대로 둔다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/deploy__nodomain/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/deploy__gitlab.example.com/00-a.md', `${ALWAYS}# a\n`);
+  assert.ok(stacks(root).includes('deploy__nodomain'));
+  assert.deepEqual(warnings(root).map(w => w.path), ['rules/deploy__nodomain/']);
+});

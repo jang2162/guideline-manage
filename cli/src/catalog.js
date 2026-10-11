@@ -7,6 +7,7 @@ import { readCategories } from './categories.js';
 import { asTree, readText } from './tree.js';
 import { t } from './i18n.js';
 import { marker } from './markers.js';
+import { stackNameProblem } from './stack-name.js';
 
 // export 함수의 src 는 문서 저장소 루트의 디스크 경로나 트리(tree.js)다. 서버는 DB 트리를 넘긴다.
 
@@ -265,6 +266,7 @@ export function fileCategories(categories, rel) {
 export function warnings(src) {
   const tree = asTree(src);
   const rules = stacks(tree).flatMap(s => [
+    ...(stackNameProblem(s) ? [{ path: `rules/${s}/`, message: stackNameProblem(s) }] : []),
     ...stackTiers(s, tree).filter(f => f.warning).map(f => ({ path: f.path, message: f.warning })),
     ...stackOverrides(s, tree).warnings,
   ]);

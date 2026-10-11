@@ -207,3 +207,10 @@ test('정적 파일: 사이드바 찾기와 / 키, 휴대폰 폭에서 목록 �
   assert.match(css, /@media \(max-width: 760px\)/);
   assert.match(css, /prefers-color-scheme: dark/);
 });
+
+test('목록 카드는 도메인 스택을 도구 이름과 도메인 꼬리표로 나눠 보인다', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: { 'rules/deploy-package__gitlab.develma.com/00-a.md': '---\nload: always\n---\n# a\n' } });
+  const home = (await s.req('/')).text;
+  assert.match(home, /<span class="nm" title="deploy-package__gitlab\.develma\.com">deploy-package<\/span><span class="domain">gitlab\.develma\.com<\/span>/);
+});

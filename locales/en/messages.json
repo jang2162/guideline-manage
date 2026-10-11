@@ -543,5 +543,6 @@
   "web.tokens.adminWarning": "An admin token can change the source directly, without proposal review. Issue it only to agents you trust.",
   "propose.applied": "Applied: r{rev} — {url}",
   "propose.appliedNothing": "Nothing changed — same as the source",
-  "propose.applyDenied": "An admin token is needed — get a token with scope admin from an admin and store it with guideline login --server {server} --token-stdin"
+  "propose.applyDenied": "An admin token is needed — get a token with scope admin from an admin and store it with guideline login --server {server} --token-stdin",
+  "catalog.badDomain": "the part after __ is not a domain — use <tool>__<domain>"
 }

@@ -91,6 +91,8 @@ The CLI downloads the source from the server, compares it with the project, crea
 
 ### Choosing in the form
 
+A domain stack (`<tool>__<domain>`, e.g. `deploy-package__gitlab.develma.com`) shows the tool name with a domain tag. The same tool has different rules on different servers, so pick the stack for the server your project uses.
+
 | Shown | Meaning | When checked |
 | --- | --- | --- |
 | same | Already there as in the source | Left as is |

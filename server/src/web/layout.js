@@ -1,5 +1,6 @@
 import { sendBody } from '../http.js';
 import { t, currentLocale, messageKeys } from '../../../cli/src/i18n.js';
+import { splitStackName } from '../../../cli/src/stack-name.js';
 
 /** 이스케이프하지 않고 그대로 넣을 HTML. */
 class Raw {
@@ -39,6 +40,12 @@ export function html(strings, ...values) {
 /** 경로 조각마다 인코딩한 주소. hrefFor('/f/', 'rules/한/a.md') → '/f/rules/%ED%95%9C/a.md' */
 export function hrefFor(prefix, p) {
   return prefix + p.split('/').map(encodeURIComponent).join('/');
+}
+
+/** 스택 이름. 도메인 스택(`<도구>__<도메인>`)은 도구 이름 옆에 도메인 꼬리표를 붙이고, 전체 이름은 title 로 둔다. */
+export function stackLabel(name) {
+  const { tool, domain } = splitStackName(name);
+  return html`<span class="nm" title="${name}">${tool}</span>${domain ? html`<span class="domain">${domain}</span>` : ''}`;
 }
 
 /** 상위 디렉터리 경로. 최상위면 ''. */
