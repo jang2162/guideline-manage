@@ -12,8 +12,8 @@ import { t, currentLocale } from './i18n.js';
 
 const usage = () => t('help.usage');
 
-/** 명령별로 허용하는 옵션. */
-const ALLOWED_OPTIONS = {
+/** 명령별로 허용하는 옵션. 여기 넣은 이름은 OPTIONS 에도 있어야 한다(없으면 parseArgs 가 모르는 옵션으로 거부한다). */
+export const ALLOWED_OPTIONS = {
   list: ['json', 'server', 'source'],
   pick: ['project', 'no-browser', 'new', 'server', 'source', 'recommend', 'json'],
   update: ['project', 'server', 'source', 'force', 'json'],
@@ -24,6 +24,26 @@ const ALLOWED_OPTIONS = {
   source: ['server', 'source'],
   locale: ['json'],
   help: [],
+};
+
+/** 명령줄 옵션 해석표. 명령별 허용 여부는 ALLOWED_OPTIONS 가 따로 가린다. */
+export const OPTIONS = {
+  help: { type: 'boolean', short: 'h' },
+  json: { type: 'boolean' },
+  title: { type: 'string' },
+  recommend: { type: 'string' },
+  message: { type: 'string' },
+  only: { type: 'string' },
+  from: { type: 'string' },
+  'dry-run': { type: 'boolean' },
+  project: { type: 'string' },
+  new: { type: 'string' },
+  'no-browser': { type: 'boolean' },
+  server: { type: 'string' },
+  source: { type: 'string' },
+  force: { type: 'boolean' },
+  'token-stdin': { type: 'boolean' },
+  apply: { type: 'boolean' },
 };
 
 /**
@@ -50,23 +70,7 @@ export async function main(argv) {
     parsed = parseArgs({
       args: argv,
       allowPositionals: true,
-      options: {
-        help: { type: 'boolean', short: 'h' },
-        json: { type: 'boolean' },
-        title: { type: 'string' },
-        recommend: { type: 'string' },
-        message: { type: 'string' },
-        only: { type: 'string' },
-        from: { type: 'string' },
-        'dry-run': { type: 'boolean' },
-        project: { type: 'string' },
-        new: { type: 'string' },
-        'no-browser': { type: 'boolean' },
-        server: { type: 'string' },
-        source: { type: 'string' },
-        force: { type: 'boolean' },
-        'token-stdin': { type: 'boolean' },
-      },
+      options: OPTIONS,
     });
   } catch (e) {
     console.error(e.message);

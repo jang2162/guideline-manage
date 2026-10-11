@@ -176,3 +176,16 @@ test('CLI 는 언어 경고(모르는 언어, 깨진 언어팩)를 stderr 에 �
   const hits = r.stderr.split('\n').filter(l => /"jp"/.test(l));
   assert.equal(hits.length, 1, r.stderr);
 });
+
+test('명령별로 허용한 옵션은 모두 명령줄 해석표에 있다', async () => {
+  const { OPTIONS, ALLOWED_OPTIONS } = await import('../src/cli.js');
+  const missing = Object.entries(ALLOWED_OPTIONS).flatMap(([cmd, names]) => names.filter(n => !Object.hasOwn(OPTIONS, n)).map(n => `${cmd} --${n}`));
+  assert.deepEqual(missing, []);
+});
+
+test('propose --apply 를 명령줄에서 받는다', () => {
+  const folder = tmpDir('guideline-not-source-');
+  const r = run(['propose', '--from', folder, '--title', 'x', '--apply'], folder);
+  assert.doesNotMatch(r.out, /Unknown option/);
+  assert.equal(r.code, 2);
+});
