@@ -9,6 +9,8 @@ import { t } from '../../../cli/src/i18n.js';
 const COOKIE = 'gf';
 const AGENTS = ['claude', 'codex'];
 const isObj = v => typeof v === 'object' && v !== null && !Array.isArray(v);
+// 폼 단계. 브라우저(forms.js)의 STEPS 와 같다.
+const STEPS = ['rules', 'mcp', 'agents', 'skills', 'confirm'];
 
 /** 쿠키의 링크 토큰으로 폼을 찾는다. 없거나 틀리면 404. */
 function formOf(ctx) {
@@ -51,6 +53,7 @@ function formBody(f) {
 <label><input type="checkbox" id="force"> ${t('web.form.force')}</label>
 </section>
 <section id="checklist">
+<nav id="steps" class="steps" aria-label="${t('web.form.steps')}">${STEPS.map((s, i) => html`<button type="button" class="step" data-step="${s}"><b>${i + 1}. ${t(`web.form.step.${s}`)}</b><small></small></button>`)}</nav>
 <div class="toolbar"><span class="meta">${t('web.form.byCategory')}</span><div id="chips" class="chips"></div><button type="button" class="secondary" id="reset">${t('web.form.reset')}</button></div>
 <div id="list"></div>
 </section>
@@ -59,7 +62,9 @@ function formBody(f) {
 <footer id="bar" class="form-bar">
 <span id="summary"></span>
 <button type="button" class="secondary" data-cancel>${t('web.cancel')}</button>
-<button type="button" id="submit">${t('web.form.submit')}</button>
+<button type="button" class="secondary" id="prev">${t('web.form.prev')}</button>
+<button type="button" id="next">${t('web.form.next')}</button>
+<button type="button" id="submit" hidden>${t('web.form.submit')}</button>
 </footer>
 <dialog id="diff"><form method="dialog"><header><b id="diff-title"></b><button class="secondary">${t('web.close')}</button></header><div id="diff-body"></div></form></dialog>`;
 }

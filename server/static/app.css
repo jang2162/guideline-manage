@@ -284,3 +284,12 @@ pre.diff-lines .dh { color: var(--muted); }
 .why { margin-left: .5em; color: var(--muted); font-size: 12px; font-weight: 400; }
 .note.warn, .reason.warn { color: var(--warn-fg); }
 .note.dep-note { background: var(--warn-bg); color: var(--warn-fg); padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; }
+.steps { display: flex; gap: 6px; margin: 0 0 12px; flex-wrap: wrap; }
+.steps .step { flex: 1 1 110px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); text-align: left; cursor: pointer; }
+.steps .step small { color: var(--faint); font-size: 11.5px; font-weight: 400; }
+.steps .step.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.steps .step.none { opacity: .5; cursor: default; }
+.chip.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.confirm-step h3 { margin: 14px 0 6px; font-size: 14px; }
+.confirm-step ul { margin: 0; padding-left: 18px; }
+.hidden-count { margin: 10px 2px; }

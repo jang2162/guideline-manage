@@ -1,6 +1,6 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, requiredClosure, missingRequires, releasable } from './selection.js';
+import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, requiredClosure, missingRequires, releasable } from './selection.js';
 
 const $ = sel => document.querySelector(sel);
 // 문구는 서버가 페이지의 i18n JSON 블록에 실어 준다(서버 언어).
@@ -28,7 +28,8 @@ const LOCK_LABEL = {
 };
 const ACTION_LABEL = { add: t('web.client.add'), update: t('web.client.update'), remove: t('web.client.remove') };
 // auto: 의존성으로 켠 블록, touched: 사람이 직접 켜거나 끈 블록, notes: 마지막 동작에서 함께 켠·끈 안내.
-const state = { data: null, choices: {}, initial: {}, open: new Set(), finished: false, auto: new Set(), touched: new Set(), notes: [] };
+const state = { data: null, choices: {}, initial: {}, open: new Set(), finished: false, auto: new Set(), touched: new Set(), notes: [], step: 'rules', cat: null };
+const STEPS = ['rules', 'mcp', 'agents', 'skills', 'confirm'];
 
 async function call(name, body = {}) {
   const res = await fetch(`${base}/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -213,58 +214,126 @@ function renderSummary() {
   $('#submit').classList.toggle('danger', c.remove > 0);
 }
 
+/** 분류 거르기에서 보이는가. 체크 상태와는 상관없다. */
+const visible = item => !state.cat || itemCategories(item).includes(state.cat);
+/** 단계의 항목(원본에서 사라진 것 포함). */
+const stepItems = step => state.data.items.filter(i => stepOf(i) === step);
+/** 단계에 고를 것이 있는가. 확인 단계는 늘 있다. */
+const hasStep = step => step === 'confirm' || stepItems(step).length > 0;
+
+function renderSteps() {
+  const chosen = chosenUnits();
+  for (const b of document.querySelectorAll('[data-step]')) {
+    const step = b.dataset.step;
+    const n = step === 'confirm' ? chosen.size : [...chosen].filter(u => stepOf({ kind: '', id: u }) === step).length;
+    b.querySelector('small').textContent = step === 'confirm' ? '' : hasStep(step) ? t('web.client.stepCount', { n }) : t('web.client.stepNone');
+    b.classList.toggle('on', step === state.step);
+    b.classList.toggle('none', !hasStep(step));
+    b.setAttribute('aria-current', step === state.step ? 'step' : 'false');
+  }
+  const at = STEPS.indexOf(state.step);
+  $('#prev').hidden = !STEPS.slice(0, at).some(hasStep);
+  $('#next').hidden = state.step === 'confirm';
+  $('#submit').hidden = state.step !== 'confirm';
+  $('#chips').closest('.toolbar').hidden = state.step === 'confirm';
+}
+
 function renderList() {
   const { items, catalog, overrides } = state.data;
   const out = [];
-  for (const s of catalog.stacks) {
-    const rules = items.filter(i => i.kind === 'rule' && i.stack === s.name && !isRemoved(i));
-    const setup = items.find(i => i.kind === 'setup' && i.stack === s.name && !isRemoved(i));
-    const live = stackItems(s.name);
-    const on = live.filter(i => isChecked(itemKey(i))).length;
-    const id = `stack:${s.name}`;
-    const rows = [
-      ...stackNotes(s, rules).map(n => `<div class="note">${esc(n)}</div>`),
-      ...missingNotes(`rules/${s.name}`).map(n => `<div class="note warn">${esc(n)}</div>`),
-      ...rules.map(r => {
-        const own = itemCategories(r).filter(c => !s.categories.includes(c));
-        const n = overrides.filter(o => o.valid && o.target === r.id).length;
-        return rowHtml(r, r.id.split('/')[2], r.load ?? '', { badges: n ? [t('web.client.overrideCount', { n })] : [], cats: own });
-      }),
-      ...(setup ? [rowHtml(setup, 'SETUP.md', t('web.client.setupDoc'))] : []),
-    ];
-    out.push(`<details class="group" data-group="${esc(id)}" ${state.open.has(id) ? 'open' : ''}><summary>`
-      + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${live.length && on === live.length ? 'checked' : ''} ${on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length ? '' : 'disabled'}>`
-      + `<b>${blockHtml(s.name, s.label)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(`rules/${s.name}`)}`
-      + `${(project().rootStacks ?? []).includes(s.name) ? `<span class="cats">${esc(t('web.client.inRoot'))}</span>` : ''}`
-      + `<span class="meta count">${on}/${live.length}</span></summary>${rows.join('')}</details>`);
+  let hidden = 0;
+  const step = state.step;
+  if (step === 'rules') {
+    for (const s of catalog.stacks) {
+      const rules = items.filter(i => i.kind === 'rule' && i.stack === s.name && !isRemoved(i));
+      const setup = items.find(i => i.kind === 'setup' && i.stack === s.name && !isRemoved(i));
+      const all = [...rules, ...(setup ? [setup] : [])];
+      const shown = all.filter(visible);
+      hidden += all.length - shown.length;
+      if (all.length && !shown.length) continue;
+      const live = stackItems(s.name).filter(visible);
+      const on = live.filter(i => isChecked(itemKey(i))).length;
+      const id = `stack:${s.name}`;
+      const rows = [
+        ...stackNotes(s, rules).map(n => `<div class="note">${esc(n)}</div>`),
+        ...missingNotes(`rules/${s.name}`).map(n => `<div class="note warn">${esc(n)}</div>`),
+        ...rules.filter(visible).map(r => {
+          const own = itemCategories(r).filter(c => !s.categories.includes(c));
+          const n = overrides.filter(o => o.valid && o.target === r.id).length;
+          return rowHtml(r, r.id.split('/')[2], r.load ?? '', { badges: n ? [t('web.client.overrideCount', { n })] : [], cats: own });
+        }),
+        ...(setup && visible(setup) ? [rowHtml(setup, 'SETUP.md', t('web.client.setupDoc'))] : []),
+      ];
+      out.push(`<details class="group" data-group="${esc(id)}" ${state.open.has(id) ? 'open' : ''}><summary>`
+        + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${live.length && on === live.length ? 'checked' : ''} ${on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length ? '' : 'disabled'}>`
+        + `<b>${blockHtml(s.name, s.label)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(`rules/${s.name}`)}`
+        + `${(project().rootStacks ?? []).includes(s.name) ? `<span class="cats">${esc(t('web.client.inRoot'))}</span>` : ''}`
+        + `<span class="meta count">${on}/${live.length}</span></summary>${rows.join('')}</details>`);
+    }
   }
   const simple = (id, title, list, label, meta) => {
-    if (list.length === 0) return;
-    const on = list.filter(i => isChecked(itemKey(i))).length;
+    const shown = list.filter(visible);
+    hidden += list.length - shown.length;
+    if (shown.length === 0) return;
+    const on = shown.filter(i => isChecked(itemKey(i))).length;
     out.push(`<details class="group" data-group="${id}" ${state.open.has(id) ? 'open' : ''}><summary><b>${esc(title)}</b>`
-      + `<span class="meta count">${on}/${list.length}</span></summary>`
-      + list.map(i => rowHtml(i, label(i), meta(i), {
+      + `<span class="meta count">${on}/${shown.length}</span></summary>`
+      + shown.map(i => rowHtml(i, label(i), meta(i), {
         cats: itemCategories(i), nameHtml: itemLabel(i) ? blockHtml(label(i), itemLabel(i)) : null,
         tags: i.kind === 'orphan' ? '' : unitTags(blockKey(i.id)), warns: i.kind === 'orphan' ? [] : missingNotes(blockKey(i.id)),
       })).join('') + '</details>');
   };
   const of = kind => items.filter(i => i.kind === kind && !isRemoved(i));
-  simple('gone', t('web.client.orphan'), items.filter(i => i.state === 'orphan' || isRemoved(i)), i => i.id, () => t('web.client.uncheckDeletes'));
-  simple('skills', t('web.client.skills'), of('skill'), i => i.id.slice('skills/'.length), () => '');
-  simple('subagents', t('web.client.subagents'), of('subagent'), i => i.id.slice('agents/'.length).replace(/\.md$/, ''), () => '');
-  simple('mcp', 'MCP', of('mcp'), i => i.id.slice('mcp/'.length), i => (i.build ? t('web.client.fromReadme') : ''));
+  if (step === 'mcp') simple('mcp', 'MCP', of('mcp'), i => i.id.slice('mcp/'.length), i => (i.build ? t('web.client.fromReadme') : ''));
+  if (step === 'agents') simple('subagents', t('web.client.subagents'), of('subagent'), i => i.id.slice('agents/'.length).replace(/\.md$/, ''), () => '');
+  if (step === 'skills') simple('skills', t('web.client.skills'), of('skill'), i => i.id.slice('skills/'.length), () => '');
+  if (step !== 'confirm') {
+    simple(`gone:${step}`, t('web.client.orphan'), items.filter(i => (i.state === 'orphan' || isRemoved(i)) && stepOf(i) === step), i => i.id, () => t('web.client.uncheckDeletes'));
+  } else {
+    out.push(confirmHtml());
+  }
   const notes = state.notes.map(n => `<div class="note dep-note">${esc(n)}</div>`).join('');
-  $('#list').innerHTML = notes + out.join('');
+  const hiddenLine = state.cat && hidden ? `<p class="meta hidden-count">${esc(t('web.client.hiddenByCategory', { cat: state.cat, n: hidden }))}</p>` : '';
+  $('#list').innerHTML = notes + out.join('') + hiddenLine;
   for (const box of document.querySelectorAll('[data-mixed]')) box.indeterminate = true;
+  renderSteps();
   renderSummary();
 }
 
+/** 확인 단계: 단계마다 골라진 블록과 빠진 의존성. */
+function confirmHtml() {
+  const chosen = [...chosenUnits()];
+  const parts = STEPS.filter(s => s !== 'confirm').map(step => {
+    const units = chosen.filter(u => stepOf({ kind: '', id: u }) === step);
+    if (!units.length) return '';
+    return `<section class="confirm-step"><h3>${esc(t(`web.form.step.${step}`))}</h3><ul>`
+      + units.map(u => `<li>${esc(unitName(u))}${unitTags(u)}${missingNotes(u).map(w => `<div class="reason warn">${esc(w)}</div>`).join('')}</li>`).join('')
+      + '</ul></section>';
+  }).join('');
+  return parts || `<p class="meta">${esc(t('web.client.confirmEmpty'))}</p>`;
+}
+
 function renderChips() {
-  const chips = [...new Set(state.data.items.flatMap(i => itemCategories(i)))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const chips = [...new Set(stepItems(state.step).flatMap(i => itemCategories(i)))].sort((a, b) => a.localeCompare(b, 'ko'));
+  if (state.cat && !chips.includes(state.cat)) chips.unshift(state.cat);
   $('#chips').innerHTML = chips.length
-    ? chips.map(c => `<button type="button" class="chip" data-cat="${esc(c)}">${esc(c)}</button>`).join('')
+    ? [`<button type="button" class="chip${state.cat ? '' : ' on'}" data-cat="">${esc(t('web.client.allCategories'))}</button>`,
+      ...chips.map(c => `<button type="button" class="chip${c === state.cat ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`)].join('')
     : `<span class="meta">${esc(t('web.client.noCategories'))}</span>`;
 }
+
+/** 단계를 옮긴다. 고를 것이 없는 단계는 건너뛴다. */
+function goStep(step) {
+  state.step = step;
+  renderChips();
+  renderList();
+  window.scrollTo?.(0, 0);
+}
+const nextStep = dir => {
+  const at = STEPS.indexOf(state.step);
+  const list = dir > 0 ? STEPS.slice(at + 1) : STEPS.slice(0, at).reverse();
+  return list.find(hasStep);
+};
 
 function openCheckedStacks() {
   for (const s of state.data.catalog.stacks) {
@@ -305,7 +374,7 @@ $('#list').addEventListener('change', e => {
   if (t.dataset.key) userCheck(state.data.items.find(i => itemKey(i) === t.dataset.key), t.checked);
   else if (t.dataset.update) state.choices[t.dataset.update].update = t.checked;
   else if (t.dataset.overwrite) state.choices[t.dataset.overwrite].overwrite = t.checked;
-  else if (t.dataset.stack) for (const i of stackItems(t.dataset.stack)) userCheck(i, t.checked);
+  else if (t.dataset.stack) for (const i of stackItems(t.dataset.stack).filter(visible)) userCheck(i, t.checked);
   else return;
   renderList();
 });
@@ -319,15 +388,25 @@ $('#list').addEventListener('toggle', e => {
   if (e.target.open) state.open.add(id);
   else state.open.delete(id);
 }, true);
-// 분류 버튼은 켜기만 한다. 실수로 제거가 걸리지 않게 끄는 동작은 두지 않는다.
+// 분류 칩은 거르기만 한다. 체크 상태는 바꾸지 않는다. 고른 분류는 단계를 옮겨도 남는다.
 $('#chips').addEventListener('click', e => {
-  const c = e.target.closest('[data-cat]')?.dataset.cat;
-  if (!c) return;
-  for (const i of state.data.items) {
-    if (i.state !== 'blocked' && i.kind !== 'orphan' && !isRemoved(i) && itemCategories(i).includes(c)) check(i, true);
-  }
-  openCheckedStacks();
+  const b = e.target.closest('[data-cat]');
+  if (!b) return;
+  state.cat = b.dataset.cat || null;
+  renderChips();
   renderList();
+});
+$('#steps').addEventListener('click', e => {
+  const b = e.target.closest('[data-step]');
+  if (b && hasStep(b.dataset.step)) goStep(b.dataset.step);
+});
+$('#next').addEventListener('click', () => {
+  const s = nextStep(1);
+  if (s) goStep(s);
+});
+$('#prev').addEventListener('click', () => {
+  const s = nextStep(-1);
+  if (s) goStep(s);
 });
 $('#reset').addEventListener('click', () => {
   state.choices = structuredClone(state.initial);
@@ -383,8 +462,9 @@ if (app.dataset.status !== 'pending') {
     state.initialAuto = new Set(state.auto);
     $('#choose').hidden = !needsForm();
     $('#dirty').hidden = project().isNew === true || (project().gitRepo && !project().dirty);
-    state.open = new Set(['gone', 'skills', 'subagents', 'mcp']);
+    state.open = new Set(['gone:rules', 'gone:mcp', 'gone:agents', 'gone:skills', 'skills', 'subagents', 'mcp']);
     openCheckedStacks();
+    state.step = STEPS.find(hasStep);
     renderChips();
     renderList();
     call('ping').catch(() => {});

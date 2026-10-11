@@ -588,5 +588,18 @@
   "web.client.why": "Why: {why}",
   "web.client.dependency": "Dependency",
   "web.client.autoChecked": "{by} needs {needs}, so it was checked too",
-  "web.client.missingRequire": "{needs} is missing — {by} needs it"
+  "web.client.missingRequire": "{needs} is missing — {by} needs it",
+  "web.form.steps": "Steps",
+  "web.form.step.rules": "Guidelines",
+  "web.form.step.mcp": "MCP",
+  "web.form.step.agents": "Subagents",
+  "web.form.step.skills": "Skills",
+  "web.form.step.confirm": "Review",
+  "web.form.prev": "← Back",
+  "web.form.next": "Next →",
+  "web.client.stepCount": "{n} chosen",
+  "web.client.stepNone": "None",
+  "web.client.hiddenByCategory": "{n} hidden — not in category \"{cat}\"",
+  "web.client.allCategories": "All",
+  "web.client.confirmEmpty": "Nothing chosen"
 }

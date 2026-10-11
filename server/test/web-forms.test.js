@@ -186,3 +186,12 @@ test('폼 페이지는 추천·의존성 문구를 브라우저 문구 블록에
     assert.ok(page.includes(`"${key}"`), key);
   }
 });
+
+test('폼에는 단계 탭 다섯(지침·MCP·서브에이전트·스킬·확인)과 이전·다음 버튼이 있다', async t => {
+  const f = await setup(t);
+  const cookie = await openForm(f);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
+  for (const step of ['rules', 'mcp', 'agents', 'skills', 'confirm']) assert.ok(page.includes(`data-step="${step}"`), step);
+  assert.ok(page.includes('id="prev"') && page.includes('id="next"'));
+  for (const key of ['web.client.stepCount', 'web.client.stepNone', 'web.client.hiddenByCategory', 'web.client.allCategories']) assert.ok(page.includes(`"${key}"`), key);
+});

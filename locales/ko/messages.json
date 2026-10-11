@@ -588,5 +588,18 @@
   "web.client.why": "이유: {why}",
   "web.client.dependency": "의존성",
   "web.client.autoChecked": "{by} 이 {needs} 을 필요로 해서 함께 체크함",
-  "web.client.missingRequire": "{needs} 없음 — {by} 이 필요로 함"
+  "web.client.missingRequire": "{needs} 없음 — {by} 이 필요로 함",
+  "web.form.steps": "고르는 단계",
+  "web.form.step.rules": "지침",
+  "web.form.step.mcp": "MCP",
+  "web.form.step.agents": "서브에이전트",
+  "web.form.step.skills": "스킬",
+  "web.form.step.confirm": "확인",
+  "web.form.prev": "← 이전",
+  "web.form.next": "다음 →",
+  "web.client.stepCount": "{n}개 선택",
+  "web.client.stepNone": "없음",
+  "web.client.hiddenByCategory": "분류 「{cat}」 가 아닌 {n}개 숨김",
+  "web.client.allCategories": "전체",
+  "web.client.confirmEmpty": "고른 것 없음"
 }
