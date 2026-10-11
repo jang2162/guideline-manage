@@ -1,7 +1,7 @@
 {
   "version": 2,
   "revisions": {
-    "default": 5
+    "default": 6
   },
   "sources": {
     "default:mcp/codegraph": "f6e4c3dc8b10c412e418c0d5e68bc69d7061cfb424e79aa75cfa11fa8ad40b5a",
@@ -54,7 +54,7 @@
     "default:rules/tiergear/02-orca-spawn.md": "150896fe165ccb4508c6d302f01962c521ff5aa93ad1fecb4a8b7aa7d8255551",
     "default:skills/guideline-export": "2d8b52f724d911802e39c6d8fefc65fe0ca3b0e91fd2470fb0f35c463bbef928",
     "default:skills/guideline-sync": "a3c56d5174db16271895fbe5eeb6023c2ef63fc3e6013b18d9dca9dc1f127d2a",
-    "default:skills/orca-worker": "b30feea8c268c3a93b3822210fa82de0f6f3fb7442453a48fb377a54d59e7bb8"
+    "default:skills/orca-worker": "1d719c952f0af1e22d2ec1c6e8b287512df3f7e715708e64665d7d766fb0074b"
   },
   "outputs": [
     {
@@ -220,7 +220,7 @@
       "items": [
         "default:skills/orca-worker"
       ],
-      "hash": "16de0d0e4ff815c48e1f784dc60efb27ef2a8daf2b27e9f0230d579177a4d9bb"
+      "hash": "9e688e3c2cc920fb776984b2d091447b72e245519ec2a7bb02daae9fb401f492"
     },
     {
       "path": ".ruler/skills/orca-worker/delivery.md",
