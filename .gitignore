@@ -33,3 +33,6 @@ compose.override.yaml
 
 # Playwright MCP page snapshots and screenshots
 /.playwright-mcp/
+
+# Orca 개인용 이슈 명령
+/.orca/issue-command
