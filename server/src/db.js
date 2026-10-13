@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 
-/** 버전 v 에서 v+1 로 올리는 SQL. 배열의 인덱스가 출발 버전이다. 이미 나간 항목은 고치지 않고 뒤에 더한다. */
+/** 버전 v 에서 v+1 로 올리는 SQL. 배열의 인덱스가 출발 버전이다. 이미 나간 항목은 고치지 않고 뒤에 추가한다. */
 export const MIGRATIONS = [
   `CREATE TABLE tokens (
      id           INTEGER PRIMARY KEY,

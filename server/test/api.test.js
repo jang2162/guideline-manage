@@ -51,7 +51,7 @@ test('공개(PUBLIC_READ=1)면 읽기 API 는 토큰 없이 되지만, 틀린·�
   assert.equal((await s.req('/api/v1/proposals')).status, 401, '제안은 공개와 상관없이 토큰');
 });
 
-test('catalog 는 리비전 번호를 더한 list --json 을 낸다. 없는 리비전은 404', async t => {
+test('catalog 는 리비전 번호를 추가한 list --json 을 낸다. 없는 리비전은 404', async t => {
   const root = makeRichDocsRepo();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const s = await startApp(t);

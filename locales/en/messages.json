@@ -106,7 +106,7 @@
   "manage.propose": "with `guideline propose`",
   "manage.proposeMulti": "with `guideline propose` (it goes to the source the item came from)",
   "manage.setupIntro": "- When setting up the project (when a stack is first received, after a fresh clone, or when the setup looks wrong), read and follow the documents below. Picking a stack is the decision to bring that technology into this project. Do not skip the setup because the project does not use that technology yet — the setup is the step that brings it in. If you cannot do the setup (permissions, a setting a person must change in an app, and so on), tell the user instead of skipping it.",
-  "manifest.badAgents": "agents must be one or more of claude, codex",
+  "manifest.badAgents": "agents must be one or more of claude, codex, opencode",
   "manifest.badAliasKey": "key {key} in sources.{name}.aliases must be rules/<stack>, skills/<name>, agents/<name>.md or mcp/<name>",
   "manifest.badAliasValue": "value {value} of sources.{name}.aliases.{key} breaks the naming rule",
   "manifest.badForm": "form must be ruler or instructions",

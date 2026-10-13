@@ -67,7 +67,7 @@ export function categoriesValue(items) {
 }
 
 /**
- * frontmatter 의 최상위 키 하나를 바꾸거나 더하거나(끝에) 지운다. 값이 null·빈 문자열이면 줄을 지운다.
+ * frontmatter 의 최상위 키 하나를 바꾸거나 추가하거나(끝에) 지운다. 값이 null·빈 문자열이면 줄을 지운다.
  * frontmatter 가 없으면 만든다(지울 때는 그대로). 값은 quoteValue 로 쓴다. 분류처럼 이미 YAML 인 값은 raw 로 준다.
  * @param {string} text
  * @param {string} key

@@ -114,13 +114,13 @@ test('toRealChanges: 별칭 스킬의 name 줄을 되돌리고 기준 해시는 
   const company = memoryTree(SOURCE);
   const sources = [{ name: 'company', items: ['skills/s'], aliases: { 'skills/s': 'company-s' } }];
   const view = sourceView(company, sources[0].aliases);
-  const edited = readText(view, 'skills/company-s/SKILL.md').replace(/\n$/, '\n더한 줄\n');
+  const edited = readText(view, 'skills/company-s/SKILL.md').replace(/\n$/, '\n추가한 줄\n');
   const viewChanges = [changeOf(view, 'skills/company-s/SKILL.md', Buffer.from(edited))];
   const real = toRealChanges({ changes: viewChanges, sources, trees: new Map([['company', { tree: company }]]) });
   const [c] = real.get('company');
   assert.equal(c.path, 'skills/s/SKILL.md');
   assert.match(c.content.toString(), /^---\nname: s\n/);
-  assert.match(c.content.toString(), /더한 줄\n$/);
+  assert.match(c.content.toString(), /추가한 줄\n$/);
   assert.equal(c.base, sha256(Buffer.from(SOURCE['skills/s/SKILL.md'])));
 });
 

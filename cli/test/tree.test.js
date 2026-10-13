@@ -45,7 +45,7 @@ test('pathsTree 는 목록에 없는 경로를 읽지 않는다', () => {
   assert.deepEqual(calls, ['a/b.md']);
 });
 
-test('overlayTree 는 바꾼 파일을 읽고, 지운 파일과 비게 된 디렉터리를 숨기고, 새 파일을 더한다', () => {
+test('overlayTree 는 바꾼 파일을 읽고, 지운 파일과 비게 된 디렉터리를 숨기고, 새 파일을 추가한다', () => {
   const base = memoryTree({ 'rules/a/00-x.md': 'x', 'rules/b/00-y.md': 'y', 'rules/b/01-z.md': 'z' });
   const tree = overlayTree(base, { 'rules/a/00-x.md': null, 'rules/b/00-y.md': 'Y', 'rules/c/00-n.md': 'n' });
   assert.deepEqual(tree.list('rules'), [{ name: 'b', dir: true }, { name: 'c', dir: true }]);

@@ -29,7 +29,7 @@ test('양쪽이 같게 고친 곳은 충돌이 아니다', () => {
   assert.deepEqual(merge3(BASE, 'a\nZ\nc\nd\ne\n', 'a\nZ\nc\nd\ne\n'), { ok: true, text: 'a\nZ\nc\nd\ne\n', conflicts: 0 });
 });
 
-test('끝에 더한 줄과 앞을 고친 것은 합쳐진다', () => {
+test('끝에 추가한 줄과 앞을 고친 것은 합쳐진다', () => {
   assert.equal(merge3(BASE, 'A\nb\nc\nd\ne\n', `${BASE}f\n`).text, 'A\nb\nc\nd\ne\nf\n');
 });
 

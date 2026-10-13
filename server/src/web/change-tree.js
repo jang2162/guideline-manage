@@ -57,7 +57,7 @@ export function groupChanges(paths, summary) {
 }
 
 /**
- * unified diff 의 더한·뺀 줄 수. ---/+++ 머리 줄은 세지 않는다.
+ * unified diff 의 추가한·뺀 줄 수. ---/+++ 머리 줄은 세지 않는다.
  * @param {string} text
  */
 export function diffCounts(text) {

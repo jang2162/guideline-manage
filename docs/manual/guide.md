@@ -172,7 +172,7 @@ guideline pick --new my-new-app    # GUIDELINE_PROJECTS_DIR/my-new-app
 guideline pick --new ~/work/x      # a path works too (absolute or ~)
 ```
 
-Choose the agents (claude, codex) at the top of the form. The form is always ruler. Submitting creates the folder, runs `git init`, and applies the choice. **Cancelling leaves no folder behind.**
+Choose the agents (claude, codex, opencode) at the top of the form. The form is always ruler. Submitting creates the folder, runs `git init`, and applies the choice. **Cancelling leaves no folder behind.**
 
 ## 6. Handing it to an agent
 

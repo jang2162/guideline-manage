@@ -101,7 +101,7 @@ export function tableSlice(text, segs) {
 }
 
 /**
- * 표를 바꾸거나(있으면), 끝에 더하거나(없으면), 지운다(null).
+ * 표를 바꾸거나(있으면), 끝에 추가하거나(없으면), 지운다(null).
  * @returns {{ text: string } | { conflict: string }}
  */
 export function setTable(text, segs, obj) {

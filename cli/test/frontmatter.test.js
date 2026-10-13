@@ -48,7 +48,7 @@ test('yamlString 은 YAML 로 읽히지 않을 값에 null', () => {
   }
 });
 
-test('setFrontmatterValue 는 키를 바꾸거나 더하거나 지우고, frontmatter 가 없으면 만든다', () => {
+test('setFrontmatterValue 는 키를 바꾸거나 추가하거나 지우고, frontmatter 가 없으면 만든다', () => {
   assert.equal(setFrontmatterValue('---\nname: a\nlabel: 옛\n---\n# t\n', 'label', '새'), '---\nname: a\nlabel: 새\n---\n# t\n');
   assert.equal(setFrontmatterValue('---\nname: a\n---\n# t\n', 'label', '새'), '---\nname: a\nlabel: 새\n---\n# t\n');
   assert.equal(setFrontmatterValue('---\nname: a\nlabel: 옛\n---\n# t\n', 'label', ''), '---\nname: a\n---\n# t\n');

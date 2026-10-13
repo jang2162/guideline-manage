@@ -77,7 +77,7 @@ test('비공개 서버에 토큰이 없으면 1, 공개 서버는 토큰 없이 
   assert.ok(path.isAbsolute(p));
 });
 
-test('status 는 서버가 본 토큰 이름·범위를 보이고(--json 은 token), 토큰이 없으면 아무것도 더하지 않는다', async t => {
+test('status 는 서버가 본 토큰 이름·범위를 보이고(--json 은 token), 토큰이 없으면 아무것도 추가하지 않는다', async t => {
   const { s, p, env } = await setup(t);
   const o = collect();
   assert.equal(await projectStatus({ project: p, env, out: o.out }), 0);

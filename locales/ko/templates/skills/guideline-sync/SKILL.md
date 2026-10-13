@@ -16,7 +16,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 3. 「로그인 필요」 가 나오면 사용자에게 `! guideline login --server <URL>` 을 실행하게 한다. 브라우저에서 「발급」 을 누르면 토큰이 저장된다.
 4. 이 디렉터리에 `.ruler/` 가 없으면 명령이 「ruler 프로젝트가 아님」 로 멈춘다. 그대로 알리고 멈춘다 — 기존 지침을 ruler 로 옮기는 일은 사용자가 한다.
 5. 모노레포의 하위 디렉터리(자기 `.ruler/` 가 있는 곳)에서 실행하면 그 디렉터리만 다룬다. 스킬·서브에이전트·MCP 는 git 루트에서 받는다(하위에서는 「반영 불가」 로 보인다).
-6. **출처가 여럿일 수 있다.** `guideline.json` 의 `sources` 에 출처(지침 서버)마다 `server`·`items`·`aliases` 가 있다. 명령은 모든 출처를 다루고, 한 출처만 다룰 때는 `--source <이름>` 을 붙인다. 새 출처는 `guideline pick --source <이름> --server <URL>` 로 더한다.
+6. **출처가 여럿일 수 있다.** `guideline.json` 의 `sources` 에 출처(지침 서버)마다 `server`·`items`·`aliases` 가 있다. 명령은 모든 출처를 다루고, 한 출처만 다룰 때는 `--source <이름>` 을 붙인다. 새 출처는 `guideline pick --source <이름> --server <URL>` 로 추가한다.
 7. **「이름 충돌」 로 멈추면**(코드 2) 두 출처가 같은 이름의 스택·스킬·서브에이전트·MCP 를 준 것이다. 내용은 서로 다르다. 안내에 나온 별칭(예: `"rules/base": "company-base"`)을 사용자에게 보여 주고, 고른 이름을 `guideline.json` 의 `sources.<출처>.aliases` 에 써서 다시 `guideline pick --source <출처>` 를 한다.
 
 ## 무엇을 할지
@@ -25,7 +25,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 
 | 요청 | 명령 |
 | --- | --- |
-| 처음 받기, 항목 더하기·빼기("지침 내보내", "이 스택 추가") | `guideline pick --json` |
+| 처음 받기, 항목 추가·빼기("지침 내보내", "이 스택 추가") | `guideline pick --json` |
 | 프로젝트에 맞는 지침을 골라 달라("맞는 지침 받아와", "알아서 골라") | 아래 「추천해서 받기」 |
 | 고른 그대로 최신으로("지침 최신으로") | `guideline update --json` |
 | 새 프로젝트("새 프로젝트에 지침") | `guideline pick --new <이름 또는 경로> --json` |
@@ -57,7 +57,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `conflict` | 같은 이름의 파일·항목이 이미 있고 원본과 다르다. 차이를 보여 주고 고르게 한다 |
 | `skipped` | 프로젝트에서 고친 파일이라 건너뛰었다. 원본에 올릴지(`guideline propose`), 덮어쓸지(`guideline update --force`) 묻는다 |
 | `override` | 바꿈 절이 원본에 없는 파일·절을 가리킨다. 바꿈 절의 첫 줄을 고친다 |
-| `subagents-off` | `.ruler/ruler.toml` 에 `[agents] enabled = true` 를 켤지 묻는다(켜면 `.gitignore` 에 생성물이 더해진다) |
+| `subagents-off` | `.ruler/ruler.toml` 에 `[agents] enabled = true` 를 켤지 묻는다(켜면 `.gitignore` 에 생성물이 추가된다) |
 | `ruler-apply` | 안내한 명령을 실행해도 되는지 묻는다 |
 | `new-file`·`removed-upstream` | 알리고, 고르거나 지우려면 `guideline pick` 을 하자고 한다 |
 | `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`, 원본 키)을 받지 않았다. 빠진 블록을 알리고, 그 블록을 담은 추천 파일(`{"<빠진 블록>": "<item> 이 필요로 함"}`)을 써서 `guideline pick --recommend <파일> --json` 을 「추천해서 받기」 처럼 띄운다 — 폼 제출이 확인이다. 출처가 여럿이면(`item` 이 `<출처>:` 로 시작) `--source <출처>` 를 붙인다 |

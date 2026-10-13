@@ -16,7 +16,7 @@ test('groupChanges 는 종류 → 블록 → 파일로 묶고, 문서와 블록 
   assert.equal(groups[3].blocks[0].name, null);
 });
 
-test('diffCounts 는 머리 줄을 빼고 더한·뺀 줄을 센다', () => {
+test('diffCounts 는 머리 줄을 빼고 추가한·뺀 줄을 센다', () => {
   assert.deepEqual(diffCounts('--- a\n+++ b\n@@ -1,2 +1,2 @@\n a\n-b\n+c\n+d\n'), { add: 2, del: 1 });
   assert.deepEqual(diffCounts(''), { add: 0, del: 0 });
 });

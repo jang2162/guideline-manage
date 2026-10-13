@@ -1,4 +1,4 @@
-// 블록 설정 페이지: 블록 하나의 표시 이름·분류, 파일 더하기, 이름 바꾸기·삭제. 관리자만 연다.
+// 블록 설정 페이지: 블록 하나의 표시 이름·분류, 파일 추가, 이름 바꾸기·삭제. 관리자만 연다.
 // 이름 바꾸기는 frontmatter 의 name: 줄도 같이 고쳐, 웹으로 바꾼 블록이 목록에서 빠지지 않게 한다.
 import { HttpError, readForm, redirect } from '../http.js';
 import { WriteError, ConflictError } from '../store.js';

@@ -7,7 +7,7 @@ import { buildSelection } from '../../../cli/src/selection.js';
 import { t } from '../../../cli/src/i18n.js';
 
 const COOKIE = 'gf';
-const AGENTS = ['claude', 'codex'];
+const AGENTS = ['claude', 'codex', 'opencode'];
 const isObj = v => typeof v === 'object' && v !== null && !Array.isArray(v);
 // 폼 단계. 브라우저(forms.js)의 STEPS 와 같다.
 const STEPS = ['rules', 'mcp', 'agents', 'skills', 'confirm'];
@@ -46,6 +46,7 @@ function formBody(f) {
 <div class="field">${t('web.form.agents')}
 <label><input type="checkbox" name="agent" value="claude" checked> claude</label>
 <label><input type="checkbox" name="agent" value="codex" checked> codex</label>
+<label><input type="checkbox" name="agent" value="opencode" checked> opencode</label>
 </div>
 </section>
 <section id="dirty" class="warn" hidden>

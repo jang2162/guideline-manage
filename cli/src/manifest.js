@@ -5,7 +5,7 @@ import { t } from './i18n.js';
 export const MANIFEST = 'guideline.json';
 export const LOCK = 'guideline-lock.json';
 export const FORMS = ['ruler', 'instructions'];
-export const AGENTS = ['claude', 'codex'];
+export const AGENTS = ['claude', 'codex', 'opencode'];
 
 export class ManifestError extends Error {}
 

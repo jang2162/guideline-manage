@@ -83,7 +83,7 @@ categories: [backend, spring]
 | 요소 | 다는 곳 |
 | --- | --- |
 | 스택 | `rules/<스택>/README.md` frontmatter. 그 스택의 모든 지침 파일이 물려받는다 |
-| 지침 파일 | 그 파일 frontmatter(`load` 옆). 스택 분류에 더해진다 |
+| 지침 파일 | 그 파일 frontmatter(`load` 옆). 스택 분류에 추가된다 |
 | 스킬 | `skills/<이름>/SKILL.md` frontmatter |
 | 서브에이전트 | `agents/<이름>.md` frontmatter |
 | MCP 서버 | `mcp/<이름>/README.md` frontmatter. `server.json` 에는 쓰지 않는다 — 프로젝트에 그대로 옮겨진다 |

@@ -12,7 +12,7 @@ export class ApplyError extends Error {
 }
 
 /** 지운 뒤 비면 지우는 디렉터리. 그 밖의 디렉터리는 비어도 둔다. */
-const CLEAN = [/^docs\/guideline(\/|$)/, /^\.ruler\/[^/]+(\/|$)/, /^\.(claude|agents)\/skills\/[^/]+(\/|$)/];
+const CLEAN = [/^docs\/guideline(\/|$)/, /^\.ruler\/[^/]+(\/|$)/, /^\.(claude|agents|opencode)\/skills\/[^/]+(\/|$)/];
 
 /** 프로젝트 루트 기준 상대 경로의 문제. 없으면 null. */
 export function pathProblemIn(rel) {

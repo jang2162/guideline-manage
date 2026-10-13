@@ -52,7 +52,7 @@ test('setTable 은 그 표만 바꾸고 다른 표·주석은 그대로 둔다',
   assert.equal(r.text, DOC.replace('[mcp_servers.c7]\ncommand = "old"', '[mcp_servers.c7]\ncommand = "npx"'));
 });
 
-test('setTable 은 없으면 끝에 빈 줄 하나 뒤에 더한다', () => {
+test('setTable 은 없으면 끝에 빈 줄 하나 뒤에 추가한다', () => {
   const r = setTable('a = 1\n\n\n', ['mcp_servers', 'x'], { url: 'u' });
   assert.equal(r.text, 'a = 1\n\n[mcp_servers.x]\nurl = "u"\n');
   assert.equal(setTable('', ['mcp_servers', 'x'], { url: 'u' }).text, '[mcp_servers.x]\nurl = "u"\n');

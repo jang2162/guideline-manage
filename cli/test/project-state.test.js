@@ -67,7 +67,7 @@ test('newFiles 는 고른 스택의 고르지 않은 지침 파일·세팅 문�
   assert.deepEqual(newFiles(tree, manifestOf('ruler', ['skills/s'])), []);
 });
 
-test('formItems 는 잠금 항목을 잠금 상태로 바꾸고 원본에서 사라진 항목을 더하며 잠금 출력의 고아는 뺀다', t => {
+test('formItems 는 잠금 항목을 잠금 상태로 바꾸고 원본에서 사라진 항목을 추가하며 잠금 출력의 고아는 뺀다', t => {
   const { p, manifest, lock } = installed(t);
   write(p, '.ruler/base/00-a.md', '# 고침\n');
   const tree = renderTree({ 'rules/base/01-b.md': null });

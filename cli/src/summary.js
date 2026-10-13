@@ -2,7 +2,7 @@ import { stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpS
 import { asTree } from './tree.js';
 
 /**
- * list --json 이 내는 객체. 서버의 /api/v1/catalog 도 이 객체에 리비전 번호를 더해 낸다.
+ * list --json 이 내는 객체. 서버의 /api/v1/catalog 도 이 객체에 리비전 번호를 추가해 낸다.
  * 칸이 경고 대상인 지침 파일은 load·when 이 null 이고, 경고 대상인 바꿈 행은 overrides 에 없다.
  * @param {string | import('./tree.js').Tree} src
  */

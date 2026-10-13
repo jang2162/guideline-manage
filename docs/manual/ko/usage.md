@@ -25,10 +25,10 @@
 | `guideline pick` | 서버 폼을 열고, 제출하면 고른 항목을 반영한다. `--new <이름\|경로>` 는 새 프로젝트를 만들고(`git init`) 반영한다. `--no-browser` 는 주소만 낸다. `--recommend <파일\|->` 는 에이전트가 고른 블록(JSON `{"블록 키": "이유"}`)을 미리 체크한 폼을 연다 — 출처 하나일 때만(여럿이면 `--source`). 0.19 이상 서버가 필요하다 — 옛 서버는 추천 없이 폼을 연다 |
 | `guideline update` | 고른 항목 그대로 서버 최신으로 다시 반영한다. 프로젝트에서 고친 파일은 건너뛰고, `--force` 면 덮어쓴다 |
 | `guideline status` | 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지 보고, 저장된 토큰의 이름과 범위를 보인다(`--json` 은 `token`. 토큰이 없거나 0.20 보다 옛 서버면 보이지 않는다) |
-| `guideline propose` | 고친 사본을 원본 모양으로 되돌려 제안한다. 범위 `admin` 토큰이면 제안 대신 바로 반영한다(검토 없음). `--review` 는 그래도 제안으로 보내고, `--apply` 는 명시해서 바로 반영한다(admin 토큰이 아니면 오류). `--dry-run`(보내면 둘 중 어느 쪽인지도 알린다), `--title`, `--message`, `--only <항목,…>`, `--from <폴더>`. `--json` 에는 `mode`: `apply` 또는 `proposal` 이 더해진다(보낼 것이 없으면 없다). 방식은 dry-run 으로 보는 것이 정확하다 — 실제로 보낼 때와 같은 토큰·서버로 묻지만, `status` 는 다른 토큰을 쓸 수 있다(출처가 여럿일 때, `GUIDELINE_TOKEN`) |
+| `guideline propose` | 고친 사본을 원본 모양으로 되돌려 제안한다. 범위 `admin` 토큰이면 제안 대신 바로 반영한다(검토 없음). `--review` 는 그래도 제안으로 보내고, `--apply` 는 명시해서 바로 반영한다(admin 토큰이 아니면 오류). `--dry-run`(보내면 둘 중 어느 쪽인지도 알린다), `--title`, `--message`, `--only <항목,…>`, `--from <폴더>`. `--json` 에는 `mode`: `apply` 또는 `proposal` 이 추가된다(보낼 것이 없으면 없다). 방식은 dry-run 으로 보는 것이 정확하다 — 실제로 보낼 때와 같은 토큰·서버로 묻지만, `status` 는 다른 토큰을 쓸 수 있다(출처가 여럿일 때, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | 서버에 로그인해 토큰을 저장하거나 지운다. `--token-stdin` 은 브라우저 없이 토큰을 넣는다. `login` 은 저장한 뒤 토큰의 범위(`read`·`propose`·`admin`)를 알린다 |
 
-`pick`·`update` 는 쓴 파일, 지운 파일, **할 일**을 낸다. `status` 도 할 일을 낸다. 할 일 종류는 서버의 `/llms.txt` 「에이전트가 할 일」 표에 있다. `update`·`status` 는 받은 블록이 필요로 하는(`requires`) 블록을 프로젝트가 받지 않았으면 요구하는 블록마다 `missing-requires` 할 일을 낸다 — 예를 들어 블록을 받은 뒤 원본에 새 `requires` 가 생긴 경우다. `data.missing` 에 빠진 블록 키가 있고, `guideline pick` 으로 더한다. 출처가 여럿이면 출처마다 그 출처의 `requires` 와 그 출처에서 받은 블록(별칭 전 이름)으로 판정한다.
+`pick`·`update` 는 쓴 파일, 지운 파일, **할 일**을 낸다. `status` 도 할 일을 낸다. 할 일 종류는 서버의 `/llms.txt` 「에이전트가 할 일」 표에 있다. `update`·`status` 는 받은 블록이 필요로 하는(`requires`) 블록을 프로젝트가 받지 않았으면 요구하는 블록마다 `missing-requires` 할 일을 낸다 — 예를 들어 블록을 받은 뒤 원본에 새 `requires` 가 생긴 경우다. `data.missing` 에 빠진 블록 키가 있고, `guideline pick` 으로 추가한다. 출처가 여럿이면 출처마다 그 출처의 `requires` 와 그 출처에서 받은 블록(별칭 전 이름)으로 판정한다.
 
 ## 원본 명령
 

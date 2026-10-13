@@ -169,7 +169,7 @@ function driverMany(list, plan, seen = []) {
 const checkOnly = pred => items => Object.fromEntries(items.map(i => [`${i.kind}:${i.id}`, { checked: pred(i), update: false }]));
 const pickQuiet = { ...quiet, pollWait: 1, out: () => {} };
 
-test('pick --source 로 출처를 더하고, --source 없이는 출처마다 차례로 폼을 연다', async t => {
+test('pick --source 로 출처를 추가하고, --source 없이는 출처마다 차례로 폼을 연다', async t => {
   const { a, b, env } = await servers(t);
   const p = project(t);
   assert.equal(await projectPick({ project: p, source: 'personal', server: a.base, env, ...pickQuiet,
