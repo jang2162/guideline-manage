@@ -130,7 +130,7 @@ Even on a public server, a wrong or revoked token gets 401.
 | --- | --- |
 | `POST /api/v1/proposals` | Creates a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text \| base64 \| delete: true, base: <sha256> \| null }] }`. The admin token or an `admin` scope token can add `apply: true` to apply it right away. Up to 500 changes and 20 MB |
 | `GET /api/v1/proposals`, `GET /api/v1/proposals/<number>` | Proposal status. Issued tokens see only their own proposals; an `admin` scope token sees all |
-| `POST /api/v1/proposals/<number>/accept`, `POST /api/v1/proposals/<number>/reject` | Accepts or rejects (admin token or `admin` scope token). Body `{ note? }`. A conflict is 409 with `conflicts` |
+| `POST /api/v1/proposals/<number>/accept`, `POST /api/v1/proposals/<number>/reject` | Accepts or rejects (admin token or `admin` scope token). Reject takes an optional body `{ note }`. A conflict is 409 with `conflicts` |
 
 Each proposal holds, per file, the new content (or deletion) and the source hash the proposer saw (`base`).
 On accept, if the source is unchanged it is taken as is; if it changed, a line-based 3-way merge combines them.

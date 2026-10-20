@@ -47,6 +47,9 @@ npm install -g guideline-manage
 > [!WARNING]
 > **0.20 전에 띄운 서버:** `guideline-export` 스킬의 2번 단계는 사용자가 검토 없이 반영하라고 했을 때만 `--apply` 를 쓰라고 합니다. 이 단계를 「admin 토큰이면 `guideline propose` 가 바로 반영하고, 검토를 받으려면 `--review`」 로 고치세요. 언어팩 `templates/skills/guideline-export/SKILL.md` 를 참고하세요. `guideline-sync` 의 「고친 사본을 원본에 올리기」 행도 같은 방식으로 고치세요.
 
+> [!WARNING]
+> **0.21 전에 띄운 서버:** `guideline-sync` 스킬이 `missing-requires` 할 일을 처리하지 못합니다. 그 스킬의 「할 일 처리」 절 첫 줄에 `status` 를 더하고 `missing-requires` 행을 추가하세요. 언어팩 `templates/skills/guideline-sync/SKILL.md` 에서 옮겨 오세요.
+
 ## 0.14 이하에서 옮기기
 
 - **기본 언어가 영어가 됐습니다.** 한국어를 계속 쓰려면 셸과 서버 환경에 `GUIDELINE_LANG=ko` 를 두세요. 두지 않으면 다음 `update` 에서 관리 지침(`.ruler/guideline.md`)과 색인(`99-reference.md`)이 영어로 다시 써집니다.

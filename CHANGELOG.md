@@ -6,12 +6,14 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
-- **Admin web:** on a block page, the file tree moved from the right side to just right of the block list (block list · file tree · document).
+- **opencode is a default agent:** the `guideline pick --new` form offers opencode next to claude and codex, checked by default, and `agents` in `guideline.json` accepts `opencode`.
+- **Admin web:** on a block page, the file tree moved from the right side to beside the block list (block list · file tree · document).
 
 ## 0.21.0
 
 - **`missing-requires` to-do:** `guideline update` and `guideline status` report a to-do for each received block that needs (`requires`) blocks the project has not received. `data.missing` lists the missing block keys. With several sources, each source is judged by its own `requires` and its own blocks, before aliases.
 - `/llms.txt` documents `--source`.
+- **⚠️ Servers already running**: the `guideline-sync` skill is a seed written only when a server first starts. On an existing server, add `status` to the first line of its "Handling to-dos" section and add the `missing-requires` row on the web (see the language pack's `templates/skills/guideline-sync/SKILL.md`). `llms.txt` is rebuilt per request and changes right away.
 
 ## 0.20.0 — Admin tokens apply directly
 

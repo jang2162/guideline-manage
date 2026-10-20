@@ -46,6 +46,9 @@ A server that was started before the versions below keeps the old text, so updat
 > [!WARNING]
 > **Servers started before 0.20:** step 2 of the `guideline-export` skill says to use `--apply` only when the user asks to skip review. Rewrite it to say that with an `admin` token `guideline propose` applies directly and `--review` asks for a review. See the language pack's `templates/skills/guideline-export/SKILL.md`. Change the "send an edited copy upstream" row of `guideline-sync` the same way.
 
+> [!WARNING]
+> **Servers started before 0.21:** the `guideline-sync` skill does not handle the `missing-requires` to-do. In its "Handling to-dos" section, add `status` to the first line and add the `missing-requires` row. Copy them from the language pack's `templates/skills/guideline-sync/SKILL.md`.
+
 ## Move from 0.14 or earlier
 
 - **The default language is now English.** To keep Korean, set `GUIDELINE_LANG=ko` in your shell and in the server environment. Otherwise the next `update` rewrites the management guideline (`.ruler/guideline.md`) and the index (`99-reference.md`) in English.

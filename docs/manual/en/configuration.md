@@ -38,7 +38,7 @@ Docker Compose reads them from `.env`.
 | `TRUST_PROXY` | `0` or `1` | `0` | `1` behind a single reverse proxy. Login rate limits then use the last value of `X-Forwarded-For`, which the proxy appends |
 | `GUIDELINE_LANG` | language code | `en` | Language of the admin web, API errors, `/llms.txt` and the seed of an empty server. `ko` for Korean. An unknown code logs a warning at startup and runs in English |
 | `GUIDELINE_SEED` | `on` or `off` | `on` | `off` skips the seed of an empty server. Use it when moving an old guideline repository clone in wholesale |
-| `GUIDELINE_LOCALES_DIR` | path | `locales/` in the data folder (`DATA_HOST_DIR/locales/` with Docker) | User language pack folder |
+| `GUIDELINE_LOCALES_DIR` | path | `locales/` in the data folder (`DATA_HOST_DIR/locales/` with Docker) | User language pack folder. Only without Docker: Compose does not pass it to the container, so with Docker put packs in `DATA_HOST_DIR/locales/` |
 | `DATA_DIR` | path | `/data` | Data folder when you run the server without Docker, for example `./.data` |
 | `PORT` | integer | `3000` | Port the server listens on when you run it without Docker |
 

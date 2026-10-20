@@ -50,6 +50,8 @@ Verify the installation:
 guideline help
 ```
 
+The first line of the output is:
+
 ```text
 Usage: guideline <command> [options]
 ```
@@ -73,8 +75,10 @@ The guideline server runs with Docker Compose from this repository. See [Deploy 
 2. At the root of a ruler project, open the form, choose guidelines and submit.
 
    ```bash
-   guideline pick
+   guideline pick --server <YOUR_SERVER_URL>
    ```
+
+   Later runs can drop `--server`, because the CLI keeps it in `guideline.json`.
 
 3. The terminal lists what was written and what is left to do. For example, choosing a `base` stack with three files prints:
 

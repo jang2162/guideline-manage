@@ -11,7 +11,7 @@ The `guideline` CLI (npm package `guideline-manage`) and the guideline server (`
 | Changing CLI command behavior | `docs/manual/en/reference.md`, `cli/test/` |
 | Changing the server, admin web or API | `docs/manual/en/reference.md`, `docs/manual/en/configuration.md`, `docs/manual/en/how-to/`, `server/test/` |
 | Changing user-facing text | `locales/en/messages.json` (canonical), `locales/ko/`, `docs/manual/en/how-to/add-a-language-pack.md` |
-| Changing the seed skills, authoring rules or `/llms.txt` | `locales/<lang>/templates/` |
+| Changing the seed skills, authoring rules or `/llms.txt` | `locales/<lang>/templates/`; for seed skills or authoring rules also add a "Servers started before <version>" warning to `docs/manual/en/how-to/upgrade.md` "Update the seed on a running server" |
 | Writing or moving user docs (`README*.md`, `docs/manual/`) | `CONTRIBUTING.md` "Documentation" |
 | Releasing | `CONTRIBUTING.md` "Releases" |
 

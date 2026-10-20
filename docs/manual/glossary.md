@@ -10,6 +10,7 @@ Product names, commands, file names, setting keys and code stay untranslated.
 | guideline server | 지침 서버 | The server that holds the source (`guideline-server`) |
 | source (guideline content) | 원본 | The guidelines held on a server. `guideline source`, `propose --from` |
 | source (a server entry) | 출처 | A named server in `guideline.json`, chosen with `--source <name>` |
+| source (of a revision) | 생성 경로 | How a revision was made: `import`, `web`, `revert`, `proposal`, `seed` |
 | copy | 사본 | A source file written into a project |
 | stack | 스택 | A group of rule files under `rules/<stack>/` |
 | domain stack | 도메인 스택 | A stack named `<tool>__<domain>` |

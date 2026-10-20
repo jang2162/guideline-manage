@@ -51,6 +51,8 @@ npm install -g guideline-manage
 guideline help
 ```
 
+출력의 첫 줄은 다음과 같습니다.
+
 ```text
 사용법: guideline <명령> [옵션]
 ```
@@ -74,8 +76,10 @@ guideline help
 2. ruler 프로젝트의 루트에서 폼을 열고, 지침을 고르고, 제출하세요.
 
    ```bash
-   guideline pick
+   guideline pick --server <YOUR_SERVER_URL>
    ```
+
+   CLI 가 `guideline.json` 에 서버 주소를 남기므로 두 번째부터는 `--server` 를 빼도 됩니다.
 
 3. 터미널에 쓴 것과 남은 할 일이 나옵니다. 예를 들어 파일 세 개짜리 `base` 스택을 고르면 다음과 같습니다.
 

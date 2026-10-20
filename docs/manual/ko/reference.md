@@ -131,12 +131,12 @@
 | --- | --- |
 | `POST /api/v1/proposals` | 제안을 만듭니다(범위 `propose` 토큰). 본문 `{ title, description?, project?, changes: [{ path, text \| base64 \| delete: true, base: <sha256> \| null }] }`. 관리자 토큰이나 범위 `admin` 토큰은 `apply: true` 를 더해 바로 반영할 수 있습니다. 변경 500개·20MB 까지 |
 | `GET /api/v1/proposals`, `GET /api/v1/proposals/<번호>` | 제안 상태. 발급 토큰은 자기 제안만, 범위 `admin` 토큰은 모두 봅니다 |
-| `POST /api/v1/proposals/<번호>/accept`, `POST /api/v1/proposals/<번호>/reject` | 수락·거절(관리자 토큰이나 범위 `admin` 토큰). 본문 `{ note? }`. 충돌이면 `conflicts` 와 함께 409 |
+| `POST /api/v1/proposals/<번호>/accept`, `POST /api/v1/proposals/<번호>/reject` | 수락·거절(관리자 토큰이나 범위 `admin` 토큰). 거절만 본문 `{ note }` 를 받을 수 있음. 충돌이면 `conflicts` 와 함께 409 |
 
 제안은 파일마다 새 내용(또는 삭제)과 올린 쪽이 본 원본 해시(`base`)를 담습니다.
 수락할 때 원본이 그대로면 제안대로, 바뀌었으면 줄 단위 3-way merge 로 합칩니다.
 한 파일이라도 겹치면 수락할 수 없습니다(Outdated).
-수락은 리비전 하나입니다(출처 `proposal`, 작성자 = 토큰 이름, 메시지 「제안 #<번호>: <제목>」).
+수락은 리비전 하나입니다(생성 경로 `proposal`, 작성자 = 토큰 이름, 메시지 「제안 #<번호>: <제목>」).
 
 ### CLI 로그인과 폼
 
