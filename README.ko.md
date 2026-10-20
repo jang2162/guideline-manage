@@ -1,87 +1,128 @@
+<!-- source: README.md @ v0.21.0 -->
+[English](README.md) | **한국어**
+
 # guideline-manage
 
-[English](README.md) · 한국어
+공용 코딩 에이전트 지침을 지침 서버에 두고 ruler 프로젝트로 골라 받는 도구
 
-팀 공용 코딩 에이전트 지침(스택별 규칙, 스킬, 서브에이전트, MCP 설정)을 **지침 서버**에 두고, 프로젝트에서 `guideline` CLI 로 골라 받는 도구다. 프로젝트에는 [ruler](https://github.com/intellectronica/ruler) 소스(`.ruler/`)로 반영된다.
+[![npm](https://img.shields.io/npm/v/guideline-manage)](https://www.npmjs.com/package/guideline-manage)
+[![CI](https://img.shields.io/github/actions/workflow/status/jang2162/guideline-manage/ci.yml?branch=main)](https://github.com/jang2162/guideline-manage/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/jang2162/guideline-manage)](LICENSE)
 
+<img src="docs/manual/images/ko/admin-web-stacks.png" width="700" alt="지침 서버의 스택을 분류·짧은 설명과 함께 보여 주는 관리자 웹 목록 화면">
+
+## 소개
+
+코딩 에이전트를 쓰는 팀은 스택별 규칙, 스킬, 서브에이전트, MCP 설정 같은 지침을 프로젝트마다 복사해 둡니다.
+사본은 점점 서로 달라지고, 어느 프로젝트가 최신 규칙을 쓰는지 아무도 모르게 됩니다.
+guideline-manage 는 원본 하나를 **지침 서버**에 두고, 프로젝트마다 `guideline` CLI 로 필요한 부분만 골라 받게 합니다.
+프로젝트마다 받은 것을 기록하므로 CLI 가 원본과 프로젝트 중 어디가 바뀌었는지 알려 주고, 고친 내용은 검토를 거치는 제안으로 원본에 돌아갑니다.
+[ruler](https://github.com/intellectronica/ruler)(`.ruler/`)로 CLAUDE.md, AGENTS.md 같은 에이전트 파일을 만드는 팀을 위한 도구입니다.
+
+```mermaid
+flowchart LR
+  server["지침 서버<br>원본 DB + 관리자 웹"]
+  project["프로젝트<br>.ruler/ 사본 + guideline.json + guideline-lock.json"]
+  server -- "guideline pick / update" --> project
+  project -- "guideline propose (관리자가 수락)" --> server
 ```
-지침 서버(원본 DB) ── 관리자 웹: 보기·편집·이력·제안 검토·토큰
-        │  ▲
-        │  │ guideline propose (제안 → 관리자가 수락)
-        ▼  │
-프로젝트: guideline pick / status / update → .ruler/ 사본 + guideline.json + guideline-lock.json
-```
+
+## 주요 기능
+
+- 무엇이 같고 다르고 없는지 웹 폼에서 먼저 보고, 프로젝트마다 지침을 고릅니다.
+- 프로젝트에서 고친 내용을 잃지 않고 `guideline update` 로 모든 프로젝트를 최신으로 맞춥니다.
+- 받은 사본은 원본과 맞춰 둔 채, 한 프로젝트에서만 공용 규칙을 바꿉니다.
+- 프로젝트에서 고친 내용을 제안으로 올리고, 관리자는 차이와 3-way merge 결과를 보고 검토합니다.
+- 여러 서버의 지침을 한 프로젝트에 함께 받고, 겹치는 이름은 별칭으로 나눕니다.
+- 에이전트에게 맡깁니다. 서버의 `/llms.txt` 와 `guideline-sync` 스킬이 지침 받기와 할 일 처리 방법을 알려 줍니다.
+- CLI 와 관리자 웹을 영어나 한국어로 쓰고, 다른 언어는 언어팩으로 더합니다.
 
 ## 설치
 
-Node 24 이상이 필요하다.
+요구 사항: Node 24 이상, ruler 를 쓰는 프로젝트.
 
 ```bash
-npm install -g guideline-manage   # guideline 명령이 생긴다
+npm install -g guideline-manage
 ```
 
-서버는 이 저장소에서 Docker Compose 로 띄운다([docs/manual/ko/server.md](docs/manual/ko/server.md)).
-
-## 쓰기
+설치를 확인하세요.
 
 ```bash
-guideline login --server <URL>   # 머신마다 한 번
-guideline pick                   # 서버 폼에서 고르고 제출하면 바로 반영
-guideline status                 # 최신인지 확인
-guideline update                 # 고른 그대로 최신으로
-guideline propose --dry-run      # 고친 사본을 원본에 제안(보내지 않고 보기)
+guideline help
 ```
 
-- **처음이면 [docs/manual/ko/guide.md](docs/manual/ko/guide.md)** — 설치, 서버 띄우기, 받기, 바꿈, 문제 해결까지 순서대로.
-- 에이전트에게는 서버의 `/llms.txt` 를 읽힌다(관리자 웹 상단 「사용법」).
-- 명령 레퍼런스는 [docs/manual/ko/usage.md](docs/manual/ko/usage.md), 서버 운영은 [docs/manual/ko/server.md](docs/manual/ko/server.md), 언어팩은 [docs/manual/ko/locales.md](docs/manual/ko/locales.md).
-- 프로젝트는 ruler 를 써야 한다(`.ruler/`). 모노레포의 하위 디렉터리는 따로 받는다.
-- 여러 지침 서버에서 함께 받을 수 있다(`--source`). 이름이 겹치면 `guideline.json` 의 별칭으로 구분한다.
-- 원본은 제안으로 바뀐다: 고친 사본은 `guideline propose`, 새 지침은 `guideline source` + `guideline propose --from`. 관리자가 웹 「제안」 에서 수락한다. 범위 `admin` 토큰이면 `propose` 가 바로 반영한다(`--review` 면 제안).
+출력의 첫 줄은 다음과 같습니다.
 
-## 언어
-
-기본 언어는 영어다. **`GUIDELINE_LANG=ko`** 를 두면 CLI 메시지, 관리자 웹, 프로젝트에 쓰는 관리 지침·색인, 빈 서버의 씨앗이 한국어가 된다. CLI 와 서버에 각각 둔다. CLI 는 환경 변수 대신 `~/.config/guideline/config.json` 에 `{ "lang": "ko" }` 를 둬도 된다(환경 변수가 먼저). 다른 언어는 언어팩 폴더를 받아 넣는다([docs/manual/ko/locales.md](docs/manual/ko/locales.md)).
-
-**0.14 이하에서 올 때:** 기본값이 영어로 바뀌었다. 한국어를 계속 쓰려면 셸과 서버 환경에 `GUIDELINE_LANG=ko` 를 둔다. 두지 않으면 다음 `update` 에서 관리 지침과 색인이 영어로 다시 써진다. 0.10 의 문서 저장소 명령(`init`, 문서 저장소의 `pick`·`update`, 관리 스킬)은 없어졌다 — [docs/manual/ko/usage.md](docs/manual/ko/usage.md) 「0.15 로 옮기기」.
-
-## 개발
-
-```bash
-pnpm test                                # node --test. 테스트는 GUIDELINE_LANG=ko 로 돈다
-node cli/bin/guideline.js help
-ADMIN_TOKEN=$(openssl rand -base64 48) PUBLIC_URL=http://localhost:3000 DATA_DIR=./.data node server/bin/guideline-server.js   # 서버
+```text
+사용법: guideline <명령> [옵션]
 ```
 
-## 릴리스
+지침 서버는 이 저장소에서 Docker Compose 로 띄웁니다. [지침 서버 배포하기](docs/manual/ko/how-to/deploy-a-server.md)를 보세요.
 
-npm 게시는 GitHub Actions 가 한다. 로컬에서 `pnpm publish` 를 돌리지 않는다.
+## 빠른 시작
 
-```bash
-pnpm version minor            # 또는 patch, major. 커밋과 v<버전> 태그를 만든다
-git push --follow-tags        # 태그가 릴리스 워크플로를 띄운다
-```
+1. 머신마다 한 번 지침 서버에 로그인하세요. 브라우저가 열리면 **발급**을 누르세요.
 
-`v<SemVer>` 태그에서 `.github/workflows/release.yml` 이 돈다. 태그와 `package.json` 버전이 같은지 보고, `pnpm test` 를 돌린 뒤 provenance 와 함께 게시한다. npm Trusted Publishing 을 쓰므로 토큰을 두지 않는다. npm 패키지가 `jang2162/guideline-manage` 의 `release.yml` 을 신뢰하도록 등록돼 있어야 한다. PR 과 main push 에서는 테스트(`ci.yml`)만 돈다.
+   ```bash
+   guideline login --server <YOUR_SERVER_URL>
+   ```
 
-## 버전
+   ```text
+   로그인: <YOUR_SERVER_URL>/cli/login?callback=…
+   로그인 성공: <YOUR_SERVER_URL> (cli-<호스트>-…)
+   토큰 범위: read
+   ```
 
-- 명령 동작이나 스킬 절차가 바뀜: minor
-- 그 밖의 수정: patch
+2. ruler 프로젝트의 루트에서 폼을 열고, 지침을 고르고, 제출하세요.
 
-`1.0.0` 전까지는 호환을 깨는 변경도 minor 로 올린다.
+   ```bash
+   guideline pick --server <YOUR_SERVER_URL>
+   ```
 
-## 구조
+   CLI 가 `guideline.json` 에 서버 주소를 남기므로 두 번째부터는 `--server` 를 빼도 됩니다.
 
-| 경로 | 내용 |
-| --- | --- |
-| `cli/` | `guideline` 명령. `cli/src/i18n.js` 가 언어 설정과 언어팩을 읽는다 |
-| `locales/` | 언어팩. `en`(정본)과 `ko`. `messages.json` 문구와 `templates/` 긴 글(관리 지침, 작성 규칙, 씨앗 스킬, llms.txt, 새 파일 틀) |
-| `server/` | 지침 서버. `server/src/` 서버 코드(`web/` 관리자 화면), `server/static/` 화면의 CSS·JS, `server/Dockerfile`. npm 패키지에는 들어가지 않는다 |
-| `compose.yaml` | Docker Compose 로 지침 서버 배포. 환경 변수는 `.env.example` |
-| `.github/workflows/` | CI(테스트)와 릴리스(npm 게시) |
-| `docs/manual/` | 사람용 문서(영어). 한국어판은 `docs/manual/ko/` |
+3. 터미널에 쓴 것과 남은 할 일이 나옵니다. 예를 들어 파일 세 개짜리 `base` 스택을 고르면 다음과 같습니다.
+
+   ```text
+   반영 완료(r2) — 쓴 파일 6, 지운 파일 0
+     쓰기  .ruler/base/00-agent.md
+     쓰기  .ruler/base/01-git.md
+     쓰기  .ruler/base/99-reference.md
+     쓰기  .ruler/guideline.md
+     쓰기  docs/guideline/README.md
+     쓰기  docs/guideline/base/02-docs.md
+   ```
+
+   바뀐 파일을 `guideline.json`·`guideline-lock.json` 과 함께 커밋하세요.
+
+아직 서버가 없다면 [시작하기](docs/manual/ko/getting-started.md)에서 내 컴퓨터에 먼저 띄웁니다.
+
+## 설정
+
+CLI 와 서버는 환경 변수를 읽습니다. 가장 많이 바꾸는 것은 언어입니다.
+
+| 항목 | 기본값 | 설명 |
+| --- | --- | --- |
+| `GUIDELINE_LANG` | `en` | CLI 메시지, 관리자 웹, 프로젝트에 쓰는 글의 언어. 한국어는 `ko`. CLI 와 서버에 각각 둡니다 |
+
+> [!NOTE]
+> 0.14 이하에서 올 때: 기본 언어가 영어로 바뀌었습니다. 한국어를 계속 쓰려면 `GUIDELINE_LANG=ko` 를 두세요. [서버와 CLI 올리기](docs/manual/ko/how-to/upgrade.md)를 보세요.
+
+모든 설정은 [설정](docs/manual/ko/configuration.md)에 있습니다.
+
+## 문서
+
+- [시작하기](docs/manual/ko/getting-started.md)
+- [따라 하기 목록](docs/manual/README.md)
+- [설정](docs/manual/ko/configuration.md)
+- [레퍼런스](docs/manual/ko/reference.md)
+- [문제 해결](docs/manual/ko/troubleshooting.md)
+- [변경 기록](CHANGELOG.md)(영어)
+
+## 기여하기
+
+이슈와 풀 리퀘스트를 환영합니다. 개발 방법, 저장소 구조, 릴리스는 [CONTRIBUTING.md](CONTRIBUTING.md)(영어)를 보세요.
 
 ## 라이선스
 
-[MIT](LICENSE)
+MIT License. 자세한 내용은 [LICENSE](LICENSE) 를 보세요.

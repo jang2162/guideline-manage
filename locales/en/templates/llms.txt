@@ -134,4 +134,4 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 ## More
 
 - [Web]({{SERVER}}/): anyone can view guidelines and their history (log in if the server is private); editing, reverting, reviewing proposals and issuing tokens need a login with the admin token
-- `docs/manual/guide.md` in the repository: the user guide for people
+- `docs/manual/en/getting-started.md` in the repository: the user guide for people (all documents: `docs/manual/README.md`)

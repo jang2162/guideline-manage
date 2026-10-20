@@ -1,87 +1,127 @@
+**English** | [한국어](README.ko.md)
+
 # guideline-manage
 
-English · [한국어](README.ko.md)
+Keep shared coding-agent guidelines on a guideline server and pick them into ruler projects
 
-A tool for keeping a team's shared coding-agent guidelines (per-stack rules, skills, subagents, MCP settings) on a **guideline server** and picking them into projects with the `guideline` CLI. Projects receive them as [ruler](https://github.com/intellectronica/ruler) sources (`.ruler/`).
+[![npm](https://img.shields.io/npm/v/guideline-manage)](https://www.npmjs.com/package/guideline-manage)
+[![CI](https://img.shields.io/github/actions/workflow/status/jang2162/guideline-manage/ci.yml?branch=main)](https://github.com/jang2162/guideline-manage/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/jang2162/guideline-manage)](LICENSE)
 
+<img src="docs/manual/images/admin-web-stacks.png" width="700" alt="The admin web listing the stacks on a guideline server, each with its categories and a short description">
+
+## Overview
+
+Teams that use coding agents copy the same guidelines into every project: per-stack rules, skills, subagents and MCP settings.
+The copies drift apart, and nobody knows which project has the latest rules.
+guideline-manage keeps one source on a **guideline server**, and each project picks the parts it needs with the `guideline` CLI.
+Every project records what it received, so the CLI can tell what changed in the source or in the project, and edits travel back as reviewed proposals.
+It is for teams whose projects use [ruler](https://github.com/intellectronica/ruler) (`.ruler/`) to generate CLAUDE.md, AGENTS.md and other agent files.
+
+```mermaid
+flowchart LR
+  server["Guideline server<br>source DB + admin web"]
+  project["Project<br>.ruler/ copies + guideline.json + guideline-lock.json"]
+  server -- "guideline pick / update" --> project
+  project -- "guideline propose (accepted by an admin)" --> server
 ```
-guideline server (source DB) ── admin web: view, edit, history, proposal review, tokens
-        │  ▲
-        │  │ guideline propose (proposal → accepted by an admin)
-        ▼  │
-project: guideline pick / status / update → copies in .ruler/ + guideline.json + guideline-lock.json
-```
 
-## Install
+## Features
 
-You need Node 24 or later.
+- Choose guidelines per project in a web form that shows what is the same, different or missing before anything is written.
+- Bring every project up to date with `guideline update` without losing edits made in the project.
+- Override a shared rule in one project while the received copies stay in sync with the source.
+- Send local edits upstream as proposals that an admin reviews with diffs and a 3-way merge.
+- Combine guidelines from several servers in one project, with aliases for clashing names.
+- Hand the work to an agent: the server's `/llms.txt` and the `guideline-sync` skill tell agents how to receive guidelines and handle to-dos.
+- Run the CLI and the admin web in English or Korean, and add other languages with language packs.
+
+## Installation
+
+Requirements: Node 24 or later, and a project that uses ruler.
 
 ```bash
-npm install -g guideline-manage   # provides the guideline command
+npm install -g guideline-manage
 ```
 
-The server runs with Docker Compose from this repository ([docs/manual/server.md](docs/manual/server.md)).
-
-## Usage
+Verify the installation:
 
 ```bash
-guideline login --server <URL>   # once per machine
-guideline pick                   # choose in the server form; submitting applies right away
-guideline status                 # are we up to date?
-guideline update                 # same choices, latest version
-guideline propose --dry-run      # propose edited copies upstream (preview without sending)
+guideline help
 ```
 
-- **New here? Start with [docs/manual/guide.md](docs/manual/guide.md)** — installation, running a server, receiving guidelines, overrides and troubleshooting, in order.
-- Point agents at the server's `/llms.txt` ("Usage" at the top of the admin web).
-- Command reference: [docs/manual/usage.md](docs/manual/usage.md). Running the server: [docs/manual/server.md](docs/manual/server.md). Language packs: [docs/manual/locales.md](docs/manual/locales.md).
-- Projects must use ruler (`.ruler/`). Subdirectories of a monorepo receive guidelines separately.
-- A project can receive from several guideline servers (`--source`). Name clashes are resolved with aliases in `guideline.json`.
-- The source changes through proposals: edited copies with `guideline propose`, new guidelines with `guideline source` + `guideline propose --from`. An admin accepts them under "Proposals" on the web; with an `admin` scope token, `propose` applies them directly (`--review` proposes instead).
+The first line of the output is:
 
-## Language
-
-English is the default. With **`GUIDELINE_LANG=ko`**, CLI messages, the admin web, the management guideline and index written into projects, and the seed of an empty server are in Korean. For the CLI you can instead put `{ "lang": "ko" }` in `~/.config/guideline/config.json`; the environment variable wins. Set it for the CLI and the server separately. Other languages come as language pack folders you drop in ([docs/manual/locales.md](docs/manual/locales.md)).
-
-**Coming from 0.14 or earlier:** the default language is now English. To keep Korean, set `GUIDELINE_LANG=ko` in your shell and in the server environment; otherwise the next `update` rewrites the management guideline and index in English. The 0.10 docs-repository commands (`init`, `pick`/`update` inside a guideline repository, and its management skills) are gone — see "Moving to 0.15" in [docs/manual/usage.md](docs/manual/usage.md).
-
-## Development
-
-```bash
-pnpm test                                # node --test. Tests run with GUIDELINE_LANG=ko
-node cli/bin/guideline.js help
-ADMIN_TOKEN=$(openssl rand -base64 48) PUBLIC_URL=http://localhost:3000 DATA_DIR=./.data node server/bin/guideline-server.js   # server
+```text
+Usage: guideline <command> [options]
 ```
 
-## Releases
+The guideline server runs with Docker Compose from this repository. See [Deploy a guideline server](docs/manual/en/how-to/deploy-a-server.md).
 
-GitHub Actions publishes to npm. Do not run `pnpm publish` locally.
+## Quick Start
 
-```bash
-pnpm version minor            # or patch, major. Creates the commit and the v<version> tag
-git push --follow-tags        # the tag starts the release workflow
-```
+1. Log in to a guideline server once per machine. A browser opens; select **Issue**.
 
-A `v<SemVer>` tag runs `.github/workflows/release.yml`: it checks that the tag matches `package.json`, runs `pnpm test`, and publishes with provenance. It uses npm Trusted Publishing, so no token is stored: the npm package trusts `jang2162/guideline-manage` and `release.yml`. Pull requests and pushes to main run only the tests (`ci.yml`).
+   ```bash
+   guideline login --server <YOUR_SERVER_URL>
+   ```
 
-## Versioning
+   ```text
+   Log in: <YOUR_SERVER_URL>/cli/login?callback=…
+   Logged in: <YOUR_SERVER_URL> (cli-<host>-…)
+   Token scope: read
+   ```
 
-- Command behavior or skill procedures change: minor
-- Anything else: patch
+2. At the root of a ruler project, open the form, choose guidelines and submit.
 
-Until `1.0.0`, breaking changes also bump the minor version.
+   ```bash
+   guideline pick --server <YOUR_SERVER_URL>
+   ```
 
-## Layout
+   Later runs can drop `--server`, because the CLI keeps it in `guideline.json`.
 
-| Path | Contents |
-| --- | --- |
-| `cli/` | The `guideline` command. `cli/src/i18n.js` reads the language setting and language packs |
-| `locales/` | Language packs: `en` (canonical) and `ko`. `messages.json` strings and `templates/` long texts (management guideline, authoring rules, seed skills, llms.txt, new-file templates) |
-| `server/` | The guideline server. `server/src/` server code (`web/` admin pages), `server/static/` page CSS and JS, `server/Dockerfile`. Not part of the npm package |
-| `compose.yaml` | Guideline server deployment with Docker Compose. Environment variables in `.env.example` |
-| `.github/workflows/` | CI (tests) and release (npm publish) |
-| `docs/manual/` | Documentation for people (English). Korean in `docs/manual/ko/` |
+3. The terminal lists what was written and what is left to do. For example, choosing a `base` stack with three files prints:
+
+   ```text
+   Applied (r2) — 6 written, 0 deleted
+     write  .ruler/base/00-agent.md
+     write  .ruler/base/01-git.md
+     write  .ruler/base/99-reference.md
+     write  .ruler/guideline.md
+     write  docs/guideline/README.md
+     write  docs/guideline/base/02-docs.md
+   ```
+
+   Commit the changed files together with `guideline.json` and `guideline-lock.json`.
+
+No server yet? [Getting Started](docs/manual/en/getting-started.md) starts one on your machine first.
+
+## Configuration
+
+The CLI and the server read environment variables. The one most people change is the language:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `GUIDELINE_LANG` | `en` | Language of CLI messages, the admin web and text written into projects. `ko` for Korean. Set it for the CLI and the server separately |
+
+> [!NOTE]
+> Coming from 0.14 or earlier: the default language is now English. Set `GUIDELINE_LANG=ko` to keep Korean. See [Upgrade the server and the CLI](docs/manual/en/how-to/upgrade.md).
+
+Every option is listed in [Configuration](docs/manual/en/configuration.md).
+
+## Documentation
+
+- [Getting Started](docs/manual/en/getting-started.md)
+- [How-to guides](docs/manual/README.md)
+- [Configuration](docs/manual/en/configuration.md)
+- [Reference](docs/manual/en/reference.md)
+- [Troubleshooting](docs/manual/en/troubleshooting.md)
+- [Changelog](CHANGELOG.md)
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development, layout and releases.
 
 ## License
 
-[MIT](LICENSE)
+MIT License. See [LICENSE](LICENSE) for details.

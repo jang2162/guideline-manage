@@ -134,4 +134,4 @@ guideline propose --from <그 폴더> --title "<제목>"   # 그 폴더에서 �
 ## 더 보기
 
 - [웹]({{SERVER}}/): 지침·이력 보기는 누구나(서버가 비공개면 로그인), 편집·되돌리기·제안 검토·토큰 발급은 관리자 토큰으로 로그인한 뒤
-- 저장소의 `docs/manual/guide.md`: 사람을 위한 이용 가이드
+- 저장소의 `docs/manual/ko/getting-started.md`: 사람을 위한 이용 가이드(전체 문서: `docs/manual/README.md`)
