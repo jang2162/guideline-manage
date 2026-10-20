@@ -266,7 +266,7 @@ test('블록 내려받기는 그 블록 파일만 담는다', async t => {
 test('서브에이전트 상세는 파일 트리가 없다', async t => {
   const { s } = await seeded(t);
   const page = (await s.req('/agents/code-reviewer')).text;
-  assert.ok(page.includes('class="detail"'));
+  assert.ok(page.includes('class="detail no-files"'));
   assert.ok(!page.includes('<aside class="files">'));
   assert.ok(page.includes('<div class="doc">'));
 });

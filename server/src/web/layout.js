@@ -120,7 +120,7 @@ function clientMessages() {
 export function page({ title, body, nav = true, h1 = title, crumbs = [], actions = null, frame = {}, detail = null, scripts = [], wide = false }) {
   const head = headBlock({ h1, crumbs, actions });
   const main = nav && detail
-    ? html`<div class="${detail.left ? 'detail' : 'detail no-left'}">
+    ? html`<div class="${['detail', !detail.left && 'no-left', !detail.right && 'no-files'].filter(Boolean).join(' ')}">
 ${detail.left ? html`<aside class="blocks">${detail.left}</aside>` : ''}
 ${detail.right ? html`<aside class="files">${detail.right}</aside>` : ''}
 <main>

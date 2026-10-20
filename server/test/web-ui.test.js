@@ -238,7 +238,7 @@ test('목록 화면에는 사이드바도 3단 틀도 없다', async t => {
   for (const p of ['/', '/skills', '/agents', '/mcp']) {
     const page = (await getAs(s, cookie, p)).text;
     assert.ok(!page.includes('class="side"'), p);
-    assert.ok(!page.includes('class="detail"'), p);
+    assert.ok(!page.includes('class="detail'), p);
   }
 });
 
