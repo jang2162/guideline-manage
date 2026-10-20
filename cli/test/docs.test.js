@@ -47,7 +47,7 @@ test('문서에 지운 명령과 옛 모드가 없다', () => {
   }
 });
 
-test('언어 설정과 언어팩 안내가 있고, 버전은 0.21.0 이다', () => {
+test('언어 설정과 언어팩 안내가 있고, 버전은 0.22.0 이다', () => {
   for (const file of ['README.md', 'README.ko.md', 'docs/manual/en/configuration.md', 'docs/manual/ko/configuration.md']) {
     assert.match(read(file), /GUIDELINE_LANG/, file);
   }
@@ -61,5 +61,5 @@ test('언어 설정과 언어팩 안내가 있고, 버전은 0.21.0 이다', () 
   for (const [file, marker] of [['docs/manual/en/reference.md', 'Overrides of other stacks'], ['docs/manual/ko/reference.md', '다른 스택을 바꾸는 것']]) {
     assert.ok(read(file).includes(marker), `${file}: ${marker}`);
   }
-  assert.equal(JSON.parse(read('package.json')).version, '0.21.0');
+  assert.equal(JSON.parse(read('package.json')).version, '0.22.0');
 });
