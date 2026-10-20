@@ -4,7 +4,7 @@ Notable changes to guideline-manage, newest first.
 Until `1.0.0`, breaking changes bump the minor version (see [CONTRIBUTING.md](CONTRIBUTING.md#versioning)).
 Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/en/how-to/upgrade.md).
 
-## Unreleased
+## 0.22.0
 
 - **opencode is a default agent:** the `guideline pick --new` form offers opencode next to claude and codex, checked by default, and `agents` in `guideline.json` accepts `opencode`.
 - **Admin web:** on a block page, the file tree moved from the right side to beside the block list (block list · file tree · document).
