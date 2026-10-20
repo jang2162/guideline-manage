@@ -19,14 +19,6 @@ guideline-manage 는 원본 하나를 **지침 서버**에 두고, 프로젝트�
 프로젝트마다 받은 것을 기록하므로 CLI 가 원본과 프로젝트 중 어디가 바뀌었는지 알려 주고, 고친 내용은 검토를 거치는 제안으로 원본에 돌아갑니다.
 [ruler](https://github.com/intellectronica/ruler)(`.ruler/`)로 CLAUDE.md, AGENTS.md 같은 에이전트 파일을 만드는 팀을 위한 도구입니다.
 
-```mermaid
-flowchart LR
-  server["지침 서버<br>원본 DB + 관리자 웹"]
-  project["프로젝트<br>.ruler/ 사본 + guideline.json + guideline-lock.json"]
-  server -- "guideline pick / update" --> project
-  project -- "guideline propose (관리자가 수락)" --> server
-```
-
 ## 주요 기능
 
 - 무엇이 같고 다르고 없는지 웹 폼에서 먼저 보고, 프로젝트마다 지침을 고릅니다.
@@ -104,9 +96,6 @@ CLI 와 서버는 환경 변수를 읽습니다. 가장 많이 바꾸는 것은 
 | 항목 | 기본값 | 설명 |
 | --- | --- | --- |
 | `GUIDELINE_LANG` | `en` | CLI 메시지, 관리자 웹, 프로젝트에 쓰는 글의 언어. 한국어는 `ko`. CLI 와 서버에 각각 둡니다 |
-
-> [!NOTE]
-> 0.14 이하에서 올 때: 기본 언어가 영어로 바뀌었습니다. 한국어를 계속 쓰려면 `GUIDELINE_LANG=ko` 를 두세요. [서버와 CLI 올리기](docs/manual/ko/how-to/upgrade.md)를 보세요.
 
 모든 설정은 [설정](docs/manual/ko/configuration.md)에 있습니다.
 

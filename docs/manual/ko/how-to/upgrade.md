@@ -50,14 +50,6 @@ npm install -g guideline-manage
 > [!WARNING]
 > **0.21 전에 띄운 서버:** `guideline-sync` 스킬이 `missing-requires` 할 일을 처리하지 못합니다. 그 스킬의 「할 일 처리」 절 첫 줄에 `status` 를 더하고 `missing-requires` 행을 추가하세요. 언어팩 `templates/skills/guideline-sync/SKILL.md` 에서 옮겨 오세요.
 
-## 0.14 이하에서 옮기기
-
-- **기본 언어가 영어가 됐습니다.** 한국어를 계속 쓰려면 셸과 서버 환경에 `GUIDELINE_LANG=ko` 를 두세요. 두지 않으면 다음 `update` 에서 관리 지침(`.ruler/guideline.md`)과 색인(`99-reference.md`)이 영어로 다시 써집니다.
-- **0.10 의 문서 저장소 명령이 없어졌습니다.** `init`, 문서 저장소 안에서의 `pick`·`update`, 문서 저장소용 관리 스킬이 사라졌습니다. 원본은 지침 서버에만 있습니다. 옛 문서 저장소 클론을 서버로 옮기려면 [지침 채우기](deploy-a-server.md#지침-채우기)를 따르세요.
-- **원본 폴더 검사**는 `guideline list <폴더>` 입니다. 현재 폴더를 저절로 원본으로 보지 않습니다.
-- 사람이 쓴 지침의 표지 문구는 영어와 예전 한국어를 둘 다 읽으므로 기존 지침은 고치지 않아도 됩니다. [지침의 표지 문구](../reference.md#지침의-표지-문구)를 보세요.
-- 0.12 의 CLAUDE.md 형으로 받은 프로젝트는 「CLAUDE.md 형은 더 이상 지원하지 않음」 으로 멈춥니다. ruler 로 옮기고 `guideline pick` 을 다시 실행하세요.
-
 ## 다음 문서
 
 - [서버 백업과 복구](back-up-and-restore.md)

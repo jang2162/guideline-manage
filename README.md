@@ -18,14 +18,6 @@ guideline-manage keeps one source on a **guideline server**, and each project pi
 Every project records what it received, so the CLI can tell what changed in the source or in the project, and edits travel back as reviewed proposals.
 It is for teams whose projects use [ruler](https://github.com/intellectronica/ruler) (`.ruler/`) to generate CLAUDE.md, AGENTS.md and other agent files.
 
-```mermaid
-flowchart LR
-  server["Guideline server<br>source DB + admin web"]
-  project["Project<br>.ruler/ copies + guideline.json + guideline-lock.json"]
-  server -- "guideline pick / update" --> project
-  project -- "guideline propose (accepted by an admin)" --> server
-```
-
 ## Features
 
 - Choose guidelines per project in a web form that shows what is the same, different or missing before anything is written.
@@ -103,9 +95,6 @@ The CLI and the server read environment variables. The one most people change is
 | Option | Default | Description |
 | --- | --- | --- |
 | `GUIDELINE_LANG` | `en` | Language of CLI messages, the admin web and text written into projects. `ko` for Korean. Set it for the CLI and the server separately |
-
-> [!NOTE]
-> Coming from 0.14 or earlier: the default language is now English. Set `GUIDELINE_LANG=ko` to keep Korean. See [Upgrade the server and the CLI](docs/manual/en/how-to/upgrade.md).
 
 Every option is listed in [Configuration](docs/manual/en/configuration.md).
 

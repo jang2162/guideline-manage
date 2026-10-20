@@ -49,14 +49,6 @@ A server that was started before the versions below keeps the old text, so updat
 > [!WARNING]
 > **Servers started before 0.21:** the `guideline-sync` skill does not handle the `missing-requires` to-do. In its "Handling to-dos" section, add `status` to the first line and add the `missing-requires` row. Copy them from the language pack's `templates/skills/guideline-sync/SKILL.md`.
 
-## Move from 0.14 or earlier
-
-- **The default language is now English.** To keep Korean, set `GUIDELINE_LANG=ko` in your shell and in the server environment. Otherwise the next `update` rewrites the management guideline (`.ruler/guideline.md`) and the index (`99-reference.md`) in English.
-- **The 0.10 commands for a guideline repository are gone.** `init`, `pick` and `update` inside a guideline repository, and that repository's management skills, were removed. The source lives only on the guideline server. To move an old guideline repository clone to a server, follow [Fill in guidelines](deploy-a-server.md#fill-in-guidelines).
-- **Checking a source folder** is `guideline list <folder>`. The current folder is no longer treated as a source automatically.
-- Markers in human-written guidelines are read in English and in their earlier Korean forms alike, so existing guidelines need no edits. See [Markers in guidelines](../reference.md#markers-in-guidelines).
-- A project received in the 0.12 CLAUDE.md form stops with "The CLAUDE.md form is no longer supported". Move it to ruler and run `guideline pick` again.
-
 ## Next
 
 - [Back up and restore the server](back-up-and-restore.md)
