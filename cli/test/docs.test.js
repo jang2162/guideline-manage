@@ -8,14 +8,23 @@ import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = p => fs.readFileSync(path.join(repo, p), 'utf8');
+/** 디렉터리 아래 .md 파일을 그 디렉터리 기준 경로로 모은다. */
+const mdFiles = dir => fs.readdirSync(path.join(repo, dir), { recursive: true }).filter(f => f.endsWith('.md')).map(f => f.split(path.sep).join('/')).sort();
+const MANUAL = mdFiles('docs/manual/en');
 const PAIRS = [
   ['README.md', 'README.ko.md'],
-  ['docs/manual/guide.md', 'docs/manual/ko/guide.md'],
-  ['docs/manual/usage.md', 'docs/manual/ko/usage.md'],
-  ['docs/manual/server.md', 'docs/manual/ko/server.md'],
-  ['docs/manual/locales.md', 'docs/manual/ko/locales.md'],
+  ...MANUAL.map(f => [`docs/manual/en/${f}`, `docs/manual/ko/${f}`]),
 ];
 const HANGUL = /[가-힣]/;
+
+test('사용자 문서는 en/ 과 ko/ 가 같은 파일 이름·구조이고, 번역본 첫 줄에 원본 경로와 원본 버전이 있다', () => {
+  assert.ok(MANUAL.includes('getting-started.md'), 'getting-started.md');
+  assert.deepEqual(mdFiles('docs/manual/ko'), MANUAL);
+  // 버전은 번역을 맞춘 원본 버전이라 package.json 과 달라도 된다(뒤처지면 맨 위에 알림을 둔다)
+  for (const [en, ko] of PAIRS) {
+    assert.match(read(ko).split('\n')[0], new RegExp(`^<!-- source: ${en.replace(/\./g, '\\.')} @ v\\d+\\.\\d+\\.\\d+ -->$`), ko);
+  }
+});
 
 test('영어 문서에는 한글이 없고, 한국어판과 서로 링크한다', () => {
   for (const [en, ko] of PAIRS) {
@@ -39,14 +48,18 @@ test('문서에 지운 명령과 옛 모드가 없다', () => {
 });
 
 test('언어 설정과 언어팩 안내가 있고, 버전은 0.21.0 이다', () => {
-  for (const file of ['README.md', 'README.ko.md', 'docs/manual/usage.md', 'docs/manual/ko/usage.md', 'docs/manual/server.md', 'docs/manual/ko/server.md']) {
+  for (const file of ['README.md', 'README.ko.md', 'docs/manual/en/configuration.md', 'docs/manual/ko/configuration.md']) {
     assert.match(read(file), /GUIDELINE_LANG/, file);
   }
-  for (const [file, marker] of [['docs/manual/locales.md', 'Overrides of other stacks'], ['docs/manual/ko/locales.md', '다른 스택을 바꾸는 것']]) {
+  for (const lang of ['en', 'ko']) {
+    const file = `docs/manual/${lang}/how-to/add-a-language-pack.md`;
     const text = read(file);
-    for (const want of ['pack.json', 'messages.json', 'templates/', '{{', 'guideline locale check', 'GUIDELINE_LOCALES_DIR', marker]) {
+    for (const want of ['pack.json', 'messages.json', 'templates/', '{{', 'guideline locale check', 'GUIDELINE_LOCALES_DIR']) {
       assert.ok(text.includes(want), `${file}: ${want}`);
     }
+  }
+  for (const [file, marker] of [['docs/manual/en/reference.md', 'Overrides of other stacks'], ['docs/manual/ko/reference.md', '다른 스택을 바꾸는 것']]) {
+    assert.ok(read(file).includes(marker), `${file}: ${marker}`);
   }
   assert.equal(JSON.parse(read('package.json')).version, '0.21.0');
 });

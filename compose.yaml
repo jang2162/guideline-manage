@@ -1,4 +1,4 @@
-# The guideline server, built from this repository (docker compose up -d --build). Settings and procedures: docs/manual/server.md.
+# The guideline server, built from this repository (docker compose up -d --build). Settings and procedures: docs/manual/en/how-to/deploy-a-server.md and docs/manual/en/configuration.md.
 services:
   server:
     build:
