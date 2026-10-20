@@ -12,7 +12,7 @@ It does not rewrite the root's guidelines.
 - Skills, subagents and MCP servers are received only at the git root. In subdirectories they show as "blocked".
 - Stacks already received at the root show "already at root" in the form. Usually you do not choose them again, so the same guideline is not included twice.
 - If `.ruler/ruler.toml` at the git root lacks `nested = true`, you get a `nested-off` to-do. ruler builds that directory's CLAUDE.md and AGENTS.md only when it is on.
-- If the subdirectory has no `.ruler/ruler.toml`, `pick` creates one with just the agent list.
+- If the subdirectory has no `.ruler/ruler.toml`, `pick` creates one that holds only the agent list.
 
 ## Next
 

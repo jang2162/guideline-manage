@@ -27,7 +27,7 @@ A language pack is one folder named after the language code.
 ```
 
 The lookup order is **the user folder's language → the package's language → the user folder's en → the package's en**.
-So you can also put a `ko/messages.json` in the user folder that overrides just a few strings.
+So you can also put a `ko/messages.json` in the user folder that overrides only a few strings.
 Strings and templates missing from a pack are filled in from English, so a pack made for an older version never breaks.
 
 List the available languages and the current setting.

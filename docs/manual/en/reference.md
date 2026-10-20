@@ -8,7 +8,7 @@ It is for CLI users, agents and server operators who need exact behavior. Settin
 ## Project commands
 
 Run them in a unit directory, one with `.ruler/`.
-Common options: `--project <path>` (default: current directory), `--server <URL>`, `--source <name>` (just one source when there are several), `--json`.
+Common options: `--project <path>` (default: current directory), `--server <URL>`, `--source <name>` (only that source when there are several), `--json`.
 
 | Command | What it does |
 | --- | --- |
@@ -77,7 +77,7 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 - A domain stack (`<tool>__<domain>`, for example `deploy-package__gitlab.example.com`) shows the tool name with a domain tag. The same tool has different rules on different servers, so pick the stack for the server your project uses.
 - When a block has a display name (`label`), that name is the title and the real name sits next to it in small type.
 - Items recommended with `--recommend` carry **Agent pick** and a reason.
-- With uncommitted changes in the working tree you get a warning, and must check **Proceed anyway** to submit. Committing first makes the result easy to review with `git diff`.
+- With uncommitted changes in the working tree you get a warning, and must check **Proceed anyway** to submit. Commit first, so you can review the result with `git diff`.
 - Items with a source warning show as "blocked" and cannot be checked; the reason is shown.
 - A form expires if it is not opened within 10 minutes, or after 90 seconds without page signals once opened.
 
