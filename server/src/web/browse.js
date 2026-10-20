@@ -264,7 +264,7 @@ ${[...node.dirs].map(([dir, child]) => {
   return render(root, '');
 }
 
-/** 오른쪽: 블록의 파일 트리. 관리자에게는 아래에 블록 설정 버튼 하나. */
+/** 블록 목록 옆: 블록의 파일 트리. 관리자에게는 아래에 블록 설정 버튼 하나. */
 function filesPanel(ctx, kind, name, files, current) {
   const cat = catalogAt(ctx.store);
   const dir = blockDir(kind, name);
@@ -275,7 +275,7 @@ ${loads.size ? html`<p class="legend">${t('web.tree.legend')}</p>` : ''}
 ${isAdmin(ctx) ? html`<div class="tools"><a class="button secondary" href="${settingsHref(kind, name)}">${t('web.tree.settings', { kind: t(`web.add.kind.${kind}`) })}</a></div>` : ''}`;
 }
 
-/** 블록 상세(스택·스킬·MCP): 왼쪽 블록 목록, 가운데 고른 파일, 오른쪽 파일 트리. */
+/** 블록 상세(스택·스킬·MCP): 왼쪽 블록 목록, 그 옆 파일 트리, 오른쪽 고른 파일. */
 function blockPage(ctx, kind) {
   const name = ctx.params.name.normalize('NFC');
   const rel = (ctx.params.path ?? '').normalize('NFC').replace(/\/+$/, '');
@@ -312,7 +312,7 @@ function requiresLine(cat, kind, name) {
   return html`<p class="meta requires-line">${t('web.requires.line')} ${list.map((k, i) => html`${i ? ', ' : ''}${link(k)}`)}</p>`;
 }
 
-/** 서브에이전트 상세: 파일 하나라 오른쪽 트리가 없다. */
+/** 서브에이전트 상세: 파일 하나라 파일 트리가 없다. */
 function agentPage(ctx) {
   const name = ctx.params.name.normalize('NFC');
   const cat = catalogAt(ctx.store);

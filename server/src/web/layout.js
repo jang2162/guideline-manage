@@ -108,7 +108,7 @@ ${crumbs.length ? html`<nav class="crumbs">${crumbs.map((c, i) => html`${i ? ' �
  * @param {{ title: string, body: unknown, nav?: boolean, h1?: string, crumbs?: { label: string, href: string }[], actions?: unknown,
  *   frame?: { counts?: Record<string, number>, on?: string | null, admin?: boolean, login?: string }, detail?: { left: unknown, right?: unknown } | null,
  *   scripts?: string[], wide?: boolean }} opts
- * detail 이 있으면 블록 상세의 3단(왼쪽 블록 목록 · 가운데 본문 · 오른쪽 파일 목록)으로 그린다.
+ * detail 이 있으면 블록 상세의 3단(왼쪽 블록 목록 · 그 옆 파일 목록 · 오른쪽 본문)으로 그린다.
  * @returns {string}
  */
 /** 브라우저 스크립트가 쓰는 문구(web.client.*)를 JSON 으로. < 는 \u003c 로 바꿔 script 블록을 닫지 못하게 한다. */
@@ -122,11 +122,11 @@ export function page({ title, body, nav = true, h1 = title, crumbs = [], actions
   const main = nav && detail
     ? html`<div class="${detail.left ? 'detail' : 'detail no-left'}">
 ${detail.left ? html`<aside class="blocks">${detail.left}</aside>` : ''}
+${detail.right ? html`<aside class="files">${detail.right}</aside>` : ''}
 <main>
 ${head}
 ${body}
 </main>
-${detail.right ? html`<aside class="files">${detail.right}</aside>` : ''}
 </div>`
     : html`<main class="${nav ? 'solo' : wide ? 'bare wide' : 'bare'}">
 ${head}

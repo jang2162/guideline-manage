@@ -213,12 +213,14 @@ test('올리기 JS 는 macOS 의 NFD 파일 이름을 NFC 로 맞춰 해시를 �
   assert.match(js, /`\$\{form\.dataset\.upload\}\/\$\{name\}`/);
 });
 
-test('스택 상세는 왼쪽 목록·가운데 README·오른쪽 파일 트리를 보인다', async t => {
+test('스택 상세는 왼쪽 목록·그 옆 파일 트리·오른쪽 README 를 보인다', async t => {
   const { s } = await seeded(t);
   const page = (await s.req('/s/base')).text;
   assert.ok(page.includes('class="detail"'));
   assert.ok(page.includes('<aside class="blocks">'));
   assert.ok(page.includes('<aside class="files">'));
+  assert.ok(page.indexOf('<aside class="blocks">') < page.indexOf('<aside class="files">'));
+  assert.ok(page.indexOf('<aside class="files">') < page.indexOf('<main>'));
   assert.match(page, /<a class="blk on" href="\/s\/base" aria-current="page">/);
   assert.ok(page.includes('href="/s/base/02-git.md"'));
   assert.ok(page.includes('href="/s/base/README.md"'));
@@ -261,7 +263,7 @@ test('블록 내려받기는 그 블록 파일만 담는다', async t => {
   assert.equal((await s.req('/archive/rules/nope')).status, 404);
 });
 
-test('서브에이전트 상세는 오른쪽 트리가 없다', async t => {
+test('서브에이전트 상세는 파일 트리가 없다', async t => {
   const { s } = await seeded(t);
   const page = (await s.req('/agents/code-reviewer')).text;
   assert.ok(page.includes('class="detail"'));
