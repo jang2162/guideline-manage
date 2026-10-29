@@ -4,6 +4,13 @@ Notable changes to guideline-manage, newest first.
 Until `1.0.0`, breaking changes bump the minor version (see [CONTRIBUTING.md](CONTRIBUTING.md#versioning)).
 Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/en/how-to/upgrade.md).
 
+## Unreleased
+
+- **Proposal contents in the API:** `GET /api/v1/proposals/<number>?diff=1` adds `diff` to each change, a unified diff from the base content to the proposed content (labels `base` and `proposal`; `null` when either side is not text), the same diff the web proposal page shows. `?content=1` adds the content in the upload format (`text`, `base64` or `delete: true`). Both can be combined; without them the response is unchanged. Who can see a proposal is unchanged: issued tokens see their own, the admin token and `admin` scope tokens see all.
+- **`guideline proposals [number]`:** lists the server's proposals (`--status pending|accepted|rejected`), or shows one with whether it is Outdated, its conflicting paths and each file's diff. `--json` prints the server's response. Accept and reject stay on the web and the API.
+- **Mixed versions**: on an older server, `guideline proposals <number>` says the server cannot send diffs and shows only the file list.
+- `/llms.txt` documents the proposal detail API and `guideline proposals`.
+
 ## 0.22.0
 
 - **opencode is a default agent:** the `guideline pick --new` form offers opencode next to claude and codex, checked by default, and `agents` in `guideline.json` accepts `opencode`.

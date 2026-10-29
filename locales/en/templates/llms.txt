@@ -84,11 +84,14 @@ guideline propose --dry-run              # show edited copies turned back into s
 guideline propose --title "<title>"      # send them as a proposal (applied directly with an admin token; --review proposes)
 guideline source <empty folder>          # get a working copy of the source to write new guidelines in
 guideline propose --from <that folder> --title "<title>"   # send what was added, changed or deleted there
+guideline proposals                      # list your proposals (--status pending|accepted|rejected)
+guideline proposals <number>             # one proposal: Outdated and conflicts, each file's diff (--json: the server's response)
 ```
 
 - `propose` sends only copies that are "edited in project" according to the lock. Guideline copies get the source frontmatter back; skills send each file's change, addition or deletion. MCP edits are not sent automatically (to-do `mcp-local`).
 - Write new guidelines, skills or MCP servers into a folder from `guideline source`, at their source paths (`rules/<stack>/NN-*.md`, `skills/<name>/`, `mcp/<name>/server.json` and so on), then send them with `propose --from`. The writing rules are that folder's `docs/authoring.md`. Agents use the `guideline-export` skill.
 - Admins review the diff under "Proposals" on the web and accept, reject or edit it. If the source changed in the meantime, non-overlapping changes are merged; overlapping ones make the proposal Outdated and it cannot be accepted.
+- `guideline proposals` shows your own proposals; with an `admin` scope token it shows every proposal, so an agent can review them. Accepting and rejecting are on the web or through the API.
 
 ## What agents do
 
@@ -128,7 +131,8 @@ guideline propose --from <that folder> --title "<title>"   # send what was added
 - `GET {{SERVER}}/api/v1/archive?rev=<revision>`: the whole source (tar.gz)
 - `GET {{SERVER}}/api/v1/files/<path>?rev=<revision>`: one source file
 - `POST {{SERVER}}/api/v1/proposals`: a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. An admin token or an `admin` scope token can use `apply: true` to apply it right away without review. From the CLI, `guideline propose` applies directly by default with an admin token (`--review` proposes)
-- `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<number>`: the status of your proposals (an `admin` scope token sees all)
+- `GET {{SERVER}}/api/v1/proposals?status=<pending|accepted|rejected>`: the list of your proposals (an `admin` scope token sees all)
+- `GET {{SERVER}}/api/v1/proposals/<number>`: one proposal with `outdated`, `conflicts` and `changes: [{ path, kind, base }]`; your own, or any with an `admin` scope token (otherwise 404). `?diff=1` adds each change's `diff` (unified diff from the base to the proposal, `null` when not text); `?content=1` adds the content as `text`, `base64` or `delete: true`, as in the upload body. They can be combined
 - `POST {{SERVER}}/api/v1/proposals/<number>/accept`, `POST {{SERVER}}/api/v1/proposals/<number>/reject` (body `{ note? }`): accept or reject a proposal (admin token or `admin` scope token). A conflict is 409 with `conflicts`
 
 ## More

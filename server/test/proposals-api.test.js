@@ -157,3 +157,62 @@ test('환경 변수 관리자 토큰도 수락 API 를 쓴다', async t => {
   const id = (await post(propose, body())).json().id;
   assert.equal((await action(s, ADMIN, id, 'accept')).status, 200);
 });
+
+// 상세 조회의 ?diff=1·?content=1. 더함(base null)·바뀜·지움, 텍스트와 바이너리를 하나씩 섞는다.
+async function viewSetup(t) {
+  const { s, propose, other, post } = await setup(t);
+  s.store.commit({ ...META, changes: { 'rules/base/01-old.md': 'old\n', 'skills/s/z.bin': Buffer.from([0, 9]) } });
+  const { id } = (await post(propose, {
+    title: '보기',
+    changes: [
+      { path: 'rules/base/00-a.md', text: 'A\n', base: h('a\n') },
+      { path: 'rules/base/01-old.md', delete: true, base: h('old\n') },
+      { path: 'rules/base/02-new.md', text: 'new\n', base: null },
+      { path: 'skills/s/y.bin', base64: Buffer.from([0, 255, 1]).toString('base64'), base: null },
+      { path: 'skills/s/z.bin', delete: true, base: sha256(Buffer.from([0, 9])) },
+    ],
+  })).json();
+  const get = (auth, q = '') => s.req(`/api/v1/proposals/${id}${q}`, { auth });
+  return { s, propose, other, id, get };
+}
+
+test('상세 조회는 옵션이 없으면 change 가 path·kind·base 뿐이다', async t => {
+  const { propose, get } = await viewSetup(t);
+  const changes = (await get(propose)).json().changes;
+  assert.deepEqual(changes.map(c => Object.keys(c).sort()), changes.map(() => ['base', 'kind', 'path']));
+});
+
+test('?diff=1 은 change 마다 기준 대비 unified diff 를, 바이너리면 null 을 붙인다', async t => {
+  const { propose, get } = await viewSetup(t);
+  const r = await get(propose, '?diff=1');
+  assert.equal(r.status, 200);
+  const byPath = Object.fromEntries(r.json().changes.map(c => [c.path, c]));
+  assert.equal(byPath['rules/base/00-a.md'].diff, '--- base\n+++ proposal\n@@ -1,1 +1,1 @@\n-a\n+A');
+  assert.equal(byPath['rules/base/01-old.md'].diff, '--- base\n+++ proposal\n@@ -1,1 +1,0 @@\n-old');
+  assert.equal(byPath['rules/base/02-new.md'].diff, '--- base\n+++ proposal\n@@ -1,0 +1,1 @@\n+new');
+  assert.equal(byPath['skills/s/y.bin'].diff, null);
+  assert.equal(byPath['skills/s/z.bin'].diff, null);
+  assert.ok(Object.values(byPath).every(c => !('text' in c) && !('base64' in c) && !('delete' in c)));
+});
+
+test('?content=1 은 올릴 때와 같은 형식(text·base64·delete)을 붙이고 diff=1 과 함께 쓸 수 있다', async t => {
+  const { propose, get } = await viewSetup(t);
+  const only = Object.fromEntries((await get(propose, '?content=1')).json().changes.map(c => [c.path, c]));
+  assert.deepEqual(only['rules/base/00-a.md'], { path: 'rules/base/00-a.md', kind: 'modify', base: h('a\n'), text: 'A\n' });
+  assert.deepEqual(only['rules/base/02-new.md'], { path: 'rules/base/02-new.md', kind: 'add', base: null, text: 'new\n' });
+  assert.deepEqual(only['skills/s/y.bin'], { path: 'skills/s/y.bin', kind: 'add', base: null, base64: Buffer.from([0, 255, 1]).toString('base64') });
+  assert.deepEqual(only['rules/base/01-old.md'], { path: 'rules/base/01-old.md', kind: 'delete', base: h('old\n'), delete: true });
+  assert.ok(!('diff' in only['rules/base/00-a.md']));
+  const both = (await get(propose, '?diff=1&content=1')).json().changes.find(c => c.path === 'rules/base/00-a.md');
+  assert.equal(both.text, 'A\n');
+  assert.match(both.diff, /^-a\n\+A$/m);
+});
+
+test('?diff=1·?content=1 도 권한은 같다: 다른 propose 토큰은 404, admin 범위 토큰은 본다', async t => {
+  const { s, other, get } = await viewSetup(t);
+  assert.equal((await get(other, '?diff=1&content=1')).status, 404);
+  const admin = s.tokens.issue({ name: 'agent-v', scope: 'admin' }).token;
+  const r = await get(admin, '?diff=1&content=1');
+  assert.equal(r.status, 200);
+  assert.equal(r.json().changes.find(c => c.path === 'rules/base/02-new.md').text, 'new\n');
+});

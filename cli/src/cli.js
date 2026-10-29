@@ -2,6 +2,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { list, listFromServer } from './commands/list.js';
 import { propose } from './commands/propose.js';
+import { proposals } from './commands/proposals.js';
 import { source } from './commands/source.js';
 import { projectPick } from './commands/project-pick.js';
 import { projectUpdate } from './commands/project-update.js';
@@ -22,6 +23,7 @@ export const ALLOWED_OPTIONS = {
   logout: ['server'],
   propose: ['project', 'server', 'source', 'title', 'message', 'only', 'from', 'dry-run', 'apply', 'review', 'json'],
   source: ['server', 'source'],
+  proposals: ['server', 'source', 'json', 'status'],
   locale: ['json'],
   help: [],
 };
@@ -45,6 +47,7 @@ export const OPTIONS = {
   'token-stdin': { type: 'boolean' },
   apply: { type: 'boolean' },
   review: { type: 'boolean' },
+  status: { type: 'string' },
 };
 
 /**
@@ -115,6 +118,14 @@ export async function main(argv) {
       only: values.only?.split(',').map(s => s.trim()).filter(Boolean), from: values.from,
       dryRun: values['dry-run'], apply: values.apply, review: values.review, json: values.json, cwd,
     });
+  }
+
+  if (command === 'proposals') {
+    if (positionals.length > 2) {
+      console.error(t('proposals.extraArgs'));
+      return 2;
+    }
+    return proposals({ id: positionals[1], status: values.status, server: values.server, sourceName: values.source, json: values.json, cwd });
   }
 
   if (command === 'source') {

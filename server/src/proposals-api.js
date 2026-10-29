@@ -1,5 +1,6 @@
 import { HttpError, sendJson, readJson, readBody, LIMITS } from './http.js';
 import { requireToken, requireManage, canManage } from './api.js';
+import { readableText, proposalDiff } from './proposals.js';
 import { t } from '../../cli/src/i18n.js';
 
 const HASH = /^[0-9a-f]{64}$/;
@@ -37,21 +38,38 @@ const optString = (body, k) => {
   return body[k];
 };
 
-/** API 응답의 제안 하나. 대기 중이면 지금 원본에 얹어 본 Outdated 여부를 담는다. */
-export function proposalView(p, { proposals, config }) {
+// API 의 차이 라벨은 언어에 묶이지 않게 고정한다(리비전 API 의 r<N> 처럼).
+const DIFF_LABELS = { aLabel: 'base', bLabel: 'proposal' };
+
+/** 올릴 때와 같은 형식의 내용: 텍스트면 text, 아니면 base64, 지움이면 delete. */
+function contentOf(c) {
+  if (c.content === null) return { delete: true };
+  const text = readableText(c.content);
+  return text === null ? { base64: c.content.toString('base64') } : { text };
+}
+
+/**
+ * API 응답의 제안 하나. 대기 중이면 지금 원본에 얹어 본 Outdated 여부를 담는다.
+ * diff 면 change 마다 기준 대비 차이(바이너리면 null)를, content 면 제안 내용을 붙인다.
+ */
+export function proposalView(p, { proposals, config, store }, { diff = false, content = false } = {}) {
   const pl = p.status === 'pending' ? proposals.plan(p.changes) : null;
   return {
     id: p.id, title: p.title, description: p.description, project: p.project, author: p.author, status: p.status,
     createdAt: p.createdAt, decidedAt: p.decidedAt, note: p.note, revision: p.revisionId,
     outdated: pl ? pl.conflicts.length > 0 : false,
     conflicts: pl ? pl.conflicts : [],
-    changes: p.changes.map(c => ({ path: c.path, kind: c.content === null ? 'delete' : c.base === null ? 'add' : 'modify', base: c.base })),
+    changes: p.changes.map(c => ({
+      path: c.path, kind: c.content === null ? 'delete' : c.base === null ? 'add' : 'modify', base: c.base,
+      ...(diff ? { diff: proposalDiff(store, c, DIFF_LABELS) } : {}),
+      ...(content ? contentOf(c) : {}),
+    })),
     url: new URL(`/proposals/${p.id}`, config.publicUrl).href,
   };
 }
 
 /** /api/v1/proposals 를 등록한다. */
-export function registerProposalsApi(router, { proposals, config }) {
+export function registerProposalsApi(router, { proposals, config, store }) {
   router.add('POST', '/api/v1/proposals', async ctx => {
     requireToken(ctx);
     const manage = canManage(ctx.auth);
@@ -84,7 +102,8 @@ export function registerProposalsApi(router, { proposals, config }) {
     requireToken(ctx);
     const p = /^\d+$/.test(ctx.params.id) ? proposals.get(Number(ctx.params.id)) : null;
     if (!p || (!canManage(ctx.auth) && p.tokenId !== ctx.auth.id)) throw new HttpError(404, t('proposal.notFound'));
-    sendJson(ctx.res, 200, proposalView(p, { proposals, config }));
+    const sp = ctx.url.searchParams;
+    sendJson(ctx.res, 200, proposalView(p, { proposals, config, store }, { diff: sp.get('diff') === '1', content: sp.get('content') === '1' }));
   });
 
   const idOf = ctx => {

@@ -10,7 +10,7 @@ const LOAD_WIDTH = 'reference'.length;
 const WIDE_CHAR = /[ᄀ-ᇿ㄰-㆏가-힯＀-｠]/;
 
 /** 문자열의 표시 폭(한글·전각은 2). */
-function displayWidth(s) {
+export function displayWidth(s) {
   let width = 0;
   for (const ch of s) width += WIDE_CHAR.test(ch) ? 2 : 1;
   return width;

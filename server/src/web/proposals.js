@@ -5,6 +5,7 @@ import { sendView, catalogAt } from './frame.js';
 import { groupChanges, changeTree, changeCrumb, diffCounts, pickCurrent } from './change-tree.js';
 import { unifiedDiff } from '../../../cli/src/diff.js';
 import { sha256 } from '../store.js';
+import { readableText, proposalDiff } from '../proposals.js';
 import { t } from '../../../cli/src/i18n.js';
 import { markOurs, markTheirs } from '../../../cli/src/merge3.js';
 
@@ -20,15 +21,6 @@ const KIND_LABEL = {
 };
 const day = iso => (iso ? iso.replace('T', ' ').slice(0, 16) : '');
 const lf = s => s.replace(/\r\n/g, '\n');
-const utf8 = new TextDecoder('utf-8', { fatal: true });
-const textOf = buf => {
-  if (buf === null || buf.includes(0)) return null;
-  try {
-    return utf8.decode(buf);
-  } catch {
-    return null;
-  }
-};
 const view = (ctx, status, opts) => sendView(ctx, status, { on: 'proposals', ...opts });
 const kindOf = c => (c.content === null ? 'delete' : c.base === null ? 'add' : 'modify');
 
@@ -57,9 +49,9 @@ ${pager(page, fetched.length > PAGE_SIZE, n => `/proposals?status=${encodeURICom
 
 /** 파일 하나: 기준 대비 제안 차이, 원본이 바뀌었으면 합친 결과나 충돌. */
 function changeBlock(ctx, p, c, f) {
-  const pt = c.content === null ? '' : textOf(c.content);
+  const pt = c.content === null ? '' : readableText(c.content);
   const pending = p.status === 'pending';
-  const d = proposalDiff(ctx, c);
+  const d = diffOf(ctx, c);
   const diff = d === null
     ? html`<p class="meta">${t('web.proposal.binary', { what: c.content === null ? t('web.change.delete') : t('web.bytes', { n: c.content.length }) })}</p>`
     : diffBlock(d);
@@ -72,7 +64,7 @@ function changeBlock(ctx, p, c, f) {
     }
   }
   if (f?.headChanged && f.result === 'merged') {
-    const head = textOf(ctx.store.fileAt(c.path, ctx.store.headRevision()) ?? Buffer.alloc(0)) ?? '';
+    const head = readableText(ctx.store.fileAt(c.path, ctx.store.headRevision()) ?? Buffer.alloc(0)) ?? '';
     state = html`${state}<p class="warn">${t('web.proposal.merged')}</p>${diffBlock(unifiedDiff(head, f.content.toString('utf8'), { aLabel: t('web.proposal.currentSource'), bLabel: t('web.proposal.mergedLabel') }))}`;
   } else if (f?.result === 'conflict') {
     state = html`${state}<p class="error">${t('web.proposal.conflict', { reason: f.reason })}</p>`;
@@ -87,12 +79,7 @@ ${pt !== null && c.content !== null ? html`<a class="button secondary" href="/pr
 }
 
 /** 제안 파일 하나의 기준 대비 차이 텍스트(바이너리면 null). */
-function proposalDiff(ctx, c) {
-  const baseBuf = c.base ? ctx.store.contentByHash(c.base) : null;
-  const bt = baseBuf === null ? '' : textOf(baseBuf);
-  const pt = c.content === null ? '' : textOf(c.content);
-  return bt === null || pt === null ? null : unifiedDiff(bt, pt, { aLabel: t('web.proposal.base'), bLabel: t('diff.proposal') });
-}
+const diffOf = (ctx, c) => proposalDiff(ctx.store, c, { aLabel: t('web.proposal.base'), bLabel: t('diff.proposal') });
 
 /** 제안 상세: 위에 전체 수락·거절, 왼쪽에 파일 트리, 가운데에 고른 파일 하나와 그 파일의 편집·빼기. */
 function detailPage(ctx, p) {
@@ -100,7 +87,7 @@ function detailPage(ctx, p) {
   const byPath = new Map((pl?.files ?? []).map(f => [f.path, f]));
   const blocked = pl ? pl.conflicts.length > 0 : true;
   const counts = new Map(p.changes.map(c => {
-    const d = proposalDiff(ctx, c);
+    const d = diffOf(ctx, c);
     return [c.path, d === null ? null : diffCounts(d)];
   }));
   const conflicts = new Set((pl?.files ?? []).filter(f => f.result === 'conflict').map(f => f.path));
@@ -129,7 +116,7 @@ function editPage(ctx, p, path) {
   const c = p.changes.find(x => x.path === path);
   if (!c || c.content === null) throw new HttpError(404, t('web.proposal.notEditable'));
   const f = ctx.proposals.plan([c]).files[0];
-  const text = f.result === 'merged' ? f.content.toString('utf8') : f.result === 'conflict' && f.conflictText ? f.conflictText : textOf(c.content);
+  const text = f.result === 'merged' ? f.content.toString('utf8') : f.result === 'conflict' && f.conflictText ? f.conflictText : readableText(c.content);
   if (text === null) throw new HttpError(400, t('web.proposal.binaryNoEdit'));
   view(ctx, 200, {
     title: t('web.proposal.editTitle', { id: p.id }),

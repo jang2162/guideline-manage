@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/reference.md @ v0.21.0 -->
+<!-- source: docs/manual/en/reference.md @ v0.22.0 -->
 [English](../en/reference.md) | **한국어**
 
 # 레퍼런스
@@ -35,11 +35,16 @@
 | --- | --- |
 | `guideline source <폴더>` | 서버 최신 원본을 빈 폴더에 풉니다. 원본 경로로 고친 뒤 `propose --from <폴더>` 로 올립니다 |
 | `guideline list [폴더]` | 원본 목록과 검사 결과. 폴더를 주면 그 폴더(`source` 로 받은 원본)를, 아니면 서버를 읽습니다 |
+| `guideline proposals [번호]` | 번호가 없으면 서버의 제안 목록(번호, 상태, 제목, 올린 이, 프로젝트, 날짜, 파일 수)을 보입니다. `--status pending\|accepted\|rejected` 로 목록을 거릅니다. 번호를 주면 그 제안의 내용, Outdated 여부와 충돌 경로, 파일마다 종류와 기준 대비 차이를 보입니다. `--json` 은 서버 응답을 그대로 출력합니다. `--server`, `--source` 도 씁니다. 발급 토큰은 자기 제안만, 관리자 토큰과 범위 `admin` 토큰은 모두 봅니다. 수락·거절은 웹이나 API 로 합니다 |
 
 `list` 는 스택(지침 파일과 칸, 스택 사이 바꿈), 스킬, 서브에이전트, MCP 서버를 보입니다.
 규칙에 맞지 않아 빠지는 파일(무시됨)과 고칠 것(경고)도 이유와 함께 보입니다.
 경고가 있어도 종료 코드는 0 입니다.
 쓰는 규칙은 원본의 `docs/authoring.md` 입니다.
+
+`proposals` 의 번호가 양의 정수가 아니거나, `--status` 값을 모르거나, `--status` 와 번호를 함께 주면 사용 오류(종료 코드 2)입니다.
+토큰이 볼 수 없는 제안은 「제안 없음」(종료 코드 1)입니다.
+옛 서버는 차이를 보내지 않습니다. 그러면 `proposals <번호>` 가 그렇다고 알리고 파일 목록만 보입니다.
 
 ## 언어팩 명령
 
@@ -88,8 +93,8 @@
 | --- | --- |
 | 관리자 토큰(`ADMIN_TOKEN`) | 웹 로그인과 토큰 관리를 포함한 모든 것 |
 | `read` | 지침 보기(`PUBLIC_READ=0` 일 때만 필요). `guideline login` 이 이 범위로 발급합니다 |
-| `propose` | 제안 보내기, 자기 제안 보기 |
-| `admin` | 바로 반영(`apply: true`, `guideline propose`), 모든 제안 보기, API 로 수락·거절. 웹 로그인과 토큰 관리는 못 합니다 |
+| `propose` | 제안 보내기, 자기 제안을 차이·내용과 함께 보기 |
+| `admin` | 바로 반영(`apply: true`, `guideline propose`), 모든 제안을 차이·내용과 함께 보기(`guideline proposals`), API 로 수락·거절. 웹 로그인과 토큰 관리는 못 합니다 |
 
 폐기한 토큰은 **토큰** 목록에서 지울 수 있습니다.
 리비전이 가리키므로 DB 행은 숨겨 두고, 이름은 다시 쓸 수 있습니다.
@@ -130,7 +135,8 @@
 | 엔드포인트 | 하는 일 |
 | --- | --- |
 | `POST /api/v1/proposals` | 제안을 만듭니다(범위 `propose` 토큰). 본문 `{ title, description?, project?, changes: [{ path, text \| base64 \| delete: true, base: <sha256> \| null }] }`. 관리자 토큰이나 범위 `admin` 토큰은 `apply: true` 를 더해 바로 반영할 수 있습니다. 변경 500개·20MB 까지 |
-| `GET /api/v1/proposals`, `GET /api/v1/proposals/<번호>` | 제안 상태. 발급 토큰은 자기 제안만, 범위 `admin` 토큰은 모두 봅니다 |
+| `GET /api/v1/proposals?status=` | 제안 목록(`pending`·`accepted`·`rejected`, `status` 가 없으면 전부), 최신순. 발급 토큰은 자기 제안만, 관리자 토큰과 범위 `admin` 토큰은 모두 봅니다 |
+| `GET /api/v1/proposals/<번호>` | 제안 하나. 상태 확인과 검토에 씁니다: 내용, `outdated`, `conflicts`, `changes: [{ path, kind, base }]`. 발급 토큰은 자기 제안만(남의 것은 404), 관리자 토큰과 범위 `admin` 토큰은 모두 봅니다. `?diff=1` 은 change 마다 `diff` 를 붙입니다: 기준 내용에서 제안 내용으로의 unified diff(라벨 `base`·`proposal`), 어느 쪽이든 텍스트가 아니면 `null`. `?content=1` 은 올릴 때와 같은 형식의 내용을 붙입니다: `text`(NUL 없는 UTF-8), 아니면 `base64`, 지움이면 `delete: true`. 둘은 함께 쓸 수 있고, 없으면 응답은 그대로입니다 |
 | `POST /api/v1/proposals/<번호>/accept`, `POST /api/v1/proposals/<번호>/reject` | 수락·거절(관리자 토큰이나 범위 `admin` 토큰). 거절만 본문 `{ note }` 를 받을 수 있음. 충돌이면 `conflicts` 와 함께 409 |
 
 제안은 파일마다 새 내용(또는 삭제)과 올린 쪽이 본 원본 해시(`base`)를 담습니다.

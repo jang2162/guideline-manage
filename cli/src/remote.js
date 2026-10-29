@@ -64,6 +64,9 @@ export function remoteClient({ server, token = null, fetchImpl = fetch, version 
     exchange: (code, verifier) => call('POST', 'cli/token', { body: { code, verifier }, auth: false }),
     revokeSelf: () => call('DELETE', 'tokens/self'),
     createProposal: body => call('POST', 'proposals', { body }),
+    proposals: status => call('GET', status ? `proposals?status=${encodeURIComponent(status)}` : 'proposals'),
+    // ?diff=1 을 모르는 옛 서버는 change 에 diff 를 넣지 않는다.
+    proposal: id => call('GET', `proposals/${id}?diff=1`),
     // 보낸 토큰의 { kind, name, scope }. whoami 가 없는 옛 서버(404)면 null.
     whoami: () => call('GET', 'whoami').catch(e => {
       if (e instanceof ServerError && e.status === 404) return null;

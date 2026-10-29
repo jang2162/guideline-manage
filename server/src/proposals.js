@@ -1,6 +1,7 @@
 import { sha256, ConflictError } from './store.js';
 import { pathProblem, contentProblem, isTextPath } from '../../cli/src/store-paths.js';
 import { merge3 } from '../../cli/src/merge3.js';
+import { unifiedDiff } from '../../cli/src/diff.js';
 import { t } from '../../cli/src/i18n.js';
 
 export class ProposalError extends Error {
@@ -28,6 +29,30 @@ function textOf(p, buf) {
   } catch {
     return null;
   }
+}
+
+/** UTF-8 로 읽히고 NUL 이 없으면 문자열, 아니면 null. 제안 화면·API 가 보일 때 쓴다(경로는 보지 않는다). */
+export function readableText(buf) {
+  if (buf === null || buf.includes(0)) return null;
+  try {
+    return utf8.decode(buf);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 제안 파일 하나의 기준 대비 unified 차이. 기준(base)이나 제안 내용이 텍스트로 읽히지 않으면 null.
+ * 더함(과 기준 내용을 못 찾은 경우)은 빈 기준, 지움은 빈 내용과 비교한다.
+ * @param {{ contentByHash: (hash: string) => Buffer | null }} store
+ * @param {{ content: Buffer | null, base: string | null }} c
+ * @param {{ aLabel: string, bLabel: string }} labels
+ */
+export function proposalDiff(store, c, labels) {
+  const baseBuf = c.base ? store.contentByHash(c.base) : null;
+  const bt = baseBuf === null ? '' : readableText(baseBuf);
+  const pt = c.content === null ? '' : readableText(c.content);
+  return bt === null || pt === null ? null : unifiedDiff(bt, pt, labels);
 }
 
 const plain = row => (row ? { ...row } : null);

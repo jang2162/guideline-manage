@@ -84,11 +84,14 @@ guideline propose --dry-run              # 프로젝트에서 고친 사본을 �
 guideline propose --title "<제목>"       # 제안으로 올린다(admin 토큰이면 바로 반영, --review 면 제안)
 guideline source <빈 폴더>               # 새 지침을 쓸 원본 작업 사본을 받는다
 guideline propose --from <그 폴더> --title "<제목>"   # 그 폴더에서 추가하고 고치고 지운 것을 올린다
+guideline proposals                     # 자기 제안 목록(--status pending|accepted|rejected)
+guideline proposals <번호>              # 제안 하나: Outdated·충돌, 파일마다 차이(--json 이면 서버 응답)
 ```
 
 - `propose` 는 잠금 기준으로 「프로젝트에서 고침」 인 사본만 올린다. 지침 사본에는 원본의 frontmatter 를 다시 붙이고, 스킬은 파일마다 바뀜·더함·지움을 올린다. MCP 수정은 자동으로 올리지 않는다(할 일 `mcp-local`).
 - 새 지침·스킬·MCP 는 `guideline source` 로 받은 폴더에 원본 경로(`rules/<스택>/NN-*.md`, `skills/<이름>/`, `mcp/<이름>/server.json` 등)로 쓴 뒤 `propose --from` 으로 올린다. 쓰는 규칙은 그 폴더의 `docs/authoring.md`. 에이전트는 `guideline-export` 스킬을 쓴다.
 - 관리자는 웹 「제안」 에서 차이를 보고 수락·거절하거나 고친다. 원본이 그사이 바뀌었으면 겹치지 않는 변경은 합쳐지고, 겹치면 Outdated 로 수락할 수 없다.
+- `guideline proposals` 는 자기 제안을, 범위 `admin` 토큰이면 모든 제안을 보인다. 에이전트가 제안을 검토할 때 쓴다. 수락·거절은 웹이나 API 로 한다.
 
 ## 에이전트가 할 일
 
@@ -128,7 +131,8 @@ guideline propose --from <그 폴더> --title "<제목>"   # 그 폴더에서 �
 - `GET {{SERVER}}/api/v1/archive?rev=<리비전>`: 원본 전체(tar.gz)
 - `GET {{SERVER}}/api/v1/files/<경로>?rev=<리비전>`: 원본 파일 하나
 - `POST {{SERVER}}/api/v1/proposals`: 제안(범위 `propose` 토큰). 본문 `{ title, description?, project?, changes: [{ path, text | base64 | delete: true, base: <sha256> | null }] }`. 관리자 토큰이나 범위 `admin` 토큰은 `apply: true` 로 검토 없이 바로 반영한다. CLI 는 admin 토큰이면 `guideline propose` 가 기본으로 바로 반영한다(`--review` 면 제안)
-- `GET {{SERVER}}/api/v1/proposals`, `GET {{SERVER}}/api/v1/proposals/<번호>`: 자기 제안의 상태(범위 `admin` 토큰은 모든 제안)
+- `GET {{SERVER}}/api/v1/proposals?status=<pending|accepted|rejected>`: 자기 제안 목록(범위 `admin` 토큰은 모든 제안)
+- `GET {{SERVER}}/api/v1/proposals/<번호>`: 제안 하나의 `outdated`, `conflicts`, `changes: [{ path, kind, base }]`. 자기 제안이거나 범위 `admin` 토큰이면 보인다(아니면 404). `?diff=1` 은 change 마다 `diff`(기준에서 제안으로의 unified diff, 텍스트가 아니면 `null`)를, `?content=1` 은 올릴 때 본문과 같은 `text`·`base64`·`delete: true` 를 붙인다. 함께 쓸 수 있다
 - `POST {{SERVER}}/api/v1/proposals/<번호>/accept`, `POST {{SERVER}}/api/v1/proposals/<번호>/reject`(본문 `{ note? }`): 제안 수락·거절(관리자 토큰이나 범위 `admin` 토큰). 충돌이면 409 와 `conflicts`
 
 ## 더 보기

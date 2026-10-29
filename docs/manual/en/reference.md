@@ -34,11 +34,16 @@ With several sources, each source is judged by its own `requires` and its own bl
 | --- | --- |
 | `guideline source <folder>` | Unpacks the latest server source into an empty folder. Edit it at source paths, then send it with `propose --from <folder>` |
 | `guideline list [folder]` | Lists the source and its checks. With a folder, reads that folder (a source from `source`); otherwise the server |
+| `guideline proposals [number]` | Without a number, lists the server's proposals: number, status, title, author, project, date and file count. `--status pending\|accepted\|rejected` filters the list. With a number, shows that proposal: its details, whether it is Outdated and the conflicting paths, and each file's kind and diff against its base. `--json` prints the server's response as is. Also `--server` and `--source`. Issued tokens see only their own proposals; the admin token and an `admin` scope token see all. Accept or reject on the web or through the API |
 
 `list` shows stacks (guideline files with their load, and overrides between stacks), skills, subagents and MCP servers.
 It also shows files left out for breaking the rules (Ignored) and things to fix (warning), each with its reason.
 Warnings do not change the exit code (0).
 The writing rules are the source's `docs/authoring.md`.
+
+`proposals` with a number that is not a positive integer, an unknown `--status` value, or `--status` together with a number is a usage error (exit code 2).
+A proposal the token cannot see is "No such proposal" (exit code 1).
+An older server does not send diffs: `proposals <number>` says so and shows only the file list.
 
 ## Language pack commands
 
@@ -87,8 +92,8 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 | --- | --- |
 | Admin token (`ADMIN_TOKEN`) | Everything, including web login and token management |
 | `read` | View guidelines (needed only when `PUBLIC_READ=0`). `guideline login` issues this scope |
-| `propose` | Send proposals and see its own proposals |
-| `admin` | Apply directly (`apply: true`, `guideline propose`), see every proposal, accept or reject through the API. It cannot log in to the web or manage tokens |
+| `propose` | Send proposals and see its own proposals, with their diffs and content |
+| `admin` | Apply directly (`apply: true`, `guideline propose`), see every proposal with its diffs and content (`guideline proposals`), accept or reject through the API. It cannot log in to the web or manage tokens |
 
 A revoked token can be deleted from the **Tokens** list.
 The row stays hidden in the DB because revisions point to it; its name can be reused.
@@ -129,7 +134,8 @@ Even on a public server, a wrong or revoked token gets 401.
 | Endpoint | Does |
 | --- | --- |
 | `POST /api/v1/proposals` | Creates a proposal (`propose` scope token). Body `{ title, description?, project?, changes: [{ path, text \| base64 \| delete: true, base: <sha256> \| null }] }`. The admin token or an `admin` scope token can add `apply: true` to apply it right away. Up to 500 changes and 20 MB |
-| `GET /api/v1/proposals`, `GET /api/v1/proposals/<number>` | Proposal status. Issued tokens see only their own proposals; an `admin` scope token sees all |
+| `GET /api/v1/proposals?status=` | The list (`pending`, `accepted` or `rejected`; all without `status`), newest first. Issued tokens see only their own proposals; the admin token and an `admin` scope token see all |
+| `GET /api/v1/proposals/<number>` | One proposal, for checking its status and for reviewing it: details, `outdated`, `conflicts` and `changes: [{ path, kind, base }]`. Issued tokens see only their own proposals (another's is 404); the admin token and an `admin` scope token see all. `?diff=1` adds `diff` to each change: a unified diff from the base content to the proposed content (labels `base` and `proposal`), `null` when either side is not text. `?content=1` adds the content in the upload format: `text` (UTF-8 without NUL), otherwise `base64`, or `delete: true`. The two can be combined; without them the response is unchanged |
 | `POST /api/v1/proposals/<number>/accept`, `POST /api/v1/proposals/<number>/reject` | Accepts or rejects (admin token or `admin` scope token). Reject takes an optional body `{ note }`. A conflict is 409 with `conflicts` |
 
 Each proposal holds, per file, the new content (or deletion) and the source hash the proposer saw (`base`).
