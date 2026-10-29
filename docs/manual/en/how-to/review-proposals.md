@@ -18,10 +18,14 @@ Accepting creates one revision. Its source is `proposal`, its author is the toke
 
 ## Review through the API
 
-An agent with the admin token or an `admin` scope token can accept or reject other proposals.
+An agent with the admin token or an `admin` scope token can see every proposal and accept or reject it.
 
-- `POST /api/v1/proposals/<number>/accept`
-- `POST /api/v1/proposals/<number>/reject`
+1. List the proposals with `guideline proposals --status pending`, or `GET /api/v1/proposals?status=pending`.
+2. Look at one proposal with `guideline proposals <number>`. It shows whether the proposal is Outdated, the conflicting paths and each file's diff.
+   - Through the API, `GET /api/v1/proposals/<number>?diff=1` adds each file's diff, and `?content=1` adds each file's content.
+3. Accept or reject it:
+   - `POST /api/v1/proposals/<number>/accept`
+   - `POST /api/v1/proposals/<number>/reject`
 
 A conflict returns 409 with `conflicts`.
 How proposals are merged is described in [Proposals](../reference.md#proposals).

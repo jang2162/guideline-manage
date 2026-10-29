@@ -169,6 +169,8 @@ async function viewSetup(t) {
       { path: 'rules/base/01-old.md', delete: true, base: h('old\n') },
       { path: 'rules/base/02-new.md', text: 'new\n', base: null },
       { path: 'skills/s/y.bin', base64: Buffer.from([0, 255, 1]).toString('base64'), base: null },
+      // 유효한 UTF-8 이지만 NUL 이 있다: text 가 아니라 base64 로 나와야 한다.
+      { path: 'skills/s/nul.bin', base64: Buffer.from([0x61, 0, 0x62]).toString('base64'), base: null },
       { path: 'skills/s/z.bin', delete: true, base: sha256(Buffer.from([0, 9])) },
     ],
   })).json();
@@ -201,6 +203,7 @@ test('?content=1 은 올릴 때와 같은 형식(text·base64·delete)을 붙이
   assert.deepEqual(only['rules/base/00-a.md'], { path: 'rules/base/00-a.md', kind: 'modify', base: h('a\n'), text: 'A\n' });
   assert.deepEqual(only['rules/base/02-new.md'], { path: 'rules/base/02-new.md', kind: 'add', base: null, text: 'new\n' });
   assert.deepEqual(only['skills/s/y.bin'], { path: 'skills/s/y.bin', kind: 'add', base: null, base64: Buffer.from([0, 255, 1]).toString('base64') });
+  assert.deepEqual(only['skills/s/nul.bin'], { path: 'skills/s/nul.bin', kind: 'add', base: null, base64: Buffer.from([0x61, 0, 0x62]).toString('base64') });
   assert.deepEqual(only['rules/base/01-old.md'], { path: 'rules/base/01-old.md', kind: 'delete', base: h('old\n'), delete: true });
   assert.ok(!('diff' in only['rules/base/00-a.md']));
   const both = (await get(propose, '?diff=1&content=1')).json().changes.find(c => c.path === 'rules/base/00-a.md');

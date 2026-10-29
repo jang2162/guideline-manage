@@ -215,6 +215,7 @@
   "proposals.colWhen": "Sent",
   "proposals.extraArgs": "Too many arguments: guideline proposals [number]",
   "proposals.files": "Files ({n})",
+  "proposals.noDiff": "(no differences)",
   "proposals.none": "No proposals.",
   "proposals.oldServer": "The server is too old to show diffs; only the file list is shown",
   "proposals.outdated": "Outdated: it overlaps changes made to the source since, so it cannot be accepted",

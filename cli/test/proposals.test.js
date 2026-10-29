@@ -134,3 +134,15 @@ test('main: proposals 는 인자가 둘 넘거나 모르는 옵션이면 2', asy
     console.error = saved;
   }
 });
+
+test('상세는 줄바꿈 문자만 다른 파일(diff 가 빈 문자열)에 차이 없음을 알린다', async t => {
+  const { s, env } = await setup(t);
+  s.store.commit({ ...META, changes: { 'rules/base/03-crlf.md': 'x\ny\n' } });
+  const { id } = s.proposals.submit({
+    title: 'CRLF', project: null, tokenId: null, author: 'admin',
+    changes: [{ path: 'rules/base/03-crlf.md', content: Buffer.from('x\r\ny\r\n'), base: h('x\ny\n') }],
+  });
+  const r = await cap({ env: { ...env, GUIDELINE_TOKEN: s.tokens.issue({ name: 'a2', scope: 'admin' }).token }, id: String(id) });
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out, / {2}바뀜 {2}rules\/base\/03-crlf\.md\n {4}\(차이 없음\)$/);
+});

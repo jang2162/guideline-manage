@@ -43,7 +43,9 @@ function printDetail(p, out, err) {
     out(`  ${KIND(c.kind)}  ${c.path}`);
     if (!withDiff) continue;
     if (c.diff === null) out(`    ${t('proposals.binary')}`);
-    else if (c.diff) out(c.diff);
+    // 빈 문자열: 줄바꿈 문자(CRLF)만 다르다. 웹처럼 차이 없음을 알린다.
+    else if (c.diff === '') out(`    ${t('proposals.noDiff')}`);
+    else out(c.diff);
   }
 }
 

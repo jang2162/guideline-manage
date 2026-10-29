@@ -215,6 +215,7 @@
   "proposals.colWhen": "올린 때",
   "proposals.extraArgs": "인자가 너무 많음: guideline proposals [번호]",
   "proposals.files": "파일 {n}개",
+  "proposals.noDiff": "(차이 없음)",
   "proposals.none": "제안 없음.",
   "proposals.oldServer": "서버가 옛 버전이라 차이를 보여 줄 수 없음. 파일 목록만 보임",
   "proposals.outdated": "Outdated: 그 뒤 원본에서 바뀐 곳과 겹쳐 수락 불가",

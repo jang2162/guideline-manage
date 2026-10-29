@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/how-to/review-proposals.md @ v0.21.0 -->
+<!-- source: docs/manual/en/how-to/review-proposals.md @ v0.22.0 -->
 [English](../../en/how-to/review-proposals.md) | **한국어**
 
 # 제안 검토하기
@@ -19,10 +19,14 @@
 
 ## API 로 검토하기
 
-관리자 토큰이나 범위 `admin` 토큰을 가진 에이전트는 다른 제안을 수락·거절할 수 있습니다.
+관리자 토큰이나 범위 `admin` 토큰을 가진 에이전트는 모든 제안을 보고 수락·거절할 수 있습니다.
 
-- `POST /api/v1/proposals/<number>/accept`
-- `POST /api/v1/proposals/<number>/reject`
+1. `guideline proposals --status pending` 이나 `GET /api/v1/proposals?status=pending` 으로 제안 목록을 보세요.
+2. `guideline proposals <번호>` 로 제안 하나를 보세요. Outdated 여부, 충돌 경로, 파일마다 차이가 보입니다.
+   - API 로는 `GET /api/v1/proposals/<number>?diff=1` 이 파일마다 차이를, `?content=1` 이 파일마다 내용을 붙입니다.
+3. 수락하거나 거절하세요.
+   - `POST /api/v1/proposals/<number>/accept`
+   - `POST /api/v1/proposals/<number>/reject`
 
 충돌이면 `conflicts` 와 함께 409 를 돌려줍니다.
 제안을 합치는 방식은 [제안](../reference.md#제안)에 있습니다.
