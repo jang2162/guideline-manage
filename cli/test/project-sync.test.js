@@ -332,3 +332,39 @@ test('v2 일부 선택은 update 에서 스택 전체가 된다', async t => {
   assert.deepEqual(saved.sources.default.items, ['rules/base']);
   assert.deepEqual(Object.keys(readLock(p).sources).sort(), ['default:rules/base/00-a.md', 'default:rules/base/01-b.md', 'default:rules/base/SETUP.md']);
 });
+
+test('새 배치 프로젝트에서 두 번째 pick 의 폼이 같은/다른/없음 상태를 바르게 보이고, 고른 고아를 지운다', async t => {
+  const { s, env } = await server(t);
+  const p = gitProject(t, { '.ruler/ruler.toml': 'default_agents = ["claude"]\n' });
+  const first = checkOnly(i => i.id.startsWith('rules/base/') || ['skills/s', 'agents/rev.md', 'mcp/c7'].includes(i.id));
+  assert.equal(await projectPick({ project: p, env, ...quiet, out: () => {}, open: driver(s, { choose: first }) }), 0);
+  assert.equal(readLock(p).version, 3);
+  // 사본을 고치고(apply 전이라 조합한 .ruler/ 는 옛 그대로), 원본에 없는 사본과 바꿈을 둔다
+  write(p, '.guideline/rules/base/00-a.md', `${ALWAYS}# 에이\n\n고친 본문\n`);
+  write(p, '.guideline/rules/base/07-gone.md', '# 사라짐\n');
+  write(p, '.guideline/skills/old/SKILL.md', '# 옛 스킬\n');
+  write(p, '.guideline/skills/old/img/x.png', 'x');
+  write(p, '.guideline/overrides/base/override.md', '## 없는 파일\n\n바꾸는 절: `base/07-none.md`\n');
+  let seen;
+  const second = (items, data) => {
+    seen = { items, data };
+    // 고아는 체크를 풀어(지움) 낸다
+    return first(items);
+  };
+  const o = collect();
+  assert.equal(await projectPick({ project: p, env, ...quiet, json: true, out: o.out, open: driver(s, { choose: second }) }), 0);
+  const by = id => seen.items.find(i => i.id === id);
+  assert.deepEqual([by('rules/base/00-a.md').state, by('rules/base/00-a.md').lockState, by('rules/base/00-a.md').where],
+    ['different', 'local', ['.guideline/rules/base/00-a.md']]);
+  for (const id of ['rules/base/01-b.md', 'rules/base/SETUP.md', 'skills/s', 'agents/rev.md', 'mcp/c7']) assert.equal(by(id).state, 'same', id);
+  for (const id of [`rules/deploy-agent__deploy.kbrainc.dev/00-x.md`, 'mcp/gl']) assert.equal(by(id).state, 'missing', id);
+  assert.deepEqual(seen.items.filter(i => i.kind === 'orphan').map(i => i.id), ['.guideline/rules/base/07-gone.md', '.guideline/skills/old']);
+  // 바꿈 검사는 새 자리를 본다
+  assert.deepEqual(seen.data.overrides.map(x => [x.file, x.valid]), [['.guideline/overrides/base/override.md', false]]);
+  // 체크를 푼 고아는 지운다(스킬 고아는 디렉터리째). 고친 사본은 그대로 둔다
+  assert.equal(exists(p, '.guideline/rules/base/07-gone.md'), false);
+  assert.equal(exists(p, '.guideline/skills/old'), false);
+  assert.match(read(p, '.guideline/rules/base/00-a.md'), /고친 본문/);
+  const r = JSON.parse(o.text());
+  assert.ok(r.todos.some(x => x.kind === 'override' && x.message.startsWith('.guideline/overrides/base/override.md')), r.todos.map(x => x.message).join('\n'));
+});

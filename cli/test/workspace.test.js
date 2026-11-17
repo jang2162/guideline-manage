@@ -128,3 +128,17 @@ test('protectedPaths: 새 배치면 닿지 못한 출처의 관리 지침 사본
   const real = toRealLock({ viewLock: { version: 3, sources: {}, outputs: [own('.guideline/management/a.md')] }, sources: [], revisions: { a: 3 }, previous: lock, keep: ['b'], protect });
   assert.deepEqual(real.outputs.map(o => o.path).sort(), ['.guideline/management/a.md', '.guideline/management/b.md']);
 });
+
+test('aliasMoveTodos: 새 배치면 .guideline/overrides/<옛 이름>/ 의 바꿈을 알린다', t => {
+  const p = dir(t);
+  write(p, '.guideline/overrides/base/override.md', '# 바꿈\n');
+  // 옛 자리(.ruler/)의 것은 조합이 복사한 생성물이라 보지 않는다
+  write(p, '.ruler/web/override.md', '# 생성물\n');
+  const out = (path, id) => ({ path, items: [id], hash: 'h' });
+  const prev = { version: 3, revisions: { c: 1 }, sources: {}, outputs: [out('.guideline/rules/base/00-a.md', 'c:rules/base/00-a.md'), out('.guideline/rules/web/00-w.md', 'c:rules/web/00-w.md')] };
+  const next = { version: 3, revisions: { c: 2 }, sources: {}, outputs: [out('.guideline/rules/company-base/00-a.md', 'c:rules/base/00-a.md'), out('.guideline/rules/www/00-w.md', 'c:rules/web/00-w.md')] };
+  const todos = aliasMoveTodos({ previous: prev, next, project: p });
+  assert.deepEqual(todos.map(x => [x.kind, x.message]), [['alias', '.guideline/overrides/base/override.md: 별칭 때문에 스택 자리가 바뀜 — 바꿈을 새 자리로 옮기기']]);
+  // 별칭이 그대로면 할 일이 없다
+  assert.deepEqual(aliasMoveTodos({ previous: prev, next: prev, project: p }), []);
+});

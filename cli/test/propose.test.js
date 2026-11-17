@@ -298,3 +298,58 @@ test('propose 는 하위 스택 사본을 원본 경로로 되돌린다', t => {
   assert.deepEqual(Object.keys(by).sort(), ['rules/browser/neo/00-x.md', 'rules/browser/neo/SETUP.md', 'skills/s/00-n.md']);
   assert.equal(by['rules/browser/neo/00-x.md'].content.toString(), `${ALWAYS}# 엑스\n\n고친 X\n`);
 });
+
+/** 새 배치(.guideline/ 사본, 잠금 v3) 프로젝트. */
+async function setupGuide(t) {
+  const s = await startApp(t);
+  s.store.commit({ ...META, source: 'web', changes: SOURCE });
+  const token = s.tokens.issue({ name: 'cli-p', scope: 'propose' }).token;
+  const p = tmpDir('guideline-propose-');
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  write(p, '.ruler/ruler.project.toml', 'default_agents = ["claude", "codex"]\n');
+  const keys = ['agents/rev.md', 'mcp/b', 'mcp/c7', 'mcp/gl', 'rules/base', 'skills/s'];
+  const manifest = { version: 3, form: 'ruler', agents: ['claude', 'codex'], sources: { default: { server: s.base, items: keys, aliases: {} } } };
+  const r = render({ tree: memoryTree(SOURCE), revision: 1, manifest: manifestOf('ruler', keys), lock: null, project: diskReader(p), layout: 'guideline' });
+  applyFiles(p, r.files);
+  const q = id => `default:${id}`;
+  const lock = { version: 3, revisions: { default: 1 }, sources: Object.fromEntries(Object.entries(r.lock.sources).map(([k, v]) => [q(k), v])),
+    outputs: r.lock.outputs.map(o => ({ ...o, items: o.items.map(q) })) };
+  write(p, 'guideline.json', manifestText(manifest));
+  write(p, 'guideline-lock.json', lockText(lock));
+  return { s, p, env: { GUIDELINE_TOKEN: token } };
+}
+
+test('새 배치: propose 는 .guideline 사본을 그대로 원본 변경으로 보낸다', async t => {
+  const { s, p, env } = await setupGuide(t);
+  // 사본은 원본 모양(frontmatter 포함)이라 되돌리지 않고 그대로 보낸다
+  const edited = `${ALWAYS}# 에이\n\n다듬은 본문\n`;
+  write(p, '.guideline/rules/base/00-a.md', edited);
+  write(p, '.guideline/rules/base/SETUP.md', '# base 세팅\n\n한 줄 더\n');
+  write(p, '.guideline/agents/rev.md', `${SOURCE['agents/rev.md']}\n더함\n`);
+  write(p, '.guideline/skills/s/new.md', '새 파일\n');
+  fs.rmSync(path.join(p, '.guideline/skills/s/img/a.png'));
+  // 조합한 생성물(.ruler/)을 고쳐도 올리지 않는다
+  write(p, '.ruler/base/00-a.md', '# 생성물 고침\n');
+  const r = await run({ project: p, env, title: '다듬기' });
+  assert.equal(r.code, 0, r.err);
+  const by = Object.fromEntries(s.proposals.get(1).changes.map(c => [c.path, c]));
+  assert.deepEqual(Object.keys(by).sort(), ['agents/rev.md', 'rules/base/00-a.md', 'rules/base/SETUP.md', 'skills/s/img/a.png', 'skills/s/new.md']);
+  assert.equal(by['rules/base/00-a.md'].content.toString(), edited);
+  assert.equal(by['rules/base/00-a.md'].base, sha256(Buffer.from(SOURCE['rules/base/00-a.md'])));
+  assert.equal(by['skills/s/new.md'].base, null);
+  assert.equal(by['skills/s/img/a.png'].content, null);
+});
+
+test('새 배치: MCP 사본을 고치면 propose 가 server.json 변경을 보낸다', async t => {
+  const { s, p, env } = await setupGuide(t);
+  const server = JSON.stringify({ type: 'stdio', command: 'npx', args: ['-y', 'c7@2'] });
+  write(p, '.guideline/mcp/c7/server.json', server);
+  write(p, '.guideline/mcp/c7/README.md', '# c7\n');
+  const r = await run({ project: p, env, title: 'c7 올림', json: true });
+  assert.equal(r.code, 0, r.err);
+  const out = JSON.parse(r.out);
+  assert.deepEqual(out.changes.map(c => [c.path, c.kind]), [['mcp/c7/README.md', 'add'], ['mcp/c7/server.json', 'modify']]);
+  assert.equal(out.todos.some(x => x.kind === 'mcp-local'), false);
+  const by = Object.fromEntries(s.proposals.get(1).changes.map(c => [c.path, c]));
+  assert.equal(by['mcp/c7/server.json'].content.toString(), server);
+});

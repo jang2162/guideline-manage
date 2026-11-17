@@ -6,6 +6,7 @@ import { isTextPath } from './store-paths.js';
 import { currentPart } from './render/index.js';
 import { diskReader } from './project-state.js';
 import { realOf, unitOf, unitName, setNameLine } from './sources.js';
+import { idOfCopy, copyPath } from './layout.js';
 import { t } from './i18n.js';
 
 // 스택 경로는 하위 스택이면 여러 조각(`browser/neo`)이다. 스킬·서브에이전트 자리(.ruler/skills·.ruler/agents)도 이 모양에 맞을 수 있어
@@ -63,12 +64,18 @@ function sourceOf(base, rel, cur) {
   return null;
 }
 
+/** 파일마다 바뀜·더함·지움을 내는 디렉터리 항목(스킬, 새 배치의 MCP). */
+const isDirItem = id => id.startsWith('skills/') || id.startsWith('mcp/');
+
 /**
  * 잠금 기준으로 「프로젝트에서 고침」 인 사본을 원본 경로의 변경으로 되돌린다.
- * 지침·세팅 문서·서브에이전트는 고친 것만, 스킬은 파일마다 바뀜·더함·지움을 낸다. MCP 는 할 일로 남긴다.
- * @param {{ base: import('./tree.js').Tree, project: string, lock: import('./manifest.js').Lock, only?: Set<string> | null }} opts
+ * 지침·세팅 문서·서브에이전트는 고친 것만, 스킬은 파일마다 바뀜·더함·지움을 낸다.
+ * 새 배치의 사본(.guideline/<id>)은 원본 모양 그대로라 되돌리지 않고 그 id 의 변경이 되고, MCP 사본(server.json·README.md)도 같다.
+ * 옛 배치의 MCP(ruler.toml 의 표)는 할 일로 남긴다.
+ * @param {{ base: import('./tree.js').Tree, project: string, lock: import('./manifest.js').Lock, only?: Set<string> | null,
+ *   layout?: 'ruler' | 'guideline' }} opts
  */
-export function localChanges({ base, project, lock, only = null }) {
+export function localChanges({ base, project, lock, only = null, layout = lock.version === 3 ? 'guideline' : 'ruler' }) {
   const reader = diskReader(project);
   const want = id => !only || only.has(id);
   const changes = new Map();
@@ -93,19 +100,27 @@ export function localChanges({ base, project, lock, only = null }) {
       }
       continue;
     }
+    const copied = idOfCopy(o.path);
+    if (copied !== null) {
+      // 디렉터리 항목의 파일을 지운 것은 원본에서도 지운다. 지침·서브에이전트 사본이 없어진 것은 올리지 않는다.
+      if (cur === null && !isDirItem(id)) continue;
+      put(changeOf(base, copied, cur === null ? null : Buffer.from(cur)));
+      continue;
+    }
     if (cur === null && !SKILL_COPY.test(o.path)) continue;
     const s = sourceOf(base, o.path, cur === null ? null : Buffer.from(cur));
     if (s) put(changeOf(base, s.path, s.content));
   }
-  // 스킬 디렉터리에 새로 생긴 파일
+  // 디렉터리 항목(스킬, 새 배치면 MCP 도)에 새로 생긴 파일
+  const guide = layout === 'guideline';
   const known = new Set(lock.outputs.map(o => o.path));
   for (const id of Object.keys(lock.sources)) {
-    if (!id.startsWith('skills/') || !want(id)) continue;
-    const name = id.slice('skills/'.length);
-    for (const rel of listFiles(path.join(project, '.ruler', 'skills', name))) {
-      const copy = `.ruler/skills/${name}/${rel}`;
+    if (!(id.startsWith('skills/') || (guide && id.startsWith('mcp/'))) || !want(id)) continue;
+    const dir = guide ? copyPath(id) : `.ruler/${id}`;
+    for (const rel of listFiles(path.join(project, ...dir.split('/')))) {
+      const copy = `${dir}/${rel}`;
       if (known.has(copy) || hidden(rel)) continue;
-      put(changeOf(base, `skills/${name}/${rel}`, fs.readFileSync(path.join(project, ...copy.split('/')))));
+      put(changeOf(base, `${id}/${rel}`, fs.readFileSync(path.join(project, ...copy.split('/')))));
     }
   }
   return { changes: [...changes.values()].sort((a, b) => (a.path < b.path ? -1 : 1)), todos };

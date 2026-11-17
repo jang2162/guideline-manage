@@ -113,12 +113,13 @@ const STEP_OF_KIND = { rule: 'rules', setup: 'rules', mcp: 'mcp', subagent: 'age
 const STEP_OF_DIR = { rules: 'rules', mcp: 'mcp', agents: 'agents', skills: 'skills' };
 
 /**
- * 폼 항목이 놓일 단계. 원본에서 사라진 항목은 경로 앞 조각으로 정하고, 모르면 지침 단계.
+ * 폼 항목이 놓일 단계. 원본에서 사라진 항목은 경로 앞 조각으로 정하고(새 배치 사본 .guideline/<조각>/ 은 그 다음 조각), 모르면 지침 단계.
  * @param {{ kind: string, id: string }} item
  * @returns {'rules' | 'mcp' | 'agents' | 'skills'}
  */
 export function stepOf(item) {
-  return STEP_OF_KIND[item.kind] ?? STEP_OF_DIR[item.id.split('/')[0]] ?? 'rules';
+  const parts = item.id.split('/');
+  return STEP_OF_KIND[item.kind] ?? STEP_OF_DIR[parts[0] === '.guideline' ? parts[1] : parts[0]] ?? 'rules';
 }
 
 /**

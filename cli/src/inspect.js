@@ -5,6 +5,7 @@ import { headings, sectionBody } from './sections.js';
 import { readProjectOverrides, checkOverrides } from './project-overrides.js';
 import { unifiedDiff, keyPathDiff } from './diff.js';
 import { asTree, readText } from './tree.js';
+import { copyPath, GUIDE_DIR } from './layout.js';
 import { t } from './i18n.js';
 
 const INSTRUCTION_FILES = ['CLAUDE.md', 'AGENTS.md'];
@@ -92,8 +93,8 @@ function ruleState(tree, project, form, instructionFiles, f) {
   return { state: same ? 'same' : 'different', where: whereOf(hits) };
 }
 
-/** 지침 파일과 세팅 문서 항목. 바꿈 표 경고가 있는 스택은 통째로 blocked. */
-function ruleItems(tree, project, form, instructionFiles) {
+/** 지침 파일과 세팅 문서 항목. 바꿈 표 경고가 있는 스택은 통째로 blocked. 새 배치면 .guideline/ 사본을 원본 모양 그대로 비교한다. */
+function ruleItems(tree, project, form, instructionFiles, guide) {
   const items = [];
   for (const stack of stacks(tree)) {
     const blocked = stackOverrides(stack, tree).warnings.length > 0 ? t('inspect.overrideTableWarning', { stack }) : null;
@@ -101,6 +102,7 @@ function ruleItems(tree, project, form, instructionFiles) {
       const base = { kind: 'rule', id: f.path, stack, load: f.load };
       if (blocked || f.warning) items.push({ ...base, state: 'blocked', reason: blocked ?? f.warning });
       else if (!project) items.push({ ...base, state: 'missing' });
+      else if (guide) items.push({ ...base, ...copyState(text(tree, f.path), project, copyPath(f.path)) });
       else items.push({ ...base, ...ruleState(tree, project, form, instructionFiles, f) });
     }
     if (stackSetup(stack, tree)) {
@@ -108,7 +110,7 @@ function ruleItems(tree, project, form, instructionFiles) {
       const base = { kind: 'setup', id, stack };
       if (blocked) items.push({ ...base, state: 'blocked', reason: blocked });
       else if (!project) items.push({ ...base, state: 'missing' });
-      else items.push({ ...base, ...copyState(text(tree, id), project, `docs/guideline/${stack}/SETUP.md`) });
+      else items.push({ ...base, ...copyState(text(tree, id), project, guide ? copyPath(id) : `docs/guideline/${stack}/SETUP.md`) });
     }
   }
   return items;
@@ -160,12 +162,13 @@ function sameFiles(x, y) {
 
 const isDir = p => exists(p) && fs.statSync(p).isDirectory();
 
-/** 스킬: ruler 면 .ruler/skills, 아니면 .claude/skills·.agents/skills 중 있는 곳. */
-function skillItems(tree, project, form) {
+/** 스킬: 새 배치면 .guideline/skills, ruler 면 .ruler/skills, 아니면 .claude/skills·.agents/skills 중 있는 곳. */
+function skillItems(tree, project, form, guide) {
   return skills(tree).map(name => {
     const base = { kind: 'skill', id: `skills/${name}` };
     if (!project) return { ...base, state: 'missing' };
-    const places = (form === 'ruler' ? ['.ruler/skills'] : ['.claude/skills', '.agents/skills']).map(p => `${p}/${name}`);
+    const places = guide ? [copyPath(base.id)]
+      : (form === 'ruler' ? ['.ruler/skills'] : ['.claude/skills', '.agents/skills']).map(p => `${p}/${name}`);
     const where = places.filter(p => isDir(path.join(project, p)));
     if (where.length === 0) return { ...base, state: 'missing' };
     const src = sourceFiles(tree, `skills/${name}`);
@@ -174,12 +177,13 @@ function skillItems(tree, project, form) {
   });
 }
 
-/** 서브에이전트: ruler 면 .ruler/agents, 아니면 .claude/agents. Codex .toml 만 있으면 present. */
-function subagentItems(tree, project, form) {
+/** 서브에이전트: 새 배치면 .guideline/agents 사본만, ruler 면 .ruler/agents, 아니면 .claude/agents. Codex .toml 만 있으면 present. */
+function subagentItems(tree, project, form, guide) {
   return subagents(tree).map(name => {
     const id = `agents/${name}.md`;
     const base = { kind: 'subagent', id };
     if (!project) return { ...base, state: 'missing' };
+    if (guide) return { ...base, ...copyState(text(tree, id), project, copyPath(id)) };
     const rel = form === 'ruler' ? `.ruler/agents/${name}.md` : `.claude/agents/${name}.md`;
     if (exists(path.join(project, rel))) return { ...base, ...copyState(text(tree, id), project, rel) };
     const codex = `.codex/agents/${name}.toml`;
@@ -211,12 +215,29 @@ function readMcpJson(project) {
   }
 }
 
-/** MCP: .mcp.json 은 type 을 빼고 비교, TOML(ruler·Codex)은 있는지만 본다. */
-function mcpItems(tree, project) {
+/** 새 배치 MCP 사본의 server.json. 읽을 수 없으면 null(키 경로 차이가 전부로 나온다). */
+function copyServer(project, dir) {
+  try {
+    return JSON.parse(read(path.join(project, dir, 'server.json')));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * MCP: .mcp.json 은 type 을 빼고 비교, TOML(ruler·Codex)은 있는지만 본다.
+ * 새 배치면 .guideline/mcp/<이름>/ 사본을 원본 디렉터리와 비교한다. 사본을 두지 않는 build MCP 만 예전처럼 에이전트 설정에서 찾는다.
+ */
+function mcpItems(tree, project, guide) {
   const mcpJson = project ? readMcpJson(project) : null;
   return mcpDefinitions(tree).map(def => {
     const base = { kind: 'mcp', id: `mcp/${def.name}`, build: def.build };
     if (!project) return { ...base, state: 'missing' };
+    if (guide && !def.build) {
+      const copy = copyPath(base.id);
+      if (!isDir(path.join(project, copy))) return { ...base, state: 'missing' };
+      return { ...base, state: sameFiles(sourceFiles(tree, base.id), treeFiles(path.join(project, copy))) ? 'same' : 'different', where: [copy] };
+    }
     if (Object.hasOwn(mcpJson.servers, def.name)) {
       if (def.build) return { ...base, state: 'present', where: ['.mcp.json'] };
       const diff = keyPathDiff(def.server, mcpJson.servers[def.name]);
@@ -248,6 +269,34 @@ function dirsUnder(dir, rel = '') {
     const r = rel ? `${rel}/${name}` : name;
     return [r, ...dirsUnder(dir, r)];
   });
+}
+
+/**
+ * 새 배치에서 원본에 없는 사본: .guideline/rules/ 아래 모든 깊이의 지침 파일·세팅 문서, .guideline/skills/<이름>/,
+ * .guideline/agents/<이름>.md, .guideline/mcp/<이름>/. .guideline/ 은 받은 것만 두는 자리라 프로젝트 고유 것과 섞이지 않는다.
+ * 스킬·MCP 는 디렉터리 하나가 항목 하나다. 바꿈(overrides/)·관리 지침(management/)은 사본이 아니다.
+ */
+function guideOrphans(tree, project) {
+  const g = path.join(project, GUIDE_DIR);
+  const items = [];
+  const rules = path.join(g, 'rules');
+  for (const stack of dirsUnder(rules)) {
+    for (const f of filesIn(path.join(rules, stack))) {
+      if ((RULE_FILE.test(f) || f === 'SETUP.md') && !tree.exists(`rules/${stack}/${f}`)) {
+        items.push({ kind: 'orphan', id: copyPath(`rules/${stack}/${f}`), stack, state: 'orphan' });
+      }
+    }
+  }
+  // 원본에 그 자리가 아예 없을 때만 고아다(원본에서 읽히지 않는 항목의 사본을 지우자고 하지 않는다)
+  const orphan = id => items.push({ kind: 'orphan', id: copyPath(id), state: 'orphan' });
+  const dirsGone = kind => {
+    for (const name of subdirs(path.join(g, kind))) if (tree.list(`${kind}/${name}`).length === 0) orphan(`${kind}/${name}`);
+  };
+  dirsGone('skills');
+  const agentDir = path.join(g, 'agents');
+  for (const f of isDir(agentDir) ? filesIn(agentDir) : []) if (f.endsWith('.md') && !tree.exists(`agents/${f}`)) orphan(`agents/${f}`);
+  dirsGone('mcp');
+  return items;
 }
 
 /**
@@ -295,19 +344,21 @@ function orphanItems(tree, project) {
  * 원본과 프로젝트를 비교한다.
  * @param {string | import('./tree.js').Tree} src 문서 저장소 경로나 원본 트리
  * @param {string | null} project 프로젝트 절대경로. null 이면 새 프로젝트
+ * @param {{ layout?: 'ruler' | 'guideline' | 'none' }} [opts] guideline 이면 .guideline/ 사본과 .guideline/overrides/ 를 본다(moved 는 없다)
  * @returns {{ form: 'ruler' | 'instructions' | 'none', instructionFiles: string[], items: Item[], overrides: object[] }}
  */
-export function inspect(src, project) {
+export function inspect(src, project, { layout = 'ruler' } = {}) {
   const tree = asTree(src);
   const { form, instructionFiles } = detectForm(project);
+  const guide = layout === 'guideline' && project !== null;
   const items = [
-    ...ruleItems(tree, project, form, instructionFiles),
-    ...skillItems(tree, project, form),
-    ...subagentItems(tree, project, form),
-    ...mcpItems(tree, project),
-    ...orphanItems(tree, project),
+    ...ruleItems(tree, project, form, instructionFiles, guide),
+    ...skillItems(tree, project, form, guide),
+    ...subagentItems(tree, project, form, guide),
+    ...mcpItems(tree, project, guide),
+    ...(guide ? guideOrphans(tree, project) : orphanItems(tree, project)),
   ];
-  const overrides = project ? checkOverrides(readProjectOverrides(project, form, instructionFiles), tree) : [];
+  const overrides = project ? checkOverrides(readProjectOverrides(project, form, instructionFiles, guide ? 'guideline' : 'ruler'), tree) : [];
   return { form, instructionFiles, items, overrides };
 }
 
@@ -321,14 +372,17 @@ export function inspect(src, project) {
  */
 export function itemDiff(src, project, item) {
   const tree = asTree(src);
+  const where = item.where ?? [];
+  // 새 배치의 사본(.guideline/)은 원본 모양 그대로라 frontmatter 를 떼지 않고 비교한다
+  const guide = where.length > 0 && where.every(w => w.startsWith(`${GUIDE_DIR}/`));
   if (item.kind === 'mcp') {
     if (!DIFFABLE.includes(item.state) || item.build) return { keys: [] };
     const name = item.id.slice('mcp/'.length);
     const def = mcpDefinitions(tree).find(d => d.name === name);
-    return { keys: def?.server ? keyPathDiff(def.server, readMcpJson(project).servers[name]) : [] };
+    // 값(비밀이 들 수 있다)은 싣지 않고 키 경로만 낸다
+    return { keys: def?.server ? keyPathDiff(def.server, guide ? copyServer(project, where[0]) : readMcpJson(project).servers[name]) : [] };
   }
   if (!DIFFABLE.includes(item.state)) return { files: [] };
-  const where = item.where ?? [];
   if (item.kind === 'skill') {
     const a = sourceFiles(tree, item.id);
     const files = [];
@@ -341,7 +395,7 @@ export function itemDiff(src, project, item) {
     }
     return { files };
   }
-  const src2 = item.kind === 'rule' ? stripFrontmatter(text(tree, item.id)) : text(tree, item.id);
+  const src2 = item.kind === 'rule' && !guide ? stripFrontmatter(text(tree, item.id)) : text(tree, item.id);
   if (item.kind === 'rule' && where.length > 0 && where.every(w => INSTRUCTION_FILES.includes(w))) {
     const texts = where.map(rel => ({ rel, text: read(path.join(project, rel)) }));
     const files = [];

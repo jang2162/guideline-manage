@@ -285,7 +285,7 @@
   "todo.adopted": "{path}: already differed from the source before it was received — if it is an old version, proposing it would undo source changes. If the project edited it, propose it with --only {id}",
   "todo.agentsDisabled": "{name}: not written because .ruler/ruler.toml lacks [agents] enabled = true — decide whether to turn it on (it adds generated files to .gitignore)",
   "todo.agentsNotComposed": "{name}: copied to .guideline/ but not composed because .ruler/ruler.project.toml lacks [agents] enabled = true — decide whether to turn it on (it adds generated files to .gitignore)",
-  "todo.aliasMoved": ".ruler/{dir}/{file}: the stack moved (alias) — move the override to the new place",
+  "todo.aliasMoved": "{path}: the stack moved (alias) — move the override to the new place",
   "todo.apply": "Generated agent files are out of date — run guideline apply",
   "todo.blocked": "{item}: cannot be applied ({reason}) — fix the source",
   "todo.conflict": "{what}: already exists and differs from the source — check the diff and choose",

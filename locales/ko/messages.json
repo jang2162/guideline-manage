@@ -285,7 +285,7 @@
   "todo.adopted": "{path}: 받기 전부터 원본과 달랐음 — 옛 판이면 올릴 때 원본 변경이 되돌려짐. 프로젝트에서 고친 것이면 --only {id} 로 올리기",
   "todo.agentsDisabled": "{name}: .ruler/ruler.toml 에 [agents] enabled = true 가 없어 쓰지 않음 — 켤지 결정(켜면 .gitignore 에 생성물이 추가됨)",
   "todo.agentsNotComposed": "{name}: .guideline/ 에 사본은 있지만 .ruler/ruler.project.toml 에 [agents] enabled = true 가 없어 조합하지 않음 — 켤지 결정(켜면 .gitignore 에 생성물이 추가됨)",
-  "todo.aliasMoved": ".ruler/{dir}/{file}: 별칭 때문에 스택 자리가 바뀜 — 바꿈을 새 자리로 옮기기",
+  "todo.aliasMoved": "{path}: 별칭 때문에 스택 자리가 바뀜 — 바꿈을 새 자리로 옮기기",
   "todo.apply": "생성물이 낡음 — guideline apply 실행",
   "todo.blocked": "{item}: 반영 불가({reason}) — 원본 수정 필요",
   "todo.conflict": "{what}: 이미 있는데 원본과 다름 — 차이를 보고 선택",

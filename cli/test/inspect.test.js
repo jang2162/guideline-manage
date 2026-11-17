@@ -305,3 +305,83 @@ test('orphanItems 는 하위 스택 폴더도 본다', t => {
     ['.ruler/browser/neo/00-x.md', 'browser/neo'],
   ]);
 });
+
+test('새 배치: 지침·세팅·스킬·서브에이전트·MCP 를 .guideline 사본과 원본 모양 그대로 비교한다', t => {
+  const { root, project } = setup(t);
+  write(root, 'rules/base/SETUP.md', '# 세팅\n');
+  write(root, 'agents/rev.md', '---\nname: rev\ndescription: 검토\n---\n\n# 검토\n');
+  write(root, 'mcp/c7/server.json', '{"type":"stdio","command":"npx"}');
+  write(root, 'mcp/c7/README.md', '# c7\n');
+  write(root, 'mcp/jira/server.json', '{"type":"http","url":"https://j"}');
+  write(root, 'mcp/gitlab/README.md', '## 반영할 때 항목 만들기\n\n뽑는다\n');
+  write(project, '.ruler/ruler.project.toml', '');
+  // frontmatter 를 그대로 둔 사본은 같다(CRLF 도 같다)
+  write(project, '.guideline/rules/base/00-alpha.md', `${ALWAYS}# alpha\r\n\r\nA1\r\n`);
+  write(project, '.guideline/rules/base/01-beta.md', '# beta\n\nB1\n');
+  write(project, '.guideline/rules/base/SETUP.md', '# 세팅\n');
+  write(project, '.guideline/skills/demo-skill/SKILL.md', '---\nname: demo-skill\ndescription: 데모\n---\n\n본문\n');
+  write(project, '.guideline/agents/rev.md', '# 고침\n');
+  write(project, '.guideline/mcp/c7/server.json', '{"type":"stdio","command":"npx"}');
+  write(project, '.guideline/mcp/c7/README.md', '# c7\n');
+  // 조합한 생성물이나 .mcp.json 은 보지 않는다
+  write(project, '.ruler/demo/00-rules.md', '# demo rules\n\nD1\n');
+  write(project, '.mcp.json', JSON.stringify({ mcpServers: { jira: { url: 'https://j' }, gitlab: { url: 'https://g' } } }));
+  const r = inspect(root, project, { layout: 'guideline' });
+  assert.deepEqual(states(r), {
+    'rules/base/00-alpha.md': 'same', 'rules/base/01-beta.md': 'different', 'rules/demo/00-rules.md': 'missing',
+  });
+  assert.deepEqual(item(r, 'rules/base/01-beta.md').where, ['.guideline/rules/base/01-beta.md']);
+  assert.equal(item(r, 'rules/base/SETUP.md').state, 'same');
+  assert.deepEqual([item(r, 'skills/demo-skill').state, item(r, 'skills/demo-skill').where], ['same', ['.guideline/skills/demo-skill']]);
+  assert.equal(item(r, 'agents/rev.md').state, 'different');
+  assert.deepEqual(states(r, 'mcp'), { 'mcp/c7': 'same', 'mcp/gitlab': 'present', 'mcp/jira': 'missing' });
+  assert.equal(r.items.some(i => i.state === 'moved'), false);
+  // 차이는 원본 모양(frontmatter 포함)끼리
+  const d = itemDiff(root, project, item(r, 'rules/base/01-beta.md'));
+  assert.equal(d.files[0].path, '.guideline/rules/base/01-beta.md');
+  assert.match(d.files[0].diff, /-load: reference/);
+});
+
+test('새 배치: MCP 사본이 다르면 different 이고 차이는 값 없이 키 경로만 낸다', t => {
+  const { root, project } = setup(t);
+  write(root, 'mcp/db/server.json', JSON.stringify({ type: 'stdio', command: 'npx', env: { PW: '${PW}' } }));
+  write(project, '.guideline/mcp/db/server.json', JSON.stringify({ type: 'stdio', command: 'npx', env: { PW: 'hunter2' } }));
+  const r = inspect(root, project, { layout: 'guideline' });
+  const it = item(r, 'mcp/db');
+  assert.deepEqual([it.state, it.where], ['different', ['.guideline/mcp/db']]);
+  const d = itemDiff(root, project, it);
+  assert.deepEqual(Object.keys(d), ['keys']);
+  assert.equal(JSON.stringify(d).includes('hunter2'), false);
+  assert.equal(d.keys.length, 1);
+});
+
+test('새 배치: 원본에 없는 .guideline 사본은 orphan 이다', t => {
+  const { root, project } = setup(t);
+  write(root, 'agents/rev.md', '# 검토\n');
+  write(root, 'mcp/c7/server.json', '{"type":"stdio","command":"npx"}');
+  write(project, '.guideline/rules/base/00-alpha.md', `${ALWAYS}# alpha\n\nA1\n`);
+  write(project, '.guideline/rules/base/07-gone.md', '# 사라짐\n');
+  write(project, '.guideline/rules/base/sub/00-s.md', '# 하위\n');
+  write(project, '.guideline/rules/old/SETUP.md', '# 옛 세팅\n');
+  write(project, '.guideline/skills/demo-skill/SKILL.md', '# 있음\n');
+  write(project, '.guideline/skills/old-skill/SKILL.md', '# 사라짐\n');
+  write(project, '.guideline/agents/rev.md', '# 검토\n');
+  write(project, '.guideline/agents/old.md', '# 사라짐\n');
+  write(project, '.guideline/mcp/c7/server.json', '{}');
+  write(project, '.guideline/mcp/old/server.json', '{}');
+  // 바꿈·관리 지침은 사본이 아니다
+  write(project, '.guideline/overrides/base/override.md', '## 바꿈\n');
+  write(project, '.guideline/management/default.md', '# 관리\n');
+  // 새 배치의 .ruler/·docs/guideline/ 은 조합한 생성물이라 보지 않는다
+  write(project, '.ruler/base/07-gone.md', '# 생성물\n');
+  write(project, 'docs/guideline/base/08-gone.md', '# 생성물\n');
+  const r = inspect(root, project, { layout: 'guideline' });
+  assert.deepEqual(r.items.filter(i => i.kind === 'orphan').map(i => [i.id, i.stack ?? null]), [
+    ['.guideline/rules/base/07-gone.md', 'base'],
+    ['.guideline/rules/base/sub/00-s.md', 'base/sub'],
+    ['.guideline/rules/old/SETUP.md', 'old'],
+    ['.guideline/skills/old-skill', null],
+    ['.guideline/agents/old.md', null],
+    ['.guideline/mcp/old', null],
+  ]);
+});

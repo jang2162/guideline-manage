@@ -470,3 +470,22 @@ test('출처 폼: 다른 출처가 쓰는 스택의 하위 스택도 blocked 다
   assert.equal(item.state, 'blocked');
   assert.match(item.reason, /다른 출처\(personal\)가 이미 쓰는 이름/);
 });
+
+test('출처 폼(새 배치): 다른 출처의 .guideline 사본(잠금에 없는 지침 파일, 스킬 디렉터리)은 고아로 나오지 않는다', async t => {
+  const { a, b, env } = await servers(t);
+  // a 에만 있는 스킬: b 의 폼에서는 원본에 없는 .guideline/skills/only-a/ 로 보인다
+  a.store.commit({ ...META, changes: { 'skills/only-a/SKILL.md': '---\nname: only-a\ndescription: 에이만\n---\n\n본문\n' } });
+  const p = project(t);
+  await projectPick({ project: p, source: 'personal', server: a.base, env, ...pickQuiet,
+    open: driverMany([a, b], (s, d) => ({ choices: checkOnly(i => i.id.startsWith('rules/base/') || i.id === 'skills/only-a')(d.items) })) });
+  assert.equal(readLock(p).version, 3);
+  assert.ok(exists(p, '.guideline/skills/only-a/SKILL.md'));
+  // personal 의 스택 자리에 프로젝트가 둔 파일(잠금에 없음)
+  write(p, '.guideline/rules/base/09-extra.md', `${ALWAYS}# 덧\n`);
+  const m = JSON.parse(read(p, 'guideline.json'));
+  m.sources.company = { server: b.base, items: [], aliases: { 'rules/base': 'company-base' } };
+  write(p, 'guideline.json', JSON.stringify(m));
+  const seen = [];
+  await projectPick({ project: p, source: 'company', env, ...pickQuiet, open: driverMany([a, b], () => ({ cancel: true }), seen) });
+  assert.deepEqual(seen[0].data.items.filter(i => i.kind === 'orphan').map(i => i.id), []);
+});

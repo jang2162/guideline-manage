@@ -75,3 +75,17 @@ test('none 형태나 바꿈이 없는 프로젝트는 빈 배열', t => {
   write(project, '.ruler/base/00-alpha.md', '# alpha\n');
   assert.deepEqual(readProjectOverrides(project, 'ruler', []), []);
 });
+
+test('새 배치: 바꿈은 .guideline/overrides 에서 읽는다', t => {
+  const { root, project } = setup(t);
+  write(project, '.guideline/overrides/base/override.md', '## 밖에 만든다\n\n바꾸는 절: `base/00-alpha.md` 「기본 절」\n');
+  write(project, '.guideline/overrides/base/override.d/01-beta.md', '## 베타 전체\n\n바꾸는 절: `base/01-beta.md`\n');
+  write(project, '.guideline/overrides/deploy__a.b/override.md', '## 배포\n\n바꾸는 절: `deploy__a.b/00-x.md` 「배포 절」\n');
+  // 조합이 복사한 .ruler/ 쪽은 읽지 않는다
+  write(project, '.ruler/base/override.md', '## 생성물\n\n바꾸는 절: `base/00-alpha.md`\n');
+  assert.deepEqual(checkOverrides(readProjectOverrides(project, 'ruler', [], 'guideline'), root), [
+    { file: '.guideline/overrides/base/override.d/01-beta.md', stack: 'base', heading: '베타 전체', target: 'rules/base/01-beta.md', title: null, valid: true },
+    { file: '.guideline/overrides/base/override.md', stack: 'base', heading: '밖에 만든다', target: 'rules/base/00-alpha.md', title: '기본 절', valid: true },
+    { file: '.guideline/overrides/deploy__a.b/override.md', stack: 'deploy__a.b', heading: '배포', target: 'rules/deploy__a.b/00-x.md', title: '배포 절', valid: true },
+  ]);
+});

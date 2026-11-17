@@ -6,6 +6,7 @@ import { getToken } from '../credentials.js';
 import { fetchSources, virtualize, showId } from '../workspace.js';
 import { realOf } from '../sources.js';
 import { openProject } from './project-update.js';
+import { layoutOf } from '../layout.js';
 import { localChanges, toApiChange, toRealChanges } from '../propose.js';
 import { unifiedDiff } from '../diff.js';
 import { printTodos } from '../todos.js';
@@ -155,7 +156,8 @@ export async function propose({
     const r = realOf(id, v.sources);
     return r && onlySet.has(`${r.source}:${r.id}`);
   })) : null;
-  const { changes, todos } = localChanges({ base: v.tree, project: dir, lock: v.viewLock, only: wanted });
+  // 가상 잠금은 version 을 잃으므로 배치는 실제 잠금으로 정한다
+  const { changes, todos } = localChanges({ base: v.tree, project: dir, lock: v.viewLock, only: wanted, layout: layoutOf(lock, dir) });
   const shown = todos.map(t => (t.item ? { ...t, item: show(t.item) } : t));
   const bySource = toRealChanges({ changes, sources: v.sources, trees });
   const targets = v.sources.map(s => s.name).filter(n => source === undefined || n === source);

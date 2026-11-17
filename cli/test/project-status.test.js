@@ -155,7 +155,7 @@ async function setupNew(t) {
   write(p, LOCK, lockText(toRealLock({ viewLock: r.lock, sources: v.sources, revisions: { default: 1 } })));
   write(p, PROJECT_TOML, RULER_TOML_BASE(['claude']));
   assert.equal(await projectApply({ dir: p, out: () => {}, err: () => {}, env: { PATH: '' }, git: () => ({ status: 1, stdout: '' }) }), 0);
-  return { p, env: { GUIDELINE_TOKEN: token } };
+  return { s, p, env: { GUIDELINE_TOKEN: token } };
 }
 
 test('status 는 생성물이 낡았으면 apply 할 일을 낸다', async t => {
@@ -178,4 +178,15 @@ test('status 는 생성물이 낡았으면 apply 할 일을 낸다', async t => 
   const off = collect();
   assert.equal(await projectStatus({ project: p, env, out: off.out, err: () => {} }), 1);
   assert.match(off.text(), /할 일\n {2}- 생성물이 낡음 — guideline apply 실행/);
+});
+
+test('새 배치: 사본이 최신 원본과 같으면(제안이 수락된 뒤) status 는 둘 다 바뀜이 아니라 원본 새로 나옴이다', async t => {
+  const { s, p, env } = await setupNew(t);
+  const accepted = `${ALWAYS}# 에이\n\n수락된 본문\n`;
+  s.store.commit({ ...META, changes: { 'rules/base/00-a.md': accepted } });
+  // 새 배치의 사본은 원본 바이트 그대로라 수락된 원본과 같다
+  write(p, '.guideline/rules/base/00-a.md', accepted);
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, json: true, env, out: o.out, err: () => {} }), 0);
+  assert.equal(JSON.parse(o.text()).items.find(x => x.id === 'rules/base/00-a.md').state, 'upstream');
 });

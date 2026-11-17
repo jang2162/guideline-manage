@@ -6,7 +6,7 @@ import { qualify, splitQualified, readManifest } from './manifest.js';
 import { sourceView, mergeViews, toVirtual, realOf, aliasProblems, unitOf, finalUnit, unitName, collisions, collisionMessage } from './sources.js';
 import { readText } from './tree.js';
 import { blockKeys, elementRequires } from './catalog.js';
-import { managementCopy } from './layout.js';
+import { managementCopy, overridePath } from './layout.js';
 import { t } from './i18n.js';
 
 // 여러 출처의 원본을 받아 하나의 가상 원본으로 합치고(렌더링·상태 코드가 그대로 쓰게), 결과 잠금을 출처 붙은 id 로 되돌린다.
@@ -84,6 +84,9 @@ const stackDir = p => {
   const d = /^\.ruler\/(.+)\/[^/]+$/.exec(p)?.[1] ?? null;
   return d && !NOT_STACK.has(d.split('/')[0]) ? d : null;
 };
+
+/** 새 배치 지침 사본(.guideline/rules/<스택 경로>/<파일>)의 스택 경로. 아니면 null. */
+const copyStackDir = p => /^\.guideline\/rules\/(.+)\/[^/]+$/.exec(p)?.[1] ?? null;
 
 /**
  * 닿지 못한 출처가 있을 때 건드리지 않을 생성물 경로: 그 출처 최종 스택의 색인, 관리 지침, docs/guideline/README.md,
@@ -213,14 +216,17 @@ export function toRealLock({ viewLock, sources, revisions, previous = null, keep
  */
 export function aliasMoveTodos({ previous, next, project }) {
   if (!previous) return [];
-  const dirs = lock => new Set(lock.outputs.map(o => stackDir(o.path)).filter(Boolean));
+  // 잠금마다 그 배치로 스택 자리를 읽는다: 새 배치(v3)는 .guideline/rules/<스택 경로>/ 사본, 옛 배치는 .ruler/<스택 경로>/
+  const dirs = lock => new Set(lock.outputs.map(o => (lock.version === 3 ? copyStackDir : stackDir)(o.path)).filter(Boolean));
   const now = dirs(next);
+  // 바꿈은 지난 배치의 자리에 있다: 새 배치면 .guideline/overrides/<스택 경로>/, 옛 배치면 .ruler/<스택 경로>/
+  const home = d => (previous.version === 3 ? overridePath(d, '').slice(0, -1) : `.ruler/${d}`);
   const out = [];
   for (const d of [...dirs(previous)].sort(byStr)) {
     if (now.has(d)) continue;
-    const base = path.join(project, '.ruler', d);
+    const base = path.join(project, ...home(d).split('/'));
     const which = fs.existsSync(path.join(base, 'override.md')) ? 'override.md' : fs.existsSync(path.join(base, 'override.d')) ? 'override.d/' : null;
-    if (which) out.push({ kind: 'alias', item: null, message: t('todo.aliasMoved', { dir: d, file: which }) });
+    if (which) out.push({ kind: 'alias', item: null, message: t('todo.aliasMoved', { path: `${home(d)}/${which}` }) });
   }
   return out;
 }

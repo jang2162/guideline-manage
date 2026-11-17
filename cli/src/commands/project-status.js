@@ -43,7 +43,9 @@ export async function projectStatus({
 
   const unfetched = Object.keys(manifest.sources).filter(n => !trees.has(n));
   const v = virtualize({ manifest, lock, trees, protect: protectedPaths({ manifest, lock, failed: unfetched }) });
-  const { states, outputs } = itemStates({ tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management });
+  const { states, outputs } = itemStates({
+    tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management, layout: layoutOf(lock, dir),
+  });
   const show = id => showId(id, v.sources, v.many);
   const todos = [...applyTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
