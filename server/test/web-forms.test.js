@@ -16,6 +16,7 @@ async function setup(t, project = {}, extra = {}) {
   });
   const token = s.tokens.issue({ name: 'cli-a', scope: 'read' }).token;
   const body = {
+    formVersion: 2,
     revision: 1,
     project: { name: 'p', path: '/x/p', form: 'ruler', instructionFiles: [], agents: ['claude'], isNew: false, gitRepo: true, dirty: false, ...project },
     items: ITEMS,
@@ -168,12 +169,12 @@ test('폼 data 의 recommend: 없으면 빈 객체, 문자열 값이 아닌 reco
   assert.deepEqual((await f.s.req(`/forms/${f.id}/data`, { headers: { Cookie: cookie } })).json().recommend, {});
   const bad = await f.s.req('/api/v1/forms', {
     method: 'POST', auth: f.token, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ revision: 1, project: { name: 'p' }, items: [], overrides: [], recommend: [1] }),
+    body: JSON.stringify({ formVersion: 2, revision: 1, project: { name: 'p' }, items: [], overrides: [], recommend: [1] }),
   });
   assert.equal(bad.status, 400);
   const bad2 = await f.s.req('/api/v1/forms', {
     method: 'POST', auth: f.token, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ revision: 1, project: { name: 'p' }, items: [], overrides: [], recommend: { 'rules/base': 1 } }),
+    body: JSON.stringify({ formVersion: 2, revision: 1, project: { name: 'p' }, items: [], overrides: [], recommend: { 'rules/base': 1 } }),
   });
   assert.equal(bad2.status, 400);
 });
@@ -194,4 +195,42 @@ test('폼에는 단계 탭 다섯(지침·MCP·서브에이전트·스킬·확�
   for (const step of ['rules', 'mcp', 'agents', 'skills', 'confirm']) assert.ok(page.includes(`data-step="${step}"`), step);
   assert.ok(page.includes('id="prev"') && page.includes('id="next"'));
   for (const key of ['web.client.stepCount', 'web.client.stepNone', 'web.client.hiddenByCategory', 'web.client.allCategories', 'web.client.step.rules', 'web.client.step.mcp', 'web.client.step.agents', 'web.client.step.skills']) assert.ok(page.includes(`"${key}"`), key);
+});
+
+test('폼 데이터의 catalog 스택에 parent·when 이 있다', async t => {
+  const f = await setup(t);
+  f.s.store.commit({
+    ...META,
+    changes: {
+      'rules/base/browser/README.md': '---\nwhen: 브라우저를 직접 다루는 작업\n---\n# browser\n',
+      'rules/base/browser/00-tool.md': '---\nload: always\n---\n\n# tool\n',
+    },
+  });
+  const r = await f.s.req('/api/v1/forms', {
+    method: 'POST', auth: f.token, headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ formVersion: 2, revision: 2, project: { name: 'p', path: '/x/p', isNew: false, gitRepo: true, dirty: false }, items: [], overrides: [] }),
+  });
+  const u = new URL(r.json().url);
+  const g = { s: f.s, link: u.pathname + u.search };
+  const cookie = await openForm(g);
+  const data = (await f.s.req(`${u.pathname}/data`, { headers: { Cookie: cookie } })).json();
+  assert.deepEqual(data.catalog.stacks.map(x => [x.name, x.parent, x.when]), [
+    ['base', null, null],
+    ['base/browser', 'base', '브라우저를 직접 다루는 작업'],
+  ]);
+});
+
+test('정적 forms.js 가 blocks.js 를 import 하고, 스택 나무·조상·자손 풀림 문구를 쓴다', async t => {
+  const s = await startApp(t);
+  const src = (await s.req('/static/forms.js')).text;
+  assert.match(src, /^import \{[^}]*\bancestorKeys\b[^}]*\} from '\.\/blocks\.js';$/m);
+  assert.match(src, /^import \{[^}]*\bstackRows\b[^}]*\} from '\.\/selection\.js';$/m);
+  for (const key of ['web.client.ancestor', 'web.client.childrenReleased']) assert.ok(src.includes(`'${key}'`), key);
+});
+
+test('폼 페이지는 조상·자손 풀림 문구를 브라우저 문구 블록에 싣는다', async t => {
+  const f = await setup(t);
+  const cookie = await openForm(f);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
+  for (const key of ['web.client.ancestor', 'web.client.childrenReleased', 'web.client.when']) assert.ok(page.includes(`"${key}"`), key);
 });

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { itemKey, defaultChoice, canUpdate, actionOf, selectionItems, summarize, buildResult } from '../src/selection.js';
+import { itemKey, defaultChoice, canUpdate, actionOf, selectionItems, summarize, buildResult, stackRows } from '../src/selection.js';
 
 test('selection.js 는 브라우저에서도 돌도록 ./blocks.js 말고는 import 하지 않고, blocks.js 는 아무것도 import 하지 않는다', () => {
   const text = fs.readFileSync(new URL('../src/selection.js', import.meta.url), 'utf8');
@@ -85,4 +85,15 @@ test('buildResult 는 반영할 수 없는 blocked 항목을 이유와 함께 �
   const r = buildResult({ docsRoot: '/d', project: {}, inspection: { items, overrides: [] }, choices: {} });
   assert.deepEqual(r.items, []);
   assert.deepEqual(r.blocked, [{ kind: 'rule', id: 'rules/a/00-x.md', stack: 'a', reason: 'frontmatter 에 load 없음' }]);
+});
+
+test('stackRows 는 부모 바로 아래에 자식을 깊이와 함께 두고, 형제는 받은 순서를 지킨다', () => {
+  const stacks = [
+    { name: 'base', parent: null }, { name: 'base-x', parent: null }, { name: 'base/browser', parent: 'base' },
+    { name: 'base/browser/deep', parent: 'base/browser' }, { name: 'base/a', parent: 'base' }, { name: 'lone/kid', parent: 'lone' },
+  ];
+  assert.deepEqual(stackRows(stacks).map(r => [r.stack.name, r.depth]), [
+    ['base', 0], ['base/browser', 1], ['base/browser/deep', 2], ['base/a', 1], ['base-x', 0], ['lone/kid', 0],
+  ]);
+  assert.deepEqual(stackRows([{ name: 'old' }]).map(r => [r.stack.name, r.depth]), [['old', 0]], 'parent 가 없는 옛 catalog 도 최상위로');
 });

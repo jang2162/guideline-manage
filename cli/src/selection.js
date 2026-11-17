@@ -202,3 +202,28 @@ export function releasable(unit, { chosen, auto, touched, requires }) {
     released = next;
   }
 }
+
+/**
+ * 폼 지침 단계의 스택 나무 순서: 부모 바로 아래에 자식을, 깊이와 함께. 형제는 받은 순서를 지킨다.
+ * 이름순 정렬만으로는 `base-x` 가 `base` 와 `base/browser` 사이에 끼므로 parent 로 나무를 만든다.
+ * parent 가 없거나 목록에 없으면 최상위로 둔다.
+ * @template {{ name: string, parent?: string | null }} S
+ * @param {S[]} stacks
+ * @returns {{ stack: S, depth: number }[]}
+ */
+export function stackRows(stacks) {
+  const names = new Set(stacks.map(s => s.name));
+  const kids = new Map();
+  const roots = [];
+  for (const s of stacks) {
+    if (s.parent && names.has(s.parent)) kids.set(s.parent, [...(kids.get(s.parent) ?? []), s]);
+    else roots.push(s);
+  }
+  const out = [];
+  const walk = (s, depth) => {
+    out.push({ stack: s, depth });
+    for (const k of kids.get(s.name) ?? []) walk(k, depth + 1);
+  };
+  for (const s of roots) walk(s, 0);
+  return out;
+}
