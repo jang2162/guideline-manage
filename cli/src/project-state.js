@@ -5,7 +5,7 @@ import { currentPart, blockedReason } from './render/index.js';
 import { desiredOutputs, desiredPart, isRootOnly, ROOT_ONLY_REASON } from './render/outputs.js';
 import { sha256, itemHash, treeHashes } from './hashes.js';
 import { expandBlocks } from './catalog.js';
-import { blockKey } from './blocks.js';
+import { blockKey, isBlockKey } from './blocks.js';
 import { itemKey } from './selection.js';
 import { AGENTS } from './manifest.js';
 import { t } from './i18n.js';
@@ -77,7 +77,9 @@ export function kindOf(id) {
   return 'mcp';
 }
 
-const stackOf = id => RULE.exec(id)?.[1] ?? SETUP.exec(id)?.[1] ?? null;
+/** 지침 파일·세팅 문서·스택 키의 스택 경로. 원본에서 통째로 사라진 스택은 스택 키(`rules/gone`)로 남아 있다. */
+const stackOf = id => RULE.exec(id)?.[1] ?? SETUP.exec(id)?.[1]
+  ?? (id.startsWith('rules/') && isBlockKey(id) ? id.slice('rules/'.length) : null);
 
 /**
  * 매니페스트 항목마다 잠금 기준 상태와, 잠금 출력마다 디스크 상태.

@@ -74,8 +74,15 @@ export async function fetchSources({
   return { trees, failures };
 }
 
-const stackDir = p => /^\.ruler\/([^/]+)\//.exec(p)?.[1] ?? null;
 const NOT_STACK = new Set(['skills', 'agents']);
+/**
+ * 생성물이 놓인 `.ruler/` 아래 디렉터리 경로(`browser/neo`). 사본·색인은 자기 스택 폴더 바로 안에 놓이므로 이것이 그 스택이다 —
+ * 부모 스택과 하위 스택의 주인이 달라도 하위 스택 폴더의 것은 하위 스택 몫이다(최장 일치). 스킬·서브에이전트 자리는 null.
+ */
+const stackDir = p => {
+  const d = /^\.ruler\/(.+)\/[^/]+$/.exec(p)?.[1] ?? null;
+  return d && !NOT_STACK.has(d.split('/')[0]) ? d : null;
+};
 
 /**
  * 닿지 못한 출처가 있을 때 건드리지 않을 생성물 경로: 그 출처 최종 스택의 색인, 관리 지침, docs/guideline/README.md.
@@ -201,7 +208,7 @@ export function toRealLock({ viewLock, sources, revisions, previous = null, keep
  */
 export function aliasMoveTodos({ previous, next, project }) {
   if (!previous) return [];
-  const dirs = lock => new Set(lock.outputs.map(o => stackDir(o.path)).filter(d => d && !NOT_STACK.has(d)));
+  const dirs = lock => new Set(lock.outputs.map(o => stackDir(o.path)).filter(Boolean));
   const now = dirs(next);
   const out = [];
   for (const d of [...dirs(previous)].sort(byStr)) {
@@ -217,14 +224,14 @@ export function aliasMoveTodos({ previous, next, project }) {
  * 받은 블록이 requires 로 요구하는데 받지 않은 블록을 알리는 할 일. 요구하는 블록 하나에 하나.
  * 출처마다 그 출처의 원본 requires 와 매니페스트의 실제 id(별칭을 입히기 전)로 판정한다 — requires 는 원본 키라
  * 별칭을 입히지 않은 쪽끼리 견줘야 맞고, 다른 출처의 같은 이름 블록은 다른 블록이다.
- * 스택은 그 스택의 파일이 하나라도 받혀 있으면 받은 것이다. 원본에 없는 블록은 pick 으로 더할 수 없으므로 알리지 않는다.
+ * 받은 블록은 매니페스트 items(블록 키) 그대로다. 원본에 없는 블록은 pick 으로 더할 수 없으므로 알리지 않는다.
  * @param {{ manifest: import('./manifest.js').Manifest, trees: Map<string, { tree: import('./tree.js').Tree }>, many: boolean }} opts
  */
 export function missingRequiresTodos({ manifest, trees, many }) {
   const out = [];
   for (const name of [...trees.keys()].sort(byStr)) {
     const tree = trees.get(name).tree;
-    const received = new Set((manifest.sources[name]?.items ?? []).map(unitOf).filter(Boolean));
+    const received = new Set(manifest.sources[name]?.items ?? []);
     const { requires } = elementRequires(tree);
     const exists = blockKeys(tree);
     for (const unit of [...received].sort(byStr)) {

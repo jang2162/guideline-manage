@@ -7,6 +7,8 @@ import { remoteClient, loadSource, explain } from '../remote.js';
 import { tokenFor, virtualize, toRealLock, fetchSources, aliasMoveTodos, protectedPaths } from '../workspace.js';
 import { realOf, unitOf, unitName, finalUnit, collisions, collisionMessage, NAME } from '../sources.js';
 import { catalogView } from '../catalog-view.js';
+import { expandBlocks } from '../catalog.js';
+import { blockKey, isWithin, withAncestors } from '../blocks.js';
 import { catalogSummary } from '../summary.js';
 import { splitQualified } from '../manifest.js';
 import { revisionLabel } from './project-update.js';
@@ -155,13 +157,13 @@ export async function projectPick({
       }
       payload.recommend = Object.fromEntries(Object.entries(recommended.value).map(([k, why]) => [finalUnit(k, aliases), why]));
     }
-    const taken = takenUnits(sources, name);
+    const takenBy = takenUnits(sources, name);
     const othersOwn = otherOwned(sources, lock, name);
     payload.catalog = withVirtualRequires(catalogView(v.tree), aliases);
     payload.items = payload.items
       .filter(it => it.kind !== 'orphan' || !othersOwn(it.id))
       .map(it => {
-        const owner = it.kind !== 'orphan' && taken.get(unitOf(it.id));
+        const owner = it.kind !== 'orphan' && takenBy(unitOf(it.id));
         return owner ? { ...it, state: 'blocked', reason: t('pick.nameTaken', { owner }) } : it;
       });
 
@@ -183,10 +185,12 @@ export async function projectPick({
     }
     const sel = result.selection;
     if (sel.project) finalAgents = sel.project.agents;
-    const keep = sel.items.filter(i => i.kind !== 'orphan' && i.action !== 'remove').map(i => i.id);
-    const stillBlocked = v.view.items.filter(id => sel.blocked.some(b => b.id === id));
+    // 폼은 아직 파일마다 고른다. 매니페스트는 블록 키라, 남긴 파일·키를 그 블록(조상 스택 포함)으로 올린다 —
+    // 같은 스택의 파일이 하나라도 남으면 그 스택을 받는다. 매니페스트에 있던 블록 중 막힌 파일이 있는 것도 그대로 둔다.
+    const keep = sel.items.filter(i => i.kind !== 'orphan' && i.action !== 'remove').map(i => blockKey(i.id));
+    const stillBlocked = v.view.items.filter(k => sel.blocked.some(b => blockKey(b.id) === k));
     const real = id => realOf(id, v.sources)?.id ?? id;
-    sources[name] = { ...sources[name], items: [...keep, ...stillBlocked].map(real) };
+    sources[name] = { ...sources[name], items: withAncestors([...keep, ...stillBlocked].filter(Boolean).map(real)) };
     submitted.set(name, { sel, v, revision: sel.revision, overrides: payload.overrides });
   }
   for (const f of failures) err(f);
@@ -220,7 +224,8 @@ export async function projectPick({
   const failed = others.failures.map(f => f.source);
   const protect = protectedPaths({ manifest: nextManifest, lock, failed });
   const v = virtualize({ manifest: nextManifest, lock, trees, protect });
-  const decisions = Object.fromEntries(v.view.items.map(id => [id, { action: 'keep' }]));
+  // 매니페스트는 블록 키, 렌더링의 결정은 파일 id 마다다. 고른 스택의 파일 전부를 받는다.
+  const decisions = Object.fromEntries(expandBlocks(v.tree, v.view.items).map(id => [id, { action: 'keep' }]));
   const orphans = [];
   for (const [name, { sel }] of submitted) {
     // 같은 가상 id 를 다른 출처가 가질 수 있다(다른 출처가 쓰는 이름이라 이 폼에서 막힌 항목). 그 결정은 이 출처의 항목에만 준다.
@@ -260,36 +265,51 @@ function lockOf(lock, name) {
   };
 }
 
-/** 다른 출처들이 쓰는 최종 단위 → 그 출처. */
+/**
+ * 단위 → 그것을 쓰는 다른 출처(없으면 undefined). 다른 출처가 쓰는 최종 단위와 같거나, 한쪽이 다른 쪽 안(조상·자손 스택)이면
+ * 그 출처의 것이다 — 고르면 collisions 가 충돌로 막는다.
+ * @returns {(unit: string | null) => string | undefined}
+ */
 function takenUnits(sources, name) {
-  const taken = new Map();
+  const taken = [];
   for (const [other, s] of Object.entries(sources)) {
     if (other === name) continue;
     for (const id of s.items) {
       const u = unitOf(id);
-      if (u) taken.set(finalUnit(u, s.aliases ?? {}), other);
+      if (u) taken.push([finalUnit(u, s.aliases ?? {}), other]);
     }
   }
-  return taken;
+  return unit => (unit ? taken.find(([f]) => isWithin(unit, f) || isWithin(f, unit))?.[1] : undefined);
 }
 
 /**
- * 다른 출처의 사본인가. 다른 출처의 잠금 출력이거나, 다른 출처가 쓰는 최종 스택 자리(.ruler/<스택>/, docs/guideline/<스택>/) 아래다.
+ * 다른 출처의 사본인가. 다른 출처의 잠금 출력이거나, 그 경로를 품는 가장 깊은 최종 스택 자리(.ruler/<스택 경로>/,
+ * docs/guideline/<스택 경로>/)를 다른 출처가 쓴다 — 부모 스택을 다른 출처가 가졌어도 자식 폴더는 자식 소유자의 것이다.
  * 출처 하나의 폼이 다른 출처의 사본을 「원본에서 사라짐」 으로 보이지 않게 한다.
  */
 function otherOwned(sources, lock, name) {
   const paths = new Set((lock?.outputs ?? [])
     .filter(o => o.items.length > 0 && o.items.every(q => splitQualified(q).source !== name))
     .map(o => o.path));
-  const stacks = new Set();
-  for (const [other, s] of Object.entries(sources)) {
-    if (other === name) continue;
+  const stacks = new Map();
+  for (const [source, s] of Object.entries(sources)) {
     for (const id of s.items) {
       const u = unitOf(id);
-      if (u?.startsWith('rules/')) stacks.add(unitName(finalUnit(u, s.aliases ?? {})));
+      if (u?.startsWith('rules/')) stacks.set(unitName(finalUnit(u, s.aliases ?? {})), source);
     }
   }
-  return p => paths.has(p) || [...stacks].some(st => p.startsWith(`.ruler/${st}/`) || p.startsWith(`docs/guideline/${st}/`));
+  const ownerOf = p => {
+    const m = /^(?:\.ruler|docs\/guideline)\/(.+)\/[^/]+$/.exec(p);
+    for (let d = m?.[1] ?? ''; d; d = d.includes('/') ? d.slice(0, d.lastIndexOf('/')) : '') {
+      if (stacks.has(d)) return stacks.get(d);
+    }
+    return null;
+  };
+  return p => {
+    if (paths.has(p)) return true;
+    const owner = ownerOf(p);
+    return owner !== null && owner !== name;
+  };
 }
 
 /** 표준 입력 전부. */

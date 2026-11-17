@@ -67,7 +67,7 @@ test('update: 원본에 새 requires 가 생겨 빠진 블록이 있으면 missi
   assert.match(o.text(), /^ {2}- mcp\/c7: .*rules\/base/m);
 });
 
-test('update: 요구하는 스택의 파일이 하나라도 받혀 있으면 missing-requires 가 없다', async t => {
+test('update: v2 매니페스트에서 요구하는 스택의 파일 하나만 있어도 그 스택 블록을 받은 것이라 missing-requires 가 없다', async t => {
   const { list: [a], env } = await servers(t, 1);
   a.store.commit({ ...META, changes: C7_NEEDS_BASE });
   const p = project(t, { default: { server: a.base, items: ['mcp/c7', 'rules/base/01-b.md'] } });
@@ -138,4 +138,16 @@ test('원본에 없는 블록을 요구해도 알리지 않는다(pick 으로 �
   await updateJson(p, env);
   const todos = missingOf((await statusJson(p, env)).todos);
   assert.deepEqual(todos.map(x => x.data), [{ missing: ['rules/base'] }]);
+});
+
+test('하위 스택을 요구하면 받은 블록 키 그대로 판정한다 — 부모 스택만 받았으면 빠졌고, 하위 스택을 받았으면 없다', async t => {
+  const { list: [a], env } = await servers(t, 1);
+  a.store.commit({ ...META, changes: {
+    'rules/base/sub/00-s.md': '---\nload: always\n---\n\n# 에스\n',
+    'mcp/c7/README.md': '---\nrequires: [rules/base/sub]\n---\n# c7\n',
+  } });
+  const parentOnly = project(t, { default: { server: a.base, items: ['mcp/c7', 'rules/base'] } });
+  assert.deepEqual(missingOf((await updateJson(parentOnly, env)).todos).map(x => x.data), [{ missing: ['rules/base/sub'] }]);
+  const withSub = project(t, { default: { server: a.base, items: ['mcp/c7', 'rules/base/sub'] } });
+  assert.deepEqual(missingOf((await updateJson(withSub, env)).todos), []);
 });

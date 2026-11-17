@@ -165,3 +165,17 @@ test('중첩이면 formItems 가 루트 전용 항목을 막는다', t => {
   assert.equal(items.find(i => i.id === 'rules/base/00-a.md').state, 'missing');
   assert.ok(desiredOutputs);
 });
+
+test('formItems 는 원본에서 통째로 사라진 스택(하위 스택 포함)을 스택 칸을 채워 올린다', t => {
+  const sub = { 'rules/gone/00-g.md': `${ALWAYS}# 지\n`, 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n` };
+  const p = dir(t);
+  const manifest = manifestOf('ruler', ['rules/base', 'rules/base/sub', 'rules/gone']);
+  const r = render({ tree: renderTree(sub), revision: 1, manifest, lock: null, project: diskReader(p) });
+  applyFiles(p, r.files);
+  const { items } = formItems({ tree: renderTree(), project: p, manifest, lock: r.lock, reader: diskReader(p) });
+  const removed = items.filter(i => i.lockState === 'removed');
+  assert.deepEqual(removed, [
+    { kind: 'rule', id: 'rules/base/sub', stack: 'base/sub', state: 'present', lockState: 'removed' },
+    { kind: 'rule', id: 'rules/gone', stack: 'gone', state: 'present', lockState: 'removed' },
+  ]);
+});

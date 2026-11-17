@@ -113,3 +113,57 @@ test('unitOf·aliasUnitOf 는 깊이 1 id 에서 예전 값을 내고, 점 있�
   assert.equal(toVirtual('rules/base/logo.png', { 'rules/base': 'core' }), 'rules/core/logo.png');
   assert.equal(toVirtual('rules/deploy__gitlab.example.com/00-a.md', { 'rules/deploy__gitlab.example.com': 'deploy' }), 'rules/deploy/00-a.md');
 });
+
+test('collisions 는 조상·자손 관계도 충돌로 본다', () => {
+  const c = collisions([
+    { name: 'a', items: ['rules/browser'], aliases: {} },
+    { name: 'b', items: ['rules/browser/x'], aliases: {} },
+  ]);
+  assert.equal(c.length, 1);
+  assert.deepEqual([c[0].a, c[0].b, c[0].unit], ['a', 'b', 'rules/browser/x']);
+  // 조상을 채운 매니페스트(부모가 같아 충돌)는 하위 스택 몫을 따로 세지 않는다
+  assert.equal(collisions([
+    { name: 'a', items: ['rules/browser'], aliases: {} },
+    { name: 'b', items: ['rules/browser', 'rules/browser/x'], aliases: {} },
+  ]).length, 1);
+  // 자손 쪽이 먼저 나와도 충돌이다
+  assert.equal(collisions([
+    { name: 'a', items: ['rules/browser/x'], aliases: {} },
+    { name: 'b', items: ['rules/browser'], aliases: {} },
+  ]).length, 1);
+  // 한 출처의 부모·자식은 충돌이 아니고, 별칭으로 비킨 부모 아래 자식도 충돌이 아니다
+  assert.deepEqual(collisions([{ name: 'a', items: ['rules/browser', 'rules/browser/x'], aliases: {} }]), []);
+  assert.deepEqual(collisions([
+    { name: 'a', items: ['rules/browser'], aliases: {} },
+    { name: 'b', items: ['rules/browser', 'rules/browser/x'], aliases: { 'rules/browser': 'web' } },
+  ]), []);
+});
+
+test('realOf 는 별칭 부모 아래 하위 스택 id·키를 되돌리고, 점 없는 스택 자산의 주인도 찾는다', () => {
+  const s = [{ name: 'default', items: ['rules/browser', 'rules/browser/neo'], aliases: { 'rules/browser': 'web' } }];
+  assert.deepEqual(realOf('rules/web/neo/00-x.md', s), { source: 'default', id: 'rules/browser/neo/00-x.md' });
+  assert.deepEqual(realOf('rules/web/neo', s), { source: 'default', id: 'rules/browser/neo' });
+  assert.deepEqual(realOf('rules/web', s), { source: 'default', id: 'rules/browser' });
+  const two = [
+    { name: 'a', items: ['rules/base'], aliases: {} },
+    { name: 'b', items: ['skills/s'], aliases: {} },
+  ];
+  assert.deepEqual(realOf('rules/base/LICENSE', two), { source: 'a', id: 'rules/base/LICENSE' });
+  assert.deepEqual(realOf('rules/base/sub/00-s.md', [{ name: 'a', items: ['rules/base', 'rules/base/sub'], aliases: {} }, two[1]]),
+    { source: 'a', id: 'rules/base/sub/00-s.md' });
+  // 부모를 다른 출처가 가졌어도 하위 스택 파일은 그 하위 스택을 가진 출처의 것이다(가장 깊은 키)
+  const split = [{ name: 'a', items: ['rules/base'], aliases: {} }, { name: 'b', items: ['rules/base/sub'], aliases: {} }];
+  assert.deepEqual(realOf('rules/base/sub/00-s.md', split), { source: 'b', id: 'rules/base/sub/00-s.md' });
+  assert.deepEqual(realOf('rules/base/00-a.md', split), { source: 'a', id: 'rules/base/00-a.md' });
+  assert.deepEqual(realOf('rules/base/sub/LICENSE', split), { source: 'b', id: 'rules/base/sub/LICENSE' });
+});
+
+test('sourceView 는 하위 스택 README 의 바꿈 표도 부모 별칭을 따라 고친다', () => {
+  const tree = memoryTree({
+    'rules/base/00-a.md': '# a\n',
+    'rules/orca/sub/README.md': '| `05-s.md` 「a」 | `base/00-a.md` 「b」 |\n',
+    'rules/orca/sub/05-s.md': '# s\n',
+  });
+  const v = sourceView(tree, { 'rules/base': 'company-base' });
+  assert.match(readText(v, 'rules/orca/sub/README.md'), /`company-base\/00-a\.md`/);
+});

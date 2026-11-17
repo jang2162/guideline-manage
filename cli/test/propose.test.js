@@ -275,3 +275,26 @@ test('--apply --json 은 status 와 revision 을 낸다', async t => {
   assert.equal(out.status, 'accepted');
   assert.equal(out.revision, 2);
 });
+
+test('propose 는 하위 스택 사본을 원본 경로로 되돌린다', t => {
+  const files = {
+    ...SOURCE,
+    'rules/browser/00-a.md': `${ALWAYS}# 에이\n`,
+    'rules/browser/neo/00-x.md': `${ALWAYS}# 엑스\n\n본문 X\n`,
+    'rules/browser/neo/SETUP.md': '# neo 세팅\n',
+    'skills/s/00-n.md': '# 스킬 안 번호 파일\n',
+  };
+  const base = memoryTree(files);
+  const p = tmpDir('guideline-propose-');
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  write(p, '.ruler/ruler.toml', 'default_agents = ["claude"]\n');
+  const r = render({ tree: base, revision: 1, manifest: manifestOf('ruler', ['rules/browser', 'rules/browser/neo', 'skills/s']), lock: null, project: diskReader(p) });
+  applyFiles(p, r.files);
+  write(p, '.ruler/browser/neo/00-x.md', '# 엑스\n\n고친 X\n');
+  write(p, 'docs/guideline/browser/neo/SETUP.md', '# neo 세팅\n\n더함\n');
+  write(p, '.ruler/skills/s/00-n.md', '# 고친 스킬 파일\n');
+  const { changes } = localChanges({ base, project: p, lock: r.lock });
+  const by = Object.fromEntries(changes.map(c => [c.path, c]));
+  assert.deepEqual(Object.keys(by).sort(), ['rules/browser/neo/00-x.md', 'rules/browser/neo/SETUP.md', 'skills/s/00-n.md']);
+  assert.equal(by['rules/browser/neo/00-x.md'].content.toString(), `${ALWAYS}# 엑스\n\n고친 X\n`);
+});
