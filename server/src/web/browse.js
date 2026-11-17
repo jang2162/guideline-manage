@@ -355,7 +355,9 @@ function blockView(ctx, kind, name, rel) {
     title: `${name} · ${current}`,
     actions: html`${view.actions}<a class="button secondary" href="${hrefFor('/archive/', dir)}">${t('web.archive')}</a>`,
     detail: { left: blockList(cat, kind, name), right: filesPanel(ctx, kind, name, files, current) },
-    body: html`${requiresLine(cat, kind, name)}${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(ctx, cat, name) : ''}`,
+    // 하위 스택 목록은 README 화면에 묶지 않는다. README 없는 부모는 첫 화면이 첫 지침 파일이라 그래도 보여야 한다.
+    body: html`${requiresLine(cat, kind, name)}${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(ctx, cat, name)
+      : kind === 'stack' && !rel ? childrenSection(ctx, cat, name) : ''}`,
   });
 }
 

@@ -5,6 +5,7 @@ import { checkOrigin, requireAdminWeb, requireReadWeb, isAdmin } from './auth.js
 import { html, hrefFor, diffBlock, pageOf, pager, PAGE_SIZE } from './layout.js';
 import { sendView, hereHref, catalogAt } from './frame.js';
 import { groupChanges, changeTree, changeCrumb, diffCounts, pickCurrent } from './change-tree.js';
+import { dbTree } from '../db-tree.js';
 import { t } from '../../../cli/src/i18n.js';
 
 /** 이력 쪽 화면: 사이드바 없이 상단의 「이력」 을 켠다. */
@@ -87,7 +88,9 @@ function revisionPage(ctx) {
   const diffs = new Map(changes.map(c => [c.path, changeDiff(ctx.store, id, c.path)]));
   const counts = new Map([...diffs].map(([p, d]) => [p, d === null ? null : diffCounts(d)]));
   const total = [...counts.values()].reduce((a, c) => ({ add: a.add + (c?.add ?? 0), del: a.del + (c?.del ?? 0) }), { add: 0, del: 0 });
-  const groups = groupChanges(changes.map(c => c.path), catalogAt(ctx.store).summary);
+  // 이 리비전이 지우거나 더한 스택도 묶을 수 있게 이 리비전과 직전 리비전의 트리를 넘긴다.
+  const trees = [dbTree(ctx.store, id), ...(id > 1 ? [dbTree(ctx.store, id - 1)] : [])];
+  const groups = groupChanges(changes.map(c => c.path), catalogAt(ctx.store).summary, trees);
   const current = pickCurrent(groups, (ctx.url.searchParams.get('file') ?? '').normalize('NFC'));
   const c = changes.find(x => x.path === current);
   view(ctx, 200, {

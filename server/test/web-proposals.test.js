@@ -140,3 +140,19 @@ test('편집 저장·빼기 뒤에는 고르던 파일(빼면 남은 첫 파일)
   const dropped = await postForm(s, `/proposals/${id}/drop`, { path: 'rules/base/01-n.md' }, { cookie });
   assert.equal(dropped.headers.location, `/proposals/${id}`);
 });
+
+test('제안 변경 트리는 제안이 더하는 스택·하위 스택을 그 스택으로 묶는다', async t => {
+  const { s, cookie } = await setup(t);
+  const id = s.proposals.create({
+    title: '새 스택', author: 'p1', tokenId: null, project: null,
+    changes: [
+      { path: 'rules/base/newkid/00-x.md', content: Buffer.from('---\nload: always\n---\n# x\n'), base: null },
+      { path: 'rules/new/00-a.md', content: Buffer.from('---\nload: always\n---\n# a\n'), base: null },
+      { path: 'rules/new/assets/x.png', content: Buffer.from('p'), base: null },
+    ],
+  });
+  const page = (await getAs(s, cookie, `/proposals/${id}`)).text;
+  assert.ok(page.includes('title="base/newkid"'), page);
+  assert.ok(page.includes('title="new"'));
+  assert.ok(!page.includes('title="new/assets"'));
+});

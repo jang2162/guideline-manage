@@ -89,3 +89,19 @@ test('하위 스택의 설정 버튼과 내려받기는 경로 주소, 내려받
   assert.equal(child.status, 200);
   assert.match(child.headers['content-disposition'], /filename\*=UTF-8''base-neo-r\d+\.tar\.gz/);
 });
+
+test('README 없는 부모 스택도 첫 화면에 하위 스택 목록과 추가 링크가 있다', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: {
+    'rules/base/00-a.md': '---\nload: always\n---\n# a\n',
+    'rules/base/neo/00-x.md': '---\nload: always\n---\n# x\n',
+  } });
+  const cookie = await login(s);
+  const page = (await getAs(s, cookie, '/s/base')).text;
+  assert.ok(page.includes('class="children"'), page);
+  const kids = page.slice(page.indexOf('class="children"'));
+  assert.ok(kids.includes('href="/s/base/neo"'));
+  assert.ok(kids.includes('href="/add?kind=stack&amp;parent=base"'));
+  // 파일을 고른 화면에는 붙이지 않는다.
+  assert.ok(!(await getAs(s, cookie, '/s/base/00-a.md')).text.includes('class="children"'));
+});

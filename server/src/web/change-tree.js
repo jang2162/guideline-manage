@@ -2,6 +2,7 @@
 import { html, blockLabel } from './layout.js';
 import { labelOf } from './frame.js';
 import { blockOf } from './blocks.js';
+import { stacks } from '../../../cli/src/catalog.js';
 import { t } from '../../../cli/src/i18n.js';
 
 const ORDER = ['stack', 'skill', 'agent', 'mcp', 'docs'];
@@ -15,20 +16,19 @@ const KIND_LABEL = {
 };
 
 /**
- * 경로의 종류·블록. 스택은 카탈로그 스택 이름 중 최장 접두(하위 스택 파일은 하위 스택 묶음에).
- * 카탈로그에 없는 스택(지운 스택)은 파일이 놓인 폴더를 스택으로 본다. 어느 블록에도 안 맞으면 문서 묶음.
+ * 경로의 종류·블록. 스택은 아는 스택 이름 중 최장 접두(하위 스택 파일은 하위 스택 묶음에, 스택 안 자산 폴더는 그 스택에).
+ * 아는 스택 어디에도 안 맞는 rules/ 경로는 rules/ 바로 아래 폴더로 묶는다. 어느 블록에도 안 맞으면 문서 묶음.
+ * @param {ReturnType<typeof import('../../../cli/src/summary.js').catalogSummary>} known stacks 를 아는 스택 이름 전체로 바꾼 summary
  * @returns {{ kind: string, name: string | null, rel: string }}
  */
-function placeOf(p, summary) {
+function placeOf(p, known) {
   const segs = p.split('/');
   const kind = KIND_OF_DIR[segs[0]];
   if (kind === 'agent') {
     if (segs.length === 2 && segs[1].endsWith('.md') && segs[1] !== 'README.md') return { kind, name: segs[1].slice(0, -'.md'.length), rel: segs[1] };
-  } else if (kind === 'stack' && segs.length >= 3) {
-    const b = blockOf(p, summary);
-    if (b?.kind === 'stack' && b.rel) return b;
-    return { kind, name: segs.slice(1, -1).join('/'), rel: segs[segs.length - 1] };
   } else if (kind && segs.length >= 3) {
+    const b = kind === 'stack' ? blockOf(p, known) : null;
+    if (b?.kind === 'stack' && b.rel) return b;
     return { kind, name: segs[1], rel: segs.slice(2).join('/') };
   }
   return { kind: 'docs', name: null, rel: p };
@@ -47,14 +47,19 @@ function byName(a, b) {
 
 /**
  * 바뀐 경로를 종류 → 블록 → 파일로 묶는다. 블록·파일은 이름순, 문서 묶음은 docs/ 먼저.
+ * head 카탈로그에 없는 스택(리비전이 지운 것, 제안이 더하는 것)은 trees 의 스택으로 안다.
+ * 리비전은 그 리비전과 직전 리비전의 트리, 제안은 head 에 변경을 얹은 트리를 넘긴다.
  * @param {string[]} paths
- * @param {{ labels?: Record<string, string> }} summary
+ * @param {{ stacks: { name: string }[], labels?: Record<string, string> }} summary head 카탈로그(표시 이름도 여기서)
+ * @param {import('../../../cli/src/tree.js').Tree[]} [trees]
  * @returns {{ kind: string, blocks: { name: string | null, label: string | null, files: { path: string, rel: string }[] }[] }[]}
  */
-export function groupChanges(paths, summary) {
+export function groupChanges(paths, summary, trees = []) {
+  const names = new Set([...summary.stacks.map(st => st.name), ...trees.flatMap(tree => stacks(tree))]);
+  const known = { ...summary, stacks: [...names].map(name => ({ name })) };
   const kinds = new Map();
   for (const p of paths) {
-    const { kind, name, rel } = placeOf(p, summary);
+    const { kind, name, rel } = placeOf(p, known);
     if (!kinds.has(kind)) kinds.set(kind, new Map());
     const blocks = kinds.get(kind);
     if (!blocks.has(name)) blocks.set(name, []);

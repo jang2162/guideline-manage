@@ -6,6 +6,8 @@ import { groupChanges, changeTree, changeCrumb, diffCounts, pickCurrent } from '
 import { unifiedDiff } from '../../../cli/src/diff.js';
 import { sha256 } from '../store.js';
 import { readableText, proposalDiff } from '../proposals.js';
+import { dbTree } from '../db-tree.js';
+import { overlayTree } from '../../../cli/src/tree.js';
 import { t } from '../../../cli/src/i18n.js';
 import { markOurs, markTheirs } from '../../../cli/src/merge3.js';
 
@@ -92,7 +94,9 @@ function detailPage(ctx, p) {
   }));
   const conflicts = new Set((pl?.files ?? []).filter(f => f.result === 'conflict').map(f => f.path));
   const total = [...counts.values()].reduce((a, n) => ({ add: a.add + (n?.add ?? 0), del: a.del + (n?.del ?? 0) }), { add: 0, del: 0 });
-  const groups = groupChanges(p.changes.map(c => c.path), catalogAt(ctx.store).summary);
+  // 제안이 더하는 스택·하위 스택도 묶을 수 있게 head 에 변경을 얹은 트리를 넘긴다.
+  const after = overlayTree(dbTree(ctx.store), Object.fromEntries(p.changes.map(c => [c.path, c.content])));
+  const groups = groupChanges(p.changes.map(c => c.path), catalogAt(ctx.store).summary, [after]);
   const current = pickCurrent(groups, (ctx.url.searchParams.get('file') ?? '').normalize('NFC'), conflicts);
   const c = p.changes.find(x => x.path === current);
   view(ctx, 200, {
