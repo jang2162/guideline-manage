@@ -5,9 +5,11 @@ const ROOTS = ['rules', 'skills', 'mcp'];
 /**
  * 항목·경로 id 의 블록 키. 블록이 아니면 null.
  * `rules/<스택>[/<하위 스택>…]` 는 마지막 조각이 파일이면 그 디렉터리, 아니면 id 자체(스택 키).
- *   파일 판정: 마지막 조각에 `.` 가 있고 `__` 가 없다. 스택 안에는 `00-x.md` 뿐 아니라 `logo.png` 같은 자산도 있어
- *   확장자를 `.md` 로 못 박으면 자산이 하위 스택으로 오인된다. 도메인 스택 폴더(`deploy__gitlab.example.com`)는
- *   점을 갖지만 늘 `__` 를 가지므로 파일이 아니다. 끝 조각이 비면(`rules/base/`) null.
+ *   파일 판정: `rules/` 아래 조각이 둘 이상이고 마지막 조각에 `.` 가 있고 `__` 가 없다. 스택 안에는 `00-x.md` 뿐 아니라
+ *   `logo.png` 같은 자산도 있어 확장자를 `.md` 로 못 박으면 자산이 하위 스택으로 오인된다. 도메인 스택 폴더
+ *   (`deploy__gitlab.example.com`)는 점을 갖지만 늘 `__` 를 가지므로 파일이 아니다. `rules/` 바로 아래 조각은 늘 스택 키다
+ *   (`rules/next.js`): 그 자리에 둔 파일은 어느 스택에도 속하지 않고, 점 든 최상위 스택은 v1·v2 매니페스트에 이미 있을 수 있다.
+ *   끝 조각이 비면(`rules/base/`) null.
  * `skills/<이름>[/…]` → `skills/<이름>`, `mcp/<이름>[/…]` → `mcp/<이름>`, `agents/<이름>.md` 는 그대로.
  * @param {string} id
  * @returns {string | null}
@@ -18,7 +20,7 @@ export function blockKey(id) {
   const root = parts[0];
   if (root === 'rules') {
     const last = parts[parts.length - 1];
-    const dir = last.includes('.') && !last.includes('__') ? parts.slice(0, -1) : parts;
+    const dir = parts.length > 2 && last.includes('.') && !last.includes('__') ? parts.slice(0, -1) : parts;
     return dir.length >= 2 && dir.every(Boolean) ? dir.join('/') : null;
   }
   if (ROOTS.includes(root)) return `${root}/${parts[1]}`;

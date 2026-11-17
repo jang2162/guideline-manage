@@ -18,6 +18,10 @@ test('blockKey 는 깊이 1 id 에서 예전 unitOf 가 낸 값을 그대로 낸
     'rules/base/SETUP.md': 'rules/base',
     'rules/base/logo.png': 'rules/base',
     'rules/base': 'rules/base',
+    'rules/next.js': 'rules/next.js',
+    'rules/next.js/00-a.md': 'rules/next.js',
+    'rules/next.js/logo.png': 'rules/next.js',
+    'rules/README.md': 'rules/README.md',
     'skills/s': 'skills/s',
     'skills/s/x.md': 'skills/s',
     'agents/w.md': 'agents/w.md',
@@ -31,9 +35,11 @@ test('blockKey 는 깊이 1 id 에서 예전 unitOf 가 낸 값을 그대로 낸
   for (const [id, key] of Object.entries(OLD_UNIT_OF)) assert.equal(blockKey(id), key, id);
 });
 
-test('blockKey 는 마지막 조각에 점이 있고 __ 가 없으면 파일로, __ 가 있으면 도메인 스택 폴더로 본다', () => {
+test('blockKey 는 rules/ 아래 둘째 조각부터 마지막 조각에 점이 있고 __ 가 없으면 파일로, __ 가 있으면 도메인 스택 폴더로 본다', () => {
   assert.equal(blockKey('rules/base/logo.png'), 'rules/base');
   assert.equal(blockKey('rules/a/b/logo.png'), 'rules/a/b');
+  assert.equal(blockKey('rules/a/v1.2'), 'rules/a');
+  assert.equal(blockKey('rules/next.js'), 'rules/next.js');
   assert.equal(blockKey('rules/deploy__gitlab.example.com'), 'rules/deploy__gitlab.example.com');
   assert.equal(blockKey('rules/deploy__gitlab.example.com/00-a.md'), 'rules/deploy__gitlab.example.com');
   assert.equal(blockKey('rules/a/deploy__gitlab.example.com'), 'rules/a/deploy__gitlab.example.com');
@@ -45,8 +51,7 @@ test('blockKey 는 끝 조각이 비면 null 이다', () => {
   assert.equal(blockKey('rules/a/b/'), null);
 });
 
-test('blockKey 는 스택이 아닌 rules 직속 파일·빈 조각을 null 로 둔다', () => {
-  assert.equal(blockKey('rules/x.md'), null);
+test('blockKey 는 빈 조각을 null 로 둔다', () => {
   assert.equal(blockKey('rules'), null);
   assert.equal(blockKey('rules/a//b.md'), null);
   assert.equal(blockKey('skills/'), null);

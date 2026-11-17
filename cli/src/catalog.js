@@ -29,17 +29,18 @@ function byKey(key) {
 }
 
 /**
- * 폴더 이름이 스택 폴더로 못 쓰는 모양인가. 블록 키(blocks.js)가 마지막 조각을 파일로 읽는 이름이다(`.` 가 있고 `__` 가 없다).
- * 이런 폴더를 스택으로 잡으면 그 안의 지침 파일이 엉뚱한 블록 키를 얻는다.
+ * 하위 스택 폴더 이름으로 못 쓰는 모양인가. 블록 키(blocks.js)가 마지막 조각을 파일로 읽는 이름이다(`.` 가 있고 `__` 가 없다).
+ * 이런 폴더를 스택으로 잡으면 그 안의 지침 파일이 엉뚱한 블록 키를 얻는다. `rules/` 바로 아래 폴더(`next.js`)는 블록 키가
+ * 늘 스택으로 읽으므로 이 검사를 하지 않는다.
  */
 function dottedDir(name) {
   return name.includes('.') && !name.includes('__');
 }
 
-/** rules/ 아래 폴더들의 경로(`rules/` 뒤, 부모가 앞). 점이 든 폴더는 하위까지 건너뛴다. */
+/** rules/ 아래 폴더들의 경로(`rules/` 뒤, 부모가 앞). 점이 든 하위 폴더는 그 아래까지 건너뛴다. */
 function* ruleDirs(tree, rel = '') {
   for (const e of tree.list(rel ? `rules/${rel}` : 'rules')) {
-    if (!e.dir || dottedDir(e.name)) continue;
+    if (!e.dir || (rel !== '' && dottedDir(e.name))) continue;
     const child = rel ? `${rel}/${e.name}` : e.name;
     yield child;
     yield* ruleDirs(tree, child);
@@ -58,7 +59,8 @@ function byStackPath(a, b) {
 
 /**
  * `rules/` 아래 모든 깊이의 스택 경로(`browser/browseros-neo`). 스택은 지침 파일이 바로 안에 있는 폴더이거나, 자손 중에 스택이 있는
- * 폴더(묶음 스택)다. README.md·SETUP.md 만 있고 자손 스택이 없는 뼈대는 뺀다. 이름에 `.` 가 있고 `__` 가 없는 폴더는 스택이 아니다.
+ * 폴더(묶음 스택)다. README.md·SETUP.md 만 있고 자손 스택이 없는 뼈대는 뺀다. 이름에 `.` 가 있고 `__` 가 없는 하위 폴더는 스택이 아니다
+ * (최상위 `next.js` 는 스택이다).
  */
 export function stacks(src) {
   const tree = asTree(src);
@@ -250,7 +252,7 @@ export function ignored(src) {
     for (const f of visible(tree, dir)) {
       const rel = `${dir}/${f.name}`;
       if (f.dir) {
-        if (!dottedDir(f.name)) walkRules(rel);
+        if (dir === 'rules' || !dottedDir(f.name)) walkRules(rel);
         else if (hasRuleFile(tree, rel)) result.push({ path: `${rel}/`, reason: t('catalog.dottedStackDir') });
       } else if (dir !== 'rules' && f.name.endsWith('.md') && f.name !== 'README.md' && f.name !== 'SETUP.md' && !RULE_FILE.test(f.name)) {
         result.push({ path: rel, reason: t('catalog.badRuleName') });

@@ -431,6 +431,16 @@ test('점이 든 하위 폴더는 블록 키가 파일로 읽으므로 스택으
   assert.deepEqual(ignored(root), [{ path: 'rules/browser/v1.2/', reason: '이름에 `.` 가 있고 `__` 가 없어 스택 폴더로 못 씀' }]);
 });
 
+test('점 든 최상위 폴더(next.js)는 블록 키가 스택으로 읽으므로 스택으로 잡고 ignored 에 올리지 않는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/next.js/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/next.js/v1.2/00-a.md', `${ALWAYS}# a\n`);
+  assert.deepEqual(stacks(root), ['base', 'demo', 'next.js']);
+  assert.deepEqual(stackFiles('next.js', root), ['rules/next.js/00-a.md']);
+  assert.deepEqual(ignored(root), [{ path: 'rules/next.js/v1.2/', reason: '이름에 `.` 가 있고 `__` 가 없어 스택 폴더로 못 씀' }]);
+});
+
 test('도메인 스택이 부모여도 스택 이름 경고는 조각마다 검사한다', t => {
   const root = makeDocsRepo();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

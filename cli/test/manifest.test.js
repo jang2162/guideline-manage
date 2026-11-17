@@ -43,6 +43,13 @@ test('checkManifest 는 하위 스택 파일 id 를 그 스택 키로 바꾸고 
   assert.deepEqual(v1.sources.default.items, ['rules/a', 'rules/a/b']);
 });
 
+test('점 든 최상위 스택(rules/next.js)을 고른 v2 매니페스트는 v3 로 써도 다시 읽힌다', () => {
+  const v3 = checkManifest({ version: 2, form: 'ruler', agents: ['claude'], sources: { default: { server: 'https://s', items: ['rules/next.js/00-a.md'] } } });
+  assert.deepEqual(v3.sources.default.items, ['rules/next.js']);
+  const again = checkManifest(JSON.parse(manifestText(v3)));
+  assert.deepEqual(again.sources.default.items, ['rules/next.js']);
+});
+
 test('checkManifest 는 블록 키가 아닌 v3 항목을 거절한다', () => {
   const bad = items => assert.throws(
     () => checkManifest({ version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: 'https://s', items } } }),
