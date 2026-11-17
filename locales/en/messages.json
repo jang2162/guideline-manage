@@ -89,7 +89,7 @@
   "lock.badRevision": "revision must be an integer of 1 or more",
   "lock.badRevisions": "revisions must map sources to integers of 1 or more",
   "lock.badSources": "sources must be an object of strings",
-  "lock.badVersion": "version is not 1 or 2",
+  "lock.badVersion": "version is not 1, 2 or 3",
   "login.badState": "The login response does not match (state)",
   "login.callbackPage": "Login received. You can close this tab.",
   "login.done": "Logged in: {url} ({name})",

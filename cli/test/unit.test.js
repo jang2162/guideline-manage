@@ -34,6 +34,16 @@ test('unitProblem 은 .ruler/ 없음과 instructions 매니페스트를 거부�
   assert.equal(unitProblem(root, { form: 'ruler' }), null);
 });
 
+test('rootNestedOn 은 ruler.project.toml 을 먼저 읽는다', t => {
+  const root = repo(t);
+  write(root, '.ruler/ruler.toml', 'nested = true\n');
+  assert.equal(rootNestedOn(root), true);
+  write(root, '.ruler/ruler.project.toml', 'default_agents = ["claude"]\n');
+  assert.equal(rootNestedOn(root), false);
+  write(root, '.ruler/ruler.project.toml', 'nested = true\n');
+  assert.equal(rootNestedOn(root), true);
+});
+
 test('rootNestedOn 과 rootStacks', t => {
   const root = repo(t);
   assert.equal(rootNestedOn(root), false);

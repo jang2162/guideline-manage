@@ -8,6 +8,7 @@ import { expandBlocks } from './catalog.js';
 import { blockKey, isBlockKey } from './blocks.js';
 import { itemKey } from './selection.js';
 import { AGENTS } from './manifest.js';
+import { rulerTomlText } from './layout.js';
 import { t } from './i18n.js';
 
 const RULE = /^rules\/(.+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
@@ -29,12 +30,12 @@ export function stateLabel(state) {
   return STATE_LABELS[state]?.() ?? state;
 }
 
-/** .ruler/ruler.toml 의 [agents] 표에 enabled = true 가 있는가. */
+/** ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)의 [agents] 표에 enabled = true 가 있는가. */
 export function rulerAgentsEnabled(project) {
-  const file = path.join(project, '.ruler', 'ruler.toml');
-  if (!fs.existsSync(file)) return false;
+  const text = rulerTomlText(project);
+  if (text === null) return false;
   let inAgents = false;
-  for (const l of fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').split('\n')) {
+  for (const l of text.replace(/\r\n/g, '\n').split('\n')) {
     const h = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/.exec(l);
     if (h) {
       inAgents = h[1].trim() === 'agents';
@@ -61,10 +62,10 @@ export function diskReader(project) {
   };
 }
 
-/** 매니페스트가 없는 기존 프로젝트의 에이전트: .ruler/ruler.toml 의 default_agents. */
+/** 매니페스트가 없는 기존 프로젝트의 에이전트: ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)의 default_agents. */
 export function inferAgents(project) {
-  const file = path.join(project, '.ruler', 'ruler.toml');
-  const m = fs.existsSync(file) ? /^\s*default_agents\s*=\s*\[([^\]]*)\]/m.exec(fs.readFileSync(file, 'utf8')) : null;
+  const text = rulerTomlText(project);
+  const m = text === null ? null : /^\s*default_agents\s*=\s*\[([^\]]*)\]/m.exec(text);
   const list = m ? [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1]).filter(a => AGENTS.includes(a)) : [];
   return list.length ? [...new Set(list)] : ['claude', 'codex'];
 }

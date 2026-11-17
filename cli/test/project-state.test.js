@@ -36,6 +36,14 @@ test('rulerAgentsEnabled 와 inferAgents', t => {
   assert.deepEqual(inferAgents(p), ['claude', 'codex']);
 });
 
+test('inferAgents 는 ruler.project.toml 의 default_agents 를 읽는다', t => {
+  const p = dir(t);
+  write(p, '.ruler/ruler.toml', 'default_agents = ["claude"]\n');
+  write(p, '.ruler/ruler.project.toml', 'default_agents = ["codex"]\n\n[agents]\nenabled = true\n');
+  assert.deepEqual(inferAgents(p), ['codex']);
+  assert.equal(rulerAgentsEnabled(p), true);
+});
+
 test('kindOf', () => {
   assert.deepEqual(['rules/base/SETUP.md', 'rules/base/00-a.md', 'skills/s', 'agents/rev.md', 'mcp/c7'].map(kindOf), ['setup', 'rule', 'skill', 'subagent', 'mcp']);
 });

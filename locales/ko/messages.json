@@ -89,7 +89,7 @@
   "lock.badRevision": "revision 은 1 이상의 정수여야 함",
   "lock.badRevisions": "revisions 는 출처 → 1 이상의 정수 형식이어야 함",
   "lock.badSources": "sources 는 값이 문자열인 객체여야 함",
-  "lock.badVersion": "version 이 1 이나 2 가 아님",
+  "lock.badVersion": "version 이 1, 2, 3 이 아님",
   "login.badState": "로그인 응답 불일치(state)",
   "login.callbackPage": "로그인 정보 수신 성공. 이 탭은 닫아도 됨.",
   "login.done": "로그인 성공: {url} ({name})",

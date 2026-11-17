@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gitRoot, runGit } from './projects.js';
 import { readManifest } from './manifest.js';
+import { rulerTomlText } from './layout.js';
 import { unitOf, unitName, finalUnit } from './sources.js';
 import { t } from './i18n.js';
 
@@ -26,10 +27,9 @@ export function unitProblem(dir, manifest) {
   return null;
 }
 
-/** git 루트의 .ruler/ruler.toml 에 nested = true 가 있는가. */
+/** git 루트의 ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)에 nested = true 가 있는가. */
 export function rootNestedOn(root) {
-  const f = path.join(root, '.ruler', 'ruler.toml');
-  return fs.existsSync(f) && /^\s*nested\s*=\s*true\s*(?:#.*)?$/m.test(fs.readFileSync(f, 'utf8'));
+  return /^\s*nested\s*=\s*true\s*(?:#.*)?$/m.test(rulerTomlText(root) ?? '');
 }
 
 export const nestedOffTodo = root => ({
