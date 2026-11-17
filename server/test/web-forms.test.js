@@ -142,9 +142,9 @@ test('CLI 로그인: 관리자 세션으로 승인하면 콜백으로 코드를 
   assert.match(ex.json().name, /^cli-my-mac-[0-9a-f]{6}$/);
 });
 
-test('정적 forms.js·selection.js 를 낸다', async t => {
+test('정적 forms.js·selection.js·blocks.js 를 낸다', async t => {
   const s = await startApp(t);
-  for (const name of ['forms.js', 'selection.js']) {
+  for (const name of ['forms.js', 'selection.js', 'blocks.js']) {
     const r = await s.req(`/static/${name}`);
     assert.equal(r.status, 200, name);
     assert.equal(r.headers['content-type'], 'text/javascript; charset=utf-8');

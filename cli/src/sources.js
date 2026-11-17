@@ -1,5 +1,6 @@
 import { memoryTree, joinPath } from './tree.js';
 import { t } from './i18n.js';
+import { blockKey } from './blocks.js';
 
 // 여러 출처(지침 서버)의 원본을 한 프로젝트에 합칠 때 쓰는 이름 규칙과 별칭.
 // 렌더링·상태 코드는 출처 하나의 트리와 항목 id 만 안다. 그래서 출처마다 별칭을 입힌 「가상 트리」 를 만들어 합치고,
@@ -17,17 +18,20 @@ export function kindLabel(root) {
 }
 
 /**
- * 항목·경로 id 가 속한 별칭 단위. 단위가 아니면 null.
- * `rules/<스택>/…` → `rules/<스택>`, `skills/<이름>[/…]` → `skills/<이름>`, `agents/<이름>.md`, `mcp/<이름>[/…]` → `mcp/<이름>`.
+ * 항목·경로 id 의 블록 키. 하위 스택(`rules/<스택>/<하위>`)은 그 하위 스택이다. 블록이 아니면 null.
+ * 별칭은 최상위 스택에만 붙으므로 별칭 계산은 aliasUnitOf 를 쓴다.
+ */
+export const unitOf = blockKey;
+
+/**
+ * 항목·경로 id 가 속한 별칭 단위. 별칭은 최상위 스택·스킬·MCP·서브에이전트에만 붙는다.
+ * `rules/<스택>/…`(하위 스택 포함) → `rules/<스택>`, 나머지는 blockKey.
  * @param {string} id
  * @returns {string | null}
  */
-export function unitOf(id) {
-  const parts = id.split('/');
-  if (parts.length < 2 || !parts[1]) return null;
-  if (parts[0] === 'rules' || parts[0] === 'skills' || parts[0] === 'mcp') return `${parts[0]}/${parts[1]}`;
-  if (parts[0] === 'agents' && parts.length === 2 && parts[1].endsWith('.md')) return id;
-  return null;
+export function aliasUnitOf(id) {
+  const key = blockKey(id);
+  return key?.startsWith('rules/') ? key.split('/').slice(0, 2).join('/') : key;
 }
 
 /** 단위의 이름 부분. `agents/rev.md` → `rev`. */
@@ -42,15 +46,16 @@ export function unitName(unit) {
  * @param {Record<string, string>} aliases
  */
 export function finalUnit(unit, aliases) {
-  const alias = aliases[unit];
+  const base = aliasUnitOf(unit) ?? unit;
+  const alias = aliases[base];
   if (!alias) return unit;
   const root = unit.slice(0, unit.indexOf('/'));
-  return root === 'agents' ? `agents/${alias}.md` : `${root}/${alias}`;
+  return (root === 'agents' ? `agents/${alias}.md` : `${root}/${alias}`) + unit.slice(base.length);
 }
 
 /** 항목·경로 id 의 단위 부분만 별칭으로 바꾼다. */
 export function toVirtual(id, aliases) {
-  const u = unitOf(id);
+  const u = aliasUnitOf(id);
   if (!u || !aliases[u]) return id;
   return finalUnit(u, aliases) + id.slice(u.length);
 }
@@ -90,15 +95,15 @@ const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * @param {Set<string>} [skip]
  */
 export function sourceView(tree, aliases, skip = new Set()) {
-  const stackAliases = new Map(Object.entries(aliases).filter(([k]) => k.startsWith('rules/')).map(([k, v]) => [unitName(k), v]));
+  const stackAliases = new Map(Object.entries(aliases).filter(([k]) => k.startsWith('rules/')).map(([k, v]) => [unitName(aliasUnitOf(k)), v]));
   const stackRef = stackAliases.size ? new RegExp(`\`(${[...stackAliases.keys()].map(escape).join('|')})/`, 'g') : null;
   const files = {};
   for (const p of allFiles(tree)) {
     if (p.startsWith('docs/')) continue;
-    const unit = unitOf(p);
+    const unit = aliasUnitOf(p);
     if (unit && skip.has(finalUnit(unit, aliases))) continue;
     let content = tree.read(p);
-    const u = unitOf(p);
+    const u = unit;
     const alias = u ? aliases[u] : undefined;
     if (alias && ((u.startsWith('skills/') && p === `${u}/SKILL.md`) || (u.startsWith('agents/') && p === u))) {
       content = Buffer.from(setNameLine(content.toString('utf8'), alias));

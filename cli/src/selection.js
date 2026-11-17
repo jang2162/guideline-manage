@@ -1,4 +1,5 @@
-// 서버와 폼 화면이 함께 쓴다. 브라우저에서도 돌아야 하므로 아무것도 import 하지 않는다.
+// 서버와 폼 화면이 함께 쓴다. 브라우저에서도 돌아야 하므로 ./blocks.js 말고는 import 하지 않는다.
+import { blockKey } from './blocks.js';
 
 /** 프로젝트에 있는 상태. 체크를 풀면 제거다. */
 const PRESENT = ['same', 'different', 'moved', 'present'];
@@ -106,18 +107,7 @@ export function buildSelection({ revision, items, choices, project }) {
   };
 }
 
-/**
- * 항목·경로 id 의 블록 키(rules/<스택>, skills/<이름>, agents/<이름>.md, mcp/<이름>). 블록이 아니면 null.
- * sources.js 의 unitOf 와 같다 — 이 파일은 브라우저에서도 돌아 import 하지 않고 복제한다(테스트가 둘을 묶는다).
- * @param {string} id
- */
-export function blockKey(id) {
-  const parts = id.split('/');
-  if (parts.length < 2 || !parts[1]) return null;
-  if (parts[0] === 'rules' || parts[0] === 'skills' || parts[0] === 'mcp') return `${parts[0]}/${parts[1]}`;
-  if (parts[0] === 'agents' && parts.length === 2 && parts[1].endsWith('.md')) return id;
-  return null;
-}
+export { blockKey };
 
 const STEP_OF_KIND = { rule: 'rules', setup: 'rules', mcp: 'mcp', subagent: 'agents', skill: 'skills' };
 const STEP_OF_DIR = { rules: 'rules', mcp: 'mcp', agents: 'agents', skills: 'skills' };

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { memoryTree, readText } from '../src/tree.js';
-import { NAME, unitOf, finalUnit, toVirtual, setNameLine, sourceView, mergeViews, collisions, collisionMessage, aliasProblems, realOf } from '../src/sources.js';
+import { NAME, unitOf, aliasUnitOf, finalUnit, toVirtual, setNameLine, sourceView, mergeViews, collisions, collisionMessage, aliasProblems, realOf } from '../src/sources.js';
 
 const T = memoryTree({
   'rules/base/01-git.md': '---\nload: always\n---\n\n# git\n',
@@ -75,4 +75,21 @@ test('mergeViews 는 합집합이다', () => {
   const m = mergeViews([memoryTree({ 'rules/a/00.md': 'a' }), memoryTree({ 'rules/b/00.md': 'b' })]);
   assert.equal(readText(m, 'rules/a/00.md'), 'a');
   assert.equal(readText(m, 'rules/b/00.md'), 'b');
+});
+
+test('별칭은 최상위 스택에만 붙고 하위 스택 경로는 접두와 함께 옮겨진다', () => {
+  const aliases = { 'rules/browser': 'web' };
+  assert.equal(finalUnit('rules/browser/neo', aliases), 'rules/web/neo');
+  assert.equal(toVirtual('rules/browser/neo/00-x.md', aliases), 'rules/web/neo/00-x.md');
+  assert.equal(toVirtual('rules/browser/SETUP.md', aliases), 'rules/web/SETUP.md');
+  const v = sourceView(memoryTree({ 'rules/browser/neo/00-x.md': '# x\n', 'rules/browser/00-y.md': '# y\n' }), aliases);
+  assert.equal(v.exists('rules/web/neo/00-x.md'), true);
+  assert.equal(v.exists('rules/browser/neo/00-x.md'), false);
+});
+
+test('sourceView 의 skip 은 최종 최상위 스택 단위로 하위 스택 파일까지 뺀다', () => {
+  const tree = memoryTree({ 'rules/browser/neo/00-x.md': '# x\n', 'rules/browser/00-y.md': '# y\n', 'rules/other/00-z.md': '# z\n' });
+  const v = sourceView(tree, { 'rules/browser': 'web' }, new Set(['rules/web']));
+  assert.equal(v.exists('rules/web'), false);
+  assert.equal(v.exists('rules/other/00-z.md'), true);
 });

@@ -2,8 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { blockKey, stepOf, requiredClosure, missingRequires, releasable, pullRequired } from '../src/selection.js';
 import { unitOf } from '../src/sources.js';
+import * as blocks from '../src/blocks.js';
 
-test('blockKey 는 sources.js 의 unitOf 와 같은 블록 키를 낸다', () => {
+test('selection.js 의 blockKey 는 blocks.js 의 것이고 sources.js 의 unitOf 와 같은 블록 키를 낸다', () => {
+  assert.equal(blockKey, blocks.blockKey);
+  assert.equal(unitOf, blocks.blockKey);
   for (const id of ['rules/base/00-a.md', 'rules/base/SETUP.md', 'rules/base', 'skills/s', 'skills/s/x.md', 'agents/w.md', 'agents/x/y.md', 'mcp/m', 'mcp/m/server.json', 'docs/x.md', 'rules']) {
     assert.equal(blockKey(id), unitOf(id), id);
   }

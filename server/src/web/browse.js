@@ -21,6 +21,8 @@ const STATIC_FILES = {
   'forms.js': { file: path.join(STATIC_DIR, 'forms.js'), type: 'text/javascript; charset=utf-8' },
   // 폼 화면이 서버와 같은 선택 규칙을 쓴다.
   'selection.js': { file: path.resolve(STATIC_DIR, '../../cli/src/selection.js'), type: 'text/javascript; charset=utf-8' },
+  // selection.js 가 불러오는 블록 키 규칙.
+  'blocks.js': { file: path.resolve(STATIC_DIR, '../../cli/src/blocks.js'), type: 'text/javascript; charset=utf-8' },
 };
 
 const chips = list => (list?.length ? list.map(c => html`<span class="tag">${c}</span>`) : '');

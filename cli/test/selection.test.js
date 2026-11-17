@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { itemKey, defaultChoice, canUpdate, actionOf, selectionItems, summarize, buildResult } from '../src/selection.js';
 
-test('selection.js 는 브라우저에서도 돌도록 import 가 없다', () => {
+test('selection.js 는 브라우저에서도 돌도록 ./blocks.js 말고는 import 하지 않고, blocks.js 는 아무것도 import 하지 않는다', () => {
   const text = fs.readFileSync(new URL('../src/selection.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(text, /^\s*import /m);
+  assert.deepEqual([...text.matchAll(/^\s*import .*?from\s+'([^']+)'/gm)].map(m => m[1]), ['./blocks.js']);
   assert.doesNotMatch(text, /require\(|node:/);
+  const blocks = fs.readFileSync(new URL('../src/blocks.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(blocks, /^\s*import /m);
+  assert.doesNotMatch(blocks, /require\(|node:/);
 });
 
 test('itemKey 는 kind 와 id 를 잇는다', () => {
