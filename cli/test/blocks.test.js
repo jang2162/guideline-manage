@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { blockKey, isBlockKey, parentKey, ancestorKeys, withAncestors, isWithin } from '../src/blocks.js';
-import { unitOf, aliasUnitOf } from '../src/sources.js';
+import { aliasUnitOf } from '../src/sources.js';
 
 test('blockKey 는 하위 스택 파일을 그 스택으로 묶는다', () => {
   assert.equal(blockKey('rules/browser/browseros-neo/00-switch.md'), 'rules/browser/browseros-neo');
@@ -12,10 +12,37 @@ test('blockKey 는 하위 스택 파일을 그 스택으로 묶는다', () => {
   assert.equal(blockKey('docs/a.md'), null);
 });
 
-test('blockKey 는 기존 깊이 1 id 에서 예전 단위와 같다', () => {
-  for (const id of ['rules/base/00-a.md', 'rules/base/SETUP.md', 'rules/base', 'skills/s', 'skills/s/x.md', 'agents/w.md', 'agents/x/y.md', 'mcp/m', 'mcp/m/server.json', 'docs/x.md', 'rules', 'rules/']) {
-    assert.equal(blockKey(id), unitOf(id), id);
-  }
+test('blockKey 는 깊이 1 id 에서 예전 unitOf 가 낸 값을 그대로 낸다(리터럴 표)', () => {
+  const OLD_UNIT_OF = {
+    'rules/base/00-a.md': 'rules/base',
+    'rules/base/SETUP.md': 'rules/base',
+    'rules/base/logo.png': 'rules/base',
+    'rules/base': 'rules/base',
+    'skills/s': 'skills/s',
+    'skills/s/x.md': 'skills/s',
+    'agents/w.md': 'agents/w.md',
+    'agents/x/y.md': null,
+    'mcp/m': 'mcp/m',
+    'mcp/m/server.json': 'mcp/m',
+    'docs/x.md': null,
+    rules: null,
+    'rules/': null,
+  };
+  for (const [id, key] of Object.entries(OLD_UNIT_OF)) assert.equal(blockKey(id), key, id);
+});
+
+test('blockKey 는 마지막 조각에 점이 있고 __ 가 없으면 파일로, __ 가 있으면 도메인 스택 폴더로 본다', () => {
+  assert.equal(blockKey('rules/base/logo.png'), 'rules/base');
+  assert.equal(blockKey('rules/a/b/logo.png'), 'rules/a/b');
+  assert.equal(blockKey('rules/deploy__gitlab.example.com'), 'rules/deploy__gitlab.example.com');
+  assert.equal(blockKey('rules/deploy__gitlab.example.com/00-a.md'), 'rules/deploy__gitlab.example.com');
+  assert.equal(blockKey('rules/a/deploy__gitlab.example.com'), 'rules/a/deploy__gitlab.example.com');
+  assert.equal(blockKey('rules/a/deploy__gitlab.example.com/logo.png'), 'rules/a/deploy__gitlab.example.com');
+});
+
+test('blockKey 는 끝 조각이 비면 null 이다', () => {
+  assert.equal(blockKey('rules/base/'), null);
+  assert.equal(blockKey('rules/a/b/'), null);
 });
 
 test('blockKey 는 스택이 아닌 rules 직속 파일·빈 조각을 null 로 둔다', () => {
@@ -53,4 +80,6 @@ test('aliasUnitOf 는 하위 스택도 최상위 스택 단위로 본다', () =>
   assert.equal(aliasUnitOf('skills/x/refs/a.md'), 'skills/x');
   assert.equal(aliasUnitOf('agents/rev.md'), 'agents/rev.md');
   assert.equal(aliasUnitOf('docs/a.md'), null);
+  assert.equal(aliasUnitOf('rules/browser/browseros-neo/logo.png'), 'rules/browser');
+  assert.equal(aliasUnitOf('rules/deploy__gitlab.example.com/00-a.md'), 'rules/deploy__gitlab.example.com');
 });

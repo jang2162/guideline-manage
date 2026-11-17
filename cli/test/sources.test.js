@@ -93,3 +93,23 @@ test('sourceView 의 skip 은 최종 최상위 스택 단위로 하위 스택 �
   assert.equal(v.exists('rules/web'), false);
   assert.equal(v.exists('rules/other/00-z.md'), true);
 });
+
+test('unitOf·aliasUnitOf 는 깊이 1 id 에서 예전 값을 내고, 점 있는 도메인 스택 폴더를 파일로 오해하지 않는다', () => {
+  const EXPECTED = {
+    'rules/base/00-a.md': 'rules/base',
+    'rules/base/logo.png': 'rules/base',
+    'rules/base/': null,
+    'skills/s/x.md': 'skills/s',
+    'agents/r.md': 'agents/r.md',
+    'mcp/m/server.json': 'mcp/m',
+    'docs/a.md': null,
+    'rules/deploy__gitlab.example.com': 'rules/deploy__gitlab.example.com',
+    'rules/deploy__gitlab.example.com/00-a.md': 'rules/deploy__gitlab.example.com',
+  };
+  for (const [id, unit] of Object.entries(EXPECTED)) {
+    assert.equal(unitOf(id), unit, id);
+    assert.equal(aliasUnitOf(id), unit, id);
+  }
+  assert.equal(toVirtual('rules/base/logo.png', { 'rules/base': 'core' }), 'rules/core/logo.png');
+  assert.equal(toVirtual('rules/deploy__gitlab.example.com/00-a.md', { 'rules/deploy__gitlab.example.com': 'deploy' }), 'rules/deploy/00-a.md');
+});

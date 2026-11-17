@@ -7,9 +7,25 @@ import * as blocks from '../src/blocks.js';
 test('selection.js 의 blockKey 는 blocks.js 의 것이고 sources.js 의 unitOf 와 같은 블록 키를 낸다', () => {
   assert.equal(blockKey, blocks.blockKey);
   assert.equal(unitOf, blocks.blockKey);
-  for (const id of ['rules/base/00-a.md', 'rules/base/SETUP.md', 'rules/base', 'skills/s', 'skills/s/x.md', 'agents/w.md', 'agents/x/y.md', 'mcp/m', 'mcp/m/server.json', 'docs/x.md', 'rules']) {
-    assert.equal(blockKey(id), unitOf(id), id);
-  }
+  // 예전 sources.js unitOf 가 낸 값을 박은 표 — 한 구현에 기대지 않는다.
+  const EXPECTED = {
+    'rules/base/00-a.md': 'rules/base',
+    'rules/base/SETUP.md': 'rules/base',
+    'rules/base/logo.png': 'rules/base',
+    'rules/base': 'rules/base',
+    'skills/s': 'skills/s',
+    'skills/s/x.md': 'skills/s',
+    'agents/w.md': 'agents/w.md',
+    'agents/x/y.md': null,
+    'mcp/m': 'mcp/m',
+    'mcp/m/server.json': 'mcp/m',
+    'docs/x.md': null,
+    rules: null,
+    'rules/': null,
+    'rules/deploy__gitlab.example.com': 'rules/deploy__gitlab.example.com',
+    'rules/deploy__gitlab.example.com/00-a.md': 'rules/deploy__gitlab.example.com',
+  };
+  for (const [id, key] of Object.entries(EXPECTED)) assert.equal(blockKey(id), key, id);
 });
 
 test('stepOf 는 항목 종류로 단계를 정하고, 원본에서 사라진 항목은 블록 키 앞 조각으로', () => {
