@@ -18,10 +18,10 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ### Changed
 
-- **Breaking: `guideline.json` version 3.** `items` are block keys (`rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`), not file paths, and a child stack is listed with its ancestors. Versions 1 and 2 are still read and are rewritten as version 3 when `pick` writes them. An older CLI cannot read version 3 ("version is not 1 or 2"), so upgrade the CLI of everyone who shares the project.
+- **Breaking: `guideline.json` version 3.** `items` are block keys (`rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`), not file paths, and a child stack is listed with its ancestors. Versions 1 and 2 are still read and are rewritten as version 3 when `pick` or `update` writes them. An older CLI cannot read version 3 ("version is not 1 or 2"), so upgrade the CLI of everyone who shares the project.
 - **Breaking: the pick form needs CLI and server 0.24 or later.** The form API refuses a request without `formVersion: 2` with 426 "update the guideline CLI to 0.24.0 or newer". A 0.24 CLI that meets an older server cancels that source's form ("This server is older than the CLI"), leaves the source as it was, and exits with 1 when no source was picked. `update`, `status` and `propose` need no server upgrade.
 - **Breaking: no `new-file` to-do.** Picking stacks takes every file of a stack, so `guideline update` and `guideline status` no longer report new files in a chosen stack, and `status` no longer prints "New files in chosen stacks". A file the source removes from a chosen stack shows as `upstream` in `status` (`both` when the project also edited it) and `update` deletes it; an edited copy is kept with a `leftover` to-do.
-- A file or sub-folder inside `.ruler/<stack>/` that is not in the source now reads as removed from the source. Keep project-only rules in `override.md` or `override.d/`.
+- In the pick form, a guideline file (`NN-*.md`) in a sub-folder of `.ruler/<stack>/` that is not in the source now shows as removed from source. Keep project-only rules in `override.md` or `override.d/`, not inside a stack folder.
 
 ## 0.23.0
 

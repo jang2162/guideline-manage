@@ -39,7 +39,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 
 ## 추천해서 받기
 
-1. `guideline list --json` 으로 원본 목록을 읽는다. 블록 키는 `categories`·`labels`·`requires` 맵의 키와 같다: `rules/<스택>`, `skills/<이름>`, `agents/<이름>.md`, `mcp/<이름>`. 지침 파일의 `when` 은 그 파일을 언제 읽는지, 하위 스택의 `when`(`guideline list` 에서 이름 뒤에 나온다)은 어떤 작업에 필요한지다. 스택은 중첩된다: `rules/browser/browseros-neo` 는 `rules/browser` 의 하위 스택이다.
+1. `guideline list --json` 으로 원본 목록을 읽는다. 블록 키는 `categories`·`labels`·`requires` 맵의 키와 같다: `rules/<스택>`, `skills/<이름>`, `agents/<이름>.md`, `mcp/<이름>`. 지침 파일의 `when` 은 그 파일을 언제 읽는지, 하위 스택의 `when`(JSON 의 `stacks[].when`, 부모 스택은 `stacks[].parent`)은 어떤 작업에 필요한지다. 스택은 중첩된다: `rules/browser/browseros-neo` 는 `rules/browser` 의 하위 스택이다.
 2. 프로젝트의 설정 파일·패키지·쓰는 도구를 보고 블록을 고른다. **하위 스택의 `when` 을 읽고 이 프로젝트에 맞는 하위 스택을 고른다.** 폼이 고른 하위 스택의 조상 스택도 함께 체크하므로 조상은 적지 않아도 된다. 이유는 프로젝트에서 찾은 근거로 쓴다(예: 「`lefthook.yml` 이 있음」). 근거가 없는 블록은 넣지 않는다.
 3. 추천을 JSON 파일로 쓴다 — `{"rules/base": "모든 프로젝트 공통", "rules/lefthook": "lefthook.yml 이 있음"}`. 필요한 블록(`requires`)은 폼이 함께 체크하므로 따로 넣지 않아도 된다.
 4. `guideline pick --recommend <파일> --json` 을 「pick」 절처럼 백그라운드로 돌린다. 폼은 추천이 미리 체크된 채로 열린다. 사용자에게 폼에서 훑어보고 제출하라고 알린다 — **폼 제출이 확인이다.** 폼에 「에이전트 추천」 표시가 없으면 서버가 0.19 보다 옛 버전이다 — 사용자에게 알리고 폼에서 직접 고르게 한다.

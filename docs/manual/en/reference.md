@@ -30,13 +30,13 @@ With several sources, each source is judged by its own `requires` and its own bl
 
 When the source drops a file from a stack you chose, `status` shows it as `upstream` (`both` when the project also edited it) and `update` deletes it.
 An edited copy is not deleted: it stays and a `leftover` to-do asks you to check it and delete it or send it upstream.
-A file or sub-folder in `.ruler/<stack>/` that is not in the source reads as removed from the source for the same reason, so keep project-only rules in `override.md` or `override.d/` ([Override a guideline in one project](how-to/override-guidelines.md)).
+In the pick form, a guideline file (`NN-*.md`) in a sub-folder of `.ruler/<stack>/` that is not in the source shows as removed from source. Keep project-only rules in `override.md` or `override.d/` ([Override a guideline in one project](how-to/override-guidelines.md)).
 
 ### `guideline.json`
 
 `items` of each source are **block keys**: `rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>` (`"version": 3`).
 A child stack is listed together with its ancestor stacks, for example `["rules/browser", "rules/browser/browseros-neo"]`.
-An older file (`"version": 1` or `2`, with file paths) is read as before and rewritten as version 3 the next time `pick` writes it.
+An older file (`"version": 1` or `2`, with file paths) is read as before and rewritten as version 3 the next time `pick` or `update` writes it.
 
 ## Source commands
 

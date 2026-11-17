@@ -31,13 +31,13 @@
 
 원본이 고른 스택에서 파일을 빼면 `status` 는 그 파일을 `upstream`(프로젝트에서도 고쳤으면 `both`)으로 보이고 `update` 는 그 파일을 지웁니다.
 고친 사본은 지우지 않습니다. 그대로 남고, 확인한 뒤 지우거나 원본에 올리라는 `leftover` 할 일이 생깁니다.
-`.ruler/<스택>/` 안에 원본에 없는 파일이나 하위 폴더가 있으면 같은 이유로 원본에서 사라진 사본으로 보입니다. 프로젝트 고유 규칙은 `override.md` 나 `override.d/` 에 두세요([이 프로젝트에만 다르게 하기](how-to/override-guidelines.md)).
+고르기 폼에서, `.ruler/<스택>/` 의 하위 폴더 안에 있는 지침 파일(`NN-*.md`)이 원본에 없으면 「원본에서 사라짐」 으로 보입니다. 프로젝트 고유 규칙은 `override.md` 나 `override.d/` 에 두세요([이 프로젝트에만 다르게 하기](how-to/override-guidelines.md)).
 
 ### `guideline.json`
 
 각 출처의 `items` 는 **블록 키**입니다: `rules/<스택 경로>`, `skills/<이름>`, `agents/<이름>.md`, `mcp/<이름>`(`"version": 3`).
 하위 스택은 조상 스택과 함께 적힙니다. 예: `["rules/browser", "rules/browser/browseros-neo"]`.
-옛 파일(파일 경로를 쓴 `"version": 1` 이나 `2`)은 그대로 읽고, 다음에 `pick` 이 쓸 때 버전 3 으로 다시 씁니다.
+옛 파일(파일 경로를 쓴 `"version": 1` 이나 `2`)은 그대로 읽고, 다음에 `pick` 이나 `update` 가 쓸 때 버전 3 으로 다시 씁니다.
 
 ## 원본 명령
 

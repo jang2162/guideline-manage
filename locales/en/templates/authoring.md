@@ -191,7 +191,7 @@ rules/browser/browseros-neo/01-limits.md
 - **Only the files directly in a folder belong to that stack.** A child's files do not belong to its parent, and the parent's files do not belong to the child.
 - **A parent may hold only child stacks.** Such a bundle stack has no guideline files of its own and needs no README; it groups its children in the lists and the form.
 - **A folder whose last name part has a `.` and no `__` is not a stack.** The tool reads such a name as a file (`v1.2`), so the folder shows in the `Ignored` section of `guideline list` and its files are not received. Write `v1-2`. Domain stacks (`<tool>__<domain>`) keep their dots, and may have child stacks.
-- **Write `when` for every child stack.** Put one line in the `rules/<stack>/README.md` frontmatter that says which worker needs it. Write the task or the worker ("when working with the browser through BrowserOS neo", "for workers who deploy to the staging server"), not the topic. Quote the value when it contains `: `. `guideline list`, the form and the web show it, and an agent that recommends blocks reads it.
+- **Write `when` for every child stack.** Put one line in the child stack's own `README.md` frontmatter (`rules/<stack>/<child>/README.md`) that says which worker needs it. Write the task or the worker ("when working with the browser through BrowserOS neo", "for workers who deploy to the staging server"), not the topic. Quote the value when it contains `: `. `guideline list`, the form and the web show it, and an agent that recommends blocks reads it.
 
   ```markdown
   ---
