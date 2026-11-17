@@ -8,7 +8,7 @@ import { asTree, readText } from './tree.js';
 import { t } from './i18n.js';
 import { marker } from './markers.js';
 import { stackNameProblem } from './stack-name.js';
-import { blockKey, isWithin } from './blocks.js';
+import { blockKey, isWithin, isBlockKey } from './blocks.js';
 
 // export 함수의 src 는 문서 저장소 루트의 디스크 경로나 트리(tree.js)다. 서버는 DB 트리를 넘긴다.
 
@@ -362,6 +362,33 @@ export function elementRequires(src) {
  */
 export function fileCategories(categories, rel) {
   return [...new Set([...(categories[blockKey(rel)] ?? []), ...(categories[rel] ?? [])])];
+}
+
+/**
+ * 블록 키를 이 원본의 파일 id 로 펼친다. 스택 키는 그 폴더 바로 안의 지침 파일과 (있으면) SETUP.md 가 되고, 하위 스택 파일은 부모에 들어가지 않는다.
+ * 나머지 키와 원본에 없는 스택 키는 그대로 둔다(「원본에서 사라짐」 흐름이 다룬다). 중복 없이 정렬한다.
+ * @param {string[]} keys
+ * @returns {string[]}
+ */
+export function expandBlocks(src, keys) {
+  const tree = asTree(src);
+  const out = new Set();
+  for (const key of keys) {
+    if (!isBlockKey(key) || !key.startsWith('rules/')) {
+      out.add(key);
+      continue;
+    }
+    const stack = key.slice('rules/'.length);
+    const files = stackFiles(stack, tree);
+    const setup = stackSetup(stack, tree);
+    if (files.length === 0 && !setup) {
+      out.add(key);
+      continue;
+    }
+    for (const f of files) out.add(f);
+    if (setup) out.add(`rules/${stack}/SETUP.md`);
+  }
+  return [...out].sort();
 }
 
 /**

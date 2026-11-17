@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeDocsRepo, write, ALWAYS, reference } from './helpers.js';
-import { stacks, stackFiles, stackTiers, stackOverrides, skills, subagents, mcpServers, ignored, warnings, stackSetup, stackWhen, elementCategories, elementLabels, blockKeys, fileCategories } from '../src/catalog.js';
+import { stacks, stackFiles, stackTiers, stackOverrides, skills, subagents, mcpServers, ignored, warnings, stackSetup, stackWhen, expandBlocks, elementCategories, elementLabels, blockKeys, fileCategories } from '../src/catalog.js';
 import { catalogSummary } from '../src/summary.js';
 import { catalogView } from '../src/catalog-view.js';
 
@@ -455,4 +455,35 @@ test('하위 스택의 분류·표시 이름·블록 키는 스택 경로로 읽
   assert.deepEqual(fileCategories(categories, 'rules/browser/00-a.md'), ['웹']);
   assert.deepEqual(fileCategories(categories, 'rules/browser/browseros-neo/00-b.md'), ['neo']);
   assert.deepEqual(fileCategories(categories, 'rules/browser/plain/00-c.md'), []);
+});
+
+test('expandBlocks 는 스택을 지침 파일과 세팅 문서로 펼친다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/base/SETUP.md', '# base 세팅\n');
+  write(root, 'rules/base/web/00-w.md', `${ALWAYS}# w\n`);
+  assert.deepEqual(expandBlocks(root, ['rules/base']), ['rules/base/00-alpha.md', 'rules/base/01-beta.md', 'rules/base/SETUP.md']);
+  // 하위 스택 파일은 부모에 들어가지 않는다
+  assert.deepEqual(expandBlocks(root, ['rules/base/web']), ['rules/base/web/00-w.md']);
+  // SETUP.md 가 없으면 지침 파일만
+  assert.deepEqual(expandBlocks(root, ['rules/demo']), ['rules/demo/00-rules.md']);
+});
+
+test('expandBlocks 는 스택이 아닌 키와 원본에 없는 스택 키를 그대로 두고 중복 없이 정렬한다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  assert.deepEqual(
+    expandBlocks(root, ['skills/demo-skill', 'rules/gone', 'rules/demo', 'rules/demo', 'agents/a.md', 'mcp/c7']),
+    ['agents/a.md', 'mcp/c7', 'rules/demo/00-rules.md', 'rules/gone', 'skills/demo-skill'],
+  );
+  assert.deepEqual(expandBlocks(root, ['not-a-key']), ['not-a-key']);
+  assert.deepEqual(expandBlocks(root, []), []);
+});
+
+test('expandBlocks 는 rules/ 로 시작하지 않는 키를 스택 이름으로 읽지 않는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // 'mcp/base' 에서 앞 6글자를 떼면 'se' — 이런 이름의 스택이 있어도 mcp 키는 그대로여야 한다
+  write(root, 'rules/se/00-x.md', `${ALWAYS}# x\n`);
+  assert.deepEqual(expandBlocks(root, ['mcp/base']), ['mcp/base']);
 });
