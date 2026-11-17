@@ -14,3 +14,10 @@ test('stackNameProblem 은 __ 뒤가 도메인 모양이 아니거나 __ 가 둘
   assert.match(stackNameProblem('a__b.com__c.com'), /도메인 모양이 아님/);
   assert.match(stackNameProblem('a__B.com'), /도메인 모양이 아님/);
 });
+
+test('stackNameProblem 은 경로의 조각마다 검사한다', () => {
+  assert.equal(stackNameProblem('browser/browseros-neo'), null);
+  assert.equal(stackNameProblem('deploy__a.com/child'), null);
+  assert.match(stackNameProblem('browser/foo__bad'), /도메인 모양이 아님/);
+  assert.match(stackNameProblem('foo__bad/child'), /도메인 모양이 아님/);
+});

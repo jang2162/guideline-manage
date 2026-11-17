@@ -14,6 +14,7 @@
   "apply.writtenSoFar": "Written: {files}",
   "catalog.badCell": "{error} — cannot read the cell. Write `<file>` \"<## section title>\"",
   "catalog.badRuleName": "name is not NN-<topic>.md",
+  "catalog.dottedStackDir": "the folder name has a `.` and no `__`, so it cannot be a stack folder",
   "catalog.badYaml": "not readable as YAML — quote the values",
   "catalog.mcpBoth": "server.json and the \"{section}\" section of README.md are both present — keep only one",
   "catalog.nameMismatch": "name differs from the file name",

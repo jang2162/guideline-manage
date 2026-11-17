@@ -1,5 +1,5 @@
 import {
-  stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpDefinitions, elementCategories, elementLabels, elementRequires, fileCategories,
+  stacks, stackWhen, parentStack, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpDefinitions, elementCategories, elementLabels, elementRequires, fileCategories,
 } from './catalog.js';
 
 /**
@@ -15,6 +15,8 @@ export function catalogView(root) {
   return {
     stacks: stacks(root).map(name => ({
       name,
+      parent: parentStack(name),
+      when: stackWhen(name, root),
       label: label(`rules/${name}`),
       requires: needs(`rules/${name}`),
       categories: categories[`rules/${name}`] ?? [],

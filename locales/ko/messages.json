@@ -14,6 +14,7 @@
   "apply.writtenSoFar": "쓴 파일: {files}",
   "catalog.badCell": "{error} — 셀 형식을 읽을 수 없음. `<파일>` 「<## 절 제목>」 형식으로 써야 함",
   "catalog.badRuleName": "이름이 NN-<주제>.md 가 아님",
+  "catalog.dottedStackDir": "이름에 `.` 가 있고 `__` 가 없어 스택 폴더로 못 씀",
   "catalog.badYaml": "YAML 로 읽히지 않음 — 값을 따옴표로 감싸야 함",
   "catalog.mcpBoth": "server.json 과 README.md 의 「{section}」 절이 함께 있음 — 하나만 남겨야 함",
   "catalog.nameMismatch": "name 이 파일 이름과 다름",

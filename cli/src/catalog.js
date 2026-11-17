@@ -8,6 +8,7 @@ import { asTree, readText } from './tree.js';
 import { t } from './i18n.js';
 import { marker } from './markers.js';
 import { stackNameProblem } from './stack-name.js';
+import { blockKey } from './blocks.js';
 
 // export 함수의 src 는 문서 저장소 루트의 디스크 경로나 트리(tree.js)다. 서버는 DB 트리를 넘긴다.
 
@@ -27,16 +28,63 @@ function byKey(key) {
   return (a, b) => (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0);
 }
 
-/** 지침 파일이 하나 이상 있는 스택 이름. README.md 만 있는 뼈대는 뺀다. */
-export function stacks(src) {
-  const tree = asTree(src);
-  return tree.list('rules')
-    .filter(e => e.dir && ruleFiles(tree, `rules/${e.name}`).length > 0)
-    .map(e => e.name)
-    .sort();
+/**
+ * 폴더 이름이 스택 폴더로 못 쓰는 모양인가. 블록 키(blocks.js)가 마지막 조각을 파일로 읽는 이름이다(`.` 가 있고 `__` 가 없다).
+ * 이런 폴더를 스택으로 잡으면 그 안의 지침 파일이 엉뚱한 블록 키를 얻는다.
+ */
+function dottedDir(name) {
+  return name.includes('.') && !name.includes('__');
 }
 
-/** 한 스택의 지침 파일 상대경로. */
+/** rules/ 아래 폴더들의 경로(`rules/` 뒤, 부모가 앞). 점이 든 폴더는 하위까지 건너뛴다. */
+function* ruleDirs(tree, rel = '') {
+  for (const e of tree.list(rel ? `rules/${rel}` : 'rules')) {
+    if (!e.dir || dottedDir(e.name)) continue;
+    const child = rel ? `${rel}/${e.name}` : e.name;
+    yield child;
+    yield* ruleDirs(tree, child);
+  }
+}
+
+/** 조각마다 비교한다. 부모는 자기 자손 바로 앞에 오고, `web-extra` 같은 형제는 `web/…` 뒤로 간다. */
+function byStackPath(a, b) {
+  const x = a.split('/');
+  const y = b.split('/');
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    if (x[i] !== y[i]) return x[i] < y[i] ? -1 : 1;
+  }
+  return x.length - y.length;
+}
+
+/**
+ * `rules/` 아래 모든 깊이의 스택 경로(`browser/browseros-neo`). 스택은 지침 파일이 바로 안에 있는 폴더이거나, 자손 중에 스택이 있는
+ * 폴더(묶음 스택)다. README.md·SETUP.md 만 있고 자손 스택이 없는 뼈대는 뺀다. 이름에 `.` 가 있고 `__` 가 없는 폴더는 스택이 아니다.
+ */
+export function stacks(src) {
+  const tree = asTree(src);
+  const own = [...ruleDirs(tree)].filter(rel => ruleFiles(tree, `rules/${rel}`).length > 0);
+  const all = new Set(own);
+  for (const rel of own) {
+    for (let i = rel.lastIndexOf('/'); i > 0; i = rel.lastIndexOf('/', i - 1)) all.add(rel.slice(0, i));
+  }
+  return [...all].sort(byStackPath);
+}
+
+/** 부모 스택 경로. 최상위 스택이면 null. */
+export function parentStack(stack) {
+  const i = stack.lastIndexOf('/');
+  return i === -1 ? null : stack.slice(0, i);
+}
+
+/** 스택 README 의 한 줄 `when`(어떤 작업자에게 필요한가). 없거나 비면 null. */
+export function stackWhen(stack, src) {
+  const raw = frontmatter(readText(asTree(src), `rules/${stack}/README.md`) ?? '')?.when;
+  if (raw === undefined) return null;
+  const value = (readQuoted(raw.trim()) ?? raw.trim()).trim();
+  return value || null;
+}
+
+/** 한 스택의 지침 파일 상대경로. stack 은 `rules/` 아래 경로이고, 그 폴더 바로 안의 파일만 본다. */
 export function stackFiles(stack, src) {
   return ruleFiles(asTree(src), `rules/${stack}`).map(f => `rules/${stack}/${f}`);
 }
@@ -183,6 +231,11 @@ export function mcpDefinitions(src) {
     .map(e => (e.build ? { name: e.name, build: true } : { name: e.name, server: e.server, build: false }));
 }
 
+/** dir 이나 그 아래에 지침 파일이 있는가. */
+function hasRuleFile(tree, dir) {
+  return tree.list(dir).some(e => (e.dir ? hasRuleFile(tree, `${dir}/${e.name}`) : RULE_FILE.test(e.name)));
+}
+
 /**
  * list 가 목록에서 빼는 것들과 그 이유. 원본 기준 상대경로로 정렬한다.
  * @returns {{ path: string, reason: string }[]}
@@ -191,14 +244,18 @@ export function ignored(src) {
   const tree = asTree(src);
   const result = [];
 
-  for (const d of visible(tree, 'rules')) {
-    if (!d.dir) continue;
-    for (const f of visible(tree, `rules/${d.name}`)) {
-      if (!f.dir && f.name.endsWith('.md') && f.name !== 'README.md' && f.name !== 'SETUP.md' && !RULE_FILE.test(f.name)) {
-        result.push({ path: `rules/${d.name}/${f.name}`, reason: t('catalog.badRuleName') });
+  const walkRules = dir => {
+    for (const f of visible(tree, dir)) {
+      const rel = `${dir}/${f.name}`;
+      if (f.dir) {
+        if (!dottedDir(f.name)) walkRules(rel);
+        else if (hasRuleFile(tree, rel)) result.push({ path: `${rel}/`, reason: t('catalog.dottedStackDir') });
+      } else if (dir !== 'rules' && f.name.endsWith('.md') && f.name !== 'README.md' && f.name !== 'SETUP.md' && !RULE_FILE.test(f.name)) {
+        result.push({ path: rel, reason: t('catalog.badRuleName') });
       }
     }
-  }
+  };
+  walkRules('rules');
 
   for (const d of visible(tree, 'skills')) {
     if (d.dir && !tree.exists(`skills/${d.name}/SKILL.md`)) {
@@ -296,14 +353,13 @@ export function elementRequires(src) {
 }
 
 /**
- * 지침 파일의 분류: 스택 분류 ∪ 파일 분류.
+ * 지침 파일의 분류: 자기 스택 분류 ∪ 파일 분류. 하위 스택은 부모 분류를 물려받지 않는다(블록마다 자기 분류).
  * @param {Record<string, string[]>} categories elementCategories 의 categories
- * @param {string} rel `rules/<스택>/<파일>`
+ * @param {string} rel `rules/<스택 경로>/<파일>`
  * @returns {string[]}
  */
 export function fileCategories(categories, rel) {
-  const stack = rel.split('/')[1];
-  return [...new Set([...(categories[`rules/${stack}`] ?? []), ...(categories[rel] ?? [])])];
+  return [...new Set([...(categories[blockKey(rel)] ?? []), ...(categories[rel] ?? [])])];
 }
 
 /**

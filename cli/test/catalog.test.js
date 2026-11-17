@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeDocsRepo, write, ALWAYS, reference } from './helpers.js';
-import { stacks, stackFiles, stackTiers, stackOverrides, skills, subagents, mcpServers, ignored, warnings, stackSetup, elementCategories, fileCategories } from '../src/catalog.js';
+import { stacks, stackFiles, stackTiers, stackOverrides, skills, subagents, mcpServers, ignored, warnings, stackSetup, stackWhen, elementCategories, elementLabels, blockKeys, fileCategories } from '../src/catalog.js';
+import { catalogSummary } from '../src/summary.js';
+import { catalogView } from '../src/catalog-view.js';
 
 test('stacks 는 지침 파일이 있는 스택만 정렬해 돌려주고 뼈대 스택은 뺀다', t => {
   const root = makeDocsRepo();
@@ -328,4 +330,99 @@ test('warnings 는 도메인 모양이 아닌 __ 스택을 rules/<스택>/ 경�
   write(root, 'rules/deploy__gitlab.example.com/00-a.md', `${ALWAYS}# a\n`);
   assert.ok(stacks(root).includes('deploy__nodomain'));
   assert.deepEqual(warnings(root).map(w => w.path), ['rules/deploy__nodomain/']);
+});
+
+test('stacks 는 하위 스택과 묶음 스택을 경로로 돌려준다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/browseros-neo/00-switch.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/group/child/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/group/README.md', '묶음\n');
+  write(root, 'rules/skeleton/README.md', '뼈대\n');
+  assert.deepEqual(stacks(root), ['base', 'browser', 'browser/browseros-neo', 'demo', 'group', 'group/child']);
+  assert.deepEqual(stackFiles('browser', root), []);
+  assert.deepEqual(stackFiles('browser/browseros-neo', root), ['rules/browser/browseros-neo/00-switch.md']);
+  assert.deepEqual(stackTiers('browser/browseros-neo', root).map(f => f.load), ['always']);
+});
+
+test('stacks 는 부모 바로 뒤에 자손을 두고 이름이 비슷한 형제는 그 뒤로 보낸다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/web/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/web/neo/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/web-extra/00-a.md', `${ALWAYS}# a\n`);
+  assert.deepEqual(stacks(root), ['base', 'demo', 'web', 'web/neo', 'web-extra']);
+});
+
+test('stackWhen 은 스택 README 의 when 을 읽는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/browseros-neo/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/README.md', '---\nwhen: "neo 를 쓰는 작업자"\n---\n\n설명\n');
+  write(root, 'rules/browser/README.md', '---\nlabel: 브라우저\n---\n');
+  assert.equal(stackWhen('browser/browseros-neo', root), 'neo 를 쓰는 작업자');
+  assert.equal(stackWhen('browser', root), null);
+  assert.equal(stackWhen('base', root), null);
+});
+
+test('catalogSummary 와 catalogView 의 스택에 parent·when 이 있다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/browseros-neo/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/README.md', '---\nwhen: "neo 를 쓰는 작업자"\n---\n');
+  for (const stack of [catalogSummary(root), catalogView(root)].map(c => Object.fromEntries(c.stacks.map(s => [s.name, s])))) {
+    assert.equal(stack['browser/browseros-neo'].parent, 'browser');
+    assert.equal(stack['browser/browseros-neo'].when, 'neo 를 쓰는 작업자');
+    assert.equal(stack.browser.parent, null);
+    assert.equal(stack.browser.when, null);
+    assert.equal(stack.base.parent, null);
+  }
+});
+
+test('ignored 는 하위 스택의 이름 규칙 위반 파일도 경로 그대로 보고한다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/x/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/x/bad.md', '규칙 아님\n');
+  write(root, 'rules/browser/x/deeper/oops.md', '규칙 아님\n');
+  assert.deepEqual(ignored(root).map(i => i.path), ['rules/browser/x/bad.md', 'rules/browser/x/deeper/oops.md']);
+});
+
+test('점이 든 하위 폴더는 블록 키가 파일로 읽으므로 스택으로 잡지 않고 이유와 함께 ignored 에 보고한다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/v1.2/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/v1.2/deep/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/.cache/note.txt', 'x\n');
+  write(root, 'rules/browser/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/plain.d/README.md', '뼈대\n');
+  write(root, 'rules/deploy__gitlab.example.com/00-a.md', `${ALWAYS}# a\n`);
+  assert.deepEqual(stacks(root), ['base', 'browser', 'demo', 'deploy__gitlab.example.com']);
+  assert.deepEqual(ignored(root), [{ path: 'rules/browser/v1.2/', reason: '이름에 `.` 가 있고 `__` 가 없어 스택 폴더로 못 씀' }]);
+});
+
+test('도메인 스택이 부모여도 스택 이름 경고는 조각마다 검사한다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/deploy__gitlab.example.com/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/deploy__gitlab.example.com/child__bad/00-a.md', `${ALWAYS}# a\n`);
+  assert.deepEqual(warnings(root).filter(w => w.path.endsWith('/')).map(w => w.path), ['rules/deploy__gitlab.example.com/child__bad/']);
+});
+
+test('하위 스택의 분류·표시 이름·블록 키는 스택 경로로 읽고 부모 분류를 물려받지 않는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/README.md', '---\ncategories: [웹]\nlabel: 브라우저\n---\n');
+  write(root, 'rules/browser/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/README.md', '---\ncategories: [neo]\nlabel: Neo\n---\n');
+  write(root, 'rules/browser/browseros-neo/00-b.md', `${ALWAYS}# b\n`);
+  write(root, 'rules/browser/plain/00-c.md', `${ALWAYS}# c\n`);
+  const { categories } = elementCategories(root);
+  assert.deepEqual(categories['rules/browser'], ['웹']);
+  assert.deepEqual(categories['rules/browser/browseros-neo'], ['neo']);
+  assert.equal(elementLabels(root).labels['rules/browser/browseros-neo'], 'Neo');
+  assert.ok(blockKeys(root).has('rules/browser/browseros-neo'));
+  assert.deepEqual(fileCategories(categories, 'rules/browser/00-a.md'), ['웹']);
+  assert.deepEqual(fileCategories(categories, 'rules/browser/browseros-neo/00-b.md'), ['neo']);
+  assert.deepEqual(fileCategories(categories, 'rules/browser/plain/00-c.md'), []);
 });
