@@ -168,7 +168,7 @@ export function toRealLock({ viewLock, sources, revisions, previous = null, keep
     const r = realOf(id, sources);
     return r ? qualify(r.source, r.id) : null;
   };
-  // 렌더링이 새 배치(v3)로 냈으면 실제 잠금도 v3, 아니면 v2
+  // 실제 잠금은 늘 v3(새 배치). 옛 잠금 v1·v2 는 이전(migrate-layout)의 입력으로만 읽는다
   const out = { version: 3, revisions: { ...revisions }, sources: {}, outputs: [] };
   for (const [id, h] of Object.entries(viewLock.sources)) {
     const q = real(id);

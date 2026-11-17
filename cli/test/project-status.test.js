@@ -45,8 +45,9 @@ test('status --json 은 원본 새로 나옴·프로젝트에서 고침을 내�
     { id: 'skills/s', state: 'current' },
   ]);
   assert.equal('newFiles' in data, false);
-  // 사본을 고치고 조합하지 않았으니 생성물이 낡았다는 할 일만 있다
-  assert.deepEqual(data.todos.map(x => x.kind), ['apply']);
+  // 사본을 고치고 조합하지 않았으니 생성물이 낡았다. 고친 사본은 frontmatter 가 없어 조합에서 막힌다 — 조합 할 일도 status 에 나온다
+  assert.deepEqual(data.todos.map(x => x.kind), ['apply', 'blocked']);
+  assert.equal(data.todos[1].item, 'rules/base/01-b.md');
 });
 
 test('status 는 새 파일 줄을 내지 않는다', async t => {
@@ -169,4 +170,32 @@ test('사본이 최신 원본과 같으면(제안이 수락된 뒤) status 는 �
   const o = collect();
   assert.equal(await projectStatus({ project: p, json: true, env, out: o.out, err: () => {} }), 0);
   assert.equal(JSON.parse(o.text()).items.find(x => x.id === 'rules/base/00-a.md').state, 'upstream');
+});
+
+test('status 는 prepare 가 ruler apply 만 부르는 동안 dev-dependency 할 일을 계속 내고, 고칠 수 있는 prepare 는 apply 할 일로 본다', async t => {
+  const { p, env } = await setupNew(t);
+  const pkg = deps => `{\n  "scripts": {\n    "prepare": "ruler apply"\n  }${deps ? ',\n  "devDependencies": { "guideline-manage": "1" }' : ''}\n}\n`;
+  write(p, 'package.json', pkg(false));
+  write(p, 'pnpm-lock.yaml', '');
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o.out, err: () => {} }), 0);
+  const todos = JSON.parse(o.text()).todos;
+  assert.deepEqual(todos.map(x => x.kind), ['dev-dependency']);
+  assert.match(todos[0].message, /pnpm add -D guideline-manage .* 그 전까지 클론의 prepare 는 ruler 만 돌아 지침 없는 AGENTS\.md 를 만듦$/);
+  // 의존성이 생기면 apply 가 prepare 를 고칠 수 있다 — 낡은 것으로 본다(status 는 쓰지 않는다)
+  write(p, 'package.json', pkg(true));
+  const o2 = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o2.out, err: () => {} }), 0);
+  assert.deepEqual(JSON.parse(o2.text()).todos.map(x => x.kind), ['apply']);
+  assert.equal(fs.readFileSync(path.join(p, 'package.json'), 'utf8'), pkg(true));
+});
+
+test('status 는 조합 할 일(고르지 않은 스택의 바꿈 등)을 apply·update 없이도 낸다', async t => {
+  const { p, env } = await setupNew(t);
+  write(p, '.guideline/overrides/gone/override.md', '## 바꿈\n');
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o.out, err: () => {} }), 0);
+  const todos = JSON.parse(o.text()).todos;
+  assert.deepEqual(todos.map(x => x.kind), ['override-unchosen']);
+  assert.match(todos[0].message, /^\.guideline\/overrides\/gone\/: 고르지 않은 스택이라 바꿈을 조합하지 않음/);
 });

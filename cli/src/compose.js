@@ -130,10 +130,7 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   });
   const view = { version: 1, form: 'ruler', instructionFiles: [], agents: manifest.agents, items: keys };
   const { outputs, todos: made } = desiredOutputs({ tree, manifest: view, items, rulerAgentsEnabled, management: managementOf(tree, manifest) });
-  // 새 배치에서 서브에이전트는 사본이 있고 조합만 하지 않은 것이다. 설정 자리도 ruler.project.toml 이다.
-  const todos = [...blocked, ...made.map(x => (x.kind === 'subagents-off'
-    ? { ...x, message: t('todo.agentsNotComposed', { name: x.item.slice('agents/'.length, -'.md'.length) }) }
-    : x))];
+  const todos = [...blocked, ...made];
   // 고른 항목인데 사본이 없으면(막혔거나 MCP 를 만들어야 해서 동기화가 쓰지 않은 것) 조용히 빠지지 않게 알린다.
   for (const k of keys) {
     if (!tree.exists(k)) todos.push({ kind: 'no-copy', item: k, message: t('todo.noCopy', { item: k }) });

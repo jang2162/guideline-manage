@@ -5,8 +5,7 @@ import { expandBlocks } from '../catalog.js';
 import { unitInfo, unitProblem } from '../unit.js';
 import { render } from '../render/index.js';
 import { fetchSources, virtualize, toRealLock, aliasMoveTodos, missingRequiresTodos, protectedPaths, manifestClashes } from '../workspace.js';
-import { printTodos } from '../todos.js';
-import { finishApply, report, migrateIfOld, manifestV3Todos } from './sync-common.js';
+import { finishApply, report, migrateIfOld, manifestV3Todos, finishMigrationOnly } from './sync-common.js';
 import { t } from '../i18n.js';
 
 /**
@@ -78,8 +77,8 @@ export async function projectUpdate({
   const { trees, failures } = await fetchSources({ manifest, lock, latest, env, home, fetchImpl });
   for (const f of failures) err(`${f.source}: ${f.message}`);
   if (trees.size === 0) {
-    // 옮긴 것은 이미 썼다 — 그 할 일(커밋하라)은 알린다
-    printTodos(moved.todos, err);
+    // 옮긴 것은 이미 썼다 — 그 할 일(커밋하라)은 알리고, 옮겼으면 ruler 를 돌아 AGENTS.md 를 맞춘다
+    finishMigrationOnly({ moved, root: unit.root, env, runRuler, err });
     return 1;
   }
 
@@ -96,7 +95,9 @@ export async function projectUpdate({
   rendered.todos.push(...v.problems, ...aliasMoveTodos({ previous: lock, next: realLock, project: dir }));
   rendered.todos.push(...missingRequiresTodos({ manifest, trees, many: v.many }));
   rendered.todos.unshift(...moved.todos, ...v3);
-  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err });
+  const done = finishApply({
+    project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err, migration: moved.migration,
+  });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   return failures.length && done.code === 0 ? 1 : done.code;
 }

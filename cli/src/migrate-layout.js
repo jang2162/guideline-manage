@@ -253,6 +253,19 @@ function trackedOf(project, paths, git) {
 const PACKAGE = 'package.json';
 const RULER_APPLY = /\bruler apply\b/;
 
+/** prepare 의 `ruler apply` 중 뒤에 인자가 붙은 것이 있는가. 끝이나 `&&`·`||`·`;` 앞이면 인자가 없다. */
+const withArgs = prepare => [...prepare.matchAll(/\bruler apply\b/g)]
+  .some(m => !/^\s*(?:$|&&|\|\||;)/.test(prepare.slice(m.index + m[0].length)));
+
+/**
+ * status·update 가 반영 뒤에 내는 prepare 할 일: 바꾸지 않고, 해결될 때까지 남는 것(dev-dependency, prepare-manual)만.
+ * 이전 때 한 번만 알리면 클론의 prepare 가 ruler 만 돌아 지침 없는 AGENTS.md 를 만드는 것을 놓친다.
+ * @returns {object[]}
+ */
+export function readOnlyPrepareTodos({ project, root = project }) {
+  return preparePackage({ project, root }).todos.filter(x => x.kind === 'dev-dependency' || x.kind === 'prepare-manual');
+}
+
 /** text[i] 의 문자열 토큰이 끝난 다음 위치. */
 function stringEnd(text, i) {
   let k = i + 1;
@@ -310,6 +323,8 @@ function addDevCommand(dirs) {
  * package.json 의 prepare 가 ruler apply 를 부르면 guideline apply 로 바꾼다 — ruler 가 조합 전에 돌면 모든 에이전트 몫(CLAUDE.md)을 만든다.
  * guideline-manage 가 의존성에 있을 때만 바꾼다(없이 바꾸면 prepare 가 깨진다). 없으면 dev 의존성으로 더하라는 할 일을 낸다 —
  * 설치는 패키지 매니저의 일이고, 설치 뒤의 apply 가 다시 이 검사로 바꾼다. package.json 이 없으면 hook 일 때만 apply-hook 할 일.
+ * `ruler apply` 뒤에 인자가 붙었으면(`ruler apply --agents claude`) guideline apply 가 그 인자를 몰라 설치가 깨지므로 바꾸지 않고 알린다.
+ * 바꾸는 것(files)은 apply·이전만 쓴다. status·update 는 todos 만 본다(readOnlyPrepareTodos).
  * @param {{ project: string, root?: string, hook?: boolean }} opts
  * @returns {{ files: Record<string, Buffer>, todos: object[] }}
  */
@@ -330,9 +345,9 @@ export function preparePackage({ project, root = project, hook = false }) {
   const prepare = pkg?.scripts?.prepare;
   if (typeof prepare !== 'string' || !RULER_APPLY.test(prepare)) return { files: {}, todos: [] };
   const dep = Object.hasOwn(pkg.devDependencies ?? {}, 'guideline-manage') || Object.hasOwn(pkg.dependencies ?? {}, 'guideline-manage');
-  if (!dep) {
-    return { files: {}, todos: [{ kind: 'dev-dependency', item: null, message: t('todo.devDependency', { command: addDevCommand([project, root]) }) }] };
-  }
+  const todos = dep ? [] : [{ kind: 'dev-dependency', item: null, message: t('todo.devDependency', { command: addDevCommand([project, root]) }) }];
+  if (withArgs(prepare)) todos.push({ kind: 'prepare-manual', item: null, message: t('todo.prepareManual', { file: PACKAGE, prepare }) });
+  if (todos.length) return { files: {}, todos };
   // 글자 그대로 고친다(들여쓰기·키 순서를 지킨다). scripts 안의 prepare 만 — 다른 객체의 같은 이름 키는 건드리지 않는다
   const scripts = memberRange(text, text.indexOf('{'), 'scripts');
   const at = scripts && text[scripts.start] === '{' ? memberRange(text, scripts.start, 'prepare') : null;

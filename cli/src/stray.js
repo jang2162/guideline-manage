@@ -19,13 +19,16 @@ const unquote = v => {
  * - claude 가 고른 에이전트인가: `[agents.claude] enabled` 가 있으면 그 값, 없으면 default_agents 에 claude 가 있는가,
  *   default_agents 가 없거나 비었으면 모두(`agent-selection.js`).
  * - 출력 자리: `[agents.claude] output_path`, 없으면 CLAUDE.md(`ClaudeAgent.getDefaultOutputPath`).
+ * default_agents 가 여러 줄 배열이라 claude 가 들었는지 모르면 null(판정 불가).
  * @param {string} toml
+ * @returns {boolean | null}
  */
 export function rulerWritesClaudeMd(toml) {
   let section = '';
   let defaults = null;
   let enabled;
   let output = STRAY;
+  let unsure = false;
   for (const raw of toml.replace(/\r\n/g, '\n').split('\n')) {
     const l = raw.replace(/\s+#.*$/, '');
     const h = /^\s*\[([^\]]+)\]\s*$/.exec(l);
@@ -37,7 +40,10 @@ export function rulerWritesClaudeMd(toml) {
     if (!kv) continue;
     const [, key, value] = kv;
     if (section === '' && key === 'default_agents') {
-      const list = /^\[([^\]]*)\]/.exec(value.trim());
+      const v = value.trim();
+      const list = /^\[([^\]]*)\]/.exec(v);
+      // 여러 줄 배열(`[` 뒤에 줄이 바뀜)은 줄 단위로 읽어서는 판정할 수 없다 — 「모두」 로 읽으면 떠돌이를 조용히 남긴다
+      if (!list && v.startsWith('[')) unsure = true;
       defaults = list ? [...list[1].matchAll(/"([^"]*)"|'([^']*)'/g)].map(m => (m[1] ?? m[2]).toLowerCase()) : null;
     } else if (section === 'agents.claude' && key === 'enabled') {
       if (/^\s*(true|false)\b/.test(value)) enabled = /^\s*true/.test(value);
@@ -45,14 +51,16 @@ export function rulerWritesClaudeMd(toml) {
       output = unquote(value) ?? output;
     }
   }
+  const atStray = path.posix.normalize(output.replace(/\\/g, '/')).replace(/^\.\//, '') === STRAY;
+  if (enabled === undefined && unsure) return atStray ? null : false;
   const selected = enabled ?? (defaults && defaults.length ? defaults.includes('claude') : true);
-  return selected && path.posix.normalize(output.replace(/\\/g, '/')).replace(/^\.\//, '') === STRAY;
+  return selected && atStray;
 }
 
 /**
  * 조합 전에 .ruler/ruler.toml 이 없었을 때 부른다. 조합한 설정(toml)으로도 ruler 가 CLAUDE.md 를 만들면 떠돌이가 아니라 곧 다시
  * 만들어질 파일이라 건드리지 않는다. 아니면 ruler 표시가 있는 것은 지울 목록(files 에 null)에 넣고, 없는 것은 사용자 파일일 수 있어
- * 두고 알린다.
+ * 두고 알린다. 설정으로 판정할 수 없으면(여러 줄 default_agents) 두고 알린다.
  * @param {string} project 단위 디렉터리
  * @param {Record<string, Buffer | null>} files 쓸 목록(고친다)
  * @param {object[]} todos 할 일(더한다)
@@ -65,7 +73,12 @@ export function strayRulerOutput(project, files, todos, toml) {
   } catch {
     return;
   }
-  if (rulerWritesClaudeMd(toml)) return;
+  const writes = rulerWritesClaudeMd(toml);
+  if (writes === true) return;
+  if (writes === null) {
+    todos.push({ kind: 'stray-ruler-output', item: null, message: t('todo.strayRulerUnsure', { file: STRAY }) });
+    return;
+  }
   if (rulerMade(text)) {
     files[STRAY] = null;
     todos.push({ kind: 'stray-ruler-output', item: null, message: t('todo.strayRulerRemoved', { file: STRAY }) });

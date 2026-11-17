@@ -81,7 +81,7 @@ export function desiredOutputs({ tree, manifest, items, rulerAgentsEnabled = fal
       else {
         todos.push({
           kind: 'subagents-off', item: id,
-          message: t('todo.agentsDisabled', { name }),
+          message: t('todo.agentsNotComposed', { name }),
         });
       }
       continue;

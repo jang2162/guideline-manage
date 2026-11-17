@@ -10,7 +10,7 @@ import { rulerAgentsEnabled } from '../project-state.js';
 import { RULER_TOML, layoutOf } from '../layout.js';
 import { strayRulerOutput } from '../stray.js';
 import { fetchSources } from '../workspace.js';
-import { migrateLayout, preparePackage } from '../migrate-layout.js';
+import { migrateLayout, preparePackage, readOnlyPrepareTodos } from '../migrate-layout.js';
 import { t } from '../i18n.js';
 
 /** 프로젝트의 node_modules/.bin/ruler 나 PATH 의 ruler. 없으면 null. 내려받아 실행하지 않는다. */
@@ -86,9 +86,12 @@ export function writeComposedOrFail(project, files, err) {
  * 모든 에이전트로 돌아 CLAUDE.md 등을 만들고 nested 도 꺼진 채로 돈다. 새 배치에서 그것은 커밋되지 않은 생성물이라, 클론 직후
  * 중첩 단위에서 부르면 루트에는 아직 없다.
  */
-export function rulerStep({ root, env, runRuler, todos }) {
+export function rulerStep({ root, env, runRuler, todos, rootIsUnit = true }) {
   if (!fs.existsSync(path.join(root, ...RULER_TOML.split('/')))) {
-    todos.push({ kind: 'root-apply', item: null, message: t('todo.rootApply', { root }) });
+    // 루트가 guideline 프로젝트가 아니면 그 ruler.toml 은 프로젝트가 둘 것이다 — 「루트에서 apply」 는 답이 아니다
+    todos.push(rootIsUnit
+      ? { kind: 'root-apply', item: null, message: t('todo.rootApply', { root }) }
+      : { kind: 'root-ruler-toml', item: null, message: t('todo.rootRulerToml', { root }) });
     return;
   }
   const bin = findRuler(root, env);
@@ -102,12 +105,17 @@ export function rulerStep({ root, env, runRuler, todos }) {
 /**
  * 렌더링 결과(.guideline/ 사본)를 단위 디렉터리에 쓰고, 매니페스트·잠금을 쓴 뒤 .guideline/ 에서 생성물을 조합해 쓰고
  * git 루트에서 ruler apply 를 돈다 — 조합이 .ruler/ruler.toml 을 쓴 뒤에만 ruler 를 돌아야 모든 에이전트 몫(CLAUDE.md 등)이 생기지 않는다.
+ * migration 은 이번 실행에서 먼저 한 이전(migrateIfOld)의 결과다. 이전이 있었으면 이 단계에서 쓴 것이 없어도 ruler 를 돈다 —
+ * 이전이 바꾼 관리 지침이 AGENTS.md 에 들어가야 한다. 쓴/지운 목록에도 합친다.
  * @returns {{ code: number, written: string[], deleted: string[], todos: object[] }}
  */
 export function finishApply({
   project, root = project, nested = false, result, manifest, lock = result.lock, env = process.env, runRuler = defaultRunRuler, err = console.error,
+  migration = null,
 }) {
   let todos = [...result.todos];
+  const pre = migration ?? { written: [], deleted: [] };
+  const merged = (written, deleted) => ({ written: union(pre.written, written), deleted: union(pre.deleted, deleted) });
   let applied;
   try {
     applied = applyFiles(project, result.files);
@@ -116,7 +124,7 @@ export function finishApply({
     err(t('apply.writeFailed', { reason: e.message }));
     if (e.written.length) err(t('apply.writtenSoFar', { files: e.written.join(', ') }));
     err(t('apply.lockNotWritten'));
-    return { code: 1, written: e.written, deleted: e.deleted, todos };
+    return { code: 1, ...merged(e.written, e.deleted), todos };
   }
   writeFileAtomic(path.join(project, MANIFEST), manifestText(manifest));
   writeFileAtomic(path.join(project, LOCK), lockText(lock));
@@ -125,22 +133,28 @@ export function finishApply({
   const w = writeComposedOrFail(project, composed.files, err);
   if (w.failed) {
     err(t('apply.composeNotWritten'));
-    return { code: 1, written: [...applied.written, ...w.failed.written], deleted: [...applied.deleted, ...w.failed.deleted], todos };
+    return { code: 1, ...merged([...applied.written, ...w.failed.written], [...applied.deleted, ...w.failed.deleted]), todos };
   }
-  applied = { written: [...applied.written, ...w.written], deleted: [...applied.deleted, ...w.deleted] };
+  applied = merged([...applied.written, ...w.written], [...applied.deleted, ...w.deleted]);
   if (nested && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
-  if (applied.written.length || applied.deleted.length) rulerStep({ root, env, runRuler, todos });
+  if (migration || applied.written.length || applied.deleted.length) rulerStep({ root, env, runRuler, todos });
+  // prepare 가 아직 ruler apply 만 부르면 해결될 때까지 알린다(이전 때 한 번이면 놓친다). 바꾸는 것은 apply 의 몫이다.
+  todos = mergeTodos(todos, readOnlyPrepareTodos({ project, root }));
   return { code: 0, ...applied, todos };
 }
+
+/** 순서를 지키며 합친다(같은 경로는 한 번). */
+const union = (a, b) => [...new Set([...a, ...b])];
 
 /**
  * 옛 배치(잠금 v1·v2, 잠금 없는 0.10 이전)면 반영 전에 새 배치로 옮긴다: 잠금 리비전 원본으로 사본을 .guideline/ 에 되돌려 쓰고,
  * package.json 의 prepare 를 고치고, 매니페스트·잠금(v3)을 쓰고, 생성물을 조합한 뒤(.gitignore 블록) 옛 사본을 git 추적에서 뺀다.
- * 새 배치면 아무것도 하지 않는다. 실패하면 { code }.
- * @returns {Promise<{ lock: object | null, todos: object[] } | { code: number }>}
+ * 새 배치면 아무것도 하지 않는다(migration 은 null). 옮겼으면 migration 에 쓴/지운 파일 — finishApply 가 보고에 합치고 ruler 를 돈다.
+ * 실패하면 { code }.
+ * @returns {Promise<{ lock: object | null, todos: object[], migration: { written: string[], deleted: string[] } | null } | { code: number }>}
  */
 export async function migrateIfOld({ dir, unit, manifest, lock, env, home, fetchImpl, git, err }) {
-  if (!manifest || layoutOf(lock, dir) !== 'ruler') return { lock, todos: [] };
+  if (!manifest || layoutOf(lock, dir) !== 'ruler') return { lock, todos: [], migration: null };
   const { trees, failures } = await fetchSources({ manifest, lock, latest: new Set(), env, home, fetchImpl });
   if (failures.length) {
     for (const f of failures) err(`${f.source}: ${f.message}`);
@@ -168,7 +182,8 @@ export async function migrateIfOld({ dir, unit, manifest, lock, env, home, fetch
   };
   // .gitignore 블록을 먼저 써야 추적에서 뺀 생성물이 다시 커밋되지 않는다
   const composed = composeWithStray({ project: dir, nested: unit.nested, manifest });
-  if (writeComposedOrFail(dir, composed.files, err).failed) {
+  const c = writeComposedOrFail(dir, composed.files, err);
+  if (c.failed) {
     err(t('apply.composeNotWritten'));
     // 잠금은 이미 v3 라 다음 update 는 이전을 건너뛴다 — 지금 추적에서 빼지 않으면 옛 사본이 영영 추적에 남는다.
     // 블록은 다음 apply 가 쓴다. 그 전에 git add -A 로 다시 넣지 않게 apply 먼저 하라고 알린다.
@@ -178,7 +193,17 @@ export async function migrateIfOld({ dir, unit, manifest, lock, env, home, fetch
     return { code: 1 };
   }
   untrackOld();
-  return { lock: m.lock, todos };
+  return { lock: m.lock, todos, migration: { written: union(w.written, c.written), deleted: union(w.deleted, c.deleted) } };
+}
+
+/**
+ * 이전한 뒤 반영까지 가지 못하고 끝날 때(받기 실패, 폼 취소): 이전이 쓴 관리 지침이 AGENTS.md 에 들어가게 ruler 를 돌고 할 일을 낸다.
+ * @param {{ moved: { todos: object[], migration: object | null }, root: string, env?: object, runRuler?: Function, err: Function }} opts
+ */
+export function finishMigrationOnly({ moved, root, env = process.env, runRuler = defaultRunRuler, err }) {
+  const todos = [...moved.todos];
+  if (moved.migration) rulerStep({ root, env, runRuler, todos });
+  printTodos(todos, err);
 }
 
 /** 읽은 매니페스트가 v1·v2 였으면(이번에 v3 로 쓴다) 알리는 할 일. */

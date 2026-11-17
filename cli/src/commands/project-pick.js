@@ -16,8 +16,7 @@ import { unitInfo, unitProblem, rootStacks } from '../unit.js';
 import { render } from '../render/index.js';
 import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../render/outputs.js';
 import { rulerTomlText, PROJECT_TOML, RULER_TOML } from '../layout.js';
-import { finishApply, report, migrateIfOld, manifestV3Todos } from './sync-common.js';
-import { printTodos } from '../todos.js';
+import { finishApply, report, migrateIfOld, manifestV3Todos, finishMigrationOnly } from './sync-common.js';
 import { t } from '../i18n.js';
 
 const isDir = p => {
@@ -119,13 +118,13 @@ export async function projectPick({
   const unit = isNew ? { dir, root: dir, nested: false } : unitInfo(dir, git);
   const v3 = isNew ? [] : manifestV3Todos(dir);
   // 옛 배치면 폼을 만들기 전에 새 배치로 옮긴다 — 폼이 .guideline/ 사본과 원본을 비교하고 반영도 새 배치로 쓴다
-  let migrated = [];
+  let migrated = { todos: [], migration: null };
   if (manifest) {
     const servers = Object.fromEntries(Object.entries(manifest.sources).map(([n, s]) => [n, { ...s, server: sources[n]?.server ?? s.server }]));
     const moved = await migrateIfOld({ dir, unit, manifest: { ...manifest, sources: servers }, lock, env, home, fetchImpl, git, err });
     if (moved.code !== undefined) return moved.code;
     lock = moved.lock;
-    migrated = moved.todos;
+    migrated = moved;
   }
   const status = isNew ? { gitRepo: false, dirty: false } : projectStatus(dir, git, unit.root);
   // 중첩 단위에 ruler.toml 이 아직 없으면 git 루트의 에이전트를 따른다
@@ -215,8 +214,8 @@ export async function projectPick({
   }
   for (const f of failures) err(f);
   if (submitted.size === 0) {
-    // 옮긴 것은 이미 썼다 — 고르지 않았어도 그 할 일(커밋하라)은 알린다
-    printTodos(migrated, err);
+    // 옮긴 것은 이미 썼다 — 고르지 않았어도 그 할 일(커밋하라)은 알리고, 옮겼으면 ruler 를 돌아 AGENTS.md 를 맞춘다
+    finishMigrationOnly({ moved: migrated, root: unit.root, env, runRuler, err });
     return failures.length ? 1 : 3;
   }
 
@@ -267,7 +266,7 @@ export async function projectPick({
   const revisions = Object.fromEntries([...trees].map(([n, t]) => [n, submitted.get(n)?.revision ?? t.revision]));
   const realLock = toRealLock({ viewLock: rendered.lock, sources: v.sources, revisions, previous: lock, keep: failed, protect });
   rendered.todos.push(...v.problems, ...aliasMoveTodos({ previous: lock, next: realLock, project: dir }));
-  rendered.todos.unshift(...migrated, ...v3);
+  rendered.todos.unshift(...migrated.todos, ...v3);
   for (const { overrides } of submitted.values()) {
     for (const o of overrides.filter(x => !x.valid)) {
       rendered.todos.push({ kind: 'override', item: o.target, message: `${o.file} 「${o.heading}」: ${o.reason}` });
@@ -279,7 +278,9 @@ export async function projectPick({
     rendered.files[PROJECT_TOML] = first.content;
     moved = first.moved;
   }
-  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, env, runRuler, err });
+  const done = finishApply({
+    project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, env, runRuler, err, migration: migrated.migration,
+  });
   if (done.code === 0 && moved) done.todos.push(...untrackMoved(dir, git));
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;

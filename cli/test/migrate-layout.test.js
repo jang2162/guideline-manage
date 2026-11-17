@@ -46,6 +46,15 @@ function oldProject(t, s, { files = {}, ...opts } = {}) {
   return { p, ...made };
 }
 
+/** findRuler 가 찾게 하는 env(가짜 ruler 를 PATH 에). 프로젝트 밖에 둔다 — 안에 두면 git 이 더럽다. */
+function withRuler(t, p) {
+  const bin = `${p}-bin`;
+  t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
+  write(bin, 'ruler', '#!/bin/sh\n');
+  fs.chmodSync(path.join(bin, 'ruler'), 0o755);
+  return { PATH: bin };
+}
+
 /** 디렉터리의 모든 파일(.git 빼고) → 내용. */
 function snapshot(dir) {
   const out = {};
@@ -199,7 +208,7 @@ test('prepare 는 guideline-manage 가 있을 때만 guideline apply 로 바뀐�
   assert.equal(await projectUpdate({ project: p, env, ...quiet, json: true, out: o.out }), 0);
   assert.equal(read(p, 'package.json'), pkg(false));
   const todo = JSON.parse(o.text()).todos.find(x => x.kind === 'dev-dependency');
-  assert.equal(todo.message, 'prepare 가 에이전트 파일을 조합하게 이 프로젝트에 guideline CLI 를 더하기: pnpm add -D guideline-manage 한 뒤 guideline apply 실행');
+  assert.equal(todo.message, 'prepare 가 에이전트 파일을 조합하게 이 프로젝트에 guideline CLI 를 더하기: pnpm add -D guideline-manage 한 뒤 guideline apply 실행 — 그 전까지 클론의 prepare 는 ruler 만 돌아 지침 없는 AGENTS.md 를 만듦');
   // 설치한 뒤의 apply 가 바꾼다(글자 그대로, 다른 줄은 그대로)
   write(p, 'package.json', pkg(true));
   const a = collect();
@@ -255,7 +264,11 @@ test('pick 은 옛 배치를 먼저 옮기고 새 배치로 폼을 만든다', a
     await s.req(`${u.pathname}/cancel`, { method: 'POST', body: '{}', headers: { 'Content-Type': 'application/json', Origin: s.config.publicUrl.origin, Cookie: cookie } });
   };
   const e = collect();
-  assert.equal(await projectPick({ project: p, env, ...quiet, err: e.out, out: () => {}, open }), 3);
+  const runs = [];
+  const runRuler = (bin, cwd) => runs.push(cwd) && 0;
+  assert.equal(await projectPick({ project: p, env: { ...env, ...withRuler(t, p) }, ...quiet, runRuler, err: e.out, out: () => {}, open }), 3);
+  // 고르지 않고 끝나도 옮겼으면 ruler 를 한 번 돌아 AGENTS.md 에 새 관리 지침이 들어간다
+  assert.deepEqual(runs, [p]);
   const by = Object.fromEntries(items.filter(i => i.kind !== 'orphan').map(i => [i.id, i]));
   assert.equal(by['rules/base/01-b.md'].state, 'same');
   assert.equal(by['rules/base/00-a.md'].state, 'different');
@@ -345,4 +358,68 @@ test('git 이 추적 파일 목록을 답하지 못하면 이전은 그 명령�
   assert.deepEqual(r.notes.untrack, []);
   const todo = r.todos.find(x => x.kind === 'untracked');
   assert.match(todo.message, /git rm --cached --ignore-unmatch -- .*\.ruler\/base\/00-a\.md/);
+});
+
+test('이전 뒤 받을 것이 없어도 ruler 를 한 번 돌고 쓴/지운 파일이 보고된다', async t => {
+  const { s, env } = await server(t);
+  // 서버 최신 = 잠금 리비전(r1): 이전 뒤 update 가 쓸 것이 없다
+  const { p } = oldProject(t, s);
+  const runs = [];
+  const runRuler = (bin, cwd) => runs.push(cwd) && 0;
+  const o = collect();
+  assert.equal(await projectUpdate({ project: p, env: { ...env, ...withRuler(t, p) }, ...quiet, runRuler, json: true, out: o.out }), 0);
+  assert.deepEqual(runs, [p]);
+  const r = JSON.parse(o.text());
+  // 이전이 쓴 .guideline/ 사본·ruler.project.toml·.gitignore 가 목록에 있다
+  for (const x of ['.guideline/rules/base/00-a.md', PROJECT_TOML, '.gitignore']) assert.ok(r.written.includes(x), `${x}: ${r.written}`);
+  assert.equal(new Set(r.written).size, r.written.length);
+  assert.equal(r.todos.some(x => x.kind === 'ruler-apply'), false);
+  // 글 출력도 「0」 이 아니다
+  const again = oldProject(t, s);
+  const text = collect();
+  assert.equal(await projectUpdate({ project: again.p, env: { ...env, ...withRuler(t, again.p) }, ...quiet, runRuler, out: text.out }), 0);
+  assert.doesNotMatch(text.text(), /쓴 파일 0, 지운 파일 0/);
+  assert.match(text.text(), /^ {2}쓰기 {2}\.guideline\/rules\/base\/00-a\.md$/m);
+  // 이미 옮긴 프로젝트에서 받을 것이 없으면 ruler 를 돌지 않는다(지금까지와 같다)
+  runs.length = 0;
+  assert.equal(await projectUpdate({ project: p, env: { ...env, ...withRuler(t, p) }, ...quiet, runRuler, out: () => {} }), 0);
+  assert.deepEqual(runs, []);
+});
+
+test('update 는 이전 뒤에도 prepare 가 ruler apply 만 부르는 동안 dev-dependency 할 일을 계속 낸다', async t => {
+  const { s, env } = await server(t);
+  const pkg = '{\n  "scripts": {\n    "prepare": "ruler apply"\n  }\n}\n';
+  const { p } = oldProject(t, s, { files: { 'package.json': pkg } });
+  const first = collect();
+  assert.equal(await projectUpdate({ project: p, env, ...quiet, json: true, out: first.out }), 0);
+  // 이전 때와 반영 끝의 같은 할 일은 한 번만
+  assert.equal(JSON.parse(first.text()).todos.filter(x => x.kind === 'dev-dependency').length, 1);
+  commitAll(p);
+  const o = collect();
+  assert.equal(await projectUpdate({ project: p, env, ...quiet, json: true, out: o.out }), 0);
+  const todo = JSON.parse(o.text()).todos.find(x => x.kind === 'dev-dependency');
+  assert.match(todo.message, /npm install -D guideline-manage/);
+  assert.equal(read(p, 'package.json'), pkg);
+});
+
+test('prepare 가 ruler apply 에 인자를 붙여 부르면 바꾸지 않고 손으로 바꾸라고 알린다', t => {
+  const dir = tmpDir('guideline-prep-');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const pkg = prepare => `{\n  "scripts": { "prepare": ${JSON.stringify(prepare)} },\n  "devDependencies": { "guideline-manage": "1" }\n}\n`;
+  for (const prepare of ['ruler apply --agents claude', 'husky && ruler apply --nested && x', 'ruler apply && ruler apply -c a.toml']) {
+    write(dir, 'package.json', pkg(prepare));
+    const r = preparePackage({ project: dir });
+    assert.deepEqual(r.files, {}, prepare);
+    assert.deepEqual(r.todos.map(x => x.kind), ['prepare-manual'], prepare);
+    assert.ok(r.todos[0].message.includes(`(${prepare})`), r.todos[0].message);
+  }
+  // 끝, &&, ||, ; 앞이면 인자가 없다
+  for (const prepare of ['ruler apply', 'ruler apply && husky', 'ruler apply || true', 'ruler apply; echo', 'husky && ruler apply  ']) {
+    write(dir, 'package.json', pkg(prepare));
+    const r = preparePackage({ project: dir });
+    assert.equal(JSON.parse(r.files['package.json']).scripts.prepare, prepare.replace('ruler apply', 'guideline apply'), prepare);
+  }
+  // 의존성도 없으면 두 할 일 모두
+  write(dir, 'package.json', '{ "scripts": { "prepare": "ruler apply --agents claude" } }\n');
+  assert.deepEqual(preparePackage({ project: dir }).todos.map(x => x.kind), ['dev-dependency', 'prepare-manual']);
 });
