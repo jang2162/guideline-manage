@@ -32,8 +32,8 @@ npm install -g guideline-manage
 
 - 서버는 0.12.0 보다 낮은 CLI 를 「CLI 버전이 낮음 — guideline-manage 업데이트 필요」 로 거부합니다.
 - 공개 서버에서 토큰 없이 받으려면 CLI 0.16 이상이어야 합니다. 0.15 CLI 는 토큰이 없으면 서버에 묻기 전에 멈춥니다.
-- 폼을 쓰려면 **CLI 와 서버를 함께 0.24 이상으로 올리세요.** 폼은 파일이 아니라 스택 단위로 고르고 `guideline.json` 을 버전 3 으로 씁니다. 0.24 서버는 옛 CLI 의 폼을 거절하고(「update the guideline CLI to 0.24.0 or newer」), 0.24 CLI 는 서버가 옛날인 출처를 건너뜁니다(「서버가 CLI 보다 옛날」, 종료 코드 1). 갱신·상태·제안은 서버를 올리지 않아도 됩니다.
-- 새 CLI 로 처음 `pick` 이나 `update` 를 한 뒤 `guideline.json` 을 커밋하세요. 버전 3(블록 키)으로 다시 쓰이며, 옛 CLI 는 읽지 못합니다(「version is not 1 or 2」).
+- 폼을 쓰려면 **CLI 와 서버를 함께 0.24 이상으로 올리세요.** 폼은 파일이 아니라 스택 단위로 고르고 `guideline.json` 을 버전 3 으로 씁니다. 0.24 서버는 옛 CLI 의 폼을 426 으로 거절하고(서버 언어에 따라 「guideline CLI 를 0.24.0 이상으로 업데이트 필요」 또는 「update the guideline CLI to 0.24.0 or newer」), 0.24 CLI 는 서버가 옛날인 출처를 건너뜁니다(「서버가 CLI 보다 옛날」, 종료 코드 1). 갱신·상태·제안은 서버를 올리지 않아도 됩니다.
+- 새 CLI 로 처음 `pick` 이나 `update` 를 한 뒤 `guideline.json` 을 커밋하세요. 버전 3(블록 키)으로 다시 쓰이며, 옛 CLI 는 읽지 못합니다(CLI 언어에 따라 「version 이 1 이나 2 가 아님」 또는 「version is not 1 or 2」).
 - 0.20 이상 CLI 는 옛 서버에서도 동작합니다. 옛 서버는 `whoami` 가 404 라서 `guideline propose` 는 예전처럼 제안으로 보내고, `status`·`login` 은 토큰 범위를 보이지 않습니다. 옛 CLI 는 0.20 서버에서 예전과 같습니다.
 
 ## 이미 돌고 있는 서버의 씨앗 고치기

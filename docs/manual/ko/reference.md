@@ -79,7 +79,7 @@
 그러면 `pick` 은 그 출처의 폼을 취소하고 「서버가 CLI 보다 옛날」 이라고 알린 뒤 그 출처를 그대로 둡니다.
 나머지 출처는 그대로 고르고, 실패한 출처가 있으니 종료 코드는 1 입니다. 고른 출처가 하나도 없을 때도 1 입니다.
 서버를 올리거나 옛 CLI 를 쓰세요.
-0.24 서버는 스택 폼의 `formVersion` 을 보내지 않는 CLI 를 426 「update the guideline CLI to 0.24.0 or newer」 로 거절합니다.
+0.24 서버는 스택 폼의 `formVersion` 을 보내지 않는 CLI 를 426 으로 거절합니다(서버 언어에 따라 「guideline CLI 를 0.24.0 이상으로 업데이트 필요」 또는 「update the guideline CLI to 0.24.0 or newer」).
 
 ## 고르기 폼
 
