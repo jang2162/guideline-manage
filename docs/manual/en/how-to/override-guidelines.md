@@ -25,6 +25,12 @@ Overrides belong to the project, and `update` never touches them.
 
 3. To override a whole file, drop the quoted section title from that line.
 
+For a child stack, use its own folder: `.ruler/<parent>/<child>/override.md`.
+
+Do not put project files inside a received stack folder (`.ruler/<stack>/`), sub-folders included.
+That folder belongs to the source, so a file or sub-folder that is not in the source shows up as removed from the source.
+Keep project-only rules in `override.md` or `override.d/`.
+
 If the overridden file or section disappears from the source, you get an `override` to-do.
 
 ## Next

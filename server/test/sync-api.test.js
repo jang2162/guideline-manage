@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { startApp, testConfig, ADMIN, META } from './helpers.js';
 import { untarGz } from '../../cli/src/tar-read.js';
 
-const FORM = { revision: 1, project: { name: 'p', path: '/x/p', form: 'ruler', isNew: false, gitRepo: true, dirty: false }, items: [], overrides: [] };
+const FORM = { formVersion: 2, revision: 1, project: { name: 'p', path: '/x/p', form: 'ruler', isNew: false, gitRepo: true, dirty: false }, items: [], overrides: [] };
 const post = (s, path, body, { auth, headers = {} } = {}) => s.req(path, {
   method: 'POST', auth, body: typeof body === 'string' ? body : JSON.stringify(body), headers: { 'Content-Type': 'application/json', ...headers },
 });
@@ -75,6 +76,25 @@ test('폼 만들기는 본문 모양·리비전·크기·형식·CLI 버전을 �
   assert.equal((await post(s, '/api/v1/forms', FORM, { auth: a, headers: { 'X-Guideline-Client': '0.12.0' } })).status, 201);
   const closed = await withData(t, { config: testConfig({ publicRead: false }) });
   assert.equal((await post(closed, '/api/v1/forms', FORM)).status, 401);
+});
+
+test('폼 API 는 formVersion 이 없는(파일 단위로 고르는 옛 CLI) 폼 요청을 426 으로 거절한다', async t => {
+  const s = await withData(t);
+  const { formVersion, ...old } = FORM;
+  const r = await post(s, '/api/v1/forms', old, { headers: { 'X-Guideline-Client': '0.23.0' } });
+  assert.equal(r.status, 426);
+  assert.equal(r.json().error, '이 서버는 스택 단위로 고름 — guideline CLI 를 0.24.0 이상으로 업데이트 필요');
+  const en = JSON.parse(fs.readFileSync(new URL('../../locales/en/messages.json', import.meta.url), 'utf8'));
+  assert.equal(en['sync.cliOldForms'], 'This server picks whole stacks — update the guideline CLI to 0.24.0 or newer');
+  assert.equal((await post(s, '/api/v1/forms', { ...FORM, formVersion: 1 })).status, 426);
+  assert.equal(s.app.store.db.prepare('SELECT COUNT(*) AS n FROM forms').get().n, 0, '거절한 요청으로는 폼을 만들지 않는다');
+});
+
+test('폼 API: formVersion 2 요청은 201 이고 응답에 formVersion 2 가 있다', async t => {
+  const s = await withData(t);
+  const r = await post(s, '/api/v1/forms', FORM, { headers: { 'X-Guideline-Client': '0.23.0' } });
+  assert.equal(r.status, 201);
+  assert.equal(r.json().formVersion, 2);
 });
 
 test('공개 서버는 토큰 없이 폼을 만들고, 그 결과는 링크 토큰(X-Form-Link)으로만 본다', async t => {

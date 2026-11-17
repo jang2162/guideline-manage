@@ -149,7 +149,9 @@ export async function propose({
   const v = virtualize({ manifest, lock, trees });
   const show = id => showId(id, v.sources, v.many);
   const onlySet = only ? new Set(only.flatMap(id => (id.includes(':') ? [id] : v.sources.map(s => `${s.name}:${id}`)))) : null;
-  const wanted = onlySet ? new Set(v.view.items.filter(id => {
+  // --only 는 파일 id 를 받는다. 매니페스트는 블록 키라, 잠금의 파일 id(사본이 있는 것)에서 고른다.
+  const lockIds = [...new Set([...Object.keys(v.viewLock.sources), ...v.viewLock.outputs.flatMap(o => o.items)])];
+  const wanted = onlySet ? new Set(lockIds.filter(id => {
     const r = realOf(id, v.sources);
     return r && onlySet.has(`${r.source}:${r.id}`);
   })) : null;

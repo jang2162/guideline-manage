@@ -6,6 +6,23 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+### Added
+
+- **Child stacks:** a folder inside a stack folder with its own guideline files is a child stack (`rules/browser/browseros-neo/`, stack `browser/browseros-neo`, block key `rules/browser/browseros-neo`, project folder `.ruler/browser/browseros-neo/`). Only the files directly in a folder belong to that stack. A parent may hold only child stacks. A child stack folder whose name has a `.` and no `__` is read as a file, so it is not a stack and shows in the `Ignored` section of `guideline list` (top-level stacks such as `rules/next.js` are not affected).
+- **`when` for stacks:** a stack's `README.md` frontmatter takes a one-line `when`, the work that needs the stack. `guideline list` shows it after the stack name, the form and the web show it, and agents that recommend blocks read it. Block settings on the web edit it.
+- **Stack-level pick form:** `guideline pick` chooses whole stacks, shown as a tree. Checking a child stack checks its ancestors (marked "Ancestor"), checking a parent does not check its children, unchecking an ancestor unchecks its descendants, and unchecking a child unchecks the ancestors that were checked only because of it (unless you checked them, another chosen child is under them, or another chosen block `requires` them).
+- **Admin web:** a stack page lists its child stacks and has **+ Add child stack**; child stacks have their own pages (`/s/<parent>/<child>`) and settings. The home cards show top-level stacks. Renaming a stack changes only its last name part, and its child stacks and the `requires` keys into it change with it. Moving a stack under another parent is not done on the web; use `guideline source` and `propose --from`.
+- **Override tables:** a cell's overridden side is `<stack path>/<file>`. A row that points at a descendant of the overriding stack gets a warning in `guideline list`.
+- `/llms.txt`, the authoring rules and the `guideline-sync` skill describe child stacks; the sync skill reads each child stack's `when` when it recommends blocks.
+- **⚠️ Servers already running**: the authoring rules and the `guideline-sync` skill are seeds written only when a server first starts. On an existing server, add the "Child stacks" section to the authoring rules and update the `guideline-sync` skill on the web (see [Upgrade the server and the CLI](docs/manual/en/how-to/upgrade.md#update-the-seed-on-a-running-server)). `llms.txt` is rebuilt per request and changes right away.
+
+### Changed
+
+- **Breaking: `guideline.json` version 3.** `items` are block keys (`rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`), not file paths, and a child stack is listed with its ancestors. Versions 1 and 2 are still read and are rewritten as version 3 when `pick` or `update` writes them. An older CLI cannot read version 3 ("version is not 1 or 2"), so upgrade the CLI of everyone who shares the project.
+- **Breaking: the pick form needs CLI and server 0.24 or later.** The form API refuses a request without `formVersion: 2` with 426 "update the guideline CLI to 0.24.0 or newer". A 0.24 CLI that meets an older server cancels that source's form ("This server is older than the CLI"), leaves the source as it was, and exits with 1 when no source was picked. `update`, `status` and `propose` need no server upgrade.
+- **Breaking: no `new-file` to-do.** Picking stacks takes every file of a stack, so `guideline update` and `guideline status` no longer report new files in a chosen stack, and `status` no longer prints "New files in chosen stacks". A file the source removes from a chosen stack shows as `upstream` in `status` (`both` when the project also edited it) and `update` deletes it; an edited copy is kept with a `leftover` to-do.
+- In the pick form, a guideline file (`NN-*.md`) in a sub-folder of `.ruler/<stack>/` that is not in the source now shows as removed from source. Keep project-only rules in `override.md` or `override.d/`, not inside a stack folder.
+
 ## 0.23.0
 
 - **Proposal contents in the API:** `GET /api/v1/proposals/<number>?diff=1` adds `diff` to each change, a unified diff from the base content to the proposed content (labels `base` and `proposal`; `null` when either side is not text), the same diff the web proposal page shows. `?content=1` adds the content in the upload format (`text`, `base64` or `delete: true`). Both can be combined; without them the response is unchanged. Who can see a proposal is unchanged: issued tokens see their own, the admin token and `admin` scope tokens see all.

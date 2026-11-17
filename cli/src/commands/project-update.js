@@ -1,9 +1,10 @@
 import { expandPath, runGit } from '../projects.js';
 import { readManifest, readLock, ManifestError } from '../manifest.js';
-import { diskReader, newFiles } from '../project-state.js';
+import { diskReader } from '../project-state.js';
+import { expandBlocks } from '../catalog.js';
 import { unitInfo, unitProblem } from '../unit.js';
 import { render } from '../render/index.js';
-import { fetchSources, virtualize, toRealLock, aliasMoveTodos, missingRequiresTodos, showId, protectedPaths, manifestClashes } from '../workspace.js';
+import { fetchSources, virtualize, toRealLock, aliasMoveTodos, missingRequiresTodos, protectedPaths, manifestClashes } from '../workspace.js';
 import { finishApply, report } from './sync-common.js';
 import { t } from '../i18n.js';
 
@@ -75,7 +76,7 @@ export async function projectUpdate({
   const protect = protectedPaths({ manifest, lock, failed });
   const v = virtualize({ manifest, lock, trees, protect });
   const unit = unitInfo(dir, git);
-  const decisions = Object.fromEntries(v.view.items.map(id => [id, { action: 'keep' }]));
+  const decisions = Object.fromEntries(expandBlocks(v.tree, v.view.items).map(id => [id, { action: 'keep' }]));
   const rendered = render({
     tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, force, nested: unit.nested, management: v.management,
   });
@@ -83,10 +84,6 @@ export async function projectUpdate({
   const revisions = Object.fromEntries([...trees].map(([name, t]) => [name, t.revision]));
   const realLock = toRealLock({ viewLock: rendered.lock, sources: v.sources, revisions, previous: lock, keep: failed, protect });
   rendered.todos.push(...v.problems, ...aliasMoveTodos({ previous: lock, next: realLock, project: dir }));
-  const show = id => showId(id, v.sources, v.many);
-  for (const f of newFiles(v.tree, v.view)) {
-    rendered.todos.push({ kind: 'new-file', item: show(f), message: t('todo.newFile', { item: show(f) }) });
-  }
   rendered.todos.push(...missingRequiresTodos({ manifest, trees, many: v.many }));
   const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });

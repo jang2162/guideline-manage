@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeDocsRepo, write, ALWAYS, reference } from './helpers.js';
-import { stacks, stackFiles, stackTiers, stackOverrides, skills, subagents, mcpServers, ignored, warnings, stackSetup, elementCategories, fileCategories } from '../src/catalog.js';
+import { stacks, stackFiles, stackTiers, stackOverrides, skills, subagents, mcpServers, ignored, warnings, stackSetup, stackWhen, expandBlocks, elementCategories, elementLabels, blockKeys, fileCategories } from '../src/catalog.js';
+import { catalogSummary } from '../src/summary.js';
+import { catalogView } from '../src/catalog-view.js';
 
 test('stacks 는 지침 파일이 있는 스택만 정렬해 돌려주고 뼈대 스택은 뺀다', t => {
   const root = makeDocsRepo();
@@ -295,6 +297,36 @@ test('warnings 는 바꿈 표의 틀린 행 다섯 종류를 README 경로로 �
   assert.equal(stackOverrides('orca', root).overrides.length, 1);
 });
 
+test('stackOverrides 는 자손 스택을 가리키는 행을 경고로 빼고, 자기 스택·조상·형제 행은 그대로 둔다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/base/00-alpha.md', `${ALWAYS}# alpha\n\n## 기본 절\n\nA1\n`);
+  write(root, 'rules/browser/00-tool.md', `${ALWAYS}# tool\n\n## 도구 절\n\n본문\n`);
+  write(root, 'rules/browser/neo/00-neo.md', `${ALWAYS}# neo\n\n## 네오 절\n\n본문\n`);
+  write(root, 'rules/browser/neo/deep/00-deep.md', `${ALWAYS}# deep\n\n## 깊은 절\n\n본문\n`);
+  write(root, 'rules/browser/other/00-o.md', `${ALWAYS}# o\n\n## 다른 절\n\n본문\n`);
+  const rows = [
+    '| `00-tool.md` 「도구 절」 | `browser/neo/00-neo.md` 「네오 절」 |',
+    '| `00-tool.md` 「도구 절」 | `browser/neo/deep/00-deep.md` 「깊은 절」 |',
+    '| `00-tool.md` 「도구 절」 | `base/00-alpha.md` 「기본 절」 |',
+  ];
+  write(root, 'rules/browser/README.md', `## 다른 스택을 바꾸는 것\n\n| 이 스택의 절 | 바꾸는 절 |\n| --- | --- |\n${rows.join('\n')}\n`);
+  const r = stackOverrides('browser', root);
+  assert.deepEqual(r.overrides.map(o => o.to.path), ['rules/base/00-alpha.md']);
+  assert.deepEqual(r.warnings, [
+    { path: 'rules/browser/README.md', message: 'browser 이(가) 자기 하위 스택 browser/neo 을(를) 바꾸려 함 — 넓은 스택이 좁은 스택을 가리키지 않는다' },
+    { path: 'rules/browser/README.md', message: 'browser 이(가) 자기 하위 스택 browser/neo/deep 을(를) 바꾸려 함 — 넓은 스택이 좁은 스택을 가리키지 않는다' },
+  ]);
+  // 하위 스택이 조상·형제 스택을 가리키는 것은 허용
+  write(root, 'rules/browser/neo/README.md', `## 다른 스택을 바꾸는 것\n\n| 이 스택의 절 | 바꾸는 절 |\n| --- | --- |\n| \`00-neo.md\` 「네오 절」 | \`browser/00-tool.md\` 「도구 절」 |\n| \`00-neo.md\` 「네오 절」 | \`browser/other/00-o.md\` 「다른 절」 |\n`);
+  const n = stackOverrides('browser/neo', root);
+  assert.deepEqual(n.warnings, []);
+  assert.deepEqual(n.overrides.map(o => [o.from.path, o.to.path]), [
+    ['rules/browser/neo/00-neo.md', 'rules/browser/00-tool.md'],
+    ['rules/browser/neo/00-neo.md', 'rules/browser/other/00-o.md'],
+  ]);
+});
+
 test('stackSetup 은 rules/<스택>/SETUP.md 가 있는지 본다', t => {
   const root = makeDocsRepo();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -328,4 +360,155 @@ test('warnings 는 도메인 모양이 아닌 __ 스택을 rules/<스택>/ 경�
   write(root, 'rules/deploy__gitlab.example.com/00-a.md', `${ALWAYS}# a\n`);
   assert.ok(stacks(root).includes('deploy__nodomain'));
   assert.deepEqual(warnings(root).map(w => w.path), ['rules/deploy__nodomain/']);
+});
+
+test('stacks 는 하위 스택과 묶음 스택을 경로로 돌려준다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/browseros-neo/00-switch.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/group/child/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/group/README.md', '묶음\n');
+  write(root, 'rules/skeleton/README.md', '뼈대\n');
+  assert.deepEqual(stacks(root), ['base', 'browser', 'browser/browseros-neo', 'demo', 'group', 'group/child']);
+  assert.deepEqual(stackFiles('browser', root), []);
+  assert.deepEqual(stackFiles('browser/browseros-neo', root), ['rules/browser/browseros-neo/00-switch.md']);
+  assert.deepEqual(stackTiers('browser/browseros-neo', root).map(f => f.load), ['always']);
+});
+
+test('stacks 는 부모 바로 뒤에 자손을 두고 이름이 비슷한 형제는 그 뒤로 보낸다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/web/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/web/neo/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/web-extra/00-a.md', `${ALWAYS}# a\n`);
+  assert.deepEqual(stacks(root), ['base', 'demo', 'web', 'web/neo', 'web-extra']);
+});
+
+test('stackWhen 은 스택 README 의 when 을 읽는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/browseros-neo/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/README.md', '---\nwhen: "neo 를 쓰는 작업자"\n---\n\n설명\n');
+  write(root, 'rules/browser/README.md', '---\nlabel: 브라우저\n---\n');
+  assert.equal(stackWhen('browser/browseros-neo', root), 'neo 를 쓰는 작업자');
+  assert.equal(stackWhen('browser', root), null);
+  assert.equal(stackWhen('base', root), null);
+});
+
+test('catalogSummary 와 catalogView 의 스택에 parent·when 이 있다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/browseros-neo/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/README.md', '---\nwhen: "neo 를 쓰는 작업자"\n---\n');
+  for (const stack of [catalogSummary(root), catalogView(root)].map(c => Object.fromEntries(c.stacks.map(s => [s.name, s])))) {
+    assert.equal(stack['browser/browseros-neo'].parent, 'browser');
+    assert.equal(stack['browser/browseros-neo'].when, 'neo 를 쓰는 작업자');
+    assert.equal(stack.browser.parent, null);
+    assert.equal(stack.browser.when, null);
+    assert.equal(stack.base.parent, null);
+  }
+});
+
+test('ignored 는 하위 스택의 이름 규칙 위반 파일도 경로 그대로 보고한다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/x/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/x/bad.md', '규칙 아님\n');
+  write(root, 'rules/browser/x/deeper/oops.md', '규칙 아님\n');
+  assert.deepEqual(ignored(root).map(i => i.path), ['rules/browser/x/bad.md', 'rules/browser/x/deeper/oops.md']);
+});
+
+test('점이 든 하위 폴더는 블록 키가 파일로 읽으므로 스택으로 잡지 않고 이유와 함께 ignored 에 보고한다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/v1.2/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/v1.2/deep/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/.cache/note.txt', 'x\n');
+  write(root, 'rules/browser/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/plain.d/README.md', '뼈대\n');
+  write(root, 'rules/deploy__gitlab.example.com/00-a.md', `${ALWAYS}# a\n`);
+  assert.deepEqual(stacks(root), ['base', 'browser', 'demo', 'deploy__gitlab.example.com']);
+  assert.deepEqual(ignored(root), [{ path: 'rules/browser/v1.2/', reason: '이름에 `.` 가 있고 `__` 가 없어 스택 폴더로 못 씀' }]);
+});
+
+test('점 든 최상위 폴더(next.js)는 블록 키가 스택으로 읽으므로 스택으로 잡고 ignored 에 올리지 않는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/next.js/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/next.js/v1.2/00-a.md', `${ALWAYS}# a\n`);
+  assert.deepEqual(stacks(root), ['base', 'demo', 'next.js']);
+  assert.deepEqual(stackFiles('next.js', root), ['rules/next.js/00-a.md']);
+  assert.deepEqual(ignored(root), [{ path: 'rules/next.js/v1.2/', reason: '이름에 `.` 가 있고 `__` 가 없어 스택 폴더로 못 씀' }]);
+});
+
+test('도메인 스택이 부모여도 스택 이름 경고는 조각마다 검사한다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/deploy__gitlab.example.com/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/deploy__gitlab.example.com/child__bad/00-a.md', `${ALWAYS}# a\n`);
+  assert.deepEqual(warnings(root).filter(w => w.path.endsWith('/')).map(w => w.path), ['rules/deploy__gitlab.example.com/child__bad/']);
+});
+
+test('하위 스택의 분류·표시 이름·블록 키는 스택 경로로 읽고 부모 분류를 물려받지 않는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/README.md', '---\ncategories: [웹]\nlabel: 브라우저\n---\n');
+  write(root, 'rules/browser/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/README.md', '---\ncategories: [neo]\nlabel: Neo\n---\n');
+  write(root, 'rules/browser/browseros-neo/00-b.md', `${ALWAYS}# b\n`);
+  write(root, 'rules/browser/plain/00-c.md', `${ALWAYS}# c\n`);
+  const { categories } = elementCategories(root);
+  assert.deepEqual(categories['rules/browser'], ['웹']);
+  assert.deepEqual(categories['rules/browser/browseros-neo'], ['neo']);
+  assert.equal(elementLabels(root).labels['rules/browser/browseros-neo'], 'Neo');
+  assert.ok(blockKeys(root).has('rules/browser/browseros-neo'));
+  assert.deepEqual(fileCategories(categories, 'rules/browser/00-a.md'), ['웹']);
+  assert.deepEqual(fileCategories(categories, 'rules/browser/browseros-neo/00-b.md'), ['neo']);
+  assert.deepEqual(fileCategories(categories, 'rules/browser/plain/00-c.md'), []);
+});
+
+test('expandBlocks 는 스택을 지침 파일과 세팅 문서로 펼친다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/base/SETUP.md', '# base 세팅\n');
+  write(root, 'rules/base/web/00-w.md', `${ALWAYS}# w\n`);
+  assert.deepEqual(expandBlocks(root, ['rules/base']), ['rules/base/00-alpha.md', 'rules/base/01-beta.md', 'rules/base/SETUP.md']);
+  // 하위 스택 파일은 부모에 들어가지 않는다
+  assert.deepEqual(expandBlocks(root, ['rules/base/web']), ['rules/base/web/00-w.md']);
+  // SETUP.md 가 없으면 지침 파일만
+  assert.deepEqual(expandBlocks(root, ['rules/demo']), ['rules/demo/00-rules.md']);
+});
+
+test('expandBlocks 는 스택이 아닌 키와 원본에 없는 스택 키를 그대로 두고 중복 없이 정렬한다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  assert.deepEqual(
+    expandBlocks(root, ['skills/demo-skill', 'rules/gone', 'rules/demo', 'rules/demo', 'agents/a.md', 'mcp/c7']),
+    ['agents/a.md', 'mcp/c7', 'rules/demo/00-rules.md', 'rules/gone', 'skills/demo-skill'],
+  );
+  assert.deepEqual(expandBlocks(root, ['not-a-key']), ['not-a-key']);
+  assert.deepEqual(expandBlocks(root, []), []);
+});
+
+test('expandBlocks 는 rules/ 로 시작하지 않는 키를 스택 이름으로 읽지 않는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // 'mcp/base' 에서 앞 6글자를 떼면 'se' — 이런 이름의 스택이 있어도 mcp 키는 그대로여야 한다
+  write(root, 'rules/se/00-x.md', `${ALWAYS}# x\n`);
+  assert.deepEqual(expandBlocks(root, ['mcp/base']), ['mcp/base']);
+});
+
+test('expandBlocks 는 부모 폴더만 있는 스택을 아무 파일도 내지 않고 날 키도 남기지 않는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // rules/a 에는 자기 지침 파일이 없고 하위 스택 rules/a/b 만 있다 — stacks() 는 rules/a 를 스택으로 센다
+  write(root, 'rules/a/b/00-x.md', `${ALWAYS}# x\n`);
+  assert.ok(stacks(root).includes('a'));
+  assert.deepEqual(expandBlocks(root, ['rules/a', 'rules/a/b']), ['rules/a/b/00-x.md']);
+  assert.deepEqual(expandBlocks(root, ['rules/a']), []);
+  // 부모에 SETUP.md 만 있어도 그 문서는 부모 키의 몫이다
+  write(root, 'rules/a/SETUP.md', '# a 세팅\n');
+  assert.deepEqual(expandBlocks(root, ['rules/a', 'rules/a/b']), ['rules/a/SETUP.md', 'rules/a/b/00-x.md']);
+  // 스택이 아닌 폴더(뼈대: README 만 있음)와 아예 없는 키는 원본에 없는 것이라 그대로 둔다
+  assert.deepEqual(expandBlocks(root, ['rules/empty', 'rules/gone']), ['rules/empty', 'rules/gone']);
 });

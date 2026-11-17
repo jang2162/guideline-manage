@@ -136,6 +136,8 @@ test('list --json 은 스택 파일의 칸과 스킬·서브에이전트·MCP·�
     stacks: [
       {
         name: 'base',
+        parent: null,
+        when: null,
         files: [
           { path: 'rules/base/00-alpha.md', load: 'always', when: null },
           { path: 'rules/base/01-beta.md', load: 'reference', when: '베타 작업을 할 때' },
@@ -145,6 +147,8 @@ test('list --json 은 스택 파일의 칸과 스킬·서브에이전트·MCP·�
       },
       {
         name: 'demo',
+        parent: null,
+        when: null,
         files: [
           { path: 'rules/demo/00-rules.md', load: 'always', when: null },
           { path: 'rules/demo/01-bad.md', load: null, when: null },
@@ -241,4 +245,20 @@ test('list 는 표시 이름을 실제 이름 바로 뒤에 보인다', async t 
   const text = c.text();
   assert.match(text, /\n {2}base {2}공통 규칙 {2}\[공통\]\n/);
   assert.match(text, /스킬\n {2}demo-skill {2}데모 스킬\n서브에이전트\n {2}reviewer {2}검토자\nMCP\n {2}context7 {2}문서 검색$/);
+});
+
+test('list 는 하위 스택을 부모 아래 두 칸 들여 쓰고 when 을 이름 옆에 붙인다', async t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/00-a.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/00-switch.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/README.md', '---\nwhen: "neo 를 쓰는 작업자"\n---\n');
+  const c = collect();
+  assert.equal(await list({ root, out: c.out }), 0);
+  const lines = c.text().split('\n');
+  const i = lines.indexOf('  browser');
+  assert.ok(i >= 0);
+  assert.match(lines[i + 1], /^ {4}rules\/browser\/00-a\.md +always$/);
+  assert.equal(lines[i + 2], '    browser/browseros-neo — neo 를 쓰는 작업자');
+  assert.match(lines[i + 3], /^ {6}rules\/browser\/browseros-neo\/00-switch\.md +always$/);
 });

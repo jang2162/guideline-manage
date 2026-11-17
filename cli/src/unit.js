@@ -37,7 +37,7 @@ export const nestedOffTodo = root => ({
   message: t('todo.nestedOff', { root }),
 });
 
-/** git 루트 단위가 받은 스택. 중첩 단위의 폼에서 「루트에 이미 있음」 을 보일 때 쓴다. */
+/** git 루트 단위가 받은 스택(별칭을 입힌 경로, 하위 스택은 `web/neo`). 중첩 단위의 폼에서 「루트에 이미 있음」 을 보일 때 쓴다. */
 export function rootStacks(root) {
   let m = null;
   try {

@@ -155,3 +155,13 @@ test('지운 블록의 변경도 트리에 나온다', async t => {
   assert.ok(page.includes('gone'));
   assert.ok(page.includes('href="/r/2?file=rules%2Fgone%2F00-a.md"'));
 });
+
+test('지운 스택의 자산 폴더와 하위 스택은 직전 리비전의 스택으로 묶는다', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: { 'rules/gone/00-a.md': 'x\n', 'rules/gone/assets/x.png': 'p', 'rules/gone/kid/00-k.md': 'k\n', 'rules/keep/00-a.md': 'k\n' } });
+  s.store.commit({ ...META, message: '지움', changes: { 'rules/gone/00-a.md': null, 'rules/gone/assets/x.png': null, 'rules/gone/kid/00-k.md': null } });
+  const page = (await s.req('/r/2')).text;
+  assert.ok(page.includes('title="gone"'), page);
+  assert.ok(page.includes('title="gone/kid"'));
+  assert.ok(!page.includes('title="gone/assets"'));
+});

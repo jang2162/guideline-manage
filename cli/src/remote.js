@@ -61,6 +61,24 @@ export function remoteClient({ server, token = null, fetchImpl = fetch, version 
     createForm: body => call('POST', 'forms', { body }),
     // 토큰 없이 만든 폼은 링크 토큰(폼 주소의 k)이 결과를 볼 권한이다.
     formResult: (id, wait, link = null) => call('GET', `forms/${encodeURIComponent(id)}/result?wait=${wait}`, { extra: link ? { 'X-Form-Link': link } : {} }),
+    // 폼 웹 화면의 취소(/forms/:id/cancel). createForm 이 준 폼 주소의 링크 토큰(k)이 쿠키 권한이고, Origin 은 그 주소의 것(서버의 공개 주소)이어야 한다.
+    // 이미 닫힌 폼(409)은 취소된 것과 같다.
+    cancelForm: async formUrl => {
+      const form = new URL(formUrl);
+      const url = new URL(`forms${form.pathname.replace(/^.*\/forms/, '')}/cancel`, base);
+      let res;
+      try {
+        res = await fetchImpl(url, {
+          method: 'POST', body: '{}',
+          headers: {
+            'Content-Type': 'application/json', Origin: form.origin, Cookie: `gf=${encodeURIComponent(form.searchParams.get('k') ?? '')}`, 'X-Guideline-Client': version,
+          },
+        });
+      } catch (e) {
+        throw new ServerError(t('remote.unreachable', { server, reason: e.cause?.code ?? e.message }));
+      }
+      if (!res.ok && res.status !== 409) throw new ServerError(t('remote.status', { status: res.status }), res.status);
+    },
     exchange: (code, verifier) => call('POST', 'cli/token', { body: { code, verifier }, auth: false }),
     revokeSelf: () => call('DELETE', 'tokens/self'),
     createProposal: body => call('POST', 'proposals', { body }),

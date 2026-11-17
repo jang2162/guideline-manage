@@ -21,7 +21,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 
 ## 무엇을 할지
 
-먼저 `guideline status --json` 으로 상태를 보고 한 줄로 알린다(뒤처진 항목 수, 프로젝트에서 고친 파일, 새로 생긴 파일).
+먼저 `guideline status --json` 으로 상태를 보고 한 줄로 알린다(뒤처진 항목 수, 프로젝트에서 고친 파일).
 
 | 요청 | 명령 |
 | --- | --- |
@@ -39,8 +39,8 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 
 ## 추천해서 받기
 
-1. `guideline list --json` 으로 원본 목록을 읽는다. 블록 키는 `categories`·`labels`·`requires` 맵의 키와 같다: `rules/<스택>`, `skills/<이름>`, `agents/<이름>.md`, `mcp/<이름>`. 지침 파일의 `when` 은 그 파일을 언제 읽는지다.
-2. 프로젝트의 설정 파일·패키지·쓰는 도구를 보고 블록을 고른다. 이유는 프로젝트에서 찾은 근거로 쓴다(예: 「`lefthook.yml` 이 있음」). 근거가 없는 블록은 넣지 않는다.
+1. `guideline list --json` 으로 원본 목록을 읽는다. 블록 키는 `categories`·`labels`·`requires` 맵의 키와 같다: `rules/<스택>`, `skills/<이름>`, `agents/<이름>.md`, `mcp/<이름>`. 지침 파일의 `when` 은 그 파일을 언제 읽는지, 하위 스택의 `when`(JSON 의 `stacks[].when`, 부모 스택은 `stacks[].parent`)은 어떤 작업에 필요한지다. 스택은 중첩된다: `rules/browser/browseros-neo` 는 `rules/browser` 의 하위 스택이다.
+2. 프로젝트의 설정 파일·패키지·쓰는 도구를 보고 블록을 고른다. **하위 스택의 `when` 을 읽고 이 프로젝트에 맞는 하위 스택을 고른다.** 폼이 고른 하위 스택의 조상 스택도 함께 체크하므로 조상은 적지 않아도 된다. 이유는 프로젝트에서 찾은 근거로 쓴다(예: 「`lefthook.yml` 이 있음」). 근거가 없는 블록은 넣지 않는다.
 3. 추천을 JSON 파일로 쓴다 — `{"rules/base": "모든 프로젝트 공통", "rules/lefthook": "lefthook.yml 이 있음"}`. 필요한 블록(`requires`)은 폼이 함께 체크하므로 따로 넣지 않아도 된다.
 4. `guideline pick --recommend <파일> --json` 을 「pick」 절처럼 백그라운드로 돌린다. 폼은 추천이 미리 체크된 채로 열린다. 사용자에게 폼에서 훑어보고 제출하라고 알린다 — **폼 제출이 확인이다.** 폼에 「에이전트 추천」 표시가 없으면 서버가 0.19 보다 옛 버전이다 — 사용자에게 알리고 폼에서 직접 고르게 한다.
 5. 출처가 여럿이면 `--source <이름>` 을 붙여 출처마다 한다(코드 2 로 멈추면 이것이다). 원본에 없는 키면 코드 2 로 멈추고 그 키를 알린다 — 목록을 다시 읽고 고친다.
@@ -59,10 +59,10 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `override` | 바꿈 절이 원본에 없는 파일·절을 가리킨다. 바꿈 절의 첫 줄을 고친다 |
 | `subagents-off` | `.ruler/ruler.toml` 에 `[agents] enabled = true` 를 켤지 묻는다(켜면 `.gitignore` 에 생성물이 추가된다) |
 | `ruler-apply` | 안내한 명령을 실행해도 되는지 묻는다 |
-| `new-file`·`removed-upstream` | 알리고, 고르거나 지우려면 `guideline pick` 을 하자고 한다 |
+| `removed-upstream` | 알리고, 지우려면 `guideline pick` 을 하자고 한다 |
 | `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`, 원본 키)을 받지 않았다. 빠진 블록을 알리고, 그 블록을 담은 추천 파일(`{"<빠진 블록>": "<item> 이 필요로 함"}`)을 써서 `guideline pick --recommend <파일> --json` 을 「추천해서 받기」 처럼 띄운다 — 폼 제출이 확인이다. 출처가 여럿이면(`item` 이 `<출처>:` 로 시작) `--source <출처>` 를 붙인다 |
 | `blocked` | 원본 경고로 반영하지 못했다. 사본은 그대로 있다. 원본을 고치자고 보고한다 |
-| `leftover` | 폼에서 체크를 풀었지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |
+| `leftover` | 폼에서 체크를 풀었거나 원본이 고른 스택에서 뺐지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |
 | `nested-off` | git 루트의 `.ruler/ruler.toml` 에 `nested = true` 를 켤지 묻는다. 켜지 않으면 ruler 가 이 디렉터리의 지침을 만들지 않는다 |
 | `mcp-local` | 프로젝트에서 MCP 설정을 고쳤다. 원본에 올리려면 `guideline-export` 스킬로 `server.json` 을 제안한다 |
 | `adopted` | `propose` 가 뺀 사본이다. 처음 받을 때 이미 원본과 달랐다 — 옛 판이면 올리는 순간 원본 변경을 되돌린다. 차이를 보여 주고, 프로젝트에서 고친 것이 맞을 때만 `guideline propose --only <항목>` 으로 올린다. 옛 판이면 `guideline update --force` 로 맞추자고 한다 |
@@ -75,5 +75,5 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 ## 지킬 것
 
 - **사본은 직접 고치지 않는다.** `guideline-lock.json` 에 기록된 파일, `docs/guideline/` 은 CLI 만 쓴다.
-- 이 프로젝트에만 다르게 할 것은 바꿈에 쓴다(관리 지침이 자리와 형식을 말한다).
+- 이 프로젝트에만 다르게 할 것은 바꿈에 쓴다(관리 지침이 자리와 형식을 말한다). 받은 스택 폴더(`.ruler/<스택>/`, 하위 폴더 포함) 안에 프로젝트 파일을 두지 않는다. 「원본에서 사라짐」 으로 보인다.
 - **비밀값을 프로젝트 파일에 쓰지 않는다.** 사용자가 값을 알려 줘도 환경 변수로 두라고 안내한다.

@@ -6,10 +6,12 @@ import { tableText, tomlKey } from '../toml-table.js';
 import { normalized } from '../hashes.js';
 import { indexText, managementText, docsReadme } from './text.js';
 import { codexEntry, needsAgentTables } from './mcp.js';
+import { expandBlocks } from '../catalog.js';
 import { t } from '../i18n.js';
 
-const RULE = /^rules\/([^/]+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
-const SETUP = /^rules\/([^/]+)\/SETUP\.md$/;
+// 스택은 경로다(하위 스택 `browser/neo`). 출력 자리도 그 경로를 따라 중첩한다.
+const RULE = /^rules\/(.+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
+const SETUP = /^rules\/(.+)\/SETUP\.md$/;
 const lf = s => s.replace(/\r\n/g, '\n');
 const agentsList = agents => `[${[...agents].sort().map(a => JSON.stringify(a)).join(', ')}]`;
 
@@ -34,7 +36,7 @@ const byPath = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 /**
  * 원본과 매니페스트로 프로젝트(단위 디렉터리)에 있어야 할 출력. 디스크는 보지 않는다.
  * @param {{ tree: import('../tree.js').Tree, manifest: import('../manifest.js').Manifest, items: string[],
- *   rulerAgentsEnabled?: boolean }} opts items 는 반영할 수 있는 항목(원본에 있고 막히지 않은 것)
+ *   rulerAgentsEnabled?: boolean }} opts items 는 반영할 수 있는 항목(원본에 있고 막히지 않은 것). 스택 키는 그 스택의 파일로 펼친다
  */
 export function desiredOutputs({ tree, manifest, items, rulerAgentsEnabled = false, management = {} }) {
   const outputs = [];
@@ -49,7 +51,7 @@ export function desiredOutputs({ tree, manifest, items, rulerAgentsEnabled = fal
     return stacks.get(s);
   };
 
-  for (const id of [...items].sort()) {
+  for (const id of expandBlocks(tree, items)) {
     let m = RULE.exec(id);
     if (m) {
       const src = readText(tree, id);

@@ -1,6 +1,7 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired } from './selection.js';
+import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors } from './selection.js';
+import { ancestorKeys, isWithin } from './blocks.js';
 
 const $ = sel => document.querySelector(sel);
 // 문구는 서버가 페이지의 i18n JSON 블록에 실어 준다(서버 언어).
@@ -8,11 +9,11 @@ const MESSAGES = JSON.parse(document.getElementById('i18n')?.textContent || '{}'
 const t = (key, params = {}) => (MESSAGES[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // 블록 이름: 도메인 스택(`<도구>__<도메인>`)은 도구 이름과 도메인 꼬리표로 나누고, 표시 이름(label)이 있으면 제목으로 쓴다.
-// 서버 layout.js 의 blockLabel 과 같은 모양.
-const blockHtml = (name, label) => {
+// 서버 layout.js 의 blockLabel 과 같은 모양. title 은 마우스를 올렸을 때 보일 전체 이름(하위 스택은 경로).
+const blockHtml = (name, label, title = name) => {
   const i = name.indexOf('__');
   const tool = i === -1 ? name : name.slice(0, i);
-  return `<span class="nm" title="${esc(name)}">${esc(label || tool)}</span>${label ? `<span class="real">${esc(tool)}</span>` : ''}`
+  return `<span class="nm" title="${esc(title)}">${esc(label || tool)}</span>${label ? `<span class="real">${esc(tool)}</span>` : ''}`
     + `${i === -1 ? '' : `<span class="domain">${esc(name.slice(i + 2))}</span>`}`;
 };
 const app = $('#form-app');
@@ -28,7 +29,11 @@ const LOCK_LABEL = {
 };
 const ACTION_LABEL = { add: t('web.client.add'), update: t('web.client.update'), remove: t('web.client.remove') };
 // auto: 의존성으로 켠 블록, touched: 사람이 직접 켜거나 끈 블록, notes: 마지막 동작에서 함께 켠·끈 안내.
-const state = { data: null, choices: {}, initial: {}, open: new Set(), finished: false, auto: new Set(), touched: new Set(), notes: [], step: 'rules', cat: null };
+// marked: 켠 묶음 스택(항목이 없어 choices 에 남지 않는다), ancestor: 하위 스택 때문에 켠 조상(그 하위 스택을 풀면 함께 푼다).
+const state = {
+  data: null, choices: {}, initial: {}, open: new Set(), finished: false, auto: new Set(), touched: new Set(), notes: [], step: 'rules', cat: null,
+  marked: new Set(), ancestor: new Set(),
+};
 const STEPS = ['rules', 'mcp', 'agents', 'skills', 'confirm'];
 
 async function call(name, body = {}) {
@@ -88,8 +93,14 @@ function requiresMap() {
 
 /** 블록을 이루는 고를 수 있는 항목(반영 불가·사라짐 제외). */
 const unitItems = unit => state.data.items.filter(i => i.kind !== 'orphan' && i.state !== 'blocked' && !isRemoved(i) && blockKey(i.id) === unit);
-/** 골라진 블록: 항목이 하나라도 체크된 블록. */
-const chosenUnits = () => new Set(state.data.items.filter(i => i.kind !== 'orphan' && !isRemoved(i) && isChecked(itemKey(i))).map(i => blockKey(i.id)).filter(Boolean));
+/** 골라진 블록: 항목이 하나라도 체크된 블록과 켠 묶음 스택. */
+const chosenUnits = () => new Set([
+  ...state.data.items.filter(i => i.kind !== 'orphan' && !isRemoved(i) && isChecked(itemKey(i))).map(i => blockKey(i.id)).filter(Boolean),
+  ...state.marked,
+]);
+const stackOf = unit => unit.slice('rules/'.length);
+/** 묶음 스택: 지침·세팅 항목이 하나도 없이 하위 스택만 담은 스택. 켜도 반영할 것이 없고 표시만 남는다. */
+const isBundle = unit => unit.startsWith('rules/') && !state.data.items.some(i => (i.kind === 'rule' || i.kind === 'setup') && i.stack === stackOf(unit));
 
 /** 블록의 사람이 읽는 이름(표시 이름, 없으면 이름). */
 function unitName(unit) {
@@ -100,9 +111,22 @@ function unitName(unit) {
   return list.find(x => x.name === name)?.label || name;
 }
 
-/** 블록의 항목을 모두 켠다. 이미 골라진 블록(사람이 일부만 고름)은 건드리지 않는다. 켰으면 true. */
+/** 스택의 모든 항목(지침·세팅)을 함께 켜고 끈다. 지침 단계에는 파일별 선택이 없다. */
+function setStack(unit, on) {
+  for (const i of unitItems(unit)) state.choices[itemKey(i)].checked = on;
+  if (isBundle(unit)) {
+    if (on) state.marked.add(unit);
+    else state.marked.delete(unit);
+  }
+}
+
+/** 블록의 항목을 모두 켠다. 이미 골라진 블록은 건드리지 않는다. 켰으면 true. */
 function turnOn(unit) {
   if (chosenUnits().has(unit)) return false;
+  if (isBundle(unit)) {
+    state.marked.add(unit);
+    return true;
+  }
   const items = unitItems(unit);
   for (const i of items) state.choices[itemKey(i)].checked = true;
   return items.length > 0;
@@ -131,6 +155,75 @@ function userCheck(item, on) {
       state.auto.delete(u);
       state.notes.push(t('web.client.autoReleased', { by: unitName(unit), needs: unitName(u) }));
     }
+  }
+}
+
+/** 골라진 하위 스택의 조상을 켠다(조상은 늘 함께 받는다). 새로 켠 조상이 필요로 하는 블록도 켠다. */
+function ensureAncestors() {
+  const on = [];
+  for (const u of chosenUnits()) {
+    for (const a of ancestorKeys(u)) {
+      if (turnOn(a)) {
+        state.ancestor.add(a);
+        on.push(a);
+      }
+    }
+  }
+  if (on.length) pullRequires(on);
+}
+
+/** units 를 풀었을 때 그 때문에 켰던 블록을 함께 끈다. before 는 풀기 전 골라진 블록. */
+function releaseDeps(units, before) {
+  const gone = new Set(units);
+  for (const unit of units) {
+    const chosen = new Set([...before].filter(u => u === unit || !gone.has(u)));
+    for (const u of releasable(unit, { chosen, auto: state.auto, touched: state.touched, requires: requiresMap() })) {
+      if (!chosenUnits().has(u)) continue;
+      setStack(u, false);
+      state.auto.delete(u);
+      state.notes.push(t('web.client.autoReleased', { by: unitName(unit), needs: unitName(u) }));
+    }
+  }
+}
+
+/** 하위 스택을 풀면 그 때문에 켰던 조상을 함께 푼다. 판정(남는 블록이 필요로 하는 조상은 남김)은 selection.js releasableAncestors. */
+function releaseAncestors(unit) {
+  const chosen = chosenUnits();
+  const gone = releasableAncestors(unit, { chosen, ancestor: state.ancestor, touched: state.touched, requires: requiresMap() });
+  for (const a of gone) {
+    setStack(a, false);
+    state.ancestor.delete(a);
+    state.notes.push(t('web.client.autoReleased', { by: unitName(unit), needs: unitName(a) }));
+  }
+  if (gone.length) releaseDeps(gone, chosen);
+}
+
+/**
+ * 사람이 스택 행의 칸을 켜거나 끈다. 켜면 조상과 필요한 블록을 켜고,
+ * 끄면 골라진 자손을 함께 풀고(「하위 스택 n개도 함께 풀림」), 그 때문에 켰던 블록과 조상을 푼다.
+ */
+function userStack(name, on) {
+  const unit = `rules/${name}`;
+  const before = chosenUnits();
+  setStack(unit, on);
+  state.touched.add(unit);
+  state.auto.delete(unit);
+  state.ancestor.delete(unit);
+  if (on && !before.has(unit)) {
+    const up = ancestorsToChoose(unit, before).filter(a => turnOn(a));
+    for (const a of up) state.ancestor.add(a);
+    pullRequires([unit, ...up]);
+  }
+  if (!on && before.has(unit)) {
+    const kids = chosenDescendants(unit, before);
+    for (const k of kids) {
+      setStack(k, false);
+      state.auto.delete(k);
+      state.ancestor.delete(k);
+    }
+    if (kids.length) state.notes.push(t('web.client.childrenReleased', { n: kids.length }));
+    releaseDeps([unit, ...kids], before);
+    releaseAncestors(unit);
   }
 }
 
@@ -166,7 +259,10 @@ function unitTags(unit) {
     out.push(`<span class="badge rec">${esc(t('web.client.recommended'))}</span>`);
     if (rec[unit]) out.push(`<span class="why">${esc(t('web.client.why', { why: rec[unit] }))}</span>`);
   }
-  if (state.auto.has(unit) && chosenUnits().has(unit)) out.push(`<span class="badge dep">${esc(t('web.client.dependency'))}</span>`);
+  const chosen = chosenUnits();
+  if (state.auto.has(unit) && chosen.has(unit)) out.push(`<span class="badge dep">${esc(t('web.client.dependency'))}</span>`);
+  // 조상: 골라진 하위 스택 때문에 함께 받는 스택. 끄면 그 하위 스택도 풀린다.
+  if (chosen.has(unit) && [...chosen].some(u => u !== unit && isWithin(u, unit))) out.push(`<span class="badge dep">${esc(t('web.client.ancestor'))}</span>`);
   return out.join('');
 }
 
@@ -176,7 +272,8 @@ function missingNotes(unit) {
     .map(m => t('web.client.missingRequire', { needs: unitName(m.needs), by: unitName(unit) }));
 }
 
-function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, tags = '', warns = [] } = {}) {
+// select: false 면 선택 칸 없이 보인다(지침 단계의 파일은 스택 행의 칸 하나로 함께 고른다). 갱신·덮어쓰기 칸은 남는다.
+function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, tags = '', warns = [], select = true } = {}) {
   const key = itemKey(item);
   const choice = state.choices[key];
   const action = actionOf(item, choice);
@@ -195,8 +292,8 @@ function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, t
   for (const b of badges) extra.push(`<span class="badge">${esc(b)}</span>`);
   if (ACTION_LABEL[action]) extra.push(`<span class="act act-${action}">${esc(ACTION_LABEL[action])}</span>`);
   return `<div class="row${action === 'remove' ? ' remove' : ''}${blocked ? ' blocked' : ''}">`
-    + `<label class="main"><input type="checkbox" data-key="${esc(key)}" ${choice.checked ? 'checked' : ''} ${blocked ? 'disabled' : ''}>`
-    + `<span class="name">${nameHtml ?? esc(label)}</span>${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}${tags}</label>`
+    + (select ? `<label class="main"><input type="checkbox" data-key="${esc(key)}" ${choice.checked ? 'checked' : ''} ${blocked ? 'disabled' : ''}>` : '<span class="main file">')
+    + `<span class="name">${nameHtml ?? esc(label)}</span>${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}${tags}${select ? '</label>' : '</span>'}`
     + `<span class="meta">${esc(meta)}</span>`
     + `<span class="state ${esc(stateCls)}">${esc(stateText)}</span>`
     + `<span class="extra">${extra.join('')}</span>`
@@ -242,31 +339,49 @@ function renderList() {
   let hidden = 0;
   const step = state.step;
   if (step === 'rules') {
-    for (const s of catalog.stacks) {
+    const tree = stackRows(catalog.stacks);
+    const filesOf = s => {
       const rules = items.filter(i => i.kind === 'rule' && i.stack === s.name && !isRemoved(i));
       const setup = items.find(i => i.kind === 'setup' && i.stack === s.name && !isRemoved(i));
-      const all = [...rules, ...(setup ? [setup] : [])];
+      return { rules, setup, all: [...rules, ...(setup ? [setup] : [])] };
+    };
+    // 분류로 거를 때: 보일 항목이 있는 스택과 그 조상만 보인다(조상 없이 하위 스택만 떠 있지 않게).
+    const shownStacks = new Set();
+    for (const { stack: s } of tree) {
+      const { all } = filesOf(s);
+      const self = all.length ? all.some(visible) : !state.cat || s.categories.includes(state.cat);
+      if (self) for (const k of [`rules/${s.name}`, ...ancestorKeys(`rules/${s.name}`)]) shownStacks.add(k);
+    }
+    for (const { stack: s, depth } of tree) {
+      const { rules, setup, all } = filesOf(s);
       const shown = all.filter(visible);
       hidden += all.length - shown.length;
-      if (all.length && !shown.length) continue;
-      const live = stackItems(s.name).filter(visible);
+      const unit = `rules/${s.name}`;
+      if (!shownStacks.has(unit)) continue;
+      const live = stackItems(s.name);
       const on = live.filter(i => isChecked(itemKey(i))).length;
+      const bundle = isBundle(unit);
+      const checked = bundle ? state.marked.has(unit) : live.length > 0 && on === live.length;
       const id = `stack:${s.name}`;
+      const fileWhen = path => s.files.find(f => f.path === path)?.when;
       const rows = [
         ...stackNotes(s, rules).map(n => `<div class="note">${esc(n)}</div>`),
-        ...missingNotes(`rules/${s.name}`).map(n => `<div class="note warn">${esc(n)}</div>`),
+        ...missingNotes(unit).map(n => `<div class="note warn">${esc(n)}</div>`),
         ...rules.filter(visible).map(r => {
           const own = itemCategories(r).filter(c => !s.categories.includes(c));
           const n = overrides.filter(o => o.valid && o.target === r.id).length;
-          return rowHtml(r, r.id.split('/')[2], r.load ?? '', { badges: n ? [t('web.client.overrideCount', { n })] : [], cats: own });
+          const meta = [r.load, fileWhen(r.id) && t('web.client.when', { when: fileWhen(r.id) })].filter(Boolean).join(' · ');
+          return rowHtml(r, r.id.slice(`${unit}/`.length), meta, { badges: n ? [t('web.client.overrideCount', { n })] : [], cats: own, select: false });
         }),
-        ...(setup && visible(setup) ? [rowHtml(setup, 'SETUP.md', t('web.client.setupDoc'))] : []),
+        ...(setup && visible(setup) ? [rowHtml(setup, 'SETUP.md', t('web.client.setupDoc'), { select: false })] : []),
       ];
-      out.push(`<details class="group" data-group="${esc(id)}" ${state.open.has(id) ? 'open' : ''}><summary>`
-        + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${live.length && on === live.length ? 'checked' : ''} ${on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length ? '' : 'disabled'}>`
-        + `<b>${blockHtml(s.name, s.label)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(`rules/${s.name}`)}`
+      const short = s.parent ? s.name.slice(s.parent.length + 1) : s.name;
+      out.push(`<details class="group stack-group${depth ? ' child' : ''}" data-group="${esc(id)}" data-depth="${Math.min(depth, 5)}" ${state.open.has(id) ? 'open' : ''}><summary>`
+        + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${checked ? 'checked' : ''} ${!bundle && on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length || bundle ? '' : 'disabled'}>`
+        + `<b>${blockHtml(short, s.label, s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(unit)}`
         + `${(project().rootStacks ?? []).includes(s.name) ? `<span class="cats">${esc(t('web.client.inRoot'))}</span>` : ''}`
-        + `<span class="meta count">${on}/${live.length}</span></summary>${rows.join('')}</details>`);
+        + `<span class="meta count">${on}/${live.length}</span>`
+        + `${s.when ? `<span class="when">${esc(t('web.client.when', { when: s.when }))}</span>` : ''}</summary>${rows.join('')}</details>`);
     }
   }
   const simple = (id, title, list, label, meta) => {
@@ -380,8 +495,9 @@ $('#list').addEventListener('change', e => {
   if (t.dataset.key) userCheck(state.data.items.find(i => itemKey(i) === t.dataset.key), t.checked);
   else if (t.dataset.update) state.choices[t.dataset.update].update = t.checked;
   else if (t.dataset.overwrite) state.choices[t.dataset.overwrite].overwrite = t.checked;
-  else if (t.dataset.stack) for (const i of stackItems(t.dataset.stack).filter(visible)) userCheck(i, t.checked);
+  else if (t.dataset.stack) userStack(t.dataset.stack, t.checked);
   else return;
+  ensureAncestors();
   renderList();
 });
 $('#list').addEventListener('click', e => {
@@ -417,6 +533,8 @@ $('#prev').addEventListener('click', () => {
 $('#reset').addEventListener('click', () => {
   state.choices = structuredClone(state.initial);
   state.auto = new Set(state.initialAuto);
+  state.marked = new Set(state.initialMarked);
+  state.ancestor = new Set(state.initialAncestor);
   state.touched = new Set();
   state.notes = [];
   renderList();
@@ -460,12 +578,19 @@ if (app.dataset.status !== 'pending') {
   }
   if (state.data) {
     for (const i of state.data.items) state.choices[itemKey(i)] = defaultChoice(i);
-    // 에이전트 추천 블록을 켜고, 그 블록이 필요로 하는 블록을 의존성으로 켠다.
+    // 스택은 통째로 받는다: 프로젝트에 파일이 하나라도 있는 스택은 모든 항목을 켠다(새로 생긴 파일도 함께 들어온다).
+    for (const s of state.data.catalog.stacks) {
+      if (stackItems(s.name).some(i => isChecked(itemKey(i)))) setStack(`rules/${s.name}`, true);
+    }
+    // 에이전트 추천 블록을 켜고(하위 스택이면 조상도), 그 블록이 필요로 하는 블록을 의존성으로 켠다.
     const rec = Object.keys(state.data.recommend ?? {});
     for (const unit of rec) turnOn(unit);
     pullRequires(rec);
+    ensureAncestors();
     state.initial = structuredClone(state.choices);
     state.initialAuto = new Set(state.auto);
+    state.initialMarked = new Set(state.marked);
+    state.initialAncestor = new Set(state.ancestor);
     $('#choose').hidden = !needsForm();
     $('#dirty').hidden = project().isNew === true || (project().gitRepo && !project().dirty);
     state.open = new Set(['gone:rules', 'gone:mcp', 'gone:agents', 'gone:skills', 'skills', 'subagents', 'mcp']);

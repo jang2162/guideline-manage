@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { groupChanges, diffCounts, changeTree } from '../src/web/change-tree.js';
 import { diffBlock } from '../src/web/layout.js';
+import { memoryTree } from '../../cli/src/tree.js';
 
 const summary = { stacks: [{ name: 'base' }], skills: ['s'], subagents: ['w'], mcp: [], labels: { 'rules/base': '기본 규칙' } };
 
@@ -37,4 +38,29 @@ test('diffBlock 은 80줄이 넘으면 앞 80줄만 보이고 나머지를 접�
   const shown = out.slice(0, out.indexOf('<details'));
   assert.ok(shown.includes('line79') && !shown.includes('line80'));
   assert.ok(!String(diffBlock('+a\n+b')).includes('<details'));
+});
+
+test('groupChanges 는 하위 스택 파일을 그 하위 스택 묶음에 두고, 부모 바로 뒤에 놓는다', () => {
+  const tree = { stacks: [{ name: 'base' }, { name: 'base/neo' }, { name: 'base-x' }], skills: [], subagents: [], mcp: [], labels: {} };
+  const before = memoryTree({ 'rules/gone/kid/00-k.md': 'k\n' });
+  const groups = groupChanges(['rules/base-x/00-a.md', 'rules/base/neo/00-x.md', 'rules/base/00-a.md', 'rules/base/assets/a.png', 'rules/gone/kid/00-k.md'], tree, [before]);
+  const stack = groups[0];
+  assert.deepEqual(stack.blocks.map(b => b.name), ['base', 'base/neo', 'base-x', 'gone/kid']);
+  assert.deepEqual(stack.blocks[0].files.map(f => f.rel), ['00-a.md', 'assets/a.png']);
+  assert.deepEqual(stack.blocks[1].files.map(f => f.rel), ['00-x.md']);
+  assert.deepEqual(stack.blocks[3].files.map(f => f.rel), ['00-k.md']);
+});
+
+test('groupChanges 는 head 에 없는 스택(지운 것·제안이 더하는 것)을 넘겨받은 트리의 스택으로 묶는다', () => {
+  const head = { stacks: [{ name: 'base' }], skills: [], subagents: [], mcp: [], labels: {} };
+  const paths = ['rules/new/00-a.md', 'rules/new/assets/x.png', 'rules/base/newkid/00-x.md', 'rules/base/00-a.md'];
+  const after = memoryTree({ 'rules/base/00-a.md': 'a\n', 'rules/base/newkid/00-x.md': 'x\n', 'rules/new/00-a.md': 'a\n', 'rules/new/assets/x.png': 'p' });
+  const stack = groupChanges(paths, head, [after])[0];
+  assert.deepEqual(stack.blocks.map(b => [b.name, b.files.map(f => f.rel)]), [
+    ['base', ['00-a.md']],
+    ['base/newkid', ['00-x.md']],
+    ['new', ['00-a.md', 'assets/x.png']],
+  ]);
+  // 트리를 안 넘기면 카탈로그에 없는 스택은 rules/ 바로 아래 폴더로 묶는다(옛 동작).
+  assert.deepEqual(groupChanges(['rules/new/assets/x.png'], head)[0].blocks.map(b => [b.name, b.files.map(f => f.rel)]), [['new', ['assets/x.png']]]);
 });

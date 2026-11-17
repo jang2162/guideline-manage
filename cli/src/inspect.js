@@ -10,6 +10,8 @@ import { t } from './i18n.js';
 const INSTRUCTION_FILES = ['CLAUDE.md', 'AGENTS.md'];
 const RULE_FILE = /^\d{2}-[a-z0-9][a-z0-9-]*\.md$/;
 const DIFFABLE = ['different', 'moved'];
+/** 지침 파일 id 의 스택 경로와 파일 이름. 스택 경로는 하위 스택이면 `browser/neo` 처럼 여러 조각이다. */
+const RULE = /^rules\/(.+)\/([^/]+)$/;
 
 const read = file => fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
 const exists = file => fs.existsSync(file);
@@ -58,7 +60,7 @@ function copyState(source, project, rel) {
 
 /** 한 지침 파일의 상태(blocked 가 아닌 것). */
 function ruleState(tree, project, form, instructionFiles, f) {
-  const [, stack, name] = f.path.split('/');
+  const [, stack, name] = RULE.exec(f.path);
   const copy = `.ruler/${stack}/${name}`;
   const ref = `docs/guideline/${stack}/${name}`;
   const src = stripFrontmatter(text(tree, f.path));
@@ -240,35 +242,52 @@ function filesIn(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).filter(d => d.isFile()).map(d => d.name).sort();
 }
 
+/** 디렉터리 아래 모든 하위 디렉터리의 상대경로(부모가 앞, 정렬). */
+function dirsUnder(dir, rel = '') {
+  return subdirs(rel ? path.join(dir, rel) : dir).flatMap(name => {
+    const r = rel ? `${rel}/${name}` : name;
+    return [r, ...dirsUnder(dir, r)];
+  });
+}
+
 /**
- * 원본에서 사라진 사본. docs/guideline/<디렉터리>/ 는 모두, .ruler/<디렉터리>/ 는 표식(원본 rules/ 의 디렉터리 이름,
- * docs/guideline/<같은 이름>/, 99-reference.md)이 있는 것만 본다. override.md·override.d/·99-reference.md 는 빼고,
+ * 원본에서 사라진 사본. docs/guideline/<스택 경로>/ 는 모두, .ruler/<스택 경로>/ 는 표식(원본 rules/ 의 같은 경로 폴더,
+ * docs/guideline/<같은 경로>/, 99-reference.md)이 있거나 표식이 있는 폴더 안의 폴더(하위 스택 자리)만 본다. 하위 스택 폴더는
+ * 그 하위 스택(rules/<스택 경로>/)을 기준으로 판단한다. override.md·override.d/·99-reference.md 는 빼고,
  * 스킬·서브에이전트·MCP 는 프로젝트 고유 것과 구별할 수 없어 보지 않는다.
  */
 function orphanItems(tree, project) {
   if (!project) return [];
-  const sourceDirs = new Set(tree.list('rules').filter(e => e.dir).map(e => e.name));
   const inSource = (stack, file) => tree.exists(`rules/${stack}/${file}`);
+  const sourceDir = stack => tree.list(`rules/${stack}`).length > 0;
   const items = [];
-  for (const stack of subdirs(path.join(project, 'docs/guideline'))) {
-    for (const f of filesIn(path.join(project, 'docs/guideline', stack))) {
+  const docs = path.join(project, 'docs/guideline');
+  for (const stack of dirsUnder(docs)) {
+    for (const f of filesIn(path.join(docs, stack))) {
       if ((RULE_FILE.test(f) || f === 'SETUP.md') && !inSource(stack, f)) {
         items.push({ kind: 'orphan', id: `docs/guideline/${stack}/${f}`, stack, state: 'orphan' });
       }
     }
   }
-  for (const stack of subdirs(path.join(project, '.ruler'))) {
-    if (stack === 'skills' || stack === 'agents') continue;
-    const marked = sourceDirs.has(stack)
-      || isDir(path.join(project, 'docs/guideline', stack))
-      || exists(path.join(project, '.ruler', stack, '99-reference.md'));
-    if (!marked) continue;
-    for (const f of filesIn(path.join(project, '.ruler', stack))) {
-      if (RULE_FILE.test(f) && f !== '99-reference.md' && !inSource(stack, f)) {
-        items.push({ kind: 'orphan', id: `.ruler/${stack}/${f}`, stack, state: 'orphan' });
+  const ruler = path.join(project, '.ruler');
+  const walk = (rel, parentMarked) => {
+    for (const name of subdirs(rel ? path.join(ruler, rel) : ruler)) {
+      if (name === 'override.d' || (!rel && (name === 'skills' || name === 'agents'))) continue;
+      const stack = rel ? `${rel}/${name}` : name;
+      const marked = parentMarked || sourceDir(stack)
+        || isDir(path.join(docs, stack))
+        || exists(path.join(ruler, stack, '99-reference.md'));
+      if (marked) {
+        for (const f of filesIn(path.join(ruler, stack))) {
+          if (RULE_FILE.test(f) && f !== '99-reference.md' && !inSource(stack, f)) {
+            items.push({ kind: 'orphan', id: `.ruler/${stack}/${f}`, stack, state: 'orphan' });
+          }
+        }
       }
+      walk(stack, marked);
     }
-  }
+  };
+  walk('', false);
   return items;
 }
 

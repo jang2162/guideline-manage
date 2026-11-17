@@ -30,7 +30,7 @@ function looksText(buf) {
   }
 }
 
-/** 디렉터리를 통째로 다루는 항목(스킬, MCP)인가. */
+/** 디렉터리를 통째로 다루는 항목(스킬, MCP)인가. 스택 키(`rules/base`)는 아니다 — 렌더링·상태가 입구에서 파일 id 로 펼친다. */
 export const isDirItem = id => id.startsWith('skills/') || id.startsWith('mcp/');
 
 const hidden = rel => rel.split('/').some(s => s.startsWith('.'));
@@ -45,7 +45,7 @@ export function dirHash(entries) {
 }
 
 /**
- * 원본 항목 하나의 해시.
+ * 원본 항목 하나의 해시. 스택 키는 받지 않는다(파일 id 로 펼친 뒤 부른다).
  * @param {Map<string, string>} hashes 저장 경로 → 파일 sha256
  * @param {string} id
  * @returns {string | null} 원본에 없으면 null

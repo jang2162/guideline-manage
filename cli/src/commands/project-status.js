@@ -1,5 +1,5 @@
 import { expandPath, runGit } from '../projects.js';
-import { diskReader, itemStates, newFiles, statusTodos, STATE_ORDER, stateLabel } from '../project-state.js';
+import { diskReader, itemStates, statusTodos, STATE_ORDER, stateLabel } from '../project-state.js';
 import { unitInfo, rootNestedOn, nestedOffTodo } from '../unit.js';
 import { printTodos } from '../todos.js';
 import { fetchSources, virtualize, showId, protectedPaths, missingRequiresTodos } from '../workspace.js';
@@ -33,8 +33,7 @@ export async function projectStatus({
   const unit = unitInfo(dir, git);
   const { states, outputs } = itemStates({ tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management });
   const show = id => showId(id, v.sources, v.many);
-  const fresh = newFiles(v.tree, v.view);
-  const todos = [...statusTodos(states, fresh, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];
+  const todos = [...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   const head = revisionLabel(Object.fromEntries([...trees].map(([name, t]) => [name, t.revision])));
   const applied = revisionLabel(Object.fromEntries([...trees.keys()].map(name => [name, lock.revisions[name] ?? 0])));
@@ -49,7 +48,6 @@ export async function projectStatus({
       head,
       items: [...states].map(([id, state]) => ({ id: show(id), state })),
       outputs: outputs.map(o => ({ path: o.path, ...(o.key ? { key: o.key } : {}), state: o.state })),
-      newFiles: fresh.map(show),
       todos,
       token,
     }, null, 2));
@@ -67,10 +65,6 @@ export async function projectStatus({
   out(`  ${STATE_ORDER.filter(k => counts[k]).map(k => `${stateLabel(k)} ${counts[k]}`).join(' · ')}`);
   for (const [id, s] of states) if (s !== 'current') out(`  ${stateLabel(s)}  ${show(id)}`);
   for (const o of outputs) if (o.items.length === 0 && o.state !== 'current') out(`  ${stateLabel(o.state)}  ${o.path}`);
-  if (fresh.length) {
-    out(t('status.newFiles'));
-    for (const f of fresh) out(`  ${show(f)}`);
-  }
   printTodos(todos, out);
   return code;
 }

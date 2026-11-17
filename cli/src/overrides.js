@@ -9,7 +9,7 @@ export { OVERRIDES_SECTIONS };
 /** 한국어 제목(이전 이름). */
 export const OVERRIDES_SECTION = OVERRIDES_SECTIONS[1];
 
-const CELL = /^`([^`/]+|[^`/]+\/[^`/]+)`\s*(?:「(.+)」|"(.+)")$/;
+const CELL = /^`([^`/]+(?:\/[^`/]+)*)`\s*(?:「(.+)」|"(.+)")$/;
 
 /** `<파일>` 「<절 제목>」 이나 `<파일>` "<절 제목>" 셀을 읽는다. 읽을 수 없으면 null. */
 function cell(text) {
@@ -19,7 +19,7 @@ function cell(text) {
 
 /**
  * 스택 README 의 `## 다른 스택을 바꾸는 것` 표를 행마다 읽는다. 첫 행(머리)과 `---` 행은 건너뛴다.
- * from 은 이 스택의 파일 이름만, to 는 `<스택>/<파일>` 이어야 한다.
+ * from 은 이 스택의 파일 이름만, to 는 `<스택 경로>/<파일>` 이어야 한다(마지막 조각이 파일, 그 앞 전부가 스택).
  * @param {string} text README 내용
  * @returns {({ from: { file: string, title: string }, to: { stack: string, file: string, title: string } } | { error: string })[]}
  */
@@ -38,7 +38,8 @@ export function overrideRows(text) {
       const from = cells.length === 2 ? cell(cells[0]) : null;
       const to = cells.length === 2 ? cell(cells[1]) : null;
       if (!from || !to || from.ref.includes('/') || !to.ref.includes('/')) return { error: raw.trim() };
-      const [stack, file] = to.ref.split('/');
+      const cut = to.ref.lastIndexOf('/');
+      const [stack, file] = [to.ref.slice(0, cut), to.ref.slice(cut + 1)];
       return { from: { file: from.ref, title: from.title }, to: { stack, file, title: to.title } };
     });
 }

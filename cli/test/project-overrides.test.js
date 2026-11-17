@@ -55,6 +55,20 @@ test('instructions 형태는 ## <스택> 프로젝트 바꿈 절의 ### 를 읽�
   ]);
 });
 
+test('rulerOverrides 는 하위 스택 폴더의 override.md 와 override.d 를 .ruler 기준 경로 스택으로 읽는다', t => {
+  const { root, project } = setup(t);
+  write(root, 'rules/browser/neo/00-n.md', `${ALWAYS}# n\n\n## 네오 절\n\nN\n`);
+  write(root, 'rules/browser/neo/deep/00-d.md', `${ALWAYS}# d\n\n## 깊은 절\n\nD\n`);
+  write(project, '.ruler/browser/neo/override.md', '## 네오\n\n바꾸는 절: `browser/neo/00-n.md` 「네오 절」\n');
+  write(project, '.ruler/browser/neo/deep/override.d/01-x.md', '## 깊이\n\nOverrides: `browser/neo/deep/00-d.md` "깊은 절"\n');
+  write(project, '.ruler/browser/neo/override.d/02-y.md', '## 다른 스택\n\n바꾸는 절: `browser/00-t.md`\n');
+  assert.deepEqual(checkOverrides(readProjectOverrides(project, 'ruler', []), root).map(o => [o.file, o.stack, o.target, o.title, o.valid, o.reason]), [
+    ['.ruler/browser/neo/deep/override.d/01-x.md', 'browser/neo/deep', 'rules/browser/neo/deep/00-d.md', '깊은 절', true, undefined],
+    ['.ruler/browser/neo/override.d/02-y.md', 'browser/neo', 'rules/browser/00-t.md', null, false, '다른 스택(browser)의 절을 가리킴'],
+    ['.ruler/browser/neo/override.md', 'browser/neo', 'rules/browser/neo/00-n.md', '네오 절', true, undefined],
+  ]);
+});
+
 test('none 형태나 바꿈이 없는 프로젝트는 빈 배열', t => {
   const { project } = setup(t);
   assert.deepEqual(readProjectOverrides(project, 'none', []), []);

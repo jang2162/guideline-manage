@@ -7,6 +7,7 @@ import { codexEntry } from '../src/render/mcp.js';
 import { sha256 } from '../src/hashes.js';
 import { lockText } from '../src/manifest.js';
 import { ALWAYS } from './helpers.js';
+import { t } from '../src/i18n.js';
 import { DEPLOY, ALL, renderTree, manifestOf, memProject, applyMem } from './render-fixture.js';
 
 const C7 = { type: 'stdio', command: 'npx', args: ['-y', 'c7'] };
@@ -242,4 +243,49 @@ test('render 는 management 를 관리 지침에 넘긴다', () => {
     management: { additions: [{ source: 'company', text: '## 보안\n\n검토 후 제안\n' }] },
   });
   assert.match(text(r, '.ruler/guideline.md'), /## company 추가 지침\n\n### 보안\n\n검토 후 제안\n/);
+});
+
+test('매니페스트의 스택 키는 그 스택의 지침 파일·세팅 문서로 펼쳐 쓰고, 잠금은 파일 id 로 남긴다', () => {
+  const r = render({ tree: renderTree(), revision: 1, manifest: manifestOf('ruler', ['rules/base']), lock: null, project: memProject() });
+  assert.deepEqual(Object.keys(r.files).filter(p => p.includes('/base/')).sort(), [
+    '.ruler/base/00-a.md', '.ruler/base/99-reference.md', 'docs/guideline/base/01-b.md', 'docs/guideline/base/SETUP.md',
+  ]);
+  assert.deepEqual(Object.keys(r.lock.sources).sort(), ['rules/base/00-a.md', 'rules/base/01-b.md', 'rules/base/SETUP.md']);
+  assert.deepEqual(kinds(r), ['setup']);
+});
+
+test('하위 스택은 .ruler/<부모>/<자식>/ 과 docs/guideline/<부모>/<자식>/ 에 쓰고 세팅 할 일은 그 경로다', () => {
+  const tree = renderTree({
+    'rules/browser/00-tool.md': `${ALWAYS}# 도구\n`,
+    'rules/browser/neo/00-x.md': `${ALWAYS}# 엑스\n`,
+    'rules/browser/neo/SETUP.md': '# neo 세팅\n',
+  });
+  const r = render({ tree, revision: 1, manifest: manifestOf('ruler', ['rules/browser', 'rules/browser/neo']), lock: null, project: memProject() });
+  assert.ok(r.files['.ruler/browser/00-tool.md']);
+  assert.ok(r.files['.ruler/browser/neo/00-x.md']);
+  assert.ok(r.files['docs/guideline/browser/neo/SETUP.md']);
+  assert.deepEqual(r.todos.filter(x => x.kind === 'setup').map(x => x.message), [t('todo.setup', { stack: 'browser/neo' })]);
+});
+
+test('고른 스택에서 원본이 뺀 파일은 할 일 없이 지우고, 원본에서 사라진 스택은 그대로 두고 removed-upstream 을 낸다', () => {
+  const tree = renderTree({ 'rules/gone/00-g.md': `${ALWAYS}# 지\n` });
+  const first = render({ tree, revision: 1, manifest: manifestOf('ruler', ['rules/base', 'rules/gone']), lock: null, project: memProject() });
+  const files = applyMem({}, first.files);
+  const later = renderTree({ 'rules/base/01-b.md': null });
+  const next = render({ tree: later, revision: 2, manifest: manifestOf('ruler', ['rules/base', 'rules/gone']), lock: first.lock, project: memProject(files) });
+  assert.equal(next.files['docs/guideline/base/01-b.md'], null);
+  assert.equal(next.files['.ruler/gone/00-g.md'], undefined);
+  assert.deepEqual(next.todos.map(x => [x.kind, x.item]), [['removed-upstream', 'rules/gone']]);
+  assert.equal(next.lock.sources['rules/gone/00-g.md'], first.lock.sources['rules/gone/00-g.md']);
+  assert.ok(next.lock.outputs.some(o => o.path === '.ruler/gone/00-g.md'));
+  assert.equal(next.lock.sources['rules/base/01-b.md'], undefined);
+});
+
+test('고른 스택에서 원본이 뺀 파일이라도 프로젝트에서 고친 사본은 지우지 않고 leftover 할 일을 낸다', () => {
+  const first = render({ tree: renderTree(), revision: 1, manifest: manifestOf('ruler', ['rules/base']), lock: null, project: memProject() });
+  const files = applyMem(applyMem({}, first.files), { 'docs/guideline/base/01-b.md': '# 고침\n' });
+  const next = render({ tree: renderTree({ 'rules/base/01-b.md': null }), revision: 2, manifest: manifestOf('ruler', ['rules/base']), lock: first.lock, project: memProject(files) });
+  assert.equal(next.files['docs/guideline/base/01-b.md'], undefined);
+  assert.deepEqual(next.todos.map(x => [x.kind, x.message]), [['leftover', t('todo.leftoverDropped', { path: 'docs/guideline/base/01-b.md' })]]);
+  assert.equal(next.files['.ruler/base/99-reference.md'], null);
 });

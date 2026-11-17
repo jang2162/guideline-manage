@@ -23,6 +23,19 @@ test('overrideRows 는 행마다 from·to 의 파일과 절 제목을 읽는다'
   ]);
 });
 
+test('overrideRows 는 바뀌는 쪽의 스택 경로를 마지막 조각 앞까지로 읽는다', () => {
+  const rows = overrideRows(README(['| `00-a.md` 「A」 | `browser/x/01-b.md` 「B」 |', '| `00-a.md` 「A」 | `a/b/c/01-d.md` 「D」 |']));
+  assert.deepEqual(rows[0].to, { stack: 'browser/x', file: '01-b.md', title: 'B' });
+  assert.deepEqual(rows[1].to, { stack: 'a/b/c', file: '01-d.md', title: 'D' });
+  assert.deepEqual(rows[0].from, { file: '00-a.md', title: 'A' });
+});
+
+test('overrideRows 는 이쪽 셀에 경로가 있거나 바뀌는 셀 경로의 조각이 비면 error 다', () => {
+  for (const row of ['| `x/00-a.md` 「A」 | `browser/01-b.md` 「B」 |', '| `00-a.md` 「A」 | `browser//01-b.md` 「B」 |', '| `00-a.md` 「A」 | `/01-b.md` 「B」 |']) {
+    assert.deepEqual(overrideRows(README([row])), [{ error: row }], row);
+  }
+});
+
 test('overrideRows 는 읽을 수 없는 행을 error 로 돌려준다', () => {
   const bad = [
     '| `05-switch.md` 「가」 |',

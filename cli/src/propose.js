@@ -8,8 +8,10 @@ import { diskReader } from './project-state.js';
 import { realOf, unitOf, unitName, setNameLine } from './sources.js';
 import { t } from './i18n.js';
 
-const RULE_COPY = /^(?:\.ruler|docs\/guideline)\/([^/]+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
-const SETUP_COPY = /^docs\/guideline\/([^/]+)\/SETUP\.md$/;
+// 스택 경로는 하위 스택이면 여러 조각(`browser/neo`)이다. 스킬·서브에이전트 자리(.ruler/skills·.ruler/agents)도 이 모양에 맞을 수 있어
+// sourceOf 는 그것들을 먼저 본다.
+const RULE_COPY = /^(?:\.ruler|docs\/guideline)\/(.+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
+const SETUP_COPY = /^docs\/guideline\/(.+)\/SETUP\.md$/;
 const AGENT_COPY = /^\.ruler\/agents\/([^/]+\.md)$/;
 const SKILL_COPY = /^\.ruler\/skills\/([^/]+)\/(.+)$/;
 const lf = s => s.replace(/\r\n/g, '\n');
@@ -45,7 +47,11 @@ export function changeOf(base, p, content) {
 
 /** 사본 경로를 원본 경로와 내용으로. 되돌릴 수 없으면 null. */
 function sourceOf(base, rel, cur) {
-  let m = RULE_COPY.exec(rel);
+  let m = AGENT_COPY.exec(rel);
+  if (m) return { path: `agents/${m[1]}`, content: cur };
+  m = SKILL_COPY.exec(rel);
+  if (m) return { path: `skills/${m[1]}/${m[2]}`, content: cur };
+  m = RULE_COPY.exec(rel);
   if (m) {
     const src = `rules/${m[1]}/${m[2]}`;
     const text = lf(base.read(src)?.toString('utf8') ?? '');
@@ -54,10 +60,6 @@ function sourceOf(base, rel, cur) {
   }
   m = SETUP_COPY.exec(rel);
   if (m) return { path: `rules/${m[1]}/SETUP.md`, content: cur };
-  m = AGENT_COPY.exec(rel);
-  if (m) return { path: `agents/${m[1]}`, content: cur };
-  m = SKILL_COPY.exec(rel);
-  if (m) return { path: `skills/${m[1]}/${m[2]}`, content: cur };
   return null;
 }
 

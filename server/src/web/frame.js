@@ -7,6 +7,8 @@ import { html, hrefFor, sendPage, blockLabel } from './layout.js';
 import { blockHref, blockOf, viewHref, TAB, LIST_HREF } from './blocks.js';
 import { t } from '../../../cli/src/i18n.js';
 import { DOC_PATH } from '../../../cli/src/store-paths.js';
+import { stackRows } from '../../../cli/src/selection.js';
+import { ancestorKeys } from '../../../cli/src/blocks.js';
 import { isAdmin, loginHref } from './auth.js';
 
 /**
@@ -78,12 +80,13 @@ export function tabOf(p, summary) {
   return p === 'docs' || p.startsWith('docs/') ? 'docs' : null;
 }
 
-/** 편집·새 파일 화면의 빵부스러기: 블록 안이면 탭 목록 › 블록, docs/ 면 문서, 그 밖은 없음. */
+/** 편집·새 파일 화면의 빵부스러기: 블록 안이면 탭 목록 › (조상 스택 ›) 블록, docs/ 면 문서, 그 밖은 없음. */
 export function crumbsFor(p, cat) {
   const b = blockOf(p, cat.summary);
   if (!b) return p === 'docs' || p.startsWith('docs/') ? [{ label: t('web.tab.docs'), href: '/docs' }] : [];
   const label = { stack: t('web.tab.stacks'), skill: t('web.tab.skills'), agent: t('web.tab.agents'), mcp: 'MCP' }[b.kind];
-  return [{ label, href: LIST_HREF[b.kind] }, { label: b.name, href: blockHref(b.kind, b.name) }];
+  const ancestors = b.kind === 'stack' ? ancestorKeys(`rules/${b.name}`).reverse().map(k => k.slice('rules/'.length)) : [];
+  return [{ label, href: LIST_HREF[b.kind] }, ...[...ancestors, b.name].map(n => ({ label: n, href: blockHref(b.kind, n) }))];
 }
 
 /** 지금 저장소 기준의 화면 주소(저장 직후에도 새 목록으로 판단한다). 화면이 없는 경로면 홈. */
@@ -106,14 +109,15 @@ const PLACEHOLDER = {
  * @param {string | null} current
  */
 export function blockList(cat, kind, current) {
-  const items = kind === 'stack' ? cat.summary.stacks.map(st => ({ name: st.name, desc: cat.stacks.get(st.name).intro }))
+  // 스택은 부모 바로 아래에 하위 스택을 깊이만큼 들여 둔다.
+  const items = kind === 'stack' ? stackRows(cat.summary.stacks).map(({ stack: st, depth }) => ({ name: st.name, desc: cat.stacks.get(st.name).intro, depth }))
     : kind === 'skill' ? cat.skills.map(x => ({ name: x.name, desc: x.description }))
       : kind === 'agent' ? cat.agents.map(x => ({ name: x.name, desc: x.description }))
         : cat.mcp.map(x => ({ name: x.name, desc: x.intro }));
   for (const x of items) x.label = blockLabel(x.name, labelOf(cat.summary, kind, x.name));
   return html`<label class="side-find"><input type="search" class="side-search" placeholder="${PLACEHOLDER[TAB[kind]]}" aria-label="${PLACEHOLDER[TAB[kind]]}" autocomplete="off" data-side-search><kbd>/</kbd></label>
 <ul class="side-list">
-${items.map(x => html`<li><a class="${x.name === current ? 'blk on' : 'blk'}" href="${blockHref(kind, x.name)}"${x.name === current ? html` aria-current="page"` : ''}><b>${x.label}</b>${x.desc ? html`<span>${x.desc}</span>` : ''}</a></li>
+${items.map(x => html`<li${x.depth ? html` data-depth="${Math.min(x.depth, 5)}"` : ''}><a class="${x.name === current ? 'blk on' : 'blk'}" href="${blockHref(kind, x.name)}"${x.name === current ? html` aria-current="page"` : ''}><b>${x.label}</b>${x.desc ? html`<span>${x.desc}</span>` : ''}</a></li>
 `)}</ul>
 <p class="side-none" hidden>${t('web.side.noMatch')}</p>`;
 }

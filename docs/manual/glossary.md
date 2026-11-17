@@ -15,6 +15,10 @@ Product names, commands, file names, setting keys and code stay untranslated.
 | stack | 스택 | A group of rule files under `rules/<stack>/` |
 | domain stack | 도메인 스택 | A stack named `<tool>__<domain>` |
 | block | 블록 | One stack, skill, subagent or MCP server |
+| block key | 블록 키 | `rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`. `items` of `guideline.json` |
+| child stack | 하위 스택 | A stack in a folder inside another stack's folder (`browser/browseros-neo`) |
+| bundle stack | 묶음 스택 | A stack that holds only child stacks, no guideline files of its own |
+| ancestor | 조상 | The parents of a child stack, up to the top-level stack. Choosing a child stack chooses them |
 | skill | 스킬 | |
 | subagent | 서브에이전트 | |
 | MCP server | MCP 서버 | |

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { t } from './i18n.js';
+import { blockKey, isBlockKey, withAncestors } from './blocks.js';
 
 export const MANIFEST = 'guideline.json';
 export const LOCK = 'guideline-lock.json';
@@ -23,7 +24,8 @@ function readJsonFile(file) {
 
 /**
  * @typedef {{ server: string, items: string[], aliases: Record<string, string> }} Source
- * @typedef {{ version: 2, form: 'ruler' | 'instructions', agents: string[], sources: Record<string, Source> }} Manifest
+ * @typedef {{ version: 3, form: 'ruler' | 'instructions', agents: string[], sources: Record<string, Source> }} Manifest
+ *   Source.items 는 블록 키(rules/<스택>, skills/<이름>, agents/<이름>.md, mcp/<이름>)이고 하위 스택의 조상 스택을 함께 담는다
  * @typedef {{ path: string, key?: string, items: string[], hash: string, adopted?: true }} LockOutput  adopted: 잠금 없이 받을 때 이미 원본과 달랐던 사본
  * @typedef {{ version: 2, revisions: Record<string, number>, sources: Record<string, string>, outputs: LockOutput[] }} Lock
  *   sources 키와 outputs[].items 는 `<출처>:<id>`
@@ -43,7 +45,8 @@ export function splitQualified(q) {
 }
 
 /**
- * v1(출처 하나) 과 v2 를 받아 v2 로 돌려준다.
+ * v1(출처 하나)·v2(파일 id)·v3(블록 키) 를 받아 v3 로 돌려준다. v1·v2 의 파일 id 는 블록 키로 바꾸고(블록이 아닌 항목은 뺀다),
+ * 모든 버전에서 조상 스택을 채운다.
  * @returns {Manifest}
  */
 export function checkManifest(m) {
@@ -51,7 +54,7 @@ export function checkManifest(m) {
     throw new ManifestError(`${MANIFEST}: ${why}`);
   };
   if (!m || typeof m !== 'object') bad(t('manifest.notObject'));
-  if (m.version !== 1 && m.version !== 2) bad(t('manifest.badVersion'));
+  if (m.version !== 1 && m.version !== 2 && m.version !== 3) bad(t('manifest.badVersion'));
   if (!FORMS.includes(m.form)) bad(t('manifest.badForm'));
   if (!isStrArr(m.agents) || m.agents.length === 0 || !m.agents.every(a => AGENTS.includes(a))) {
     bad(t('manifest.badAgents'));
@@ -72,15 +75,23 @@ export function checkManifest(m) {
     if (!s || typeof s !== 'object') bad(t('manifest.sourceNotObject', { name }));
     if (!isHttp(s.server)) bad(t('manifest.sourceBadServer', { name }));
     if (!isStrArr(s.items)) bad(t('manifest.sourceBadItems', { name }));
+    let items;
+    if (m.version === 3) {
+      const notKey = s.items.find(item => !isBlockKey(item));
+      if (notKey !== undefined) bad(t('manifest.sourceBadItemKey', { name, item: notKey }));
+      items = withAncestors(s.items);
+    } else {
+      items = withAncestors(s.items.map(blockKey).filter(Boolean));
+    }
     const aliases = s.aliases ?? {};
     if (typeof aliases !== 'object' || Array.isArray(aliases)) bad(t('manifest.sourceBadAliases', { name }));
     for (const [k, v] of Object.entries(aliases)) {
       if (!ALIAS_KEY.test(k)) bad(t('manifest.badAliasKey', { name, key: k }));
       if (typeof v !== 'string' || !NAME.test(v)) bad(t('manifest.badAliasValue', { name, key: k, value: v }));
     }
-    sources[name] = { server: s.server, items: [...s.items], aliases: { ...aliases } };
+    sources[name] = { server: s.server, items, aliases: { ...aliases } };
   }
-  return { version: 2, form: m.form, agents: [...m.agents], sources };
+  return { version: 3, form: m.form, agents: [...m.agents], sources };
 }
 
 /** @returns {Manifest | null} */
@@ -98,7 +109,7 @@ export function checkLock(l) {
     throw new ManifestError(`${LOCK}: ${why}`);
   };
   if (!l || typeof l !== 'object') bad(t('manifest.notObject'));
-  if (l.version !== 1 && l.version !== 2) bad(t('manifest.badVersion'));
+  if (l.version !== 1 && l.version !== 2) bad(t('lock.badVersion'));
   if (!l.sources || typeof l.sources !== 'object' || !Object.values(l.sources).every(v => typeof v === 'string')) {
     bad(t('lock.badSources'));
   }
@@ -130,18 +141,18 @@ export function readLock(project) {
 
 const sortKeys = o => Object.fromEntries(Object.keys(o).sort(byStr).map(k => [k, o[k]]));
 
-/** @param {Manifest} m v1 모양이면 v2 로 바꿔 쓴다 */
+/** @param {Manifest} m v1·v2 모양이면 v3 로 바꿔 쓴다 */
 export function manifestText(m) {
-  if (m.version !== 2) m = checkManifest(m);
+  if (m.version !== 3) m = checkManifest(m);
   const sources = {};
   for (const name of Object.keys(m.sources).sort(byStr)) {
     const s = m.sources[name];
-    const items = [...new Set(s.items)].sort(byStr);
+    const items = withAncestors(s.items);
     if (items.length === 0) continue;
     const aliases = s.aliases ?? {};
     sources[name] = { server: s.server, items, ...(Object.keys(aliases).length ? { aliases: sortKeys(aliases) } : {}) };
   }
-  const out = { version: 2, form: m.form, agents: [...new Set(m.agents)].sort(byStr), sources };
+  const out = { version: 3, form: m.form, agents: [...new Set(m.agents)].sort(byStr), sources };
   return `${JSON.stringify(out, null, 2)}\n`;
 }
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { makeRichDocsRepo, filesOf, collect } from './helpers.js';
+import { makeRichDocsRepo, filesOf, collect, write, ALWAYS } from './helpers.js';
 import { catalogSummary } from '../src/summary.js';
 import { memoryTree } from '../src/tree.js';
 import { readServer } from '../src/mcp.js';
@@ -43,4 +43,16 @@ test('readServer 는 트리와 상대 경로로도 읽는다', () => {
   const tree = memoryTree({ 'mcp/x/server.json': JSON.stringify({ type: 'stdio', command: 'npx' }) });
   assert.deepEqual(readServer(tree, 'mcp/x'), { server: { type: 'stdio', command: 'npx' } });
   assert.deepEqual(readServer(tree, 'mcp/none'), { reason: 'server.json 없음' });
+});
+
+test('하위 스택이 있어도 디스크와 메모리 트리가 같은 요약을 낸다', t => {
+  const root = makeRichDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/browser/browseros-neo/00-switch.md', `${ALWAYS}# a\n`);
+  write(root, 'rules/browser/browseros-neo/README.md', '---\nwhen: "neo 를 쓰는 작업자"\n---\n');
+  write(root, 'rules/browser/browseros-neo/bad.md', 'x\n');
+  const disk = catalogSummary(root);
+  assert.deepEqual(catalogSummary(memoryTree(filesOf(root))), disk);
+  assert.deepEqual(disk.stacks.find(s => s.name === 'browser/browseros-neo').when, 'neo 를 쓰는 작업자');
+  assert.ok(disk.ignored.some(i => i.path === 'rules/browser/browseros-neo/bad.md'));
 });

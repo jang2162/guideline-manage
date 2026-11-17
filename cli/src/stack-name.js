@@ -13,9 +13,11 @@ export function splitStackName(name) {
   return i === -1 ? { tool: name, domain: null } : { tool: name.slice(0, i), domain: name.slice(i + SEP.length) };
 }
 
-/** `__` 가 있는데 도메인 모양이 아니면 경고 문구. 없거나 맞으면 null. */
+/** 경로(`부모/자식`)면 조각마다 본다. 부모가 도메인 스택일 수도 있다. `__` 가 있는데 도메인 모양이 아닌 조각이 있으면 경고 문구, 아니면 null. */
 export function stackNameProblem(name) {
-  const { domain } = splitStackName(name);
-  if (domain === null || DOMAIN.test(domain)) return null;
-  return t('catalog.badDomain');
+  for (const piece of name.split('/')) {
+    const { domain } = splitStackName(piece);
+    if (domain !== null && !DOMAIN.test(domain)) return t('catalog.badDomain');
+  }
+  return null;
 }

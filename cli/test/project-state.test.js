@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpDir, write, ALWAYS } from './helpers.js';
 import {
-  rulerAgentsEnabled, inferAgents, diskReader, itemStates, newFiles, formItems, formPayload, statusTodos, kindOf,
+  rulerAgentsEnabled, inferAgents, diskReader, itemStates, formItems, formPayload, statusTodos, kindOf,
 } from '../src/project-state.js';
 import { render } from '../src/render/index.js';
 import { desiredOutputs } from '../src/render/outputs.js';
@@ -61,10 +61,45 @@ test('itemStates 는 잠금 기준 일곱 상태를 가린다', t => {
   assert.equal(outputs.find(o => o.path === '.ruler/guideline.md').state, 'current');
 });
 
-test('newFiles 는 고른 스택의 고르지 않은 지침 파일·세팅 문서', () => {
-  const tree = renderTree({ 'rules/base/02-new.md': `${ALWAYS}# 새\n` });
-  assert.deepEqual(newFiles(tree, manifestOf('ruler', ['rules/base/00-a.md'])), ['rules/base/01-b.md', 'rules/base/02-new.md', 'rules/base/SETUP.md']);
-  assert.deepEqual(newFiles(tree, manifestOf('ruler', ['skills/s'])), []);
+test('itemStates 는 스택 키를 파일로 펼쳐 상태를 내고, 잠금에 없는 새 지침 파일은 충돌이 아니라 원본 새로 나옴이다', t => {
+  const { p, lock } = installed(t, 'ruler', ['rules/base/00-a.md']);
+  const tree = renderTree({ 'rules/base/02-new.md': `${ALWAYS}# 새\n`, 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n` });
+  const manifest = manifestOf('ruler', ['rules/base', 'rules/base/sub', 'rules/gone']);
+  const { states } = itemStates({ tree, reader: diskReader(p), manifest, lock });
+  assert.deepEqual([...states], [
+    ['rules/base/00-a.md', 'current'],
+    ['rules/base/01-b.md', 'upstream'],
+    ['rules/base/02-new.md', 'upstream'],
+    ['rules/base/SETUP.md', 'upstream'],
+    ['rules/base/sub/00-s.md', 'upstream'],
+    ['rules/gone', 'removed'],
+  ]);
+  assert.deepEqual(statusTodos(states).map(x => [x.kind, x.item]), [['removed-upstream', 'rules/gone']]);
+});
+
+test('고른 스택에서 원본이 뺀 파일: 손대지 않은 사본은 할 일 없는 upstream, 프로젝트에서 고친 사본은 both', t => {
+  const { p, lock } = installed(t, 'ruler', ['rules/base', 'skills/s']);
+  const tree = renderTree({ 'rules/base/01-b.md': null });
+  const manifest = manifestOf('ruler', ['rules/base', 'skills/s']);
+  const plain = itemStates({ tree, reader: diskReader(p), manifest, lock });
+  assert.equal(plain.states.get('rules/base/01-b.md'), 'upstream');
+  assert.equal(plain.states.get('rules/base/00-a.md'), 'current');
+  assert.deepEqual(statusTodos(plain.states), []);
+  write(p, 'docs/guideline/base/01-b.md', '# 고침\n');
+  const edited = itemStates({ tree, reader: diskReader(p), manifest, lock });
+  assert.equal(edited.states.get('rules/base/01-b.md'), 'both');
+  assert.deepEqual(statusTodos(edited.states), []);
+});
+
+test('원본에서 통째로 사라진 하위 스택의 파일은 부모 스택이 있어도 upstream 이 아니라 그 스택 키의 removed 로만 보인다', t => {
+  const sub = { 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n` };
+  const p = dir(t);
+  const manifest = manifestOf('ruler', ['rules/base', 'rules/base/sub']);
+  const r = render({ tree: renderTree(sub), revision: 1, manifest, lock: null, project: diskReader(p) });
+  applyFiles(p, r.files);
+  const { states } = itemStates({ tree: renderTree(), reader: diskReader(p), manifest, lock: r.lock });
+  assert.equal(states.get('rules/base/sub'), 'removed');
+  assert.equal(states.has('rules/base/sub/00-s.md'), false);
 });
 
 test('formItems 는 잠금 항목을 잠금 상태로 바꾸고 원본에서 사라진 항목을 추가하며 잠금 출력의 고아는 뺀다', t => {
@@ -94,6 +129,7 @@ test('formPayload 는 MCP 값을 싣지 않고 큰 차이는 생략한다', t =>
   assert.equal(payload.diffs['rule:rules/base/00-a.md'].files[0].diff, '너무 커서 생략');
   assert.equal(payload.project.name, p.split('/').at(-1));
   assert.deepEqual([payload.project.form, payload.project.nested, payload.project.rootStacks], ['ruler', false, []]);
+  assert.equal(payload.formVersion, 2, '폼 본문은 스택 단위 선택을 아는 폼(formVersion 2)이라고 알린다');
 });
 
 test('첫 반영에서 충돌한 항목은 최신이 아니라 「반영 안 됨」 이고, 폼에는 0.10 판정으로 다시 나온다', t => {
@@ -107,7 +143,7 @@ test('첫 반영에서 충돌한 항목은 최신이 아니라 「반영 안 됨
   applyFiles(p, r.files);
   const { states } = itemStates({ tree: renderTree(), reader: diskReader(p), manifest, lock: r.lock });
   assert.equal(states.get('skills/s'), 'unsynced');
-  assert.deepEqual(statusTodos(states, []).map(x => x.kind), ['conflict']);
+  assert.deepEqual(statusTodos(states).map(x => x.kind), ['conflict']);
   const item = formItems({ tree: renderTree(), project: p, manifest, lock: r.lock, reader: diskReader(p) }).items.find(i => i.id === 'skills/s');
   assert.equal(item.state, 'different');
   assert.equal(item.lockState, undefined);
@@ -129,4 +165,18 @@ test('중첩이면 formItems 가 루트 전용 항목을 막는다', t => {
   assert.deepEqual([s.state, s.reason], ['blocked', '중첩 디렉터리에서는 받을 수 없음 — git 루트에서 받아야 함']);
   assert.equal(items.find(i => i.id === 'rules/base/00-a.md').state, 'missing');
   assert.ok(desiredOutputs);
+});
+
+test('formItems 는 원본에서 통째로 사라진 스택(하위 스택 포함)을 스택 칸을 채워 올린다', t => {
+  const sub = { 'rules/gone/00-g.md': `${ALWAYS}# 지\n`, 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n` };
+  const p = dir(t);
+  const manifest = manifestOf('ruler', ['rules/base', 'rules/base/sub', 'rules/gone']);
+  const r = render({ tree: renderTree(sub), revision: 1, manifest, lock: null, project: diskReader(p) });
+  applyFiles(p, r.files);
+  const { items } = formItems({ tree: renderTree(), project: p, manifest, lock: r.lock, reader: diskReader(p) });
+  const removed = items.filter(i => i.lockState === 'removed');
+  assert.deepEqual(removed, [
+    { kind: 'rule', id: 'rules/base/sub', stack: 'base/sub', state: 'present', lockState: 'removed' },
+    { kind: 'rule', id: 'rules/gone', stack: 'gone', state: 'present', lockState: 'removed' },
+  ]);
 });

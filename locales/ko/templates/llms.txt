@@ -41,12 +41,13 @@ guideline update --force       # 프로젝트에서 고친 파일까지 덮어�
 ```
 
 - `pick` 은 프로젝트를 원본과 비교한 결과만 서버에 올리고 폼 주소를 낸다(stderr 의 `폼: <주소>`). 폼에서 항목을 체크하고 제출할 때까지 기다린다. MCP 의 값(비밀값)은 올라가지 않는다.
+- 폼은 파일이 아니라 **스택 단위**로 고른다. 하위 스택이 있는 스택(`browser` 안의 `browser/browseros-neo`)은 나무로 보이고, 하위 스택마다 `when`(그것이 필요한 작업)이 붙는다. 하위 스택을 체크하면 조상도 함께 체크되고 「조상」 표시가 붙는다(조상의 파일이 함께 온다). 부모를 체크해도 하위는 체크되지 않는다. 조상을 끄면 자손이 풀리고, 하위 스택을 끄면 그 때문에 켜졌던 조상도 풀린다. 단 사람이 직접 켠 조상, 아래에 다른 고른 하위 스택이 남은 조상, 다른 고른 블록이 `requires` 로 필요로 하는 조상은 남는다.
 - 폼의 상태: 「같음」 은 이미 반영됨, 「다름」 은 프로젝트 사본이 원본과 다름(「갱신」 을 켜야 덮어쓴다), 「없음」 은 아직 없음(체크하면 추가한다). 이미 있는 항목의 체크를 풀면 「제거」 다. 폼은 지침 → MCP → 서브에이전트 → 스킬 → 확인 단계로 고르고, 분류 버튼은 그 분류의 항목만 걸러 보인다(체크는 바꾸지 않는다). 블록이 필요로 하는 블록(`requires`)은 함께 체크된다.
 - 도메인 스택 `<도구>__<도메인>`(예: `deploy-package__gitlab.develma.com`)은 같은 도구를 그 서버에서 쓸 때의 규칙이다. 프로젝트가 쓰는 서버와 도메인이 맞는 스택만 고른다.
-- 사본 자리: 상시 지침은 `.ruler/<스택>/NN-*.md`, 참조 지침은 `docs/guideline/<스택>/` 과 색인 `.ruler/<스택>/99-reference.md`, 스킬은 `.ruler/skills/`, MCP 는 `.ruler/ruler.toml`. 반영 뒤 git 루트에서 `ruler apply` 가 돈다(ruler 가 설치돼 있을 때).
+- 사본 자리: 상시 지침은 `.ruler/<스택>/NN-*.md`(하위 스택은 `.ruler/<부모>/<하위>/NN-*.md`), 참조 지침은 `docs/guideline/<스택>/` 과 색인 `.ruler/<스택>/99-reference.md`, 스킬은 `.ruler/skills/`, MCP 는 `.ruler/ruler.toml`. 반영 뒤 git 루트에서 `ruler apply` 가 돈다(ruler 가 설치돼 있을 때).
 - 반영하면 `guideline.json`(고른 항목)과 `guideline-lock.json`(반영한 리비전과 해시)이 생긴다. 반영한 파일과 함께 커밋한다. CLI 는 커밋하지 않는다.
 - **모노레포**: 하위 디렉터리(자기 `.ruler/` 가 있는 곳)에서 실행하면 그 디렉터리가 따로 단위가 된다. 매니페스트·잠금·사본이 모두 그 안에 생긴다. 스킬·서브에이전트·MCP 는 git 루트에서만 받는다. git 루트의 `.ruler/ruler.toml` 에 `nested = true` 가 있어야 ruler 가 그 디렉터리의 지침을 만든다.
-- 종료 코드: 0 완료, 1 오류, 2 사용법 오류(ruler 아님 포함), 3 취소·만료(아무것도 쓰지 않음).
+- 종료 코드: 0 완료, 1 오류, 2 사용법 오류(ruler 아님 포함), 3 취소·만료(아무것도 쓰지 않음). 스택 단위 폼을 모르는 옛 서버(0.24.0 보다 옛날)의 출처는 「서버가 CLI 보다 옛날」 이라며 건너뛰고 오류로 센다(코드 1).
 
 ## 여러 출처에서 받기
 
@@ -61,15 +62,16 @@ guideline update --source company    # 그 출처만 최신으로
 
 ```json
 {
-  "version": 2, "form": "ruler", "agents": ["claude", "codex"],
+  "version": 3, "form": "ruler", "agents": ["claude", "codex"],
   "sources": {
-    "personal": { "server": "https://my.example.dev", "items": ["rules/base/00-agent.md"] },
-    "company": { "server": "{{SERVER}}", "items": ["rules/base/01-git.md"], "aliases": { "rules/base": "company-base" } }
+    "personal": { "server": "https://my.example.dev", "items": ["rules/base"] },
+    "company": { "server": "{{SERVER}}", "items": ["rules/base", "rules/browser", "rules/browser/browseros-neo"], "aliases": { "rules/base": "company-base" } }
   }
 }
 ```
 
-- 두 출처가 같은 이름(스택·스킬·서브에이전트·MCP)을 주면 `pick` 이 「이름 충돌」 로 멈춘다(코드 2, 아무것도 쓰지 않음). 한쪽 출처의 `aliases` 에 `"<단위>": "<새 이름>"`(단위는 `rules/<스택>`·`skills/<이름>`·`agents/<이름>.md`·`mcp/<이름>`)을 주면 그 이름으로 받는다: `.ruler/company-base/`, 스킬 `name:` 줄, `ruler.toml` 의 `[mcp_servers.<새 이름>]`.
+- `items` 는 블록 키(`rules/<스택 경로>`·`skills/<이름>`·`agents/<이름>.md`·`mcp/<이름>`)이고, 하위 스택은 조상 스택과 함께 적힌다. 파일 경로를 쓰지 않는다.
+- 두 출처가 같은 이름(스택·스킬·서브에이전트·MCP)을 주면 `pick` 이 「이름 충돌」 로 멈춘다(코드 2, 아무것도 쓰지 않음). 한쪽 출처의 `aliases` 에 `"<단위>": "<새 이름>"`(단위는 `rules/<최상위 스택>` — 하위 스택은 최상위 스택의 별칭을 따라간다 —·`skills/<이름>`·`agents/<이름>.md`·`mcp/<이름>`)을 주면 그 이름으로 받는다: `.ruler/company-base/`, 스킬 `name:` 줄, `ruler.toml` 의 `[mcp_servers.<새 이름>]`.
 - 토큰은 서버마다 따로 `guideline login --server <URL>` 로 저장한다. 출처가 여럿이면 `GUIDELINE_TOKEN` 은 쓰지 않는다.
 - 한 출처의 서버에 닿지 못하면 그 출처는 그대로 두고 나머지를 반영한 뒤 코드 1.
 - `propose` 는 출처마다 제안 하나를 그 서버에 올린다(별칭은 원래 이름으로 되돌려 올린다).
@@ -111,15 +113,16 @@ guideline proposals <번호>              # 제안 하나: Outdated·충돌, 파
 | `mcp-local` | 프로젝트에서 MCP 설정을 고쳤다. 원본에 올리려면 `guideline source` 폴더에서 `server.json` 을 고쳐 `propose --from` 으로 올린다 |
 | `adopted` | `propose` 가 뺀 사본이다. 처음 받을 때 이미 원본과 달랐다(옛 판일 수 있다). 프로젝트에서 고친 것이 맞을 때만 `guideline propose --only <항목>`, 옛 판이면 `guideline update --force` |
 | `alias` | 별칭 문제다. 「스택 자리가 바뀜」 면 바꿈 파일을 `.ruler/<새 이름>/` 로 옮긴다. 그 밖은 `guideline.json` 의 `aliases` 를 고친다 |
-| `new-file`·`removed-upstream` | 알리고, 고르거나 지우려면 `guideline pick` 을 하자고 한다 |
+| `removed-upstream` | 알리고, 지우려면 `guideline pick` 을 하자고 한다 |
 | `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`)을 받지 않았다(`update`·`status`). 빠진 블록을 알리고, 그 블록을 담은 추천 파일로 `guideline pick --recommend <파일> --json` 을 띄워(출처가 여럿이면 `--source <출처>` 를 붙인다) 폼 제출로 확인받는다 |
 | `blocked` | 원본 경고로(또는 중첩 디렉터리라서) 반영하지 못했다. 사본은 그대로다. 이유를 보고한다 |
-| `leftover` | 체크를 풀었지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |
+| `leftover` | 체크를 풀었거나 원본이 고른 스택에서 뺐지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |
 
 ## 지킬 것
 
 - **사본은 직접 고치지 않는다.** `guideline-lock.json` 에 기록된 파일과 `docs/guideline/` 은 CLI 만 쓴다. 고친 것을 공용으로 하려면 `guideline propose` 로 올린다.
-- 이 프로젝트에만 다르게 할 것은 **바꿈**에 쓴다: `.ruler/<스택>/override.md`(또는 `override.d/*.md`). 바꿈마다 첫 줄에 ``바꾸는 절: `<스택>/<파일>` 「<## 절 제목>」`` 을 쓴다(파일 전체면 「」 를 뺀다). 바꿈이 사본보다 우선하고, CLI 는 바꿈을 건드리지 않는다.
+- **`.ruler/<스택>/` 폴더 안에 프로젝트 파일을 두지 않는다**(스택 폴더의 하위 폴더도 마찬가지다). 받은 스택 폴더는 원본의 것이라, 원본에 없는 파일이나 하위 폴더는 「원본에서 사라짐」 으로 보인다. 프로젝트 고유 규칙은 아래 바꿈에 쓴다.
+- 이 프로젝트에만 다르게 할 것은 **바꿈**에 쓴다: `.ruler/<스택>/override.md`(또는 `override.d/*.md`, 하위 스택은 `.ruler/<부모>/<하위>/override.md`). 바꿈마다 첫 줄에 ``바꾸는 절: `<스택>/<파일>` 「<## 절 제목>」`` 을 쓴다(파일 전체면 「」 를 뺀다). 바꿈이 사본보다 우선하고, CLI 는 바꿈을 건드리지 않는다.
 - 스택 세팅이 필요하면 `docs/guideline/<스택>/SETUP.md` 를 따른다.
 - 비밀값은 제안에도 담지 않는다. MCP 의 값은 `${VAR}` 참조로 쓴다.
 

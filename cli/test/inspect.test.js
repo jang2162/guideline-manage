@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeDocsRepo, tmpDir, write, ALWAYS, reference } from './helpers.js';
 import { inspect, detectForm, stripFrontmatter, itemDiff } from '../src/inspect.js';
+import { memoryTree } from '../src/tree.js';
 
 function setup(t) {
   const root = makeDocsRepo();
@@ -275,4 +276,32 @@ test('스킬 사본이 줄바꿈 문자(CRLF)로만 다르면 same 이다', t =>
   write(project, 'CLAUDE.md', '# p\n');
   write(project, '.claude/skills/demo-skill/SKILL.md', SKILL.replace(/\n/g, '\r\n'));
   assert.equal(inspect(root, project).items.find(i => i.kind === 'skill').state, 'same');
+});
+
+test('ruler 형태의 하위 스택 지침은 .ruler/<스택 경로>/ 사본과 비교하고 항목의 stack 은 경로다', t => {
+  const { project } = setup(t);
+  write(project, '.ruler/ruler.toml', '');
+  write(project, '.ruler/browser/neo/00-x.md', '# x\n\nX1\n');
+  const tree = memoryTree({ 'rules/browser/00-a.md': `${ALWAYS}# a\n`, 'rules/browser/neo/00-x.md': `${ALWAYS}# x\n\nX1\n` });
+  const r = inspect(tree, project);
+  const x = item(r, 'rules/browser/neo/00-x.md');
+  assert.deepEqual([x.stack, x.state, x.where], ['browser/neo', 'same', ['.ruler/browser/neo/00-x.md']]);
+  assert.equal(item(r, 'rules/browser/00-a.md').state, 'missing');
+});
+
+test('orphanItems 는 하위 스택 폴더도 본다', t => {
+  const { project } = setup(t);
+  write(project, '.ruler/ruler.toml', '');
+  write(project, '.ruler/browser/00-a.md', '# a\n');
+  write(project, '.ruler/browser/99-reference.md', 'x');
+  write(project, '.ruler/browser/override.d/01-x.md', 'x');
+  write(project, '.ruler/browser/neo/00-x.md', '# x\n');
+  write(project, 'docs/guideline/browser/old/01-y.md', '# y\n');
+  write(project, '.ruler/skills/s/00-z.md', 'x');
+  const tree = memoryTree({ 'rules/browser/00-a.md': `${ALWAYS}# a\n` });
+  const r = inspect(tree, project);
+  assert.deepEqual(r.items.filter(i => i.kind === 'orphan').map(i => [i.id, i.stack]), [
+    ['docs/guideline/browser/old/01-y.md', 'browser/old'],
+    ['.ruler/browser/neo/00-x.md', 'browser/neo'],
+  ]);
 });

@@ -6,6 +6,12 @@ import { t } from '../../cli/src/i18n.js';
 
 export const FORM_BODY_LIMIT = 2 * 1024 * 1024;
 const MIN_CLIENT = [0, 12, 0];
+/**
+ * 폼 본문·응답의 모양 판. 2 는 스택 단위로 고르는 폼(하위 스택)이다. CLI 는 이 값을 본문에 싣고(0.24.0 부터),
+ * 응답에 이 값이 없으면 옛 서버로 보고 멈춘다. 이 값이 없는 옛 CLI 의 폼은 파일 단위로 골라 받으므로 거절한다.
+ * 버전 문자열이 아니라 본문으로 보는 것은 릴리스 전 개발판(0.23.x)도 새 폼을 쓰기 때문이다.
+ */
+export const FORM_VERSION = 2;
 const POLL_MS = 250;
 
 const isObj = v => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -69,10 +75,11 @@ export function registerSyncApi(router, { store, tokens, forms, cliLogins, limit
     if (clientTooOld(ctx.req)) throw new HttpError(426, t('sync.cliOld'));
     const body = await readJson(ctx.req, FORM_BODY_LIMIT);
     checkFormBody(body, store.headRevision());
+    if (body.formVersion !== FORM_VERSION) throw new HttpError(426, t('sync.cliOldForms'));
     const f = forms.create({ tokenId: ownerOf(ctx.auth), revision: body.revision, payload: body });
     const url = new URL(`/forms/${f.id}?k=${encodeURIComponent(f.link)}`, config.publicUrl).href;
     const expiresAt = new Date(Date.parse(f.createdAt) + forms.timers.notOpenedMs).toISOString();
-    sendJson(ctx.res, 201, { id: f.id, url, expiresAt });
+    sendJson(ctx.res, 201, { id: f.id, url, expiresAt, formVersion: FORM_VERSION });
   });
 
   router.add('GET', '/api/v1/forms/:id/result', async ctx => {

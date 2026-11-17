@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import zlib from 'node:zlib';
 import { startApp, login, getAs, META } from './helpers.js';
 
 const FILES = {
@@ -66,4 +67,41 @@ test('블록 내려받기: 빈 조각 경로는 404, 한글 이름은 filename*'
   const r = await s.req(`/archive/rules/${encodeURIComponent('한글')}`);
   assert.equal(r.status, 200);
   assert.match(r.headers['content-disposition'], /filename\*=UTF-8''%ED%95%9C%EA%B8%80-r1\.tar\.gz/);
+});
+
+test('하위 스택의 설정 버튼과 내려받기는 경로 주소, 내려받기에 자손 파일은 없다', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: {
+    'rules/base/00-a.md': '---\nload: always\n---\n# a\n',
+    'rules/base/neo/00-x.md': '---\nload: always\n---\n# x\n',
+  } });
+  const cookie = await login(s);
+  const page = (await getAs(s, cookie, '/s/base/neo')).text;
+  assert.ok(page.includes('href="/settings/stack/base/neo"'), page);
+  assert.ok(page.includes('href="/archive/rules/base/neo"'));
+  const parent = await s.req('/archive/rules/base');
+  assert.equal(parent.status, 200);
+  assert.match(parent.headers['content-disposition'], /filename\*=UTF-8''base-r\d+\.tar\.gz/);
+  const names = zlib.gunzipSync(parent.body).toString('latin1');
+  assert.ok(names.includes('rules/base/00-a.md'));
+  assert.ok(!names.includes('rules/base/neo/00-x.md'));
+  const child = await s.req('/archive/rules/base/neo');
+  assert.equal(child.status, 200);
+  assert.match(child.headers['content-disposition'], /filename\*=UTF-8''base-neo-r\d+\.tar\.gz/);
+});
+
+test('README 없는 부모 스택도 첫 화면에 하위 스택 목록과 추가 링크가 있다', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: {
+    'rules/base/00-a.md': '---\nload: always\n---\n# a\n',
+    'rules/base/neo/00-x.md': '---\nload: always\n---\n# x\n',
+  } });
+  const cookie = await login(s);
+  const page = (await getAs(s, cookie, '/s/base')).text;
+  assert.ok(page.includes('class="children"'), page);
+  const kids = page.slice(page.indexOf('class="children"'));
+  assert.ok(kids.includes('href="/s/base/neo"'));
+  assert.ok(kids.includes('href="/add?kind=stack&amp;parent=base"'));
+  // 파일을 고른 화면에는 붙이지 않는다.
+  assert.ok(!(await getAs(s, cookie, '/s/base/00-a.md')).text.includes('class="children"'));
 });

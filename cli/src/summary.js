@@ -1,4 +1,4 @@
-import { stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpServers, ignored, warnings, elementCategories, elementLabels, elementRequires } from './catalog.js';
+import { stacks, stackWhen, parentStack, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpServers, ignored, warnings, elementCategories, elementLabels, elementRequires } from './catalog.js';
 import { asTree } from './tree.js';
 
 /**
@@ -11,6 +11,8 @@ export function catalogSummary(src) {
   return {
     stacks: stacks(tree).map(name => ({
       name,
+      parent: parentStack(name),
+      when: stackWhen(name, tree),
       files: stackTiers(name, tree).map(({ path, load, when }) => ({ path, load, when })),
       overrides: stackOverrides(name, tree).overrides,
       setup: stackSetup(name, tree),

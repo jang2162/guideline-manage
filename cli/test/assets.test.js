@@ -122,7 +122,7 @@ test('가져오기 스킬 두 벌은 프로젝트 바꿈과 관리 지침을 후
 
 test('프로젝트 쪽 guideline-sync 는 CLI 를 부르고 할 일 종류를 모두 다룬다', () => {
   const text = skillText('skills', 'guideline-sync');
-  for (const kind of ['mcp-build', 'env', 'setup', 'conflict', 'skipped', 'override', 'subagents-off', 'ruler-apply', 'new-file', 'removed-upstream', 'blocked', 'leftover', 'nested-off', 'mcp-local', 'adopted']) {
+  for (const kind of ['mcp-build', 'env', 'setup', 'conflict', 'skipped', 'override', 'subagents-off', 'ruler-apply', 'removed-upstream', 'blocked', 'leftover', 'nested-off', 'mcp-local', 'adopted']) {
     assert.ok(text.includes(`\`${kind}\``), `할 일 ${kind} 이 없다`);
   }
   assert.match(text, /guideline status --json/);

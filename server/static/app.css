@@ -68,6 +68,13 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 .side-list .blk { display: block; padding: 6px 8px; border-radius: 6px; color: var(--fg); font-size: 13px; overflow-wrap: anywhere; }
 .side-list .blk span:not(.nm):not(.domain):not(.real) { display: block; color: var(--faint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-list .blk:hover { background: var(--line-soft); text-decoration: none; }
+/* 하위 스택은 부모 아래에 깊이만큼 들인다. */
+.side-list li[data-depth="1"] { padding-left: 12px; }
+.side-list li[data-depth="2"] { padding-left: 24px; }
+.side-list li[data-depth="3"] { padding-left: 36px; }
+.side-list li[data-depth="4"] { padding-left: 48px; }
+.side-list li[data-depth="5"] { padding-left: 60px; }
+.child-list li { padding: 4px 0; }
 .side-list .blk.on { background: var(--accent-soft); color: var(--accent-text); }
 .side-none { color: var(--faint); font-size: 12.5px; padding: 4px 8px; margin: 0; }
 .tree { list-style: none; margin: 0 0 14px; padding: 0; }
@@ -252,6 +259,23 @@ main.bare.wide { max-width: 980px; margin: 24px auto 96px; }
 .act-add { background: var(--accent-soft); color: var(--accent-text); }
 .act-update { background: var(--warn-bg); color: var(--warn-fg); }
 .act-remove { background: var(--error-bg); color: var(--error-fg); }
+/* 지침 단계의 스택 나무(.stack 은 폼 배치용 클래스라 겹치지 않게 stack-group): 하위 스택은 깊이만큼 들여 쓰고 왼쪽 선으로 부모에 잇는다. 파일 행에는 선택 칸이 없다. */
+.group.stack-group > summary { flex-wrap: wrap; }
+.group.stack-group .when { flex-basis: 100%; padding-left: 26px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.group.stack-group.child { border-left: 3px solid var(--accent-soft); }
+.group.stack-group[data-depth="1"] { margin-left: 24px; }
+.group.stack-group[data-depth="2"] { margin-left: 48px; }
+.group.stack-group[data-depth="3"] { margin-left: 72px; }
+.group.stack-group[data-depth="4"] { margin-left: 96px; }
+.group.stack-group[data-depth="5"] { margin-left: 120px; }
+.row .main.file { padding-left: 26px; }
+@media (max-width: 760px) {
+  .group.stack-group[data-depth="1"] { margin-left: 12px; }
+  .group.stack-group[data-depth="2"] { margin-left: 24px; }
+  .group.stack-group[data-depth="3"] { margin-left: 36px; }
+  .group.stack-group[data-depth="4"] { margin-left: 48px; }
+  .group.stack-group[data-depth="5"] { margin-left: 60px; }
+}
 .note { padding: 6px 12px; font-size: 12.5px; background: var(--warn-bg); color: var(--warn-fg); border-top: 1px solid var(--line-soft); }
 .form-bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; background: var(--bg); border-top: 1px solid var(--line); box-shadow: var(--shadow); }
 .form-bar #summary { margin-right: auto; color: var(--muted); }

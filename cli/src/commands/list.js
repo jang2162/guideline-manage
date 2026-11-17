@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { stacks, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpServers, ignored, warnings, elementCategories, elementLabels } from '../catalog.js';
+import { stacks, stackWhen, stackTiers, stackOverrides, stackSetup, skills, subagents, mcpServers, ignored, warnings, elementCategories, elementLabels } from '../catalog.js';
 import { catalogSummary } from '../summary.js';
 import { remoteClient, loadSource, explain } from '../remote.js';
 import { serverFor } from '../workspace.js';
@@ -67,9 +67,12 @@ export async function list({ root, tree = null, json = false, out = console.log 
   const tiers = stacks(src).map(name => ({ name, files: stackTiers(name, src) }));
   const lines = alignColumns(tiers.flatMap(s => s.files.map(f => [f.path, notes(catNote(f.path), tierNote(f))])));
   for (const s of tiers) {
-    out(`  ${notes(s.name, labelNote(`rules/${s.name}`), catNote(`rules/${s.name}`), stackSetup(s.name, src) ? t('list.setupDoc') : '')}`);
-    for (const line of lines.splice(0, s.files.length)) out(`    ${line}`);
-    for (const o of stackOverrides(s.name, src).overrides) out(`    ${overrideLine(s.name, o)}`);
+    // 하위 스택은 깊이마다 두 칸씩 들여 쓴다. 이름은 스택 경로 그대로.
+    const pad = ' '.repeat(s.name.split('/').length * 2);
+    const when = stackWhen(s.name, src);
+    out(`${pad}${notes(when ? `${s.name} — ${when}` : s.name, labelNote(`rules/${s.name}`), catNote(`rules/${s.name}`), stackSetup(s.name, src) ? t('list.setupDoc') : '')}`);
+    for (const line of lines.splice(0, s.files.length)) out(`${pad}  ${line}`);
+    for (const o of stackOverrides(s.name, src).overrides) out(`${pad}  ${overrideLine(s.name, o)}`);
   }
   out(t('list.skills'));
   indented(skills(src).map(name => [name, notes(labelNote(`skills/${name}`), catNote(`skills/${name}`))]));

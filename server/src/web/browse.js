@@ -13,6 +13,7 @@ import { renderMarkdown, splitFrontmatter } from './markdown.js';
 import { t, template } from '../../../cli/src/i18n.js';
 import { marker } from '../../../cli/src/markers.js';
 import { viewHref, blockHref, blockOf, blockFiles, blockDir, namesOf, settingsHref, PROTECTED_DOCS, TAB, LIST_HREF, blockOfKey, keyOfBlock } from './blocks.js';
+import { ancestorKeys } from '../../../cli/src/blocks.js';
 
 const STATIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../static');
 const STATIC_FILES = {
@@ -21,11 +22,20 @@ const STATIC_FILES = {
   'forms.js': { file: path.join(STATIC_DIR, 'forms.js'), type: 'text/javascript; charset=utf-8' },
   // 폼 화면이 서버와 같은 선택 규칙을 쓴다.
   'selection.js': { file: path.resolve(STATIC_DIR, '../../cli/src/selection.js'), type: 'text/javascript; charset=utf-8' },
+  // selection.js 가 불러오는 블록 키 규칙.
+  'blocks.js': { file: path.resolve(STATIC_DIR, '../../cli/src/blocks.js'), type: 'text/javascript; charset=utf-8' },
 };
 
 const chips = list => (list?.length ? list.map(c => html`<span class="tag">${c}</span>`) : '');
 const loadChip = load => (load === null ? html`<span class="k warn">${t('web.warning')}</span>` : html`<span class="${load === 'always' ? 'k' : 'k ref'}">${load}</span>`);
 const warnCount = (s, prefix) => s.warnings.filter(w => w.path.startsWith(prefix)).length;
+/** 스택 자신의 경고. 자손 스택 안의 경고는 그 하위 스택의 것이라 뺀다. */
+const ownWarnings = (s, name) => s.warnings.filter(w => {
+  const b = blockOf(w.path, s);
+  return b?.kind === 'stack' && b.name === name;
+});
+/** 바로 아래 하위 스택, 이름순. */
+const childrenOf = (s, name) => s.stacks.filter(x => x.parent === name);
 
 /** 마크다운 문서 블록. raw 에는 렌더러가 이스케이프를 끝낸 결과만 넣는다. 상대 링크는 블록 상세·설정 주소로 푼다. */
 const docBlock = (ctx, text, p) => {
@@ -55,12 +65,13 @@ export function manageForms(p, kind) {
 function stackCard(st, cat) {
   const s = cat.summary;
   const count = load => st.files.filter(f => f.load === load).length;
-  const warns = warnCount(s, `rules/${st.name}/`);
+  const warns = ownWarnings(s, st.name).length;
+  const kids = childrenOf(s, st.name).length;
   const { intro } = cat.stacks.get(st.name);
   return html`<a class="card" href="${blockHref('stack', st.name)}">
 <span class="card-t"><b>${blockLabel(st.name, labelOf(s, 'stack', st.name))}</b><span class="n">${t('web.count', { n: st.files.length })}</span></span>
 ${intro ? html`<p class="card-d">${intro}</p>` : ''}
-<span class="card-m">${count('always') ? html`<span class="k">always ${count('always')}</span>` : ''}${count('reference') ? html`<span class="k ref">reference ${count('reference')}</span>` : ''}${chips(s.categories[`rules/${st.name}`])}${st.setup ? html`<span class="badge setup">${t('web.setupDoc')}</span>` : ''}${warns ? html`<span class="badge warn">${t('web.warnings', { n: warns })}</span>` : ''}</span>
+<span class="card-m">${count('always') ? html`<span class="k">always ${count('always')}</span>` : ''}${count('reference') ? html`<span class="k ref">reference ${count('reference')}</span>` : ''}${chips(s.categories[`rules/${st.name}`])}${st.setup ? html`<span class="badge setup">${t('web.setupDoc')}</span>` : ''}${kids ? html`<span class="badge">${t('web.childStacks.count', { n: kids })}</span>` : ''}${warns ? html`<span class="badge warn">${t('web.warnings', { n: warns })}</span>` : ''}</span>
 </a>`;
 }
 
@@ -79,8 +90,9 @@ function homePage(ctx) {
   const s = cat.summary;
   const want = ctx.url.searchParams.get('cat');
   const all = [...new Set(Object.values(s.categories).flat())].sort();
-  const stacks = s.stacks.filter(st => !want || (s.categories[`rules/${st.name}`] ?? []).includes(want)
-    || st.files.some(f => fileCategories(s.categories, f.path).includes(want)));
+  // 카드는 최상위 스택만 둔다. 하위 스택은 부모 상세의 「하위 스택」 목록에 있다. 분류로 거를 때는 맞는 하위 스택도 카드로 보인다.
+  const stacks = s.stacks.filter(st => (want ? (s.categories[`rules/${st.name}`] ?? []).includes(want)
+    || st.files.some(f => fileCategories(s.categories, f.path).includes(want)) : !st.parent));
   const fileCount = s.stacks.reduce((n, st) => n + st.files.length, 0);
   const chip = (label, href, on) => html`<a class="${on ? 'chip on' : 'chip'}" href="${href}">${label}</a>`;
   sendView(ctx, 200, {
@@ -195,13 +207,13 @@ ${admin && !PROTECTED_DOCS.includes(p) ? manageForms(p, 'file') : ''}`,
   };
 }
 
-/** 스택 README 아래에 두는 것: 경고, 다른 스택을 바꾸는 표, 세팅 문서. */
+/** 스택 README 아래에 두는 것(when 은 위 frontmatter 칩에 있다): 자기 경고, 지침 파일 표, 세팅 문서, 다른 스택을 바꾸는 표, 하위 스택 목록. */
 function stackExtras(ctx, cat, name) {
   const s = cat.summary;
   const head = ctx.store.headHashes();
   const st = s.stacks.find(x => x.name === name);
   const dir = `rules/${name}`;
-  const warns = s.warnings.filter(w => w.path.startsWith(`${dir}/`));
+  const warns = ownWarnings(s, name);
   const short = p => (p.startsWith(`${dir}/`) ? p.slice(dir.length + 1) : p.replace(/^rules\//, ''));
   // 파일마다 분류를 단 스택에서만 분류 칸을 둔다(스택 분류는 위 칩에 있다).
   const fileCats = st.files.some(f => s.categories[f.path]?.length);
@@ -209,13 +221,13 @@ function stackExtras(ctx, cat, name) {
     const href = viewHref(w.path.replace(/\/$/, ''), s, q => head.has(q));
     return html`<li>${href ? html`<a href="${href}">${short(w.path) || name}</a>` : short(w.path) || name} — ${w.message}</li>`;
   })}</ul></div>` : ''}
-<h2>${t('web.files')}</h2>
+${st.files.length ? html`<h2>${t('web.files')}</h2>
 <div class="table-wrap"><table class="list">
 <thead><tr><th>${t('web.col.file')}</th><th>${t('web.col.load')}</th><th>${t('web.col.when')}</th>${fileCats ? html`<th>${t('web.categories')}</th>` : ''}</tr></thead>
 <tbody>
 ${st.files.map(f => html`<tr><td class="name"><a href="${viewHref(f.path, s)}">${short(f.path)}</a></td><td>${loadChip(f.load)}</td><td>${f.when ?? ''}</td>${fileCats ? html`<td>${chips(s.categories[f.path])}</td>` : ''}</tr>
 `)}</tbody>
-</table></div>
+</table></div>` : ''}
 ${st.setup ? html`<p>${t('web.setupDocLabel')} <a href="${blockHref('stack', name, 'SETUP.md')}">SETUP.md</a></p>` : ''}
 ${st.overrides.length ? html`<h2>${marker('overridesSection')}</h2>
 <div class="table-wrap"><table class="list">
@@ -223,7 +235,23 @@ ${st.overrides.length ? html`<h2>${marker('overridesSection')}</h2>
 <tbody>
 ${st.overrides.map(o => html`<tr><td><a href="${viewHref(o.from.path, s)}">${short(o.from.path)}</a> ${t('web.quoted', { title: o.from.title })}</td><td><a href="${viewHref(o.to.path, s)}">${short(o.to.path)}</a> ${t('web.quoted', { title: o.to.title })}</td></tr>
 `)}</tbody>
-</table></div>` : ''}`;
+</table></div>` : ''}
+${childrenSection(ctx, cat, name)}`;
+}
+
+/** 스택 상세의 「하위 스택」 목록(이름, 표시 이름, when). 관리자에게는 하위 스택 추가 링크. 둘 다 없으면 비운다. */
+function childrenSection(ctx, cat, name) {
+  const s = cat.summary;
+  const kids = childrenOf(s, name);
+  const admin = isAdmin(ctx);
+  if (!kids.length && !admin) return '';
+  return html`<section class="children">
+<h2>${t('web.childStacks.title')}</h2>
+${kids.length ? html`<ul class="plain child-list">
+${kids.map(k => html`<li><a href="${blockHref('stack', k.name)}">${blockLabel(k.name, labelOf(s, 'stack', k.name))}</a>${k.when ? html` <span class="meta">— ${k.when}</span>` : ''}</li>
+`)}</ul>` : html`<p class="meta">${t('web.childStacks.none')}</p>`}
+${admin ? html`<p><a class="button secondary" href="${`/add?kind=stack&parent=${encodeURIComponent(name)}`}">${t('web.add.child')}</a></p>` : ''}
+</section>`;
 }
 
 /**
@@ -275,28 +303,61 @@ ${loads.size ? html`<p class="legend">${t('web.tree.legend')}</p>` : ''}
 ${isAdmin(ctx) ? html`<div class="tools"><a class="button secondary" href="${settingsHref(kind, name)}">${t('web.tree.settings', { kind: t(`web.add.kind.${kind}`) })}</a></div>` : ''}`;
 }
 
-/** 블록 상세(스택·스킬·MCP): 왼쪽 블록 목록, 그 옆 파일 트리, 오른쪽 고른 파일. */
+/** 스택 상세: 주소 하나(/s/<경로>)를 카탈로그 스택 이름의 최장 접두로 스택과 파일로 가른다. */
+function stackPage(ctx) {
+  const p = `rules/${(ctx.params.path ?? '').normalize('NFC').replace(/\/+$/, '')}`;
+  const b = blockOf(p, catalogAt(ctx.store).summary);
+  if (b?.kind !== 'stack') throw new HttpError(404, t('web.noStack'));
+  blockView(ctx, 'stack', b.name, b.rel);
+}
+
+/** 스킬·MCP 상세: /<종류>/<이름>/<파일>. */
 function blockPage(ctx, kind) {
-  const name = ctx.params.name.normalize('NFC');
-  const rel = (ctx.params.path ?? '').normalize('NFC').replace(/\/+$/, '');
+  blockView(ctx, kind, ctx.params.name.normalize('NFC'), (ctx.params.path ?? '').normalize('NFC').replace(/\/+$/, ''));
+}
+
+/** 빵부스러기: 탭 목록, 하위 스택이면 조상 스택들(먼 것부터). */
+function blockCrumbs(s, kind, name) {
+  const crumbs = [{ label: TAB_LABEL[kind](), href: LIST_HREF[kind] }];
+  if (kind !== 'stack') return crumbs;
+  const ancestors = ancestorKeys(keyOfBlock(kind, name)).reverse().map(k => k.slice('rules/'.length));
+  return [...crumbs, ...ancestors.map(a => ({ label: labelOf(s, 'stack', a) ?? a, href: blockHref('stack', a) }))];
+}
+
+/** 블록 상세(스택·스킬·MCP): 왼쪽 블록 목록, 그 옆 파일 트리, 오른쪽 고른 파일. 파일이 하나도 없는 묶음 스택은 하위 스택 목록만. */
+function blockView(ctx, kind, name, rel) {
   const cat = catalogAt(ctx.store);
   const s = cat.summary;
   if (!namesOf(s, kind).includes(name)) throw new HttpError(404, kind === 'stack' ? t('web.noStack') : t('web.noBlock'));
   const files = blockFiles(ctx.store, kind, name);
   const dir = blockDir(kind, name);
+  const common = {
+    h1: blockLabel(name, labelOf(s, kind, name)),
+    crumbs: blockCrumbs(s, kind, name),
+    tab: TAB[kind],
+  };
+  if (kind === 'stack' && !rel && !files.length) {
+    sendView(ctx, 200, {
+      ...common,
+      title: name,
+      detail: { left: blockList(cat, kind, name), right: filesPanel(ctx, kind, name, files, '') },
+      body: html`${requiresLine(cat, kind, name)}${stackExtras(ctx, cat, name)}`,
+    });
+    return;
+  }
   const firstRule = kind === 'stack' ? s.stacks.find(x => x.name === name).files[0]?.path.slice(dir.length + 1) : undefined;
   const current = rel || DEFAULT_FILES[kind].find(f => files.includes(f)) || firstRule || files[0];
   if (!files.includes(current)) throw new HttpError(404, t('api.noFile'));
   const p = `${dir}/${current}`;
   const view = fileView(ctx, p);
   sendView(ctx, 200, {
+    ...common,
     title: `${name} · ${current}`,
-    h1: blockLabel(name, labelOf(s, kind, name)),
-    crumbs: [{ label: TAB_LABEL[kind](), href: LIST_HREF[kind] }],
-    tab: TAB[kind],
     actions: html`${view.actions}<a class="button secondary" href="${hrefFor('/archive/', dir)}">${t('web.archive')}</a>`,
     detail: { left: blockList(cat, kind, name), right: filesPanel(ctx, kind, name, files, current) },
-    body: html`${requiresLine(cat, kind, name)}${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(ctx, cat, name) : ''}`,
+    // 하위 스택 목록은 README 화면에 묶지 않는다. README 없는 부모는 첫 화면이 첫 지침 파일이라 그래도 보여야 한다.
+    body: html`${requiresLine(cat, kind, name)}${view.body}${kind === 'stack' && current === 'README.md' ? stackExtras(ctx, cat, name)
+      : kind === 'stack' && !rel ? childrenSection(ctx, cat, name) : ''}`,
   });
 }
 
@@ -341,8 +402,8 @@ export function registerBrowse(router) {
   router.add('GET', '/', ctx => {
     if (requireReadWeb(ctx)) homePage(ctx);
   });
-  router.add('GET', '/s/:name/*path', ctx => {
-    if (requireReadWeb(ctx)) blockPage(ctx, 'stack');
+  router.add('GET', '/s/*path', ctx => {
+    if (requireReadWeb(ctx)) stackPage(ctx);
   });
   for (const tab of Object.keys(TAB_PAGES)) {
     router.add('GET', `/${tab}`, ctx => {
@@ -377,7 +438,8 @@ export function registerBrowse(router) {
     if (p !== dir) throw new HttpError(404, t('web.noBlock'));
     const files = blockFiles(ctx.store, b.kind, b.name).map(rel => ({ path: `${dir}/${rel}`, content: ctx.store.fileAt(`${dir}/${rel}`, head) }));
     sendBody(ctx.res, 200, tarGz(files, { mtime: ctx.now() }), 'application/gzip', {
-      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(`${b.name}-r${head}.tar.gz`)}`,
+      // 하위 스택 이름의 / 는 파일 이름에 쓸 수 없어 - 로.
+      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(`${b.name.replaceAll('/', '-')}-r${head}.tar.gz`)}`,
     });
   });
   // llms.txt 를 사람이 읽는 화면. 원문과 같이 비밀이 없어 PUBLIC_READ 와 상관없이 연다.

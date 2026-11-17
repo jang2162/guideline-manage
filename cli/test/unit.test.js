@@ -45,4 +45,8 @@ test('rootNestedOn 과 rootStacks', t => {
     items: ['rules/base/00-a.md', 'rules/base/SETUP.md', 'rules/orca/01-b.md', 'skills/s'],
   }));
   assert.deepEqual(rootStacks(root), ['base', 'orca']);
+  write(root, 'guideline.json', manifestText({ version: 3, form: 'ruler', agents: ['claude'], sources: {
+    default: { server: 'http://x', items: ['rules/browser', 'rules/browser/neo', 'rules/base'], aliases: { 'rules/browser': 'web' } },
+  } }));
+  assert.deepEqual(rootStacks(root), ['base', 'web', 'web/neo']);
 });

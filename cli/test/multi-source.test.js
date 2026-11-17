@@ -63,7 +63,7 @@ function snapshot(p) {
   return out;
 }
 
-test('update: 0.13(v1) 프로젝트는 파일이 바이트까지 같고 매니페스트·잠금만 v2 가 된다', async t => {
+test('update: 0.13(v1) 프로젝트는 파일이 바이트까지 같고 매니페스트는 v3(블록 키)·잠금은 v2 가 된다', async t => {
   const { a, env } = await servers(t);
   const p = project(t);
   const items = ['rules/base/00-a.md', 'rules/base/01-b.md', 'rules/base/SETUP.md', 'skills/s', 'mcp/c7'];
@@ -76,7 +76,8 @@ test('update: 0.13(v1) 프로젝트는 파일이 바이트까지 같고 매니�
   assert.equal(await projectUpdate({ project: p, env, ...quiet, out: () => {} }), 0);
   assert.deepEqual(snapshot(p), before);
   assert.deepEqual(Object.keys(readManifest(p).sources), ['default']);
-  assert.match(read(p, 'guideline.json'), /"version": 2/);
+  assert.match(read(p, 'guideline.json'), /"version": 3/);
+  assert.deepEqual(readManifest(p).sources.default.items, ['mcp/c7', 'rules/base', 'skills/s']);
   assert.match(read(p, 'guideline-lock.json'), /"default:rules\/base\/00-a\.md"/);
 });
 
@@ -137,7 +138,11 @@ test('status: 출처가 둘이면 항목을 <출처>:<id> 로 보인다', async 
   const o = collect();
   assert.equal(await projectStatus({ project: p, env, json: true, out: o.out }), 0);
   const s = JSON.parse(o.text());
-  assert.deepEqual(s.items.map(i => [i.id, i.state]).sort(), [['a:rules/base/00-a.md', 'current'], ['b:rules/base/00-a.md', 'upstream']]);
+  // 고른 스택(rules/base)의 파일 전부가 출처마다 보인다
+  assert.deepEqual(s.items.map(i => [i.id, i.state]).sort(), [
+    ['a:rules/base/00-a.md', 'current'], ['a:rules/base/01-b.md', 'current'], ['a:rules/base/SETUP.md', 'current'],
+    ['b:rules/base/00-a.md', 'upstream'], ['b:rules/base/01-b.md', 'current'], ['b:rules/base/SETUP.md', 'current'],
+  ]);
   assert.deepEqual(s.token, { a: { name: 'cli-t', scope: 'propose' }, b: { name: 'cli-t', scope: 'propose' } });
   const text = collect();
   await projectStatus({ project: p, env, out: text.out });
@@ -186,7 +191,7 @@ test('pick --source 로 출처를 추가하고, --source 없이는 출처마다 
     return {};
   }) });
   assert.deepEqual(order, ['company', 'personal']);
-  assert.deepEqual(readManifest(p).sources.personal.items, ['rules/base/00-a.md']);
+  assert.deepEqual(readManifest(p).sources.personal.items, ['rules/base']);
 });
 
 test('다른 출처가 쓰는 이름은 폼에서 blocked 이고, 매니페스트로 겹치게 하면 쓰지 않고 2', async t => {
@@ -200,14 +205,15 @@ test('다른 출처가 쓰는 이름은 폼에서 blocked 이고, 매니페스�
   assert.equal(item.state, 'blocked');
   assert.match(item.reason, /다른 출처\(personal\)가 이미 쓰는 이름/);
   const m = JSON.parse(read(p, 'guideline.json'));
-  m.sources.company = { server: b.base, items: ['rules/base/01-b.md'] };
+  m.sources.company = { server: b.base, items: ['rules/base'] };
   write(p, 'guideline.json', JSON.stringify(m));
   const before = read(p, 'guideline-lock.json');
+  const files = snapshot(p);
   const e = collect();
   assert.equal(await projectPick({ project: p, source: 'company', env, ...pickQuiet, err: e.out, open: driverMany([a, b], () => ({})) }), 2);
   assert.match(e.text(), /이름 충돌: 스택 base — company 와 personal/);
   assert.equal(read(p, 'guideline-lock.json'), before);
-  assert.equal(exists(p, 'docs/guideline/base/01-b.md'), false);
+  assert.deepEqual(snapshot(p), files);
 });
 
 test('별칭을 주면 두 출처의 같은 이름 스택을 함께 받는다', async t => {
@@ -224,7 +230,7 @@ test('별칭을 주면 두 출처의 같은 이름 스택을 함께 받는다', 
   assert.match(read(p, '.ruler/company-base/00-a.md'), /회사 본문/);
   assert.match(read(p, '.ruler/base/00-a.md'), /본문 A/);
   assert.match(read(p, '.ruler/guideline.md'), /\| company-base \| company \| `docs\/guideline\/company-base\/SETUP\.md` \|/);
-  assert.deepEqual(readManifest(p).sources.company.items, ['rules/base/00-a.md', 'rules/base/SETUP.md']);
+  assert.deepEqual(readManifest(p).sources.company.items, ['rules/base']);
 });
 
 test('취소한 출처는 이전 선택과 잠금 리비전 그대로다', async t => {
@@ -436,4 +442,31 @@ test('별칭을 바꿔도 프로젝트에서 고친 예전 자리 사본은 지�
   assert.match(read(p, '.ruler/bb/00-a.md'), /본문 A/);
   assert.ok(JSON.parse(o.text()).todos.some(x => x.kind === 'leftover' && x.message.includes('.ruler/b-base/00-a.md')));
   assert.ok(!readLock(p).outputs.some(x => x.path === '.ruler/b-base/00-a.md'));
+});
+
+const SUB = { 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n\n본문 S\n` };
+
+test('pick: 하위 스택 파일 하나만 체크해도 그 하위 스택과 조상 스택을 블록 키로 받고, 그 파일 전부를 쓴다', async t => {
+  const { a, b, env } = await servers(t);
+  a.store.commit({ ...META, changes: SUB });
+  const p = project(t);
+  assert.equal(await projectPick({ project: p, source: 'personal', server: a.base, env, ...pickQuiet,
+    open: driverMany([a, b], (s, d) => ({ choices: checkOnly(i => i.id === 'rules/base/sub/00-s.md')(d.items) })) }), 0);
+  assert.deepEqual(readManifest(p).sources.personal.items, ['rules/base', 'rules/base/sub']);
+  assert.match(read(p, '.ruler/base/sub/00-s.md'), /본문 S/);
+  assert.ok(exists(p, '.ruler/base/00-a.md') && exists(p, 'docs/guideline/base/01-b.md') && exists(p, 'docs/guideline/base/SETUP.md'));
+  assert.ok(readLock(p).sources['personal:rules/base/sub/00-s.md']);
+});
+
+test('출처 폼: 다른 출처가 쓰는 스택의 하위 스택도 blocked 다', async t => {
+  const { a, b, env } = await servers(t);
+  b.store.commit({ ...META, changes: SUB });
+  const p = project(t);
+  await projectPick({ project: p, source: 'personal', server: a.base, env, ...pickQuiet,
+    open: driverMany([a, b], (s, d) => ({ choices: checkOnly(i => i.id === 'rules/base/00-a.md')(d.items) })) });
+  const seen = [];
+  await projectPick({ project: p, source: 'company', server: b.base, env, ...pickQuiet, open: driverMany([a, b], () => ({ cancel: true }), seen) });
+  const item = seen[0].data.items.find(i => i.id === 'rules/base/sub/00-s.md');
+  assert.equal(item.state, 'blocked');
+  assert.match(item.reason, /다른 출처\(personal\)가 이미 쓰는 이름/);
 });

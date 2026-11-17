@@ -1,11 +1,12 @@
 // 목록 화면의 블록 추가: 스택·스킬·서브에이전트·MCP 를 바로 목록에 뜨는 최소 파일까지 한 리비전으로 만든다.
+// 하위 스택은 부모 상세의 링크(/add?kind=stack&parent=<경로>)로 들어와 rules/<부모>/<이름>/ 에 만든다.
 // 카탈로그 규칙은 그대로다. README 만 있는 스택이나 server.json 없는 MCP 는 목록에서 빠지므로 첫 지침 파일·server.json 틀을 함께 만든다.
 import { HttpError, readForm, redirect } from '../http.js';
 import { WriteError } from '../store.js';
 import { checkOrigin, requireAdminWeb } from './auth.js';
 import { html } from './layout.js';
-import { sendView } from './frame.js';
-import { blockHref, TAB } from './blocks.js';
+import { sendView, catalogAt } from './frame.js';
+import { blockHref, blockDir, namesOf, TAB } from './blocks.js';
 import { TEMPLATES } from './templates.js';
 import { t, template } from '../../../cli/src/i18n.js';
 import { setFrontmatterValue, categoriesValue } from '../../../cli/src/frontmatter.js';
@@ -32,8 +33,9 @@ function withMeta(text, { label = '', categories = [], requires = [] }) {
  */
 export function blockStarter(kind, name, meta) {
   if (kind === 'stack') {
+    // 하위 스택(`부모/이름`)의 제목은 마지막 조각.
     return {
-      [`rules/${name}/README.md`]: withMeta(fillName(template('new-file/readme.md'), name), meta),
+      [`rules/${name}/README.md`]: withMeta(fillName(template('new-file/readme.md'), name.slice(name.lastIndexOf('/') + 1)), meta),
       [`rules/${name}/00-general.md`]: TEMPLATES.always.content,
     };
   }
@@ -45,13 +47,22 @@ export function blockStarter(kind, name, meta) {
   };
 }
 
-function addForm(ctx, kind, { status = 200, error = null, values = {} } = {}) {
+/** 하위 스택을 더할 부모. 스택이 아니거나 비면 ''. 카탈로그에 없는 부모는 404. */
+function addParent(ctx, kind, raw) {
+  const parent = kind === 'stack' ? (raw ?? '').normalize('NFC').trim() : '';
+  if (parent && !namesOf(catalogAt(ctx.store).summary, 'stack').includes(parent)) throw new HttpError(404, t('web.noStack'));
+  return parent;
+}
+
+function addForm(ctx, kind, { status = 200, error = null, values = {}, parent = '' } = {}) {
   sendView(ctx, status, {
-    title: t('web.add.title', { kind: t(`web.add.kind.${kind}`) }),
+    title: parent ? t('web.add.childTitle', { parent }) : t('web.add.title', { kind: t(`web.add.kind.${kind}`) }),
     tab: TAB[kind],
+    crumbs: parent ? [{ label: t('web.tab.stacks'), href: '/' }, { label: parent, href: blockHref('stack', parent) }] : [],
     body: html`${error ? html`<p class="error">${error}</p>` : ''}
 <form method="post" action="/add" class="stack">
 <input type="hidden" name="kind" value="${kind}">
+${parent ? html`<input type="hidden" name="parent" value="${parent}"><p class="meta">${t('web.add.parent', { parent })}</p>` : ''}
 <label>${t('web.add.name')} <input name="name" value="${values.name ?? ''}" required pattern="[a-z][a-z0-9\\-]{0,63}"></label>
 ${kind === 'stack' ? html`<label>${t('web.add.domain')} <input name="domain" value="${values.domain ?? ''}" placeholder="gitlab.example.com"></label>` : ''}
 <label>${t('web.add.label')} <input name="label" value="${values.label ?? ''}"></label>
@@ -68,7 +79,7 @@ export function registerAdd(router) {
     if (!requireAdminWeb(ctx)) return;
     const kind = ctx.url.searchParams.get('kind') ?? '';
     if (!KINDS.includes(kind)) throw new HttpError(404, t('web.noBlock'));
-    addForm(ctx, kind);
+    addForm(ctx, kind, { parent: addParent(ctx, kind, ctx.url.searchParams.get('parent')) });
   });
   router.add('POST', '/add', async ctx => {
     if (!requireAdminWeb(ctx)) return;
@@ -76,15 +87,18 @@ export function registerAdd(router) {
     const form = await readForm(ctx.req);
     const kind = form.get('kind') ?? '';
     if (!KINDS.includes(kind)) throw new HttpError(404, t('web.noBlock'));
+    const parent = addParent(ctx, kind, form.get('parent'));
     const values = { name: (form.get('name') ?? '').trim(), domain: (form.get('domain') ?? '').trim(), categories: (form.get('categories') ?? '').trim(), label: (form.get('label') ?? '').trim(), requires: (form.get('requires') ?? '').trim() };
-    const fail = error => addForm(ctx, kind, { status: 400, error, values });
+    const fail = error => addForm(ctx, kind, { status: 400, error, values, parent });
     if (!NAME.test(values.name)) return fail(t('web.add.badName'));
     if (kind === 'stack' && values.domain && !DOMAIN.test(values.domain)) return fail(t('web.add.badDomain'));
-    const name = kind === 'stack' && values.domain ? `${values.name}__${values.domain}` : values.name;
+    // 이름 검사는 마지막 조각에. 하위 스택은 부모 경로 아래에 둔다.
+    const piece = kind === 'stack' && values.domain ? `${values.name}__${values.domain}` : values.name;
+    const name = parent ? `${parent}/${piece}` : piece;
     const categories = values.categories.split(',').map(c => c.trim()).filter(Boolean);
     const requires = [...new Set(values.requires.split(',').map(c => c.trim()).filter(Boolean))];
     const files = blockStarter(kind, name, { label: values.label, categories, requires });
-    const prefix = kind === 'agent' ? null : `${Object.keys(files)[0].split('/').slice(0, 2).join('/')}/`;
+    const prefix = kind === 'agent' ? null : `${blockDir(kind, name)}/`;
     const taken = [...ctx.store.headHashes().keys()].some(p => (prefix ? p.startsWith(prefix) : p in files));
     if (taken) return fail(t('web.add.exists'));
     try {
