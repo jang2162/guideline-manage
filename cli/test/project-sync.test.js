@@ -15,6 +15,7 @@ import { readManifest, readLock, manifestText, lockText } from '../src/manifest.
 import { runGit } from '../src/projects.js';
 import { PROJECT_TOML, RULER_TOML } from '../src/layout.js';
 import { RULER_TOML_BASE } from '../src/render/outputs.js';
+import { writeOldLayout } from './old-layout.js';
 import { readBlock } from '../src/gitignore-block.js';
 
 async function server(t) {
@@ -308,25 +309,20 @@ test('중첩 디렉터리: 그 안에만 쓰고, 루트 전용 항목은 막히�
 
 test('v2 일부 선택은 update 에서 스택 전체가 된다', async t => {
   const { s, env } = await server(t);
-  const p = gitProject(t, { '.ruler/ruler.toml': 'default_agents = ["claude"]\n' });
-  const first = render({
-    tree: memoryTree(SOURCE), revision: 1, manifest: manifestOf('ruler', ['rules/base/00-a.md'], { agents: ['claude'] }), lock: null, project: diskReader(p),
-  });
-  applyFiles(p, first.files);
-  write(p, 'guideline.json', `${JSON.stringify({
-    version: 2, form: 'ruler', agents: ['claude'], sources: { default: { server: s.base, items: ['rules/base/00-a.md'] } },
-  }, null, 2)}\n`);
-  write(p, 'guideline-lock.json', lockText(first.lock));
+  const p = gitProject(t);
+  // 옛 배치(v2): 스택 base 에서 00-a 만 받았다
+  writeOldLayout(p, { server: s.base, items: ['rules/base/00-a.md'], only: ['rules/base/00-a.md'] });
   assert.equal(exists(p, 'docs/guideline/base/01-b.md'), false);
 
   const o = collect();
   assert.equal(await projectUpdate({ project: p, env, ...quiet, json: true, out: o.out }), 0);
   const r = JSON.parse(o.text());
-  for (const f of ['docs/guideline/base/01-b.md', 'docs/guideline/base/SETUP.md', '.ruler/base/99-reference.md']) {
+  for (const f of ['.guideline/rules/base/01-b.md', '.guideline/rules/base/SETUP.md', 'docs/guideline/base/01-b.md', 'docs/guideline/base/SETUP.md', '.ruler/base/99-reference.md']) {
     assert.ok(r.written.includes(f), f);
     assert.ok(exists(p, f), f);
   }
   assert.equal(r.todos.some(x => x.kind === 'new-file'), false);
+  assert.ok(r.todos.some(x => x.kind === 'manifest-v3'));
   const saved = JSON.parse(read(p, 'guideline.json'));
   assert.equal(saved.version, 3);
   assert.deepEqual(saved.sources.default.items, ['rules/base']);

@@ -16,16 +16,20 @@ import { sha256, itemHash, treeHashes } from '../src/hashes.js';
 export function writeOldLayout(p, {
   server = 'http://x', items = ['rules/base/00-a.md', 'rules/base/01-b.md', 'rules/base/SETUP.md', 'skills/s', 'mcp/c7'],
   source = SOURCE, revision = 1, agents = ['claude'], toml = RULER_TOML_BASE(agents), rulerAgentsEnabled = false, lock: withLock = true,
-  aliases = {},
+  aliases = {}, only = null, v1 = false,
 } = {}) {
-  const raw = { version: 2, form: 'ruler', agents, sources: { default: { server, items, ...(Object.keys(aliases).length ? { aliases } : {}) } } };
+  // v1(0.13 까지)은 출처 하나를 최상위에 적고 잠금도 출처를 붙이지 않는다
+  const raw = v1
+    ? { version: 1, server, form: 'ruler', instructionFiles: [], agents, items }
+    : { version: 2, form: 'ruler', agents, sources: { default: { server, items, ...(Object.keys(aliases).length ? { aliases } : {}) } } };
   const manifest = checkManifest(raw);
   const tree = memoryTree(source);
   const v = virtualize({ manifest, lock: null, trees: new Map([['default', { server, revision, tree }]]) });
-  const ids = expandBlocks(v.tree, v.view.items);
+  // only 를 주면 그 파일 id 만 받은 프로젝트(v2 의 파일 단위 선택)
+  const ids = expandBlocks(v.tree, v.view.items).filter(id => !only || only.includes(id));
   const { outputs } = desiredOutputs({ tree: v.tree, manifest: v.view, items: ids, rulerAgentsEnabled });
   let text = toml;
-  const real = id => qualify('default', realId(id, aliases));
+  const real = id => (v1 ? id : qualify('default', realId(id, aliases)));
   const lockOutputs = [];
   for (const o of outputs) {
     if (o.kind === 'file') write(p, o.path, o.content);
@@ -37,7 +41,7 @@ export function writeOldLayout(p, {
   if (!withLock) return { manifest, lock: null };
   const hashes = treeHashes(v.tree);
   const lock = {
-    version: 2, revisions: { default: revision },
+    version: v1 ? 1 : 2, ...(v1 ? { revision } : { revisions: { default: revision } }),
     sources: Object.fromEntries(ids.map(id => [real(id), itemHash(hashes, id)])),
     outputs: lockOutputs,
   };

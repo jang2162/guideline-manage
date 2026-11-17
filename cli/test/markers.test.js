@@ -50,8 +50,8 @@ test('한 표 안에 두 표기가 섞여도 읽는다', () => {
 test('바꿈 첫 줄: Overrides: 와 바꾸는 절: 이 같은 대상을 낸다, 한 파일에 섞여도 읽는다', t => {
   const p = tmpDir('guideline-proj-');
   t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  write(p, '.ruler/base/override.md', '# 바꿈\n\n## 하나\n\nOverrides: `base/06-x.md` "절"\n\n규칙\n\n## 둘\n\n바꾸는 절: `base/06-x.md` 「절」\n\n규칙\n\n## 셋\n\nOverrides: `base/06-x.md`\n\n전체\n');
-  const got = checkOverrides(readProjectOverrides(p, 'ruler', []), memoryTree(base)).map(o => [o.heading, o.target, o.title, o.valid]);
+  write(p, '.guideline/overrides/base/override.md', '# 바꿈\n\n## 하나\n\nOverrides: `base/06-x.md` "절"\n\n규칙\n\n## 둘\n\n바꾸는 절: `base/06-x.md` 「절」\n\n규칙\n\n## 셋\n\nOverrides: `base/06-x.md`\n\n전체\n');
+  const got = checkOverrides(readProjectOverrides(p), memoryTree(base)).map(o => [o.heading, o.target, o.title, o.valid]);
   assert.deepEqual(got, [['하나', 'rules/base/06-x.md', '절', true], ['둘', 'rules/base/06-x.md', '절', true], ['셋', 'rules/base/06-x.md', null, true]]);
 });
 
