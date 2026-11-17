@@ -50,7 +50,7 @@ Until then `status`, `propose` and `apply` stop with "This project still uses th
    - moves the settings of `.ruler/ruler.toml` into `.ruler/ruler.project.toml`, without the MCP tables that were received unchanged (an MCP table you changed stays and leaves an `mcp-conflict` to-do);
    - composes the generated files, writes the `.gitignore` block and removes the old copies, their indexes, the management guideline, `docs/guideline/README.md`, `ruler.toml` and the moved overrides from the git index (`git rm --cached`; the files stay on disk). A project file you added to a stack folder stays where it is, tracked;
    - rewrites `guideline.json` as version 3, which adds the rest of each chosen stack's files (`manifest-v3` to-do);
-   - changes `prepare` in `package.json` from `ruler apply` to `guideline apply` when `guideline-manage` is a dependency.
+   - changes `prepare` in `package.json` from `ruler apply` to `guideline apply` when `guideline-manage` is a dependency and `ruler apply` has no arguments (with arguments you get a `prepare-manual` to-do and change it by hand).
 4. Review `git status` and commit once: `.guideline/`, `guideline.json`, `guideline-lock.json`, `.ruler/ruler.project.toml`, `.gitignore`, `package.json` and the removed old copies.
 5. Add the CLI to the project if you have a `package.json`, so that `prepare` can compose the files after a clone.
 
@@ -59,8 +59,11 @@ Until then `status`, `propose` and `apply` stop with "This project still uses th
    guideline apply                 # changes prepare from ruler apply to guideline apply
    ```
 
-   Without `guideline-manage` as a dependency the CLI leaves `prepare` alone and gives a `dev-dependency` to-do with the command. Without a `package.json` you get an `apply-hook` to-do: call `guideline apply` from your setup step (Orca: `scripts.setup` in `orca.yaml`).
+   Without `guideline-manage` as a dependency the CLI leaves `prepare` alone and gives a `dev-dependency` to-do with the command; `status` and `update` repeat it until you add it. Until then, `prepare` in a clone or a new worktree runs only ruler and writes an `AGENTS.md` without the guidelines. Without a `package.json` you get an `apply-hook` to-do: call `guideline apply` from your setup step (Orca: `scripts.setup` in `orca.yaml`).
 6. Teammates pull, upgrade the CLI and run `guideline apply` (or `pnpm install` when `prepare` calls it). The generated files are not in git.
+   - Pulling the move commit deletes the old generated files (`.ruler/<stack>/`, `.ruler/ruler.toml`, `docs/guideline/`) from their working tree, because git no longer tracks them. Run `guideline apply` right away. Do not run `ruler apply` alone before it: without `.ruler/ruler.toml` ruler writes files for every agent with nested off.
+   - An unmerged branch that edited an old copy (`.ruler/<stack>/NN-*.md` or `docs/guideline/<stack>/…`) gets a modify/delete conflict when it merges the move. Put the edit in the copy at `.guideline/<id>` (for example `.guideline/rules/<stack>/NN-*.md`, which keeps the source's frontmatter; edit below it), then resolve the conflict by deleting the old path.
+   - In a monorepo, `guideline apply` at the git root composes every committed unit below it too.
 
 > [!WARNING]
 > **Fix the `ruler` stack of your source.** If your guideline source has a stack that teaches ruler (for example `ruler`), it likely says `.ruler/` is the source, `ruler.toml` holds the settings and `prepare` runs `ruler apply`. That text lives on your server, not in this repository, and it is wrong for the new layout: say that `.guideline/` holds the received copies, that `.ruler/<stack>/`, `.ruler/guideline.md` and `ruler.toml` are generated, that ruler settings go in `.ruler/ruler.project.toml`, and that `prepare` runs `guideline apply`. Edit it on the web or send it with `guideline propose`.
@@ -86,7 +89,7 @@ A server that was started before the versions below keeps the old text, so updat
 >
 > - Authoring rules: the "Child stacks" section, the child stack row in "Where things go", and the `<stack path>/<file>` cell and descendant warning in "Overriding another stack". Also the places a stack lands in a project (`.guideline/rules/<stack>/`, composed into `.ruler/<stack>/` and `docs/guideline/<stack>/`) in "Where things go", "Setup docs", "Display names", "Child stacks" and "Aliases".
 > - `guideline-sync`: the child stack sentences in steps 1 and 2 of "Recommend and receive", and in "Handling to-dos" remove `new-file` from the `new-file`, `removed-upstream` row (the to-do no longer exists) and extend the `leftover` row.
-> - `guideline-sync` for the `.guideline/` layout: the precondition about the old layout, the `guideline apply --json` row in "What to do", and in "Handling to-dos" the new kinds `apply`, `root-apply`, `no-copy`, `override-unchosen`, `mcp-conflict`, `untracked`, `stray-ruler-output`, `migrated`, `manifest-v3`, `prepare`, `dev-dependency` and `apply-hook`. Remove `mcp-local`; the `mcp-build`, `subagents-off` and `nested-off` rows now name `.ruler/ruler.project.toml`; the `alias` row names `.guideline/overrides/<new name>/`; the Rules say not to edit `.guideline/` copies or the generated files.
+> - `guideline-sync` for the `.guideline/` layout: the precondition about the old layout, the `guideline apply --json` row in "What to do", and in "Handling to-dos" the new kinds `apply`, `root-apply`, `unit-update`, `unit-problem`, `root-ruler-toml`, `no-copy`, `override-unchosen`, `mcp-conflict`, `untracked`, `stray-ruler-output`, `migrated`, `manifest-v3`, `prepare`, `prepare-manual`, `dev-dependency` and `apply-hook`. Remove `mcp-local`; the `mcp-build`, `subagents-off` and `nested-off` rows now name `.ruler/ruler.project.toml`; the `alias` row names `.guideline/overrides/<new name>/`; the Rules say not to edit `.guideline/` copies or the generated files.
 > - `guideline-export`: in step 1 and the example table, the places of the received copies (`.guideline/…`) and overrides (`.guideline/overrides/<stack path>/`), and `.ruler/ruler.project.toml` as the project's MCP settings.
 
 ## Next

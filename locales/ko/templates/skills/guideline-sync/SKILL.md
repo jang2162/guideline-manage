@@ -63,6 +63,9 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `ruler-apply` | 안내한 명령을 실행해도 되는지 묻는다 |
 | `apply` | 에이전트 파일(생성물)이 낡았다(`status` 에서, 또는 쓰지 못한 채 끝난 이전 뒤). `guideline apply` 를 돌린다. 커밋하기 전에 돌린다. 안 그러면 `git add -A` 가 옛 사본을 다시 넣는다 |
 | `root-apply` | git 루트에 아직 `.ruler/ruler.toml` 이 없어 모노레포 단위의 `apply` 가 ruler 를 돌지 않았다. git 루트에서 `guideline apply` 를 먼저 돌리고(또는 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두고) 단위에서 다시 돌린다 |
+| `unit-update` | git 루트의 `guideline apply` 가 아래의 단위 하나가 아직 옛 배치라 조합하지 않았다. 그 단위에서 `guideline update` 를 돌린다(서버 필요) |
+| `unit-problem` | git 루트의 `guideline apply` 가 아래의 단위 하나를 열지 못했다(이유가 뒤따른다). 고치거나, 그 단위에서 `guideline apply` 를 돌려 오류를 본다 |
+| `root-ruler-toml` | git 루트가 guideline 프로젝트가 아니고 `.ruler/ruler.toml` 도 없어 `apply` 가 단위만 조합하고 ruler 는 돌지 않았다. 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 두고 커밋하게 한 뒤 `guideline apply` 를 다시 돌린다 |
 | `removed-upstream` | 알리고, 지우려면 `guideline pick` 을 하자고 한다 |
 | `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`, 원본 키)을 받지 않았다. 빠진 블록을 알리고, 그 블록을 담은 추천 파일(`{"<빠진 블록>": "<item> 이 필요로 함"}`)을 써서 `guideline pick --recommend <파일> --json` 을 「추천해서 받기」 처럼 띄운다 — 폼 제출이 확인이다. 출처가 여럿이면(`item` 이 `<출처>:` 로 시작) `--source <출처>` 를 붙인다 |
 | `blocked` | 원본 경고로 반영하지 못했거나, `.guideline/` 의 파일을 조합하지 못했다(문구에 그 경로가 있다). 사본은 그대로 있다. 원본(또는 그 파일)을 고치자고 보고한다 |
@@ -70,13 +73,14 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `override-unchosen` | `.guideline/overrides/<스택>/` 이 고르지 않은 스택의 것이라 조합하지 않았다. 스택을 고를지, 바꿈을 지울지 묻는다 |
 | `leftover` | 폼에서 체크를 풀었거나 원본이 고른 스택에서 뺐지만 사본이 원본과 달라 지우지 않았다. 차이를 보여 주고 지울지 묻는다 |
 | `nested-off` | git 루트의 `.ruler/ruler.project.toml` 에 `nested = true` 를 켤지 묻는다. 켜지 않으면 ruler 가 이 디렉터리의 지침을 만들지 않는다 |
-| `mcp-conflict` | 받은 MCP 표를 `.ruler/ruler.toml` 에 넣지 못했다: 프로젝트의 `ruler.project.toml` 에 같은 이름의 표가 이미 있거나(프로젝트 것을 둔다) TOML 모양이 겹친다. 표를 보여 주고 정리하게 한다. 받은 MCP 표를 프로젝트에서 고쳤다면 `.guideline/mcp/<이름>/server.json` 을 고쳐 `guideline propose`(`guideline-export` 스킬)로 올린다. 고친 표는 `ruler.project.toml` 에 남고 `status` 에는 MCP 가 current 로 보인다 |
+| `mcp-conflict` | 받은 MCP 표를 `.ruler/ruler.toml` 에 넣지 못했다: 프로젝트의 `ruler.project.toml` 에 같은 이름의 표가 이미 있거나(프로젝트 것을 둔다) TOML 모양이 겹친다. 표를 보여 주고 정리하게 한다. 받은 MCP 표를 프로젝트에서 고쳤다면 `.guideline/mcp/<이름>/server.json` 을 고쳐 `guideline propose`(`guideline-export` 스킬)로 올린다. 고친 표는 `ruler.project.toml` 에 남고, `status` 에는 MCP 가 current 로 보이지만 이 할 일을 다시 낸다 |
 | `untracked` | 이제 생성물인데 git 이 아직 추적 중이거나, CLI 가 git 인덱스에서 뺐거나(`git rm --cached`, 파일은 디스크에 남는다), git 에 물어보지 못해 명령을 알려 준다. 명령을 보여 주고 사용자가 허락할 때만 실행한다. `git status` 를 확인하고 커밋하라고 알린다 |
-| `stray-ruler-output` | ruler 가 `.ruler/ruler.toml` 없이 돌아(보통 클론 직후의 `ruler apply`) 모든 에이전트 몫을 썼다. CLI 는 ruler 표시가 있는 `CLAUDE.md` 를 지웠거나, 표시가 없어 두었다. 사용자에게 알린다. 두었다면 `AGENTS.md` 를 Claude Code 에게서 가리는지 보고 지우기 전에 묻는다. 검사는 `CLAUDE.md` 만 하므로 ruler 가 쓴 다른 에이전트의 파일은 남아 있을 수 있다 |
+| `stray-ruler-output` | ruler 가 `.ruler/ruler.toml` 없이 돌아(보통 클론 직후의 `ruler apply`) 모든 에이전트 몫을 썼다. CLI 는 ruler 표시가 있는 `CLAUDE.md` 를 지웠거나, 표시가 없거나 설정으로 판정할 수 없어(여러 줄 `default_agents`) 두었다. 사용자에게 알린다. 두었다면 `AGENTS.md` 를 Claude Code 에게서 가리는지 보고 지우기 전에 묻는다. 검사는 `CLAUDE.md` 만 하므로 ruler 가 쓴 다른 에이전트의 파일은 남아 있을 수 있다 |
 | `migrated` | 프로젝트를 새 배치로 옮겼다. 무엇이 옮겨졌는지, `git status` 로 확인하고 커밋해야 함을 알린다. 나머지 할 일을 처리한다 |
 | `manifest-v3` | `guideline.json` 을 버전 3(스택 단위)으로 다시 썼고, 고른 스택의 나머지 파일이 더해졌다. 알리고, `guideline.json` 을 함께 커밋하게 한다 |
 | `prepare` | `package.json` 의 `prepare` 가 `ruler apply` 대신 `guideline apply` 를 돌게 바뀌었다. 바뀐 것을 보여 주고 사용자가 확인해 커밋한다 |
-| `dev-dependency` | `guideline-manage` 가 이 프로젝트의 의존성에 없어 `prepare` 를 바꾸지 않았다. 안내한 명령(개발 의존성으로 추가)을 실행하고 `guideline apply` 를 돌리면 `prepare` 가 바뀐다 |
+| `dev-dependency` | `guideline-manage` 가 이 프로젝트의 의존성에 없어 `prepare` 를 바꾸지 않았다. 그 전까지 클론의 `prepare` 는 ruler 만 돌아 지침 없는 `AGENTS.md` 를 만든다. 안내한 명령(개발 의존성으로 추가)을 실행하고 `guideline apply` 를 돌리면 `prepare` 가 바뀐다. 고칠 때까지 `status`·`update` 가 다시 낸다 |
+| `prepare-manual` | `package.json` 의 `prepare` 가 인자를 붙여 `ruler apply` 를 불러, 그 인자를 받지 않는 `guideline apply` 로 바꾸지 않았다. 보여 주고 사용자가 손으로 `guideline apply` 로 바꾼다(ruler 설정은 `.ruler/ruler.project.toml` 에). 고칠 때까지 `status`·`update` 가 다시 낸다 |
 | `apply-hook` | `package.json` 이 없어 클론 뒤에 에이전트 파일을 만들어 줄 곳이 없다. 프로젝트의 세팅 단계에 `guideline apply` 를 더한다(Orca 면 `orca.yaml` 의 `scripts.setup`) |
 | `adopted` | `propose` 가 뺀 사본이다. 처음 받을 때 이미 원본과 달랐다 — 옛 판이면 올리는 순간 원본 변경을 되돌린다. 차이를 보여 주고, 프로젝트에서 고친 것이 맞을 때만 `guideline propose --only <항목>` 으로 올린다. 옛 판이면 `guideline update --force` 로 맞추자고 한다 |
 | `alias` | 별칭 문제다. 「스택 자리가 바뀜」 면 그 자리의 바꿈 파일을 새 자리(`.guideline/overrides/<새 이름>/`)로 옮기자고 한다. 「원본에 해당 단위 없음」·「같은 별칭을 두 단위에 지정함」 면 `guideline.json` 의 `aliases` 를 고친다 |

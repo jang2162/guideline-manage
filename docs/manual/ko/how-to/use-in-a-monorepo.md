@@ -14,7 +14,8 @@
 - 루트에 이미 받은 스택은 폼에 「루트에 이미 있음」 으로 보입니다. 같은 지침이 두 번 들어가지 않도록 다시 고르지 않는 것이 보통입니다.
 - git 루트의 ruler 설정(`.ruler/ruler.project.toml`)에 `nested = true` 가 없으면 `nested-off` 할 일이 나옵니다. 이 값을 켜야 ruler 가 그 디렉터리의 CLAUDE.md·AGENTS.md 를 만듭니다.
 - 단위에서 `guideline apply` 를 하기 전에 git 루트에서 먼저 하세요. git 루트에 `.ruler/ruler.toml` 이 없는 동안 단위의 `apply` 는 자기 생성물은 조합하지만 ruler 는 돌지 않고 `root-apply` 할 일을 남깁니다. 그것 없이 ruler 를 돌리면 모든 에이전트 몫을 쓰기 때문입니다. git 루트에서 `guideline apply` 를 먼저 하거나, 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두세요.
-- 클론한 뒤에는 git 루트와 각 단위에서 `guideline apply` 를 실행하세요.
+- 클론한 뒤에는 git 루트에서 `guideline apply` 를 한 번 실행하세요(루트의 `prepare` 가 `guideline apply` 를 부르면 그것이 합니다). 루트와, 그 아래에서 git 이 추적하는 단위(커밋된 `guideline-lock.json` 이 있는 디렉터리)를 모두 조합한 뒤 ruler 를 한 번 돌아 모든 단위의 CLAUDE.md·AGENTS.md 가 채워집니다. 아직 옛 배치인 단위는 `unit-update` 할 일과 함께 건너뜁니다. 그 단위에서 `guideline update` 를 실행하세요.
+- git 루트가 직접 지침을 받지 않아도 됩니다. `guideline.json` 이 없는 루트에서도 `guideline apply` 는 단위를 조합하고, 루트가 둔 `.ruler/ruler.toml`(`nested = true` 로 커밋)로 ruler 를 돕니다. 그것이 없으면 `root-ruler-toml` 할 일이 나오고 ruler 는 돌지 않습니다.
 - 하위 디렉터리에 ruler 설정이 없으면 `pick` 이 거기에 에이전트 목록만 담은 `.ruler/ruler.project.toml` 을 만듭니다.
 
 ## 다음 문서

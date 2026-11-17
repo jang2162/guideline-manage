@@ -51,7 +51,7 @@ npm install -g guideline-manage
    - `.ruler/ruler.toml` 의 설정을 `.ruler/ruler.project.toml` 로 옮깁니다. 받은 그대로인 MCP 표는 뺍니다(고친 MCP 표는 남고 `mcp-conflict` 할 일이 나옵니다).
    - 생성물을 조합하고, `.gitignore` 블록을 쓰고, 옛 사본·색인·관리 지침·`docs/guideline/README.md`·`ruler.toml`·옮긴 바꿈을 git 인덱스에서 뺍니다(`git rm --cached`, 파일은 남습니다). 스택 폴더에 직접 둔 프로젝트 파일은 그 자리에 추적된 채로 남습니다.
    - `guideline.json` 을 버전 3 으로 다시 써서 고른 스택의 나머지 파일이 더해집니다(`manifest-v3` 할 일).
-   - `guideline-manage` 가 의존성에 있으면 `package.json` 의 `prepare` 를 `ruler apply` 에서 `guideline apply` 로 바꿉니다.
+   - `guideline-manage` 가 의존성에 있고 `ruler apply` 에 인자가 없으면 `package.json` 의 `prepare` 를 `ruler apply` 에서 `guideline apply` 로 바꿉니다(인자가 있으면 `prepare-manual` 할 일이 나오고 손으로 바꿉니다).
 4. `git status` 로 확인하고 한 번에 커밋하세요: `.guideline/`, `guideline.json`, `guideline-lock.json`, `.ruler/ruler.project.toml`, `.gitignore`, `package.json`, 인덱스에서 뺀 옛 사본.
 5. `package.json` 이 있으면 CLI 를 프로젝트에 넣어 클론한 뒤 `prepare` 가 생성물을 조합하게 하세요.
 
@@ -60,8 +60,11 @@ npm install -g guideline-manage
    guideline apply                 # prepare 를 ruler apply 에서 guideline apply 로 바꿉니다
    ```
 
-   `guideline-manage` 가 의존성에 없으면 CLI 는 `prepare` 를 그대로 두고 명령을 담은 `dev-dependency` 할 일을 남깁니다. `package.json` 이 없으면 `apply-hook` 할 일이 나옵니다. 세팅 단계에서 `guideline apply` 를 부르세요(Orca: `orca.yaml` 의 `scripts.setup`).
+   `guideline-manage` 가 의존성에 없으면 CLI 는 `prepare` 를 그대로 두고 명령을 담은 `dev-dependency` 할 일을 남기며, 추가할 때까지 `status`·`update` 가 다시 냅니다. 그 전까지 클론이나 새 워크트리의 `prepare` 는 ruler 만 돌아 지침 없는 `AGENTS.md` 를 만듭니다. `package.json` 이 없으면 `apply-hook` 할 일이 나옵니다. 세팅 단계에서 `guideline apply` 를 부르세요(Orca: `orca.yaml` 의 `scripts.setup`).
 6. 팀원은 pull 하고 CLI 를 올린 뒤 `guideline apply` 를 실행합니다(`prepare` 가 부르면 `pnpm install` 로 됩니다). 생성물은 git 에 없습니다.
+   - 옮긴 커밋을 pull 하면 git 이 더는 추적하지 않는 옛 생성물(`.ruler/<스택>/`, `.ruler/ruler.toml`, `docs/guideline/`)이 작업 트리에서 지워집니다. 바로 `guideline apply` 를 실행하세요. 그 전에 `ruler apply` 만 돌리지 마세요: `.ruler/ruler.toml` 이 없으면 ruler 가 nested 를 끈 채 모든 에이전트 몫을 씁니다.
+   - 옛 사본(`.ruler/<스택>/NN-*.md`, `docs/guideline/<스택>/…`)을 고친 미병합 브랜치는 옮긴 커밋을 병합할 때 modify/delete 충돌이 납니다. 그 수정을 `.guideline/<id>` 의 사본(예: 원본 frontmatter 를 담은 `.guideline/rules/<스택>/NN-*.md` — 그 아래 본문을 고칩니다)으로 옮기고, 옛 경로를 지워 충돌을 풉니다.
+   - 모노레포에서는 git 루트의 `guideline apply` 가 그 아래 커밋된 단위도 모두 조합합니다.
 
 > [!WARNING]
 > **원본의 `ruler` 스택을 고치세요.** 지침 원본에 ruler 를 가르치는 스택(예: `ruler`)이 있으면, `.ruler/` 가 소스이고 `ruler.toml` 이 설정이며 `prepare` 가 `ruler apply` 를 돈다고 적혀 있을 가능성이 큽니다. 그 글은 이 저장소가 아니라 서버에 있고, 새 배치에는 맞지 않습니다. `.guideline/` 에 받은 사본이 있고, `.ruler/<스택>/`·`.ruler/guideline.md`·`ruler.toml` 은 생성물이며, ruler 설정은 `.ruler/ruler.project.toml` 에 두고, `prepare` 는 `guideline apply` 를 돈다고 고치세요. 웹에서 고치거나 `guideline propose` 로 올리세요.
@@ -87,7 +90,7 @@ npm install -g guideline-manage
 >
 > - 작성 규칙: 「하위 스택」 절, 「어디에 쓰는가」 표의 하위 스택 행, 「다른 스택을 바꿀 때」 의 `<스택 경로>/<파일>` 셀과 자손 경고. 또한 「어디에 쓰는가」·「세팅 문서」·「표시 이름」·「하위 스택」·「별칭」 에서 스택이 프로젝트에 놓이는 자리(`.guideline/rules/<스택>/`, 조합하면 `.ruler/<스택>/`·`docs/guideline/<스택>/`).
 > - `guideline-sync`: 「추천해서 받기」 1·2 단계의 하위 스택 문장, 「할 일 처리」 에서 `new-file`·`removed-upstream` 행의 `new-file` 삭제(그 할 일은 없어졌습니다)와 `leftover` 행 보강.
-> - `.guideline/` 배치를 위한 `guideline-sync`: 옛 배치 전제, 「무엇을 할지」 의 `guideline apply --json` 행, 「할 일 처리」 의 새 종류 `apply`·`root-apply`·`no-copy`·`override-unchosen`·`mcp-conflict`·`untracked`·`stray-ruler-output`·`migrated`·`manifest-v3`·`prepare`·`dev-dependency`·`apply-hook`. `mcp-local` 은 지우고, `mcp-build`·`subagents-off`·`nested-off` 행은 `.ruler/ruler.project.toml` 을 가리키고, `alias` 행은 `.guideline/overrides/<새 이름>/` 을 가리키며, 「지킬 것」 은 `.guideline/` 사본과 생성물을 고치지 말라고 합니다.
+> - `.guideline/` 배치를 위한 `guideline-sync`: 옛 배치 전제, 「무엇을 할지」 의 `guideline apply --json` 행, 「할 일 처리」 의 새 종류 `apply`·`root-apply`·`unit-update`·`unit-problem`·`root-ruler-toml`·`no-copy`·`override-unchosen`·`mcp-conflict`·`untracked`·`stray-ruler-output`·`migrated`·`manifest-v3`·`prepare`·`prepare-manual`·`dev-dependency`·`apply-hook`. `mcp-local` 은 지우고, `mcp-build`·`subagents-off`·`nested-off` 행은 `.ruler/ruler.project.toml` 을 가리키고, `alias` 행은 `.guideline/overrides/<새 이름>/` 을 가리키며, 「지킬 것」 은 `.guideline/` 사본과 생성물을 고치지 말라고 합니다.
 > - `guideline-export`: 1단계와 예시 표에서 받은 사본의 자리(`.guideline/…`), 바꿈의 자리(`.guideline/overrides/<스택 경로>/`), 프로젝트의 MCP 설정인 `.ruler/ruler.project.toml`.
 
 ## 다음 문서

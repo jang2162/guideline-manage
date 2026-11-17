@@ -15,7 +15,7 @@
 | --- | --- |
 | `guideline pick` | 서버 폼을 열고, 제출하면 고른 항목을 반영합니다. `--new <이름\|경로>` 는 새 프로젝트를 만들고(`git init`) 반영합니다. `--no-browser` 는 주소만 냅니다. `--recommend <파일\|->` 는 에이전트가 고른 블록(JSON `{"블록 키": "이유"}`)을 미리 체크한 폼을 엽니다 — 출처 하나일 때만(여럿이면 `--source`). 0.19 이상 서버가 필요하고, 옛 서버는 추천 없이 폼을 엽니다. 스택을 고르려면 0.24 이상 서버가 필요합니다([종료 코드](#종료-코드) 참고) |
 | `guideline update` | 고른 항목 그대로 서버 최신으로 다시 반영합니다. 프로젝트에서 고친 파일은 건너뛰고, `--force` 면 덮어씁니다. 0.24 이상 CLI 의 첫 `pick`·`update` 는 옛 배치로 받은 프로젝트를 옮깁니다([서버와 CLI 올리기](how-to/upgrade.md#guideline-배치로-프로젝트-옮기기)) |
-| `guideline apply` | 서버에 묻지 않고 `.guideline/` 과 `.ruler/ruler.project.toml` 에서 생성물을 조합하고, `.gitignore` 블록을 다시 쓰고, git 루트에서 `ruler apply` 를 돕니다. 클론한 뒤, 새 워크트리에서, `prepare` 에서 쓰세요. `pick`·`update` 도 끝에 같은 일을 합니다. 바뀐 것이 없어도 ruler 를 돕니다. 옵션: `--project <경로>`, `--json`. 종료 코드 0 완료, 1 쓰기 실패, 2 아직 받은 것이 없거나 옛 배치입니다. 클론 직후라면 ruler 가 모든 에이전트 몫으로 쓴 `CLAUDE.md` 도 지웁니다([문제 해결](troubleshooting.md#cli)) |
+| `guideline apply` | 서버에 묻지 않고 `.guideline/` 과 `.ruler/ruler.project.toml` 에서 생성물을 조합하고, `.gitignore` 블록을 다시 쓰고, git 루트에서 `ruler apply` 를 돕니다. 클론한 뒤, 새 워크트리에서, `prepare` 에서 쓰세요. `pick`·`update` 도 끝에 같은 일을 합니다. 바뀐 것이 없어도 ruler 를 돕니다. 옵션: `--project <경로>`, `--json`. 종료 코드 0 완료, 1 쓰기 실패, 2 아직 받은 것이 없거나 옛 배치입니다. 클론 직후라면 ruler 가 모든 에이전트 몫으로 쓴 `CLAUDE.md` 도 지웁니다([문제 해결](troubleshooting.md#cli)). 모노레포의 git 루트에서는 그 아래에서 git 이 추적하는 단위도 모두 조합한 뒤 ruler 를 한 번 돕니다. 루트가 guideline 프로젝트가 아니어도 됩니다([모노레포](how-to/use-in-a-monorepo.md)) |
 | `guideline status` | 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지 보이고, 저장된 토큰의 이름과 범위를 보입니다(`--json` 은 `token`. 토큰이 없거나 0.20 보다 옛 서버면 보이지 않습니다) |
 | `guideline propose` | 고친 사본을 원본 모양으로 되돌려 제안합니다. 범위 `admin` 토큰이면 제안 대신 바로 반영합니다(검토 없음). `--review` 는 그래도 제안으로 보내고, `--apply` 는 명시해서 바로 반영합니다(admin 토큰이 아니면 오류). 둘을 같이 주면 사용법 오류(종료 코드 2)입니다. `--dry-run`(보내면 둘 중 어느 쪽인지도 알립니다), `--title`, `--message`, `--only <항목,…>`, `--from <폴더>`. `--json` 에는 `mode`: `apply` 또는 `proposal` 이 추가됩니다(보낼 것이 없으면 없습니다). 방식은 dry-run 으로 보는 것이 정확합니다 — 실제로 보낼 때와 같은 토큰·서버로 묻지만, `status` 는 다른 토큰을 쓸 수 있습니다(출처가 여럿일 때, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | 서버에 로그인해 토큰을 저장하거나 지웁니다. `--token-stdin` 은 브라우저 없이 토큰을 넣습니다. `login` 은 저장한 뒤 토큰의 범위(`read`·`propose`·`admin`)를 알립니다 |
@@ -24,22 +24,26 @@
 
 `pick`·`update` 는 쓴 파일, 지운 파일, **할 일**을 냅니다. `status` 도 할 일을 냅니다.
 할 일 종류는 서버의 `/llms.txt` 「에이전트가 할 일」 표에 있습니다.
-`.guideline/` 배치가 더한 종류는 다음과 같습니다. `apply`·`pick`·`update` 가 내고, `status` 는 `apply` 를 냅니다.
+`.guideline/` 배치가 더한 종류는 다음과 같습니다. `apply`·`pick`·`update` 가 냅니다. `status` 는 `apply`·`dev-dependency`·`prepare-manual`·`no-copy`·`override-unchosen`·`mcp-conflict`·`blocked` 를 내서, 고칠 때까지 계속 보입니다.
 
 | 종류 | 뜻 |
 | --- | --- |
 | `apply` | 생성물이 낡았거나(`status` 에서), 옮긴 뒤 쓰지 못했습니다. 커밋하기 전에 `guideline apply` 를 실행하세요 |
 | `root-apply` | git 루트에 `.ruler/ruler.toml` 이 없어 모노레포 단위의 `apply` 가 ruler 를 돌지 않았습니다. git 루트에서 `guideline apply` 를 먼저 실행하거나, 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두세요 |
+| `unit-update` | git 루트의 `guideline apply` 가 아직 옛 배치인 아래 단위를 건너뛰었습니다. 그 단위에서 `guideline update` 를 실행하세요 |
+| `unit-problem` | git 루트의 `guideline apply` 가 아래 단위를 열지 못했습니다. 이유가 뒤따릅니다 |
+| `root-ruler-toml` | git 루트가 guideline 프로젝트가 아니고 `.ruler/ruler.toml` 도 없어 `apply` 가 단위만 조합하고 ruler 는 돌지 않았습니다. 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 두고 커밋하세요 |
 | `no-copy` | 고른 항목인데 `.guideline/` 에 사본이 없어(막힘, 또는 만들어야 하는 MCP 항목) 조합하지 않았습니다. `guideline update` 가 이유를 보입니다 |
 | `override-unchosen` | `.guideline/overrides/<스택>/` 의 바꿈이 고르지 않은 스택의 것입니다. 스택을 고르거나 바꿈을 지우세요 |
 | `subagents-off` | 서브에이전트 사본은 있지만 `.ruler/ruler.project.toml` 에 `[agents] enabled = true` 가 없어 조합하지 않았습니다 |
-| `mcp-conflict` | `ruler.project.toml` 에 같은 이름의 표가 이미 있거나(프로젝트 것을 둡니다) TOML 모양이 겹쳐 받은 MCP 표를 `.ruler/ruler.toml` 에 넣지 않았습니다. 프로젝트에서 고친 받은 MCP 표는 `ruler.project.toml` 에 남고 `status` 에는 MCP 가 current 로 보입니다. 그 수정을 공용으로 하려면 `.guideline/mcp/<이름>/server.json` 을 고쳐 `guideline propose` 로 올리세요 |
+| `mcp-conflict` | `ruler.project.toml` 에 같은 이름의 표가 이미 있거나(프로젝트 것을 둡니다) TOML 모양이 겹쳐 받은 MCP 표를 `.ruler/ruler.toml` 에 넣지 않았습니다. 프로젝트에서 고친 받은 MCP 표는 `ruler.project.toml` 에 남고, `status` 에는 MCP 가 current 로 보이지만 이 할 일을 다시 냅니다. 그 수정을 공용으로 하려면 `.guideline/mcp/<이름>/server.json` 을 고쳐 `guideline propose` 로 올리세요 |
 | `untracked` | 이제 생성물인 파일을 git 인덱스에서 뺐거나(`git rm --cached`, 파일은 남음), 못 해서 명령을 알려 줍니다 |
-| `stray-ruler-output` | ruler 가 `.ruler/ruler.toml` 없이 돌아 모든 에이전트 몫을 썼습니다. ruler 표시가 있는 `CLAUDE.md` 는 지웠고, 표시가 없는 것은 두었습니다. 다른 에이전트의 파일은 검사하지 않습니다 |
+| `stray-ruler-output` | ruler 가 `.ruler/ruler.toml` 없이 돌아 모든 에이전트 몫을 썼습니다. ruler 표시가 있는 `CLAUDE.md` 는 지웠고, 표시가 없는 것과 설정으로 판정할 수 없는 것(여러 줄 `default_agents`)은 두었습니다. 다른 에이전트의 파일은 검사하지 않습니다 |
 | `migrated` | 프로젝트를 `.guideline/` 배치로 옮겼습니다. `git status` 로 확인하고 커밋하세요 |
 | `manifest-v3` | `guideline.json` 을 버전 3(스택 단위)으로 다시 써서 고른 스택의 나머지 파일이 더해졌습니다 |
 | `prepare` | `package.json` 의 `prepare` 가 `ruler apply` 대신 `guideline apply` 를 돕니다 |
-| `dev-dependency` | `guideline-manage` 가 의존성에 없어 `prepare` 를 바꾸지 않았습니다. 안내한 명령으로 추가하고 `guideline apply` 를 실행하세요 |
+| `dev-dependency` | `guideline-manage` 가 의존성에 없어 `prepare` 를 바꾸지 않았습니다. 그 전까지 클론의 `prepare` 는 ruler 만 돌아 지침 없는 `AGENTS.md` 를 만듭니다. 안내한 명령으로 추가하고 `guideline apply` 를 실행하세요 |
+| `prepare-manual` | `prepare` 가 인자를 붙여 `ruler apply` 를 불러, 그 인자를 받지 않는 `guideline apply` 로 바꾸지 않았습니다. 손으로 `guideline apply` 로 바꾸고 ruler 설정은 `.ruler/ruler.project.toml` 로 옮기세요 |
 | `apply-hook` | `package.json` 이 없습니다. 세팅 단계에서 `guideline apply` 를 부르세요(Orca: `orca.yaml` 의 `scripts.setup`) |
 
 없어진 종류도 있습니다: `mcp-local`(MCP 사본도 다른 사본처럼 `.guideline/mcp/<이름>/server.json` 으로 제안합니다), `moved`(사본의 자리가 하나입니다), `new-file`.
