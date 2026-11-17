@@ -12,7 +12,7 @@ const ids = outputs => outputs.map(o => o.path).sort();
 const at = (outputs, p) => outputs.find(o => o.path === p);
 const text = (r, p) => r.files[p].toString();
 const kinds = r => r.todos.map(t => t.kind).sort();
-const GUIDE = (items = ALL, extra = {}) => ({ tree: renderTree(), revision: 5, manifest: manifestOf('ruler', items), layout: 'guideline', ...extra });
+const GUIDE = (items = ALL, extra = {}) => ({ tree: renderTree(), revision: 5, manifest: manifestOf('ruler', items), ...extra });
 
 test('desiredCopies 는 고른 스택의 원본을 그대로 .guideline 에 둔다', () => {
   const { outputs } = desiredCopies({ tree: renderTree(), manifest: manifestOf('ruler', ALL), items: ALL });
@@ -90,7 +90,7 @@ test('desiredCopies 는 막힘·mcp-build·env 할 일을 desiredOutputs 와 같
   assert.deepEqual(bad.outputs, []);
 });
 
-test('render(layout guideline) 는 잠금 v3 과 .guideline 출력만 낸다', () => {
+test('render 는 잠금 v3 과 .guideline 출력만 낸다', () => {
   const r = render({ ...GUIDE(), lock: null, project: memProject() });
   assert.equal(r.lock.version, 3);
   assert.equal(r.lock.revision, 5);
@@ -107,14 +107,14 @@ test('render(layout guideline) 는 잠금 v3 과 .guideline 출력만 낸다', (
   assert.equal(checkLock(JSON.parse(lockText({ ...r.lock, revisions: { default: 5 } }))).version, 3);
 });
 
-test('render(layout guideline) 는 기존 toml 을 건드리지 않고 MCP 도 toml 에 쓰지 않는다', () => {
+test('render 는 기존 toml 을 건드리지 않고 MCP 도 toml 에 쓰지 않는다', () => {
   const toml = '# 사용자 설정\ndefault_agents = ["claude"]\n';
   const r = render({ ...GUIDE(['mcp/c7', 'mcp/gl']), lock: null, project: memProject({ '.ruler/ruler.toml': toml }) });
   assert.equal(r.files['.ruler/ruler.toml'], undefined);
   assert.deepEqual(Object.keys(r.files).sort(), ['.guideline/mcp/c7/server.json', '.guideline/mcp/gl/server.json']);
 });
 
-test('render(layout guideline) 는 같은 원본으로 다시 하면 아무것도 쓰지 않는다', () => {
+test('render 는 같은 원본으로 다시 하면 아무것도 쓰지 않는다', () => {
   const first = render({ ...GUIDE(), lock: null, project: memProject() });
   const files = applyMem({}, first.files);
   const again = render({ ...GUIDE(), lock: first.lock, project: memProject(files) });
@@ -122,7 +122,7 @@ test('render(layout guideline) 는 같은 원본으로 다시 하면 아무것�
   assert.deepEqual(again.lock, first.lock);
 });
 
-test('render(layout guideline) 는 고친 사본을 덮지 않고, overwrite·force 면 덮는다', () => {
+test('render 는 고친 사본을 덮지 않고, overwrite·force 면 덮는다', () => {
   const first = render({ ...GUIDE(), lock: null, project: memProject() });
   const edited = applyMem(applyMem({}, first.files), { '.guideline/rules/base/00-a.md': '# 고침\n' });
   const tree = renderTree({ 'rules/base/00-a.md': `${ALWAYS}# 에이\n\n새 본문\n` });
@@ -137,7 +137,7 @@ test('render(layout guideline) 는 고친 사본을 덮지 않고, overwrite·fo
   assert.equal(text(render({ ...args, force: true }), '.guideline/rules/base/00-a.md'), `${ALWAYS}# 에이\n\n새 본문\n`);
 });
 
-test('render(layout guideline) 는 원본이 새로 나오면 그 사본만 다시 쓴다', () => {
+test('render 는 원본이 새로 나오면 그 사본만 다시 쓴다', () => {
   const first = render({ ...GUIDE(), lock: null, project: memProject() });
   const files = applyMem({}, first.files);
   const tree = renderTree({ 'rules/base/00-a.md': `${ALWAYS}# 에이\n\n새 본문\n` });
@@ -145,7 +145,7 @@ test('render(layout guideline) 는 원본이 새로 나오면 그 사본만 다�
   assert.deepEqual(Object.keys(next.files), ['.guideline/rules/base/00-a.md']);
 });
 
-test('render(layout guideline) 는 매니페스트에서 뺀 항목의 사본을 지우고 고친 사본은 남긴다', () => {
+test('render 는 매니페스트에서 뺀 항목의 사본을 지우고 고친 사본은 남긴다', () => {
   const first = render({ ...GUIDE(), lock: null, project: memProject() });
   const files = applyMem(applyMem({}, first.files), {
     '.guideline/skills/s/SKILL.md': '고침\n',
@@ -162,7 +162,7 @@ test('render(layout guideline) 는 매니페스트에서 뺀 항목의 사본을
   assert.equal(next.lock.sources['skills/s'], undefined);
 });
 
-test('render(layout guideline) 는 관리 지침 사본을 쓰고 출처가 빠지면 지운다', () => {
+test('render 는 관리 지침 사본을 쓰고 출처가 빠지면 지운다', () => {
   const management = { stackSource: null, additions: [{ source: 'company', text: '## 보안\n\n검토\n' }] };
   const first = render({ ...GUIDE(['rules/base/00-a.md']), lock: null, project: memProject(), management });
   assert.equal(text(first, managementCopy('company')), '## 보안\n\n검토\n');
@@ -173,7 +173,7 @@ test('render(layout guideline) 는 관리 지침 사본을 쓰고 출처가 빠�
   assert.equal(gone.files[managementCopy('company')], null);
 });
 
-test('render(layout guideline) 는 잠금이 모르는 사본을 항목 단위로, 같을 때만 지운다', () => {
+test('render 는 잠금이 모르는 사본을 항목 단위로, 같을 때만 지운다', () => {
   const same = copyPath('rules/base/00-a.md');
   const project = memProject({ [same]: SOURCE['rules/base/00-a.md'] });
   const r = render({ ...GUIDE([]), lock: null, project, decisions: { 'rules/base/00-a.md': { action: 'remove' } } });
@@ -181,11 +181,4 @@ test('render(layout guideline) 는 잠금이 모르는 사본을 항목 단위�
   const other = render({ ...GUIDE([]), lock: null, project: memProject({ [same]: '# 고침\n' }), decisions: { 'rules/base/00-a.md': { action: 'remove' } } });
   assert.equal(other.files[same], undefined);
   assert.ok(other.todos.some(t => t.kind === 'leftover'));
-});
-
-test('기본 배치(ruler)는 지금처럼 잠금 v1(가상)과 .ruler 출력을 낸다', () => {
-  const r = render({ tree: renderTree(), revision: 5, manifest: manifestOf('ruler', ['rules/base/00-a.md']), lock: null, project: memProject() });
-  assert.equal(r.lock.version, 1);
-  assert.ok(r.files['.ruler/base/00-a.md']);
-  assert.equal(Object.keys(r.files).some(p => p.startsWith('.guideline/')), false);
 });

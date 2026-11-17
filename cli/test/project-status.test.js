@@ -4,30 +4,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { startApp, testConfig, META } from '../../server/test/helpers.js';
 import { tmpDir, write, collect, ALWAYS } from './helpers.js';
-import { SOURCE, manifestOf } from './render-fixture.js';
-import { render } from '../src/render/index.js';
-import { applyFiles } from '../src/apply.js';
-import { diskReader } from '../src/project-state.js';
-import { MANIFEST, LOCK, manifestText, lockText } from '../src/manifest.js';
+import { SOURCE } from './render-fixture.js';
+import { syncedProject } from './synced.js';
+import { MANIFEST } from '../src/manifest.js';
 import { projectStatus } from '../src/commands/project-status.js';
-import { memoryTree } from '../src/tree.js';
-import { checkManifest } from '../src/manifest.js';
-import { virtualize, toRealLock } from '../src/workspace.js';
-import { PROJECT_TOML } from '../src/layout.js';
-import { RULER_TOML_BASE } from '../src/render/outputs.js';
-import { projectApply } from '../src/commands/project-apply.js';
 
 async function setup(t, opts) {
   const s = await startApp(t, opts);
   s.store.commit({ ...META, source: 'import', changes: SOURCE });
   const token = s.tokens.issue({ name: 'cli-t', scope: 'read' }).token;
-  const p = tmpDir('guideline-status-');
+  const p = fs.realpathSync(tmpDir('guideline-status-'));
   t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  const manifest = manifestOf('ruler', ['rules/base', 'skills/s'], { server: s.base });
-  const r = render({ tree: memoryTree(SOURCE), revision: 1, manifest, lock: null, project: diskReader(p) });
-  applyFiles(p, r.files);
-  write(p, MANIFEST, manifestText(manifest));
-  write(p, LOCK, lockText(r.lock));
+  syncedProject(p, { server: s.base, items: ['rules/base', 'skills/s'] });
   return { s, p, env: { GUIDELINE_TOKEN: token } };
 }
 
@@ -43,7 +31,7 @@ test('매니페스트가 없으면 안내하고 0', async t => {
 test('status --json 은 원본 새로 나옴·프로젝트에서 고침을 내고, 고른 스택에 새로 생긴 파일은 원본 새로 나옴이다', async t => {
   const { s, p, env } = await setup(t);
   s.store.commit({ ...META, changes: { 'rules/base/00-a.md': `${ALWAYS}# 에이\n\n새\n`, 'rules/base/02-new.md': `${ALWAYS}# 새\n` } });
-  write(p, 'docs/guideline/base/01-b.md', '# 고침\n');
+  write(p, '.guideline/rules/base/01-b.md', '# 고침\n');
   const o = collect();
   assert.equal(await projectStatus({ project: p, json: true, env, out: o.out }), 0);
   const data = JSON.parse(o.text());
@@ -57,7 +45,8 @@ test('status --json 은 원본 새로 나옴·프로젝트에서 고침을 내�
     { id: 'skills/s', state: 'current' },
   ]);
   assert.equal('newFiles' in data, false);
-  assert.deepEqual(data.todos, []);
+  // 사본을 고치고 조합하지 않았으니 생성물이 낡았다는 할 일만 있다
+  assert.deepEqual(data.todos.map(x => x.kind), ['apply']);
 });
 
 test('status 는 새 파일 줄을 내지 않는다', async t => {
@@ -81,7 +70,7 @@ test('고른 스택에서 원본이 뺀 파일은 status 가 원본 새로 나�
 
 test('status 글 출력', async t => {
   const { p, env } = await setup(t);
-  write(p, 'docs/guideline/base/01-b.md', '# 고침\n');
+  write(p, '.guideline/rules/base/01-b.md', '# 고침\n');
   const o = collect();
   await projectStatus({ project: p, env, out: o.out });
   assert.match(o.text(), new RegExp(`^지침 상태 — ${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(반영 r1, 서버 최신 r1\\)$`, 'm'));
@@ -138,23 +127,14 @@ test('status 는 whoami 가 없는 옛 서버(404)에서도 실패하지 않고 
   assert.doesNotMatch(text.text(), /토큰:/);
 });
 
-/** 새 배치 프로젝트: .guideline/ 사본·잠금 v3·ruler.project.toml 을 쓰고 apply 로 생성물까지 맞춘다. */
+/** 받은 프로젝트(git 루트, 항목은 rules/base 하나). */
 async function setupNew(t) {
   const s = await startApp(t);
   s.store.commit({ ...META, source: 'import', changes: SOURCE });
   const token = s.tokens.issue({ name: 'cli-t', scope: 'read' }).token;
   const p = fs.realpathSync(tmpDir('guideline-status-'));
   t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  fs.mkdirSync(path.join(p, '.ruler'));
-  const manifest = checkManifest({ version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: s.base, items: ['rules/base'], aliases: {} } } });
-  const trees = new Map([['default', { server: s.base, revision: 1, tree: memoryTree(SOURCE) }]]);
-  const v = virtualize({ manifest, lock: null, trees });
-  const r = render({ tree: v.tree, revision: 0, manifest: v.view, lock: null, project: diskReader(p), management: v.management, layout: 'guideline' });
-  applyFiles(p, r.files);
-  write(p, MANIFEST, manifestText(manifest));
-  write(p, LOCK, lockText(toRealLock({ viewLock: r.lock, sources: v.sources, revisions: { default: 1 } })));
-  write(p, PROJECT_TOML, RULER_TOML_BASE(['claude']));
-  assert.equal(await projectApply({ dir: p, out: () => {}, err: () => {}, env: { PATH: '' }, git: () => ({ status: 1, stdout: '' }) }), 0);
+  syncedProject(p, { server: s.base });
   return { s, p, env: { GUIDELINE_TOKEN: token } };
 }
 
@@ -180,7 +160,7 @@ test('status 는 생성물이 낡았으면 apply 할 일을 낸다', async t => 
   assert.match(off.text(), /할 일\n {2}- 생성물이 낡음 — guideline apply 실행/);
 });
 
-test('새 배치: 사본이 최신 원본과 같으면(제안이 수락된 뒤) status 는 둘 다 바뀜이 아니라 원본 새로 나옴이다', async t => {
+test('사본이 최신 원본과 같으면(제안이 수락된 뒤) status 는 둘 다 바뀜이 아니라 원본 새로 나옴이다', async t => {
   const { s, p, env } = await setupNew(t);
   const accepted = `${ALWAYS}# 에이\n\n수락된 본문\n`;
   s.store.commit({ ...META, changes: { 'rules/base/00-a.md': accepted } });

@@ -45,6 +45,23 @@ export function writeOldLayout(p, {
   return { manifest, lock };
 }
 
+/**
+ * 옛 배치의 render 가 빈 프로젝트에 쓰던 파일(0.23 까지): 원본(가상 트리)에서 바로 만든 .ruler/·docs/guideline/ 출력과,
+ * 기본 설정에 MCP 표를 얹은 .ruler/ruler.toml. 조합(compose)이 같은 바이트를 내는지 견줄 때 쓴다.
+ * @returns {Record<string, Buffer>}
+ */
+export function oldRenderFiles({ tree, view, management = {}, rulerAgentsEnabled = false }) {
+  const { outputs } = desiredOutputs({ tree, manifest: view, items: expandBlocks(tree, view.items), rulerAgentsEnabled, management });
+  const files = {};
+  let toml = RULER_TOML_BASE(view.agents);
+  for (const o of outputs) {
+    if (o.kind === 'file') files[o.path] = o.content;
+    else toml = setTable(toml, o.segs, o.entry).text;
+  }
+  files['.ruler/ruler.toml'] = Buffer.from(toml);
+  return files;
+}
+
 /** 별칭을 입힌 가상 id 를 원래 id 로(최상위 단위만). */
 function realId(id, aliases) {
   for (const [k, name] of Object.entries(aliases)) {

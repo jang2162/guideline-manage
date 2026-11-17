@@ -11,6 +11,7 @@ import { virtualize } from '../src/workspace.js';
 import { compose } from '../src/compose.js';
 import { readBlock } from '../src/gitignore-block.js';
 import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../src/render/outputs.js';
+import { oldRenderFiles } from './old-layout.js';
 
 const dir = t => {
   const d = tmpDir('guideline-compose-');
@@ -51,13 +52,11 @@ const TREES = () => new Map([
   ['team', { server: 'http://t', revision: 9, tree: memoryTree(TEAM) }],
 ]);
 
-/** 같은 원본으로 예전 반영(ruler)과 새 배치 동기화(guideline)를 한다. */
+/** 같은 원본으로 예전 반영(옛 배치가 쓰던 파일)과 새 배치 동기화(.guideline/ 사본)를 한다. */
 function both(manifest = MANIFEST, { rulerAgentsEnabled = true } = {}) {
   const v = virtualize({ manifest, lock: null, trees: TREES() });
-  const run = layout => render({
-    tree: v.tree, revision: 0, manifest: v.view, lock: null, project: memProject({}, { rulerAgentsEnabled }), management: v.management, layout,
-  });
-  return { old: run('ruler'), guide: run('guideline') };
+  const guide = render({ tree: v.tree, revision: 0, manifest: v.view, lock: null, project: memProject({}, { rulerAgentsEnabled }), management: v.management });
+  return { old: { files: oldRenderFiles({ tree: v.tree, view: v.view, management: v.management, rulerAgentsEnabled }) }, guide };
 }
 
 /** 새 배치 동기화의 사본(.guideline/)을 쓴 프로젝트. */

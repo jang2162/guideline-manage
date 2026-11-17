@@ -4,11 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { startApp, META } from '../../server/test/helpers.js';
 import { tmpDir, write, collect, ALWAYS } from './helpers.js';
-import { SOURCE, ALL, manifestOf } from './render-fixture.js';
+import { SOURCE, DEPLOY, manifestOf } from './render-fixture.js';
+import { syncedProject } from './synced.js';
+
+const KEYS = ['agents/rev.md', 'mcp/b', 'mcp/c7', 'mcp/gl', 'rules/base', `rules/${DEPLOY}`, 'skills/s'];
+const A = '.guideline/rules/base/00-a.md';
 import { render } from '../src/render/index.js';
 import { applyFiles } from '../src/apply.js';
 import { diskReader } from '../src/project-state.js';
-import { manifestText, lockText } from '../src/manifest.js';
 import { memoryTree, readText } from '../src/tree.js';
 import { sha256 } from '../src/hashes.js';
 import { propose } from '../src/commands/propose.js';
@@ -21,12 +24,7 @@ async function setup(t, scope = 'propose') {
   const token = s.tokens.issue({ name: 'cli-p', scope }).token;
   const p = tmpDir('guideline-propose-');
   t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  write(p, '.ruler/ruler.toml', 'default_agents = ["claude", "codex"]\n');
-  const manifest = manifestOf('ruler', ALL, { server: s.base });
-  const r = render({ tree: memoryTree(SOURCE), revision: 1, manifest, lock: null, project: diskReader(p) });
-  applyFiles(p, r.files);
-  write(p, 'guideline.json', manifestText(manifest));
-  write(p, 'guideline-lock.json', lockText(r.lock));
+  syncedProject(p, { server: s.base, items: KEYS, agents: ['claude', 'codex'] });
   return { s, p, env: { GUIDELINE_TOKEN: token } };
 }
 const run = (opts, extra = {}) => {
@@ -35,45 +33,21 @@ const run = (opts, extra = {}) => {
   return propose({ out: o.out, err: e.out, ...opts, ...extra }).then(code => ({ code, out: o.text(), err: e.text() }));
 };
 
-test('고친 지침·세팅 문서·스킬(더함·지움)을 원본 모양으로 되돌려 제안한다', async t => {
+test('줄바꿈(CRLF)만 다르면 올릴 것이 없고 할 일도 없다', async t => {
   const { s, p, env } = await setup(t);
-  write(p, '.ruler/base/00-a.md', '# 에이\n\n다듬은 본문\n');
-  write(p, 'docs/guideline/base/SETUP.md', '# base 세팅\n\n한 줄 더\n');
-  write(p, '.ruler/skills/s/new.md', '새 파일\n');
-  fs.rmSync(path.join(p, '.ruler/skills/s/img/a.png'));
-  const r = await run({ project: p, env, title: '다듬기' });
-  assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /제안 등록 완료: #1 — /);
-  const got = s.proposals.get(1);
-  assert.equal(got.title, '다듬기');
-  assert.equal(got.project, path.basename(p));
-  assert.equal(got.author, 'cli-p');
-  const by = Object.fromEntries(got.changes.map(c => [c.path, c]));
-  assert.deepEqual(Object.keys(by).sort(), ['rules/base/00-a.md', 'rules/base/SETUP.md', 'skills/s/img/a.png', 'skills/s/new.md']);
-  assert.equal(by['rules/base/00-a.md'].content.toString(), `${ALWAYS}# 에이\n\n다듬은 본문\n`);
-  assert.equal(by['rules/base/00-a.md'].base, sha256(Buffer.from(SOURCE['rules/base/00-a.md'])));
-  assert.equal(by['skills/s/new.md'].base, null);
-  assert.equal(by['skills/s/img/a.png'].content, null);
-  assert.equal(by['skills/s/img/a.png'].base, sha256(SOURCE['skills/s/img/a.png']));
-});
-
-test('줄바꿈만 다르면 올릴 것이 없고, MCP 수정은 할 일 mcp-local 로 알린다', async t => {
-  const { s, p, env } = await setup(t);
-  write(p, '.ruler/base/00-a.md', '# 에이\r\n\r\n## 절 하나\r\n\r\n본문 A\r\n\r\n### 아래\r\n\r\n깊이\r\n');
-  const toml = fs.readFileSync(path.join(p, '.ruler/ruler.toml'), 'utf8').replace('args = ["-y", "c7"]', 'args = ["-y", "c7@2"]');
-  write(p, '.ruler/ruler.toml', toml);
+  write(p, A, SOURCE['rules/base/00-a.md'].replace(/\n/g, '\r\n'));
   const r = await run({ project: p, env, json: true });
   assert.equal(r.code, 0);
   const out = JSON.parse(r.out);
   assert.deepEqual(out.changes, []);
-  assert.deepEqual(out.todos.map(x => [x.kind, x.item]), [['mcp-local', 'mcp/c7']]);
+  assert.deepEqual(out.todos, []);
   assert.equal(s.proposals.list({}).length, 0);
 });
 
 test('--dry-run 은 보내지 않고 차이를 보이며, --only 는 항목을 거른다', async t => {
   const { s, p, env } = await setup(t);
-  write(p, '.ruler/base/00-a.md', '# 에이\n\n다듬은 본문\n');
-  write(p, 'docs/guideline/base/SETUP.md', '# 바꿈\n');
+  write(p, A, `${ALWAYS}# 에이\n\n다듬은 본문\n`);
+  write(p, '.guideline/rules/base/SETUP.md', '# 바꿈\n');
   const dry = await run({ project: p, env, dryRun: true, only: ['rules/base/00-a.md'] });
   assert.equal(dry.code, 0);
   assert.match(dry.out, /바뀜  rules\/base\/00-a\.md/);
@@ -84,7 +58,7 @@ test('--dry-run 은 보내지 않고 차이를 보이며, --only 는 항목을 �
 
 test('read 토큰이면 권한 안내와 함께 1, 잠금이 없거나 ruler 가 아니면 2', async t => {
   const { p, env } = await setup(t, 'read');
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const denied = await run({ project: p, env });
   assert.equal(denied.code, 1);
   assert.match(denied.err, /제안 권한이 없는 토큰 — 관리자에게 propose 범위 토큰을 받아/);
@@ -94,15 +68,15 @@ test('read 토큰이면 권한 안내와 함께 1, 잠금이 없거나 ruler 가
   assert.match((await run({ project: p, env })).err, /ruler 프로젝트가 아님/);
 });
 
-test('받기 전부터 원본과 달랐던 사본은 기본으로 올리지 않고 할 일 adopted 로 알린다. --only 로 집으면 올린다', t => {
+test('받기 전부터 원본과 달랐던 사본(이전의 adopted)은 기본으로 올리지 않고 할 일 adopted 로 알린다. --only 로 집으면 올린다', t => {
   const p = tmpDir('guideline-adopt-');
   t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  write(p, '.ruler/ruler.toml', 'default_agents = ["claude"]\n');
-  write(p, '.ruler/base/00-a.md', '# 옛 사본\n');
   const manifest = manifestOf('ruler', ['rules/base/00-a.md'], { server: 'http://x' });
   const r = render({ tree: memoryTree(SOURCE), revision: 1, manifest, lock: null, project: diskReader(p) });
   applyFiles(p, r.files);
+  write(p, A, `${ALWAYS}# 옛 사본\n`);
   const lock = structuredClone(r.lock);
+  lock.outputs.find(o => o.path === A).adopted = true;
   const a = localChanges({ base: memoryTree(SOURCE), project: p, lock });
   assert.deepEqual(a.changes, []);
   assert.deepEqual(a.todos.map(x => [x.kind, x.item]), [['adopted', 'rules/base/00-a.md']]);
@@ -126,7 +100,7 @@ test('toRealChanges: 별칭 스킬의 name 줄을 되돌리고 기준 해시는 
 
 test('propose --apply 는 admin 토큰이면 바로 반영하고 리비전을 알린다', async t => {
   const { s, p, env } = await setup(t, 'admin');
-  write(p, '.ruler/base/00-a.md', '# 에이\n\n바로 반영\n');
+  write(p, A, `${ALWAYS}# 에이\n\n바로 반영\n`);
   const r = await run({ project: p, env, title: '바로', apply: true });
   assert.equal(r.code, 0, r.err);
   assert.match(r.out, /반영 완료: r2 — /);
@@ -136,7 +110,7 @@ test('propose --apply 는 admin 토큰이면 바로 반영하고 리비전을 �
 
 test('propose --apply 를 propose 토큰으로 하면 1 과 admin 토큰 안내', async t => {
   const { s, p, env } = await setup(t);
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const r = await run({ project: p, env, apply: true });
   assert.equal(r.code, 1);
   assert.match(r.err, /admin 토큰 필요 — /);
@@ -145,7 +119,7 @@ test('propose --apply 를 propose 토큰으로 하면 1 과 admin 토큰 안내'
 
 test('--review 면 admin 토큰이어도 대기 제안', async t => {
   const { s, p, env } = await setup(t, 'admin');
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const r = await run({ project: p, env, review: true });
   assert.equal(r.code, 0, r.err);
   assert.match(r.out, /제안 등록 완료: #1 — /);
@@ -156,7 +130,7 @@ test('--review 면 admin 토큰이어도 대기 제안', async t => {
 
 test('admin 토큰이면 플래그 없이도 바로 반영하고, 그렇게 했다는 줄과 --review 안내를 낸다', async t => {
   const { s, p, env } = await setup(t, 'admin');
-  write(p, '.ruler/base/00-a.md', '# 에이\n\n기본 반영\n');
+  write(p, A, `${ALWAYS}# 에이\n\n기본 반영\n`);
   const r = await run({ project: p, env, title: '기본' });
   assert.equal(r.code, 0, r.err);
   assert.match(r.out, /반영 완료: r2 — /);
@@ -167,7 +141,7 @@ test('admin 토큰이면 플래그 없이도 바로 반영하고, 그렇게 했�
 
 test('propose 토큰이면 플래그 없이 대기 제안이고 바로 반영 안내가 없다', async t => {
   const { s, p, env } = await setup(t);
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const r = await run({ project: p, env });
   assert.equal(r.code, 0, r.err);
   assert.doesNotMatch(r.out, /바로 반영/);
@@ -177,25 +151,25 @@ test('propose 토큰이면 플래그 없이 대기 제안이고 바로 반영 �
 
 test('--json 은 mode 로 반영인지 제안인지 알린다', async t => {
   const admin = await setup(t, 'admin');
-  write(admin.p, '.ruler/base/00-a.md', '# 고침\n');
+  write(admin.p, A, `${ALWAYS}# 고침\n`);
   const a = JSON.parse((await run({ project: admin.p, env: admin.env, json: true })).out);
   assert.equal(a.mode, 'apply');
   assert.equal(a.status, 'accepted');
   assert.equal(a.revision, 2);
   const prop = await setup(t);
-  write(prop.p, '.ruler/base/00-a.md', '# 고침\n');
+  write(prop.p, A, `${ALWAYS}# 고침\n`);
   const b = JSON.parse((await run({ project: prop.p, env: prop.env, json: true })).out);
   assert.equal(b.mode, 'proposal');
   assert.equal(b.status, 'pending');
   const admin2 = await setup(t, 'admin');
-  write(admin2.p, '.ruler/base/00-a.md', '# 고침\n');
+  write(admin2.p, A, `${ALWAYS}# 고침\n`);
   const c = JSON.parse((await run({ project: admin2.p, env: admin2.env, json: true, review: true })).out);
   assert.equal(c.mode, 'proposal');
 });
 
 test('--dry-run 은 admin 토큰이어도 보내지 않고, 보내면 어느 방식인지 알린다', async t => {
   const { s, p, env } = await setup(t, 'admin');
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const dry = await run({ project: p, env, dryRun: true });
   assert.equal(dry.code, 0, dry.err);
   assert.match(dry.out, /보내면 바로 반영됨\(admin 토큰\) — 검토를 받으려면 --review/);
@@ -211,7 +185,7 @@ test('--dry-run 은 admin 토큰이어도 보내지 않고, 보내면 어느 방
 
 test('--apply 와 --review 를 같이 주면 2', async t => {
   const { s, p, env } = await setup(t, 'admin');
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const r = await run({ project: p, env, apply: true, review: true });
   assert.equal(r.code, 2);
   assert.match(r.err, /--apply 와 --review 는 같이 쓸 수 없음/);
@@ -221,7 +195,7 @@ test('--apply 와 --review 를 같이 주면 2', async t => {
 
 test('whoami 가 없는 옛 서버(404)면 admin 토큰이어도 예전처럼 대기 제안', async t => {
   const { s, p, env } = await setup(t, 'admin');
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const old = (url, init) => (String(url).endsWith('/api/v1/whoami')
     ? Promise.resolve(new Response(JSON.stringify({ error: '페이지 없음' }), { status: 404 }))
     : fetch(url, init));
@@ -235,7 +209,7 @@ test('whoami 가 없는 옛 서버(404)면 admin 토큰이어도 예전처럼 �
 
 test('whoami 가 없는 옛 서버(404)에서도 --apply 는 예전처럼 바로 반영한다', async t => {
   const { s, p, env } = await setup(t, 'admin');
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const old = (url, init) => (String(url).endsWith('/api/v1/whoami')
     ? Promise.resolve(new Response(JSON.stringify({ error: '페이지 없음' }), { status: 404 }))
     : fetch(url, init));
@@ -254,7 +228,7 @@ test('whoami 가 404 가 아닌 오류(500·프록시 403·네트워크)면 경�
   };
   for (const [name, fail] of Object.entries(failures)) {
     const { s, p, env } = await setup(t, 'admin');
-    write(p, '.ruler/base/00-a.md', '# 고침\n');
+    write(p, A, `${ALWAYS}# 고침\n`);
     const broken = (url, init) => (String(url).endsWith('/api/v1/whoami') ? fail() : fetch(url, init));
     const r = await run({ project: p, env, fetchImpl: broken, json: true });
     assert.equal(r.code, 0, `${name}: ${r.err}`);
@@ -268,7 +242,7 @@ test('whoami 가 404 가 아닌 오류(500·프록시 403·네트워크)면 경�
 
 test('--apply --json 은 status 와 revision 을 낸다', async t => {
   const { p, env } = await setup(t, 'admin');
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, A, `${ALWAYS}# 고침\n`);
   const r = await run({ project: p, env, apply: true, json: true });
   assert.equal(r.code, 0, r.err);
   const out = JSON.parse(r.out);
@@ -276,7 +250,7 @@ test('--apply --json 은 status 와 revision 을 낸다', async t => {
   assert.equal(out.revision, 2);
 });
 
-test('propose 는 하위 스택 사본을 원본 경로로 되돌린다', t => {
+test('propose 는 하위 스택 사본을 원본 경로의 변경으로 낸다', t => {
   const files = {
     ...SOURCE,
     'rules/browser/00-a.md': `${ALWAYS}# 에이\n`,
@@ -287,40 +261,19 @@ test('propose 는 하위 스택 사본을 원본 경로로 되돌린다', t => {
   const base = memoryTree(files);
   const p = tmpDir('guideline-propose-');
   t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  write(p, '.ruler/ruler.toml', 'default_agents = ["claude"]\n');
   const r = render({ tree: base, revision: 1, manifest: manifestOf('ruler', ['rules/browser', 'rules/browser/neo', 'skills/s']), lock: null, project: diskReader(p) });
   applyFiles(p, r.files);
-  write(p, '.ruler/browser/neo/00-x.md', '# 엑스\n\n고친 X\n');
-  write(p, 'docs/guideline/browser/neo/SETUP.md', '# neo 세팅\n\n더함\n');
-  write(p, '.ruler/skills/s/00-n.md', '# 고친 스킬 파일\n');
+  write(p, '.guideline/rules/browser/neo/00-x.md', `${ALWAYS}# 엑스\n\n고친 X\n`);
+  write(p, '.guideline/rules/browser/neo/SETUP.md', '# neo 세팅\n\n더함\n');
+  write(p, '.guideline/skills/s/00-n.md', '# 고친 스킬 파일\n');
   const { changes } = localChanges({ base, project: p, lock: r.lock });
   const by = Object.fromEntries(changes.map(c => [c.path, c]));
   assert.deepEqual(Object.keys(by).sort(), ['rules/browser/neo/00-x.md', 'rules/browser/neo/SETUP.md', 'skills/s/00-n.md']);
   assert.equal(by['rules/browser/neo/00-x.md'].content.toString(), `${ALWAYS}# 엑스\n\n고친 X\n`);
 });
 
-/** 새 배치(.guideline/ 사본, 잠금 v3) 프로젝트. */
-async function setupGuide(t) {
-  const s = await startApp(t);
-  s.store.commit({ ...META, source: 'web', changes: SOURCE });
-  const token = s.tokens.issue({ name: 'cli-p', scope: 'propose' }).token;
-  const p = tmpDir('guideline-propose-');
-  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  write(p, '.ruler/ruler.project.toml', 'default_agents = ["claude", "codex"]\n');
-  const keys = ['agents/rev.md', 'mcp/b', 'mcp/c7', 'mcp/gl', 'rules/base', 'skills/s'];
-  const manifest = { version: 3, form: 'ruler', agents: ['claude', 'codex'], sources: { default: { server: s.base, items: keys, aliases: {} } } };
-  const r = render({ tree: memoryTree(SOURCE), revision: 1, manifest: manifestOf('ruler', keys), lock: null, project: diskReader(p), layout: 'guideline' });
-  applyFiles(p, r.files);
-  const q = id => `default:${id}`;
-  const lock = { version: 3, revisions: { default: 1 }, sources: Object.fromEntries(Object.entries(r.lock.sources).map(([k, v]) => [q(k), v])),
-    outputs: r.lock.outputs.map(o => ({ ...o, items: o.items.map(q) })) };
-  write(p, 'guideline.json', manifestText(manifest));
-  write(p, 'guideline-lock.json', lockText(lock));
-  return { s, p, env: { GUIDELINE_TOKEN: token } };
-}
-
-test('새 배치: propose 는 .guideline 사본을 그대로 원본 변경으로 보낸다', async t => {
-  const { s, p, env } = await setupGuide(t);
+test('propose 는 .guideline 사본을 그대로 원본 변경으로 보낸다', async t => {
+  const { s, p, env } = await setup(t);
   // 사본은 원본 모양(frontmatter 포함)이라 되돌리지 않고 그대로 보낸다
   const edited = `${ALWAYS}# 에이\n\n다듬은 본문\n`;
   write(p, '.guideline/rules/base/00-a.md', edited);
@@ -340,8 +293,8 @@ test('새 배치: propose 는 .guideline 사본을 그대로 원본 변경으로
   assert.equal(by['skills/s/img/a.png'].content, null);
 });
 
-test('새 배치: MCP 사본을 고치면 propose 가 server.json 변경을 보낸다', async t => {
-  const { s, p, env } = await setupGuide(t);
+test('MCP 사본을 고치면 propose 가 server.json 변경을 보낸다', async t => {
+  const { s, p, env } = await setup(t);
   const server = JSON.stringify({ type: 'stdio', command: 'npx', args: ['-y', 'c7@2'] });
   write(p, '.guideline/mcp/c7/server.json', server);
   write(p, '.guideline/mcp/c7/README.md', '# c7\n');

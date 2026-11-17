@@ -6,8 +6,6 @@ import {
   rulerAgentsEnabled, inferAgents, diskReader, itemStates, formItems, formPayload, statusTodos, kindOf,
 } from '../src/project-state.js';
 import { render } from '../src/render/index.js';
-import { desiredOutputs } from '../src/render/outputs.js';
-import { stripFrontmatter } from '../src/inspect.js';
 import { applyFiles } from '../src/apply.js';
 import { DEPLOY, ALL, renderTree, manifestOf } from './render-fixture.js';
 
@@ -17,7 +15,7 @@ function dir(t) {
   return d;
 }
 
-/** 렌더링해 디스크에 쓴 프로젝트와 그 잠금. */
+/** 렌더링해 디스크에 쓴 프로젝트(.guideline/ 사본)와 그 잠금(version 3). */
 function installed(t, form = 'ruler', items = ALL, extra = {}) {
   const p = dir(t);
   const manifest = manifestOf(form, items, extra);
@@ -50,9 +48,9 @@ test('kindOf', () => {
 
 test('itemStates 는 잠금 기준 일곱 상태를 가린다', t => {
   const { p, manifest, lock } = installed(t);
-  write(p, '.ruler/base/00-a.md', '# 프로젝트에서 고침\n');
-  write(p, `.ruler/${DEPLOY}/01-y.md`, '# 고침\n');
-  fs.rmSync(`${p}/docs/guideline/base/SETUP.md`);
+  write(p, '.guideline/rules/base/00-a.md', '# 프로젝트에서 고침\n');
+  write(p, `.guideline/rules/${DEPLOY}/01-y.md`, '# 고침\n');
+  fs.rmSync(`${p}/.guideline/rules/base/SETUP.md`);
   const tree = renderTree({
     'rules/base/01-b.md': `---\nload: reference\nwhen: "비 작업을 할 때"\n---\n\n# 새 비\n`,
     [`rules/${DEPLOY}/01-y.md`]: `${ALWAYS}# 와이\n\n새 본문\n`,
@@ -66,7 +64,8 @@ test('itemStates 는 잠금 기준 일곱 상태를 가린다', t => {
   assert.equal(states.get(`rules/${DEPLOY}/01-y.md`), 'both');
   assert.equal(states.get('skills/s'), 'removed');
   assert.equal(states.get('mcp/c7'), 'current');
-  assert.equal(outputs.find(o => o.path === '.ruler/guideline.md').state, 'current');
+  assert.equal(outputs.find(o => o.path === '.guideline/mcp/c7/server.json').state, 'current');
+  assert.equal(outputs.find(o => o.path === '.guideline/rules/base/SETUP.md').state, 'gone');
 });
 
 test('itemStates 는 스택 키를 파일로 펼쳐 상태를 내고, 잠금에 없는 새 지침 파일은 충돌이 아니라 원본 새로 나옴이다', t => {
@@ -93,7 +92,7 @@ test('고른 스택에서 원본이 뺀 파일: 손대지 않은 사본은 할 �
   assert.equal(plain.states.get('rules/base/01-b.md'), 'upstream');
   assert.equal(plain.states.get('rules/base/00-a.md'), 'current');
   assert.deepEqual(statusTodos(plain.states), []);
-  write(p, 'docs/guideline/base/01-b.md', '# 고침\n');
+  write(p, '.guideline/rules/base/01-b.md', '# 고침\n');
   const edited = itemStates({ tree, reader: diskReader(p), manifest, lock });
   assert.equal(edited.states.get('rules/base/01-b.md'), 'both');
   assert.deepEqual(statusTodos(edited.states), []);
@@ -112,21 +111,21 @@ test('원본에서 통째로 사라진 하위 스택의 파일은 부모 스택�
 
 test('formItems 는 잠금 항목을 잠금 상태로 바꾸고 원본에서 사라진 항목을 추가하며 잠금 출력의 고아는 뺀다', t => {
   const { p, manifest, lock } = installed(t);
-  write(p, '.ruler/base/00-a.md', '# 고침\n');
+  write(p, '.guideline/rules/base/00-a.md', '# 고침\n');
   const tree = renderTree({ 'rules/base/01-b.md': null });
   const { items } = formItems({ tree, project: p, manifest, lock, reader: diskReader(p) });
   const by = id => items.find(i => i.id === id);
   assert.deepEqual([by('rules/base/00-a.md').state, by('rules/base/00-a.md').lockState], ['different', 'local']);
   assert.deepEqual([by('mcp/c7').state, by('mcp/c7').lockState], ['same', 'current']);
   assert.deepEqual(by('rules/base/01-b.md'), { kind: 'rule', id: 'rules/base/01-b.md', stack: 'base', state: 'present', lockState: 'removed' });
-  assert.equal(items.some(i => i.kind === 'orphan' && i.id === 'docs/guideline/base/01-b.md'), false);
+  assert.equal(items.some(i => i.kind === 'orphan'), false);
 });
 
 test('formPayload 는 MCP 값을 싣지 않고 큰 차이는 생략한다', t => {
   const p = dir(t);
-  write(p, '.ruler/ruler.toml', '');
-  write(p, '.mcp.json', JSON.stringify({ mcpServers: { c7: { command: 'npx', args: ['-y', 'c7'], env: { TOKEN: 'hunter2' } } } }));
-  write(p, '.ruler/base/00-a.md', `${'긴 줄\n'.repeat(30000)}`);
+  write(p, '.ruler/ruler.project.toml', '');
+  write(p, '.guideline/mcp/c7/server.json', JSON.stringify({ type: 'stdio', command: 'npx', args: ['-y', 'c7'], env: { TOKEN: 'hunter2' } }));
+  write(p, '.guideline/rules/base/00-a.md', `${'긴 줄\n'.repeat(30000)}`);
   const payload = formPayload({
     tree: renderTree(), revision: 1, projectPath: p, isNew: false, agents: ['claude'],
     status: { gitRepo: true, dirty: false }, manifest: null, lock: null,
@@ -140,10 +139,10 @@ test('formPayload 는 MCP 값을 싣지 않고 큰 차이는 생략한다', t =>
   assert.equal(payload.formVersion, 2, '폼 본문은 스택 단위 선택을 아는 폼(formVersion 2)이라고 알린다');
 });
 
-test('첫 반영에서 충돌한 항목은 최신이 아니라 「반영 안 됨」 이고, 폼에는 0.10 판정으로 다시 나온다', t => {
+test('첫 반영에서 충돌한 항목은 최신이 아니라 「반영 안 됨」 이고, 폼에는 사본 비교로 다시 나온다', t => {
   const p = dir(t);
-  write(p, '.ruler/ruler.toml', 'default_agents = ["claude"]\n');
-  write(p, '.ruler/skills/s/SKILL.md', '---\nname: s\ndescription: 스\n---\n\n프로젝트 본문\n');
+  write(p, '.ruler/ruler.project.toml', 'default_agents = ["claude"]\n');
+  write(p, '.guideline/skills/s/SKILL.md', '---\nname: s\ndescription: 스\n---\n\n프로젝트 본문\n');
   const manifest = manifestOf('ruler', ['skills/s'], { agents: ['claude'] });
   const r = render({ tree: renderTree(), revision: 1, manifest, lock: null, project: diskReader(p), decisions: { 'skills/s': { action: 'keep', state: 'different' } } });
   assert.ok(r.todos.some(x => x.kind === 'conflict' && x.item === 'skills/s'));
@@ -157,14 +156,6 @@ test('첫 반영에서 충돌한 항목은 최신이 아니라 「반영 안 됨
   assert.equal(item.lockState, undefined);
 });
 
-test('수락돼 원본이 사본과 같아지면 「원본 새로 나옴」 이지 「둘 다 바뀜」 이 아니다', t => {
-  const { p, manifest, lock } = installed(t);
-  const next = `${ALWAYS}# 에이\n\n프로젝트에서 다듬은 본문\n`;
-  write(p, '.ruler/base/00-a.md', stripFrontmatter(next));
-  const { states } = itemStates({ tree: renderTree({ 'rules/base/00-a.md': next }), reader: diskReader(p), manifest, lock });
-  assert.equal(states.get('rules/base/00-a.md'), 'upstream');
-});
-
 test('중첩이면 formItems 가 루트 전용 항목을 막는다', t => {
   const p = dir(t);
   write(p, '.ruler/ruler.toml', '');
@@ -172,7 +163,6 @@ test('중첩이면 formItems 가 루트 전용 항목을 막는다', t => {
   const s = items.find(i => i.id === 'skills/s');
   assert.deepEqual([s.state, s.reason], ['blocked', '중첩 디렉터리에서는 받을 수 없음 — git 루트에서 받아야 함']);
   assert.equal(items.find(i => i.id === 'rules/base/00-a.md').state, 'missing');
-  assert.ok(desiredOutputs);
 });
 
 test('formItems 는 원본에서 통째로 사라진 스택(하위 스택 포함)을 스택 칸을 채워 올린다', t => {
@@ -189,17 +179,8 @@ test('formItems 는 원본에서 통째로 사라진 스택(하위 스택 포함
   ]);
 });
 
-/** 새 배치(.guideline/ 사본)로 렌더링해 디스크에 쓴 프로젝트와 그 잠금(version 3). */
-function installedGuide(t, items = ALL) {
-  const p = dir(t);
-  const manifest = manifestOf('ruler', items);
-  const r = render({ tree: renderTree(), revision: 1, manifest, lock: null, project: diskReader(p), layout: 'guideline' });
-  applyFiles(p, r.files);
-  return { p, manifest, lock: r.lock };
-}
-
-test('새 배치: 사본을 고치면 status 가 local 이다', t => {
-  const { p, manifest, lock } = installedGuide(t);
+test('사본을 고치면 status 가 local 이다', t => {
+  const { p, manifest, lock } = installed(t);
   assert.equal(lock.version, 3);
   write(p, '.guideline/rules/base/00-a.md', `${ALWAYS}# 에이\n\n프로젝트에서 고침\n`);
   const tree = renderTree({ [`rules/${DEPLOY}/01-y.md`]: `${ALWAYS}# 와이\n\n새 본문\n` });
@@ -212,8 +193,8 @@ test('새 배치: 사본을 고치면 status 가 local 이다', t => {
   assert.equal(outputs.find(o => o.path === '.guideline/rules/base/00-a.md').state, 'local');
 });
 
-test('새 배치: 사본이 최신 원본과 같으면(제안이 수락된 뒤) 원본 새로 나옴이지 둘 다 바뀜이 아니다', t => {
-  const { p, manifest, lock } = installedGuide(t);
+test('사본이 최신 원본과 같으면(제안이 수락된 뒤) 원본 새로 나옴이지 둘 다 바뀜이 아니다', t => {
+  const { p, manifest, lock } = installed(t);
   // 사본은 원본 모양 그대로라, 수락된 원본과 바이트가 같다(frontmatter 포함)
   const accepted = `${ALWAYS}# 에이\n\n수락된 본문\n`;
   write(p, '.guideline/rules/base/00-a.md', accepted);
@@ -221,14 +202,14 @@ test('새 배치: 사본이 최신 원본과 같으면(제안이 수락된 뒤) 
   assert.equal(states.get('rules/base/00-a.md'), 'upstream');
 });
 
-test('새 배치: 폼은 .guideline 사본으로 같음·다름·없음을 내고 차이는 사본 기준이다', t => {
-  const { p, manifest, lock } = installedGuide(t, ['rules/base/00-a.md', 'rules/base/01-b.md', 'skills/s', 'agents/rev.md', 'mcp/c7']);
+test('폼은 .guideline 사본으로 같음·다름·없음을 내고 차이는 사본 기준이다', t => {
+  const { p, manifest, lock } = installed(t, 'ruler', ['rules/base/00-a.md', 'rules/base/01-b.md', 'skills/s', 'agents/rev.md', 'mcp/c7']);
   write(p, '.guideline/rules/base/00-a.md', `${ALWAYS}# 에이\n\n고친 본문\n`);
   // 조합한 생성물(.ruler/)은 판정에 쓰지 않는다
   write(p, '.ruler/base/00-a.md', '# 에이\n');
   const payload = formPayload({
     tree: renderTree(), revision: 1, projectPath: p, isNew: false, agents: ['claude'],
-    status: { gitRepo: true, dirty: false }, manifest, lock, layout: 'guideline',
+    status: { gitRepo: true, dirty: false }, manifest, lock,
   });
   const by = id => payload.items.find(i => i.id === id);
   assert.deepEqual([by('rules/base/00-a.md').state, by('rules/base/00-a.md').lockState, by('rules/base/00-a.md').where],
@@ -247,10 +228,10 @@ test('새 배치: 폼은 .guideline 사본으로 같음·다름·없음을 내�
   assert.equal(payload.items.some(i => i.kind === 'orphan'), false);
 });
 
-test('새 배치: 원본에서 사라진 스킬은 잠금이 아는 사본이라 고아가 아니라 원본에서 사라짐으로 올라간다', t => {
-  const { p, manifest, lock } = installedGuide(t, ['rules/base/00-a.md', 'skills/s']);
+test('원본에서 사라진 스킬은 잠금이 아는 사본이라 고아가 아니라 원본에서 사라짐으로 올라간다', t => {
+  const { p, manifest, lock } = installed(t, 'ruler', ['rules/base/00-a.md', 'skills/s']);
   const tree = renderTree({ 'skills/s/SKILL.md': null, 'skills/s/img/a.png': null });
-  const { items } = formItems({ tree, project: p, manifest, lock, reader: diskReader(p), layout: 'guideline' });
+  const { items } = formItems({ tree, project: p, manifest, lock, reader: diskReader(p) });
   assert.deepEqual(items.filter(i => i.kind === 'orphan'), []);
   assert.equal(items.find(i => i.id === 'skills/s').lockState, 'removed');
 });
