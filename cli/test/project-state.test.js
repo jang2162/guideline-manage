@@ -77,6 +77,31 @@ test('itemStates 는 스택 키를 파일로 펼쳐 상태를 내고, 잠금에 
   assert.deepEqual(statusTodos(states).map(x => [x.kind, x.item]), [['removed-upstream', 'rules/gone']]);
 });
 
+test('고른 스택에서 원본이 뺀 파일: 손대지 않은 사본은 할 일 없는 upstream, 프로젝트에서 고친 사본은 both', t => {
+  const { p, lock } = installed(t, 'ruler', ['rules/base', 'skills/s']);
+  const tree = renderTree({ 'rules/base/01-b.md': null });
+  const manifest = manifestOf('ruler', ['rules/base', 'skills/s']);
+  const plain = itemStates({ tree, reader: diskReader(p), manifest, lock });
+  assert.equal(plain.states.get('rules/base/01-b.md'), 'upstream');
+  assert.equal(plain.states.get('rules/base/00-a.md'), 'current');
+  assert.deepEqual(statusTodos(plain.states), []);
+  write(p, 'docs/guideline/base/01-b.md', '# 고침\n');
+  const edited = itemStates({ tree, reader: diskReader(p), manifest, lock });
+  assert.equal(edited.states.get('rules/base/01-b.md'), 'both');
+  assert.deepEqual(statusTodos(edited.states), []);
+});
+
+test('원본에서 통째로 사라진 하위 스택의 파일은 부모 스택이 있어도 upstream 이 아니라 그 스택 키의 removed 로만 보인다', t => {
+  const sub = { 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n` };
+  const p = dir(t);
+  const manifest = manifestOf('ruler', ['rules/base', 'rules/base/sub']);
+  const r = render({ tree: renderTree(sub), revision: 1, manifest, lock: null, project: diskReader(p) });
+  applyFiles(p, r.files);
+  const { states } = itemStates({ tree: renderTree(), reader: diskReader(p), manifest, lock: r.lock });
+  assert.equal(states.get('rules/base/sub'), 'removed');
+  assert.equal(states.has('rules/base/sub/00-s.md'), false);
+});
+
 test('formItems 는 잠금 항목을 잠금 상태로 바꾸고 원본에서 사라진 항목을 추가하며 잠금 출력의 고아는 뺀다', t => {
   const { p, manifest, lock } = installed(t);
   write(p, '.ruler/base/00-a.md', '# 고침\n');

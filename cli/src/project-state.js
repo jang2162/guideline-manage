@@ -5,6 +5,7 @@ import { currentPart, blockedReason } from './render/index.js';
 import { desiredOutputs, desiredPart, isRootOnly, ROOT_ONLY_REASON } from './render/outputs.js';
 import { sha256, itemHash, treeHashes } from './hashes.js';
 import { expandBlocks } from './catalog.js';
+import { blockKey } from './blocks.js';
 import { itemKey } from './selection.js';
 import { AGENTS } from './manifest.js';
 import { t } from './i18n.js';
@@ -116,6 +117,16 @@ export function itemStates({ tree, reader, manifest, lock, nested = false, manag
     const local = mine.some(o => o.state === 'local');
     const gone = mine.some(o => o.state === 'gone');
     states.set(id, local && upstream ? 'both' : local ? 'local' : gone ? 'gone' : upstream ? 'upstream' : 'current');
+  }
+  // 고른 스택에서 원본이 뺀 파일: 펼친 items 에 없지만 잠금에 있다. update 가 지우므로(고친 사본이면 남기고 leftover) 할 일 없는
+  // upstream, 프로젝트에서 고쳤으면 both. 원본에 남아 있는 스택(펼쳐진 키)의 바로 그 스택 파일만 본다 — 통째로 사라진 하위 스택은
+  // 그 키가 removed 로 남고 render 가 사본을 그대로 두므로, 부모 스택이 있다고 여기서 upstream 으로 보이면 안 된다.
+  const chosen = new Set(items);
+  const expanded = new Set(manifest.items.filter(k => k.startsWith('rules/') && !chosen.has(k)));
+  for (const id of Object.keys(lock.sources).sort()) {
+    if (chosen.has(id) || !expanded.has(blockKey(id) ?? '')) continue;
+    const local = outputs.some(o => o.items.includes(id) && o.state === 'local');
+    states.set(id, local ? 'both' : 'upstream');
   }
   return { states, outputs };
 }

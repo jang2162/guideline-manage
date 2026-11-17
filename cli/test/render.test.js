@@ -280,3 +280,12 @@ test('고른 스택에서 원본이 뺀 파일은 할 일 없이 지우고, 원�
   assert.ok(next.lock.outputs.some(o => o.path === '.ruler/gone/00-g.md'));
   assert.equal(next.lock.sources['rules/base/01-b.md'], undefined);
 });
+
+test('고른 스택에서 원본이 뺀 파일이라도 프로젝트에서 고친 사본은 지우지 않고 leftover 할 일을 낸다', () => {
+  const first = render({ tree: renderTree(), revision: 1, manifest: manifestOf('ruler', ['rules/base']), lock: null, project: memProject() });
+  const files = applyMem(applyMem({}, first.files), { 'docs/guideline/base/01-b.md': '# 고침\n' });
+  const next = render({ tree: renderTree({ 'rules/base/01-b.md': null }), revision: 2, manifest: manifestOf('ruler', ['rules/base']), lock: first.lock, project: memProject(files) });
+  assert.equal(next.files['docs/guideline/base/01-b.md'], undefined);
+  assert.deepEqual(next.todos.map(x => [x.kind, x.message]), [['leftover', t('todo.leftoverDropped', { path: 'docs/guideline/base/01-b.md' })]]);
+  assert.equal(next.files['.ruler/base/99-reference.md'], null);
+});

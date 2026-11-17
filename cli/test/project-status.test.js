@@ -64,6 +64,16 @@ test('status 는 새 파일 줄을 내지 않는다', async t => {
   assert.match(o.text(), /^ {2}원본 새로 나옴 {2}rules\/base\/02-new\.md$/m);
 });
 
+test('고른 스택에서 원본이 뺀 파일은 status 가 원본 새로 나옴으로 보이고 할 일은 없다', async t => {
+  const { s, p, env } = await setup(t);
+  s.store.commit({ ...META, changes: { 'rules/base/01-b.md': null } });
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, json: true, env, out: o.out }), 0);
+  const data = JSON.parse(o.text());
+  assert.deepEqual(data.items.find(i => i.id === 'rules/base/01-b.md'), { id: 'rules/base/01-b.md', state: 'upstream' });
+  assert.deepEqual(data.todos, []);
+});
+
 test('status 글 출력', async t => {
   const { p, env } = await setup(t);
   write(p, 'docs/guideline/base/01-b.md', '# 고침\n');
