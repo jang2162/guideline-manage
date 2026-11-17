@@ -7,6 +7,8 @@ import { printTodos } from '../todos.js';
 import { rootNestedOn, nestedOffTodo } from '../unit.js';
 import { compose } from '../compose.js';
 import { rulerAgentsEnabled } from '../project-state.js';
+import { RULER_TOML } from '../layout.js';
+import { strayRulerOutput } from '../stray.js';
 import { t } from '../i18n.js';
 
 /** 프로젝트의 node_modules/.bin/ruler 나 PATH 의 ruler. 없으면 null. 내려받아 실행하지 않는다. */
@@ -52,6 +54,19 @@ export function composeUnit({ project, nested, manifest }) {
   return compose({ project, manifest, nested, rulerAgentsEnabled: rulerAgentsEnabled(project) });
 }
 
+/**
+ * 조합하고, 조합 전에 .ruler/ruler.toml 이 없었으면(클론 직후 등) 그 사이 ruler 가 남긴 떠돌이 CLAUDE.md 도 다룬다.
+ * @returns {{ files: Record<string, Buffer | null>, todos: object[] }}
+ */
+export function composeWithStray({ project, nested, manifest }) {
+  const hadToml = fs.existsSync(path.join(project, ...RULER_TOML.split('/')));
+  const composed = composeUnit({ project, nested, manifest });
+  const files = { ...composed.files };
+  const todos = [...composed.todos];
+  if (!hadToml) strayRulerOutput(project, files, todos, String(files[RULER_TOML] ?? ''));
+  return { files, todos };
+}
+
 /** 조합한 것을 쓴다. 실패하면 오류를 내고 { failed: ApplyError }. */
 export function writeComposedOrFail(project, files, err) {
   try {
@@ -64,8 +79,16 @@ export function writeComposedOrFail(project, files, err) {
   }
 }
 
-/** git 루트에서 ruler apply. 못 하면 할 일을 더한다. */
+/**
+ * git 루트에서 ruler apply. 못 하면 할 일을 더한다. 루트에 .ruler/ruler.toml 이 없으면 돌지 않는다 — ruler 는 그것이 없으면
+ * 모든 에이전트로 돌아 CLAUDE.md 등을 만들고 nested 도 꺼진 채로 돈다. 새 배치에서 그것은 커밋되지 않은 생성물이라, 클론 직후
+ * 중첩 단위에서 부르면 루트에는 아직 없다.
+ */
 export function rulerStep({ root, env, runRuler, todos }) {
+  if (!fs.existsSync(path.join(root, ...RULER_TOML.split('/')))) {
+    todos.push({ kind: 'root-apply', item: null, message: t('todo.rootApply', { root }) });
+    return;
+  }
   const bin = findRuler(root, env);
   if (!bin) {
     todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerMissing', { root }) });
@@ -97,7 +120,7 @@ export function finishApply({
   writeFileAtomic(path.join(project, MANIFEST), manifestText(manifest));
   writeFileAtomic(path.join(project, LOCK), lockText(lock));
   if (layout === 'guideline') {
-    const composed = composeUnit({ project, nested, manifest });
+    const composed = composeWithStray({ project, nested, manifest });
     todos = mergeTodos(todos, composed.todos);
     const w = writeComposedOrFail(project, composed.files, err);
     if (w.failed) {

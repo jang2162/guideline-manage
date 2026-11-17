@@ -255,10 +255,14 @@ export async function projectPick({
       rendered.todos.push({ kind: 'override', item: o.target, message: `${o.file} 「${o.heading}」: ${o.reason}` });
     }
   }
+  let moved = false;
   if (layout === 'guideline' && !fs.existsSync(path.join(dir, ...PROJECT_TOML.split('/')))) {
-    rendered.files[PROJECT_TOML] = projectTomlFirst(dir, unit.nested, nextManifest.agents);
+    const first = projectTomlFirst(dir, unit.nested, nextManifest.agents);
+    rendered.files[PROJECT_TOML] = first.content;
+    moved = first.moved;
   }
   const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, layout, env, runRuler, err });
+  if (done.code === 0 && moved) done.todos.push(...untrackMoved(dir, git));
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;
   return failures.length || others.failures.length ? 1 : 0;
@@ -272,10 +276,23 @@ const trim = s => s.replace(/\/+$/, '');
  */
 function projectTomlFirst(dir, nested, agents) {
   try {
-    return fs.readFileSync(path.join(dir, ...RULER_TOML.split('/')));
+    return { content: fs.readFileSync(path.join(dir, ...RULER_TOML.split('/'))), moved: true };
   } catch {
-    return Buffer.from((nested ? NESTED_TOML_BASE : RULER_TOML_BASE)(agents));
+    return { content: Buffer.from((nested ? NESTED_TOML_BASE : RULER_TOML_BASE)(agents)), moved: false };
   }
+}
+
+/**
+ * 옮긴 뒤의 ruler.toml 은 조합이 만드는 생성물(.gitignore 블록)이다. git 이 추적 중이면 인덱스에서만 뺀다(파일은 조합 결과로 남는다) —
+ * 그대로 두면 조합할 때마다 고친 파일로 보이고, 커밋하면 클론에 낡은 설정이 따라간다. 이전(update·pick 의 배치 옮기기)과 같은 방식이다.
+ * 뺐으면 커밋하라고, 못 뺐으면 명령을 할 일로 낸다.
+ */
+function untrackMoved(dir, git) {
+  if (git(['ls-files', '--error-unmatch', '--', RULER_TOML], dir).status !== 0) return [];
+  if (git(['rm', '--cached', '--quiet', '--', RULER_TOML], dir).status === 0) {
+    return [{ kind: 'untracked', item: null, message: t('todo.untracked', { path: RULER_TOML, to: PROJECT_TOML }) }];
+  }
+  return [{ kind: 'untracked', item: null, message: t('todo.untrackFailed', { path: RULER_TOML, dir }) }];
 }
 
 /** 잠금에서 출처 하나의 것만. 폼이 그 출처의 사본 상태만 보게 한다. */
