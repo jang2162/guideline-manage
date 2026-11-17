@@ -7,9 +7,8 @@ import { remoteClient, loadSource, explain } from '../remote.js';
 import { tokenFor, virtualize, toRealLock, fetchSources, aliasMoveTodos, protectedPaths } from '../workspace.js';
 import { realOf, unitOf, unitName, finalUnit, collisions, collisionMessage, NAME } from '../sources.js';
 import { catalogView } from '../catalog-view.js';
-import { expandBlocks } from '../catalog.js';
+import { blockKeys } from '../catalog.js';
 import { blockKey, isWithin, withAncestors } from '../blocks.js';
-import { catalogSummary } from '../summary.js';
 import { splitQualified } from '../manifest.js';
 import { revisionLabel } from './project-update.js';
 import { inferAgents, formPayload, diskReader } from '../project-state.js';
@@ -170,6 +169,12 @@ export async function projectPick({
     let result;
     try {
       const form = await client.createForm(payload);
+      if (form.formVersion === undefined) {
+        // 옛 서버는 스택 단위 폼을 모르고 파일마다 고르는 폼을 띄운다. 열어 둔 폼을 닫고 이 출처는 건너뛴다(고른 출처가 없으면 코드 1).
+        await client.cancelForm(form.url).catch(() => {});
+        failures.push(`${name}: ${t('pick.serverOld')}`);
+        continue;
+      }
       err(targets.length > 1 ? t('pick.sourceForm', { name, url: form.url }) : t('pick.form', { url: form.url }));
       if (browser) open(form.url);
       do {
@@ -224,8 +229,8 @@ export async function projectPick({
   const failed = others.failures.map(f => f.source);
   const protect = protectedPaths({ manifest: nextManifest, lock, failed });
   const v = virtualize({ manifest: nextManifest, lock, trees, protect });
-  // 매니페스트는 블록 키, 렌더링의 결정은 파일 id 마다다. 고른 스택의 파일 전부를 받는다.
-  const decisions = Object.fromEntries(expandBlocks(v.tree, v.view.items).map(id => [id, { action: 'keep' }]));
+  // 렌더링의 결정은 폼에서 사용자가 바꾼 것(받기·지우기·덮어쓰기·막힘)만 싣는다. 고른 스택의 파일은 매니페스트의 블록 키로 렌더링이 펼친다.
+  const decisions = {};
   const orphans = [];
   for (const [name, { sel }] of submitted) {
     // 같은 가상 id 를 다른 출처가 가질 수 있다(다른 출처가 쓰는 이름이라 이 폼에서 막힌 항목). 그 결정은 이 출처의 항목에만 준다.
@@ -338,15 +343,6 @@ async function readRecommend(arg, { cwd, readStdin }) {
   }
   const ok = value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(v => typeof v === 'string');
   return ok ? { value } : { error: t('pick.badRecommend') };
-}
-
-/** 원본 트리의 블록 키(list --json 의 categories·labels 키와 같은 모양). */
-function blockKeys(tree) {
-  const s = catalogSummary(tree);
-  return new Set([
-    ...s.stacks.map(x => `rules/${x.name}`), ...s.skills.map(x => `skills/${x}`),
-    ...s.subagents.map(x => `agents/${x}.md`), ...s.mcp.map(x => `mcp/${x.name}`),
-  ]);
 }
 
 /** 폼에 싣는 목록의 requires(실제 이름)를 별칭을 입힌 이름으로. */

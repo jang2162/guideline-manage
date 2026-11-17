@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { startApp, META } from '../../server/test/helpers.js';
-import { tmpDir, write, collect } from './helpers.js';
+import { tmpDir, write, collect, ALWAYS } from './helpers.js';
 import { SOURCE } from './render-fixture.js';
 import { projectPick } from '../src/commands/project-pick.js';
 import { runGit } from '../src/projects.js';
@@ -98,4 +98,44 @@ test('별칭이 걸린 출처에서는 추천과 requires 를 별칭 이름으�
   await projectPick({ project: p, env, ...quiet, err: () => {}, source: 'company', recommend: recFile(t, { 'rules/base': '공통' }), open: peek(s, seen) });
   assert.deepEqual(seen.data.recommend, { 'rules/company-base': '공통' });
   assert.deepEqual(seen.data.catalog.mcp.find(m => m.name === 'c7').requires, ['rules/company-base']);
+});
+
+test('--recommend 는 하위 스택 키를 받는다', async t => {
+  const { s, env } = await server(t, { ...WITH_REQUIRES, 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n\n본문 S\n` });
+  const p = project(t);
+  const seen = {};
+  const e = collect();
+  const code = await projectPick({ project: p, env, ...quiet, err: e.out, recommend: recFile(t, { 'rules/base/sub': '하위' }), open: peek(s, seen) });
+  assert.equal(code, 3, e.text());
+  assert.deepEqual(seen.data.recommend, { 'rules/base/sub': '하위' });
+});
+
+/** 응답에서 formVersion 을 뗀 옛 서버처럼 보이게 하는 fetch. 폼 본문과 취소 요청을 기록한다. */
+function oldServerFetch(log) {
+  return async (url, init = {}) => {
+    const u = new URL(url);
+    log.push({ method: init.method ?? 'GET', path: u.pathname, body: init.body, headers: init.headers });
+    const res = await fetch(url, init);
+    if (init.method === 'POST' && u.pathname === '/api/v1/forms') {
+      const { formVersion, ...old } = await res.json();
+      return new Response(JSON.stringify(old), { status: res.status, headers: { 'Content-Type': 'application/json' } });
+    }
+    return res;
+  };
+}
+
+test('formVersion 없는 서버(옛 서버)면 폼을 취소하고 serverOld 로 코드 1', async t => {
+  const { s, env } = await server(t);
+  const p = project(t);
+  const log = [];
+  const e = collect();
+  const code = await projectPick({
+    project: p, env, ...quiet, err: e.out, fetchImpl: oldServerFetch(log), open: () => assert.fail('옛 서버의 폼을 열면 안 됨'),
+  });
+  assert.equal(code, 1);
+  assert.match(e.text(), /지침 서버 0\.24\.0 이상이 필요/);
+  const post = log.find(c => c.method === 'POST' && c.path === '/api/v1/forms');
+  assert.equal(JSON.parse(post.body).formVersion, 2);
+  assert.equal(s.app.store.db.prepare('SELECT status FROM forms').get().status, 'cancelled');
+  assert.ok(!fs.existsSync(path.join(p, 'guideline.json')), '옛 서버면 아무것도 쓰지 않는다');
 });

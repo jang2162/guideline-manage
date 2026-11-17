@@ -196,6 +196,8 @@ export function formPayload({ tree, revision, projectPath, isNew, agents, status
   }
   return {
     revision,
+    // 스택 단위 선택(하위 스택)을 아는 폼 본문. 이것을 모르는 옛 서버는 응답에 formVersion 을 싣지 않는다.
+    formVersion: 2,
     project: {
       name: path.basename(projectPath), path: projectPath, form: 'ruler', instructionFiles: [],
       agents, isNew, gitRepo: status.gitRepo, dirty: status.dirty, nested, rootStacks,

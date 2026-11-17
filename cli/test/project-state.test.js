@@ -129,6 +129,7 @@ test('formPayload 는 MCP 값을 싣지 않고 큰 차이는 생략한다', t =>
   assert.equal(payload.diffs['rule:rules/base/00-a.md'].files[0].diff, '너무 커서 생략');
   assert.equal(payload.project.name, p.split('/').at(-1));
   assert.deepEqual([payload.project.form, payload.project.nested, payload.project.rootStacks], ['ruler', false, []]);
+  assert.equal(payload.formVersion, 2, '폼 본문은 스택 단위 선택을 아는 폼(formVersion 2)이라고 알린다');
 });
 
 test('첫 반영에서 충돌한 항목은 최신이 아니라 「반영 안 됨」 이고, 폼에는 0.10 판정으로 다시 나온다', t => {

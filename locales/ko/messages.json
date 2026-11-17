@@ -617,6 +617,7 @@
   "pick.recommendOneSource": "--recommend 는 출처 하나를 고를 때만 씀 — --source <이름> 을 붙임",
   "pick.recommendRead": "추천 파일을 읽지 못함: {reason}",
   "pick.badRecommend": "추천은 {\"블록 키\": \"이유\"} 꼴의 JSON 이어야 함",
+  "pick.serverOld": "이 서버는 CLI 보다 오래됐습니다 — 스택 단위로 고르려면 지침 서버 0.24.0 이상이 필요합니다. 서버 운영자에게 올려 달라고 하거나, 더 옛 CLI 를 쓰세요",
   "pick.recommendUnknown": "원본에 없는 추천 블록: {keys}",
   "web.client.recommended": "에이전트 추천",
   "web.client.why": "이유: {why}",

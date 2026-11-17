@@ -72,7 +72,7 @@ export function registerSyncApi(router, { store, tokens, forms, cliLogins, limit
     const f = forms.create({ tokenId: ownerOf(ctx.auth), revision: body.revision, payload: body });
     const url = new URL(`/forms/${f.id}?k=${encodeURIComponent(f.link)}`, config.publicUrl).href;
     const expiresAt = new Date(Date.parse(f.createdAt) + forms.timers.notOpenedMs).toISOString();
-    sendJson(ctx.res, 201, { id: f.id, url, expiresAt });
+    sendJson(ctx.res, 201, { id: f.id, url, expiresAt, formVersion: 2 });
   });
 
   router.add('GET', '/api/v1/forms/:id/result', async ctx => {
