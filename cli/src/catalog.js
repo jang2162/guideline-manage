@@ -366,27 +366,23 @@ export function fileCategories(categories, rel) {
 
 /**
  * 블록 키를 이 원본의 파일 id 로 펼친다. 스택 키는 그 폴더 바로 안의 지침 파일과 (있으면) SETUP.md 가 되고, 하위 스택 파일은 부모에 들어가지 않는다.
- * 나머지 키와 원본에 없는 스택 키는 그대로 둔다(「원본에서 사라짐」 흐름이 다룬다). 중복 없이 정렬한다.
+ * 나머지 키와 원본에 없는 스택 키(`stacks()` 에 없는 것)는 그대로 둔다(「원본에서 사라짐」 흐름이 다룬다). 하위 스택만 가진 부모 스택은 아무것도 내지 않는다. 중복 없이 정렬한다.
  * @param {string[]} keys
  * @returns {string[]}
  */
 export function expandBlocks(src, keys) {
   const tree = asTree(src);
+  const known = new Set(stacks(tree));
   const out = new Set();
   for (const key of keys) {
-    if (!isBlockKey(key) || !key.startsWith('rules/')) {
+    const stack = isBlockKey(key) && key.startsWith('rules/') ? key.slice('rules/'.length) : null;
+    // 원본에 없는 스택 키는 그대로 둔다. 하위 스택만 가진 부모 폴더는 원본에 있는 스택이라 자기 파일이 없어도 날 키를 남기지 않는다.
+    if (stack === null || !known.has(stack)) {
       out.add(key);
       continue;
     }
-    const stack = key.slice('rules/'.length);
-    const files = stackFiles(stack, tree);
-    const setup = stackSetup(stack, tree);
-    if (files.length === 0 && !setup) {
-      out.add(key);
-      continue;
-    }
-    for (const f of files) out.add(f);
-    if (setup) out.add(`rules/${stack}/SETUP.md`);
+    for (const f of stackFiles(stack, tree)) out.add(f);
+    if (stackSetup(stack, tree)) out.add(`rules/${stack}/SETUP.md`);
   }
   return [...out].sort();
 }

@@ -487,3 +487,18 @@ test('expandBlocks 는 rules/ 로 시작하지 않는 키를 스택 이름으로
   write(root, 'rules/se/00-x.md', `${ALWAYS}# x\n`);
   assert.deepEqual(expandBlocks(root, ['mcp/base']), ['mcp/base']);
 });
+
+test('expandBlocks 는 부모 폴더만 있는 스택을 아무 파일도 내지 않고 날 키도 남기지 않는다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // rules/a 에는 자기 지침 파일이 없고 하위 스택 rules/a/b 만 있다 — stacks() 는 rules/a 를 스택으로 센다
+  write(root, 'rules/a/b/00-x.md', `${ALWAYS}# x\n`);
+  assert.ok(stacks(root).includes('a'));
+  assert.deepEqual(expandBlocks(root, ['rules/a', 'rules/a/b']), ['rules/a/b/00-x.md']);
+  assert.deepEqual(expandBlocks(root, ['rules/a']), []);
+  // 부모에 SETUP.md 만 있어도 그 문서는 부모 키의 몫이다
+  write(root, 'rules/a/SETUP.md', '# a 세팅\n');
+  assert.deepEqual(expandBlocks(root, ['rules/a', 'rules/a/b']), ['rules/a/SETUP.md', 'rules/a/b/00-x.md']);
+  // 스택이 아닌 폴더(뼈대: README 만 있음)와 아예 없는 키는 원본에 없는 것이라 그대로 둔다
+  assert.deepEqual(expandBlocks(root, ['rules/empty', 'rules/gone']), ['rules/empty', 'rules/gone']);
+});
