@@ -11,7 +11,7 @@ import { projectPick } from '../src/commands/project-pick.js';
 import { projectStatus } from '../src/commands/project-status.js';
 import { projectApply } from '../src/commands/project-apply.js';
 import { propose } from '../src/commands/propose.js';
-import { readManifest, readLock } from '../src/manifest.js';
+import { readLock } from '../src/manifest.js';
 import { readBlock } from '../src/gitignore-block.js';
 import { runGit } from '../src/projects.js';
 import { memoryTree } from '../src/tree.js';
@@ -83,6 +83,8 @@ test('이전은 고친 사본을 원본 모양으로 옮긴다', async t => {
   assert.equal(r.todos[0].kind, 'migrated');
   assert.equal(r.todos[0].message, '이 프로젝트를 새 배치로 옮김: 사본은 .guideline/ 에, 생성물은 .gitignore 에 적힘. git status 로 확인하고 커밋');
   assert.ok(r.todos.some(x => x.kind === 'skipped' && x.item === 'rules/base/00-a.md'), JSON.stringify(r.todos));
+  // package.json 이 없으면 클론 뒤 조합을 부를 자리를 알린다
+  assert.ok(r.todos.some(x => x.kind === 'apply-hook'), JSON.stringify(r.todos));
 
   const st = collect();
   assert.equal(await projectStatus({ project: p, env, json: true, out: st.out, err: () => {} }), 0);
@@ -244,8 +246,10 @@ test('pick 은 옛 배치를 먼저 옮기고 새 배치로 폼을 만든다', a
   assert.deepEqual(by['rules/base/00-a.md'].where, ['.guideline/rules/base/00-a.md']);
   // 옛 사본은 고아로 보이지 않는다
   assert.equal(items.some(i => i.kind === 'orphan'), false, JSON.stringify(items.filter(i => i.kind === 'orphan')));
-  // 취소해도 옮긴 것은 남고 그 할 일을 알린다
+  // 취소해도 옮긴 것은 남고(조합해 .gitignore 블록까지 쓴다) 그 할 일을 알린다
   assert.equal(readLock(p).version, 3);
+  assert.ok(readBlock(read(p, '.gitignore')).includes('/.ruler/base/00-a.md'));
+  assert.equal(runGit(['ls-files', '--', '.ruler/base/00-a.md'], p).stdout, '');
   assert.match(e.text(), /새 배치로 옮김/);
 });
 
@@ -273,11 +277,20 @@ test('옛 배치에서 status·propose 는 update 로 옮기라고 하고 2', as
 test('migrateLayout 은 디스크에 쓰지 않고, 지운 사본은 쓰지 않은 채 잠금에 남긴다', t => {
   const p = fs.realpathSync(tmpDir('guideline-migrate-'));
   t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  const { manifest, lock } = writeOldLayout(p);
+  const source = { ...SOURCE, 'docs/management.md': '## 보안\n\n검토\n' };
+  // 서브에이전트는 [agents] 가 꺼져 있어 옛 배치에 사본이 없었다
+  const { manifest, lock } = writeOldLayout(p, { source, items: ['rules/base/00-a.md', 'rules/base/01-b.md', 'skills/s', 'agents/rev.md'] });
   fs.rmSync(path.join(p, 'docs/guideline/base/01-b.md'));
+  write(p, '.ruler/skills/s/extra.md', '프로젝트가 더함\n');
   const before = snapshot(p);
   const noGit = () => ({ status: 128, stdout: '' });
-  const r = migrateLayout({ project: p, manifest, lock, trees: new Map([['default', { revision: 1, tree: memoryTree(SOURCE) }]]), git: noGit });
+  const r = migrateLayout({ project: p, manifest, lock, trees: new Map([['default', { revision: 1, tree: memoryTree(source) }]]), git: noGit });
+  // 옛 사본이 없던 항목과 관리 지침은 잠금 리비전 원본 그대로, 스킬 폴더에 더한 파일도 옮긴다(잠금에는 넣지 않는다)
+  assert.equal(r.files['.guideline/agents/rev.md'].toString(), SOURCE['agents/rev.md']);
+  assert.equal(r.files['.guideline/management/default.md'].toString(), '## 보안\n\n검토\n');
+  assert.ok(r.lock.outputs.some(x => x.path === '.guideline/management/default.md'));
+  assert.equal(r.files['.guideline/skills/s/extra.md'].toString(), '프로젝트가 더함\n');
+  assert.equal(r.lock.outputs.some(x => x.path === '.guideline/skills/s/extra.md'), false);
   assert.deepEqual(snapshot(p), before);
   assert.equal(Object.hasOwn(r.files, '.guideline/rules/base/01-b.md'), false);
   assert.ok(r.lock.outputs.some(x => x.path === '.guideline/rules/base/01-b.md'));

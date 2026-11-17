@@ -33,7 +33,6 @@ test('ruler 형의 출력 자리', () => {
   assert.deepEqual(todos.find(t => t.kind === 'env').data, { vars: ['GITLAB_TOKEN'], readme: 'mcp/gl/README.md' });
   const at = p => outputs.find(o => o.path === p);
   assert.equal(at('.ruler/base/00-a.md').content.toString(), '# 에이\n\n## 절 하나\n\n본문 A\n\n### 아래\n\n깊이\n');
-  assert.equal(at('.ruler/base/00-a.md').adopt, true);
   assert.equal(at('.ruler/guideline.md').owned, true);
   assert.equal(at('.ruler/guideline.md').content.toString(), managementText({ setupStacks: ['base'] }));
   assert.equal(at(`.ruler/${DEPLOY}/99-reference.md`).content.toString(),

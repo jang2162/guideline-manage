@@ -36,7 +36,7 @@ export function currentPart(project, output) {
  * 경로는 모두 단위 디렉터리 기준이다. 매니페스트의 스택 키는 입구에서 그 스택의 파일로 펼친다 — 스택에 새로 생긴 파일은
  * 그냥 쓰고, 원본이 뺀 파일은 지운다. 결정·잠금은 파일 id 다. 원본에 없는 스택 키는 그대로 남아 removed-upstream 이 된다.
  * @param {{ tree: import('../tree.js').Tree, revision: number, manifest: import('../manifest.js').Manifest,
- *   lock: import('../manifest.js').Lock | null, project: { read: Function, exists: Function, rulerAgentsEnabled: boolean },
+ *   lock: import('../manifest.js').Lock | null, project: { read: (rel: string) => Buffer | null },
  *   decisions?: Record<string, { action?: string, overwrite?: boolean, state?: string, reason?: string }>,
  *   force?: boolean, orphans?: string[], nested?: boolean }} opts
  */

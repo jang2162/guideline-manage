@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { tmpDir, write, read, exists, filesOf, ALWAYS, reference } from './helpers.js';
+import { tmpDir, write, read, exists, ALWAYS, reference } from './helpers.js';
 import { SOURCE, DEPLOY, memProject } from './render-fixture.js';
 import { memoryTree } from '../src/tree.js';
 import { checkManifest } from '../src/manifest.js';
