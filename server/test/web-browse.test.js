@@ -5,6 +5,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { makeRichDocsRepo, filesOf, tmpDir, reference } from '../../cli/test/helpers.js';
 import { startApp, testConfig, postForm, login, getAs, ADMIN, META } from './helpers.js';
+import { createI18n, setLocale, currentLocale } from '../../cli/src/i18n.js';
 
 async function seeded(t) {
   const root = makeRichDocsRepo();
@@ -307,6 +308,17 @@ test('홈은 최상위 스택만 카드로 두고, 경고 개수는 자손 경�
   const card = main.slice(main.indexOf('href="/s/browser"'), main.indexOf('</a>', main.indexOf('href="/s/browser"')));
   assert.ok(!card.includes('badge warn'), card);
   assert.ok(card.includes('하위 스택 1개'), card);
+});
+
+test('영어 홈 카드의 하위 스택 배지는 수와 무관한 문구라 하나여도 문법이 맞다', async t => {
+  const prev = currentLocale();
+  setLocale(createI18n({ env: {}, lang: 'en' }));
+  t.after(() => setLocale(prev));
+  const { s } = await tree(t);
+  const home = (await s.req('/')).text;
+  const main = home.slice(home.indexOf('<div class="grid">'));
+  const card = main.slice(main.indexOf('href="/s/browser"'), main.indexOf('</a>', main.indexOf('href="/s/browser"')));
+  assert.ok(card.includes('<span class="badge">Child stacks: 1</span>'), card);
 });
 
 test('부모 상세 화면에 하위 스택 목록과 when 이 있다', async t => {
