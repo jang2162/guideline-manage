@@ -68,6 +68,13 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 .side-list .blk { display: block; padding: 6px 8px; border-radius: 6px; color: var(--fg); font-size: 13px; overflow-wrap: anywhere; }
 .side-list .blk span:not(.nm):not(.domain):not(.real) { display: block; color: var(--faint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-list .blk:hover { background: var(--line-soft); text-decoration: none; }
+/* 하위 스택은 부모 아래에 깊이만큼 들인다. */
+.side-list li[data-depth="1"] { padding-left: 12px; }
+.side-list li[data-depth="2"] { padding-left: 24px; }
+.side-list li[data-depth="3"] { padding-left: 36px; }
+.side-list li[data-depth="4"] { padding-left: 48px; }
+.side-list li[data-depth="5"] { padding-left: 60px; }
+.child-list li { padding: 4px 0; }
 .side-list .blk.on { background: var(--accent-soft); color: var(--accent-text); }
 .side-none { color: var(--faint); font-size: 12.5px; padding: 4px 8px; margin: 0; }
 .tree { list-style: none; margin: 0 0 14px; padding: 0; }

@@ -45,12 +45,16 @@ export function hrefFor(prefix, p) {
 
 /**
  * 블록 이름. 도메인 스택(`<도구>__<도메인>`)은 도구 이름 옆에 도메인 꼬리표를 붙이고, 전체 이름은 title 로 둔다.
+ * 하위 스택(`부모/자식`)은 마지막 조각에서 도구·도메인을 가르고 부모 경로는 도구 이름 앞에 그대로 둔다.
  * 표시 이름(label)이 있으면 그것을 제목으로, 도구 이름은 옆에 작게 둔다.
  * @param {string} name
  * @param {string | null} [label]
  */
 export function blockLabel(name, label = null) {
-  const { tool, domain } = splitStackName(name);
+  const cut = name.lastIndexOf('/') + 1;
+  const piece = splitStackName(name.slice(cut));
+  const tool = name.slice(0, cut) + piece.tool;
+  const { domain } = piece;
   return html`<span class="nm" title="${name}">${label || tool}</span>${label ? html`<span class="real">${tool}</span>` : ''}${domain ? html`<span class="domain">${domain}</span>` : ''}`;
 }
 

@@ -38,3 +38,13 @@ test('diffBlock 은 80줄이 넘으면 앞 80줄만 보이고 나머지를 접�
   assert.ok(shown.includes('line79') && !shown.includes('line80'));
   assert.ok(!String(diffBlock('+a\n+b')).includes('<details'));
 });
+
+test('groupChanges 는 하위 스택 파일을 그 하위 스택 묶음에 두고, 부모 바로 뒤에 놓는다', () => {
+  const tree = { stacks: [{ name: 'base' }, { name: 'base/neo' }, { name: 'base-x' }], skills: [], subagents: [], mcp: [], labels: {} };
+  const groups = groupChanges(['rules/base-x/00-a.md', 'rules/base/neo/00-x.md', 'rules/base/00-a.md', 'rules/base/assets/a.png', 'rules/gone/kid/00-k.md'], tree);
+  const stack = groups[0];
+  assert.deepEqual(stack.blocks.map(b => b.name), ['base', 'base/neo', 'base-x', 'gone/kid']);
+  assert.deepEqual(stack.blocks[0].files.map(f => f.rel), ['00-a.md', 'assets/a.png']);
+  assert.deepEqual(stack.blocks[1].files.map(f => f.rel), ['00-x.md']);
+  assert.deepEqual(stack.blocks[3].files.map(f => f.rel), ['00-k.md']);
+});

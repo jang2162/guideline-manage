@@ -1,7 +1,9 @@
 // 블록(스택·스킬·서브에이전트·MCP)과 화면 주소. 저장 경로를 화면 주소로 바꾸는 일은 모두 여기서 한다.
 // 카탈로그가 인정하는 블록 안의 경로는 블록 상세로, docs/ 문서는 문서 화면으로 간다. 그 밖은 화면이 없다(웹은 이 서비스로 만든 것만 다룬다).
 import { hrefFor } from './layout.js';
+import { dbTree } from '../db-tree.js';
 import { DOC_PATH } from '../../../cli/src/store-paths.js';
+import { stacks } from '../../../cli/src/catalog.js';
 
 /** 웹에서 이름 바꾸기·삭제를 막는 문서. 작성 규칙과 프로젝트 관리 지침에 덧붙는 문서라 에이전트도 읽는다. */
 export const PROTECTED_DOCS = ['docs/authoring.md', 'docs/management.md'];
@@ -27,7 +29,22 @@ export function namesOf(summary, kind) {
 }
 
 /**
+ * `rules/` 아래 경로가 속한 스택: 카탈로그 스택 이름 중 경로의 최장 접두. 하위 스택 파일은 부모가 아니라 하위 스택에 속한다.
+ * @param {string[]} segs `rules` 를 뺀 경로 조각
+ * @param {string[]} names 카탈로그 스택 이름(경로)
+ * @returns {string | null}
+ */
+function stackPrefix(segs, names) {
+  for (let n = segs.length; n > 0; n--) {
+    const name = segs.slice(0, n).join('/');
+    if (names.includes(name)) return name;
+  }
+  return null;
+}
+
+/**
  * 저장 경로가 속한 블록. 카탈로그에 없는 블록(뼈대 스택, 목록에서 빠진 항목)이면 null.
+ * 스택은 카탈로그 스택 이름 중 최장 접두로 정한다(`rules/browser/neo/00-x.md` → `browser/neo`).
  * @param {string} p
  * @param {ReturnType<typeof import('../../../cli/src/summary.js').catalogSummary>} summary
  * @returns {{ kind: string, name: string, rel: string } | null}
@@ -40,7 +57,11 @@ export function blockOf(p, summary) {
     const name = segs[1].slice(0, -'.md'.length);
     return summary.subagents.includes(name) ? { kind: 'agent', name, rel: '' } : null;
   }
-  const kind = KINDS.find(k => k !== 'agent' && DIR[k] === segs[0]);
+  if (segs[0] === DIR.stack) {
+    const name = stackPrefix(segs.slice(1), namesOf(summary, 'stack'));
+    return name === null ? null : { kind: 'stack', name, rel: segs.slice(1 + name.split('/').length).join('/') };
+  }
+  const kind = KINDS.find(k => k !== 'agent' && k !== 'stack' && DIR[k] === segs[0]);
   if (!kind || !namesOf(summary, kind).includes(segs[1])) return null;
   return { kind, name: segs[1], rel: segs.slice(2).join('/') };
 }
@@ -50,9 +71,9 @@ export function blockDir(kind, name) {
   return kind === 'agent' ? DIR.agent : `${DIR[kind]}/${name}`;
 }
 
-/** 블록 설정 페이지 주소. 블록 안 파일 주소(/s/<이름>/<파일>)와 겹치지 않게 /settings/<종류>/<이름> 이다. */
+/** 블록 설정 페이지 주소. 블록 안 파일 주소(/s/<이름>/<파일>)와 겹치지 않게 /settings/<종류>/<이름> 이다. 하위 스택은 조각마다 인코딩한다. */
 export function settingsHref(kind, name) {
-  return `/settings/${kind}/${encodeURIComponent(name)}`;
+  return hrefFor(`/settings/${kind}/`, name);
 }
 
 /** 블록의 frontmatter(표시 이름·분류)를 두는 파일. */
@@ -62,13 +83,14 @@ export function metaFile(kind, name) {
 
 const KIND_OF_DIR = { rules: 'stack', skills: 'skill', agents: 'agent', mcp: 'mcp' };
 
-/** 블록 키(rules/<스택>, skills/<이름>, agents/<이름>.md, mcp/<이름>) → { kind, name }. 블록 키가 아니면 null. */
+/** 블록 키(rules/<스택>[/<하위 스택>…], skills/<이름>, agents/<이름>.md, mcp/<이름>) → { kind, name }. 블록 키가 아니면 null. */
 export function blockOfKey(key) {
   const i = key.indexOf('/');
   const kind = KIND_OF_DIR[key.slice(0, i)];
   if (!kind || i < 0) return null;
   const rest = key.slice(i + 1);
   if (kind === 'agent') return rest.endsWith('.md') && !rest.includes('/') ? { kind, name: rest.slice(0, -'.md'.length) } : null;
+  if (kind === 'stack') return rest && rest.split('/').every(Boolean) ? { kind, name: rest } : null;
   return rest && !rest.includes('/') ? { kind, name: rest } : null;
 }
 
@@ -99,14 +121,22 @@ export function viewHref(p, summary, isFile) {
 
 /**
  * 블록 디렉터리 아래 모든 파일의 블록 안 경로(하위 디렉터리 포함, 이름순). 서브에이전트는 빈 배열.
- * @param {{ headHashes: () => Map<string, string> }} store
+ * 스택은 자손 스택 폴더 아래 파일을 뺀다. 그것은 하위 스택의 파일이다. 스택이 아닌 하위 폴더(자산 등)는 둔다.
+ * @param {{ headHashes: () => Map<string, string>, headRevision: () => number }} store
  */
 export function blockFiles(store, kind, name) {
   if (kind === 'agent') return [];
   const prefix = `${blockDir(kind, name)}/`;
+  const children = kind === 'stack' ? stacks(dbTree(store)).filter(n => n.startsWith(`${name}/`)).map(n => `${n.slice(name.length + 1)}/`) : [];
   return [...store.headHashes().keys()]
     .filter(p => p.startsWith(prefix))
     .map(p => p.slice(prefix.length))
     .filter(rel => !rel.split('/').some(seg => seg.startsWith('.')))
+    .filter(rel => !children.some(c => rel.startsWith(c)))
     .sort();
+}
+
+/** 스택의 자손 스택 이름(모든 깊이). */
+export function descendantStacks(summary, name) {
+  return namesOf(summary, 'stack').filter(n => n.startsWith(`${name}/`));
 }

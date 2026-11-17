@@ -280,3 +280,84 @@ test('비공개 서버는 블록 상세·내려받기를 로그인으로 보낸�
     assert.match(r.headers.location, /^\/login\?next=/);
   }
 });
+
+const TREE = {
+  'rules/browser/README.md': '# browser\n',
+  'rules/browser/00-a.md': '---\nload: always\n---\n# a\n',
+  'rules/browser/neo/README.md': '---\nlabel: 네오\nwhen: "BrowserOS neo 로 웹을 다룰 때"\n---\n# neo\n',
+  'rules/browser/neo/00-x.md': '---\nload: always\n---\n# x\n',
+  'rules/browser/neo/01-bad.md': '# 칸 없음\n',
+  'rules/lang/ts/00-t.md': '---\nload: always\n---\n# t\n',
+};
+
+async function tree(t) {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: TREE });
+  return { s, cookie: await login(s) };
+}
+
+test('홈은 최상위 스택만 카드로 두고, 경고 개수는 자손 경고를 빼고 센다', async t => {
+  const { s } = await tree(t);
+  const home = (await s.req('/')).text;
+  const main = home.slice(home.indexOf('<div class="grid">'));
+  assert.ok(main.includes('href="/s/browser"'));
+  assert.ok(main.includes('href="/s/lang"'));
+  assert.ok(!main.includes('href="/s/browser/neo"'));
+  assert.ok(!main.includes('href="/s/lang/ts"'));
+  const card = main.slice(main.indexOf('href="/s/browser"'), main.indexOf('</a>', main.indexOf('href="/s/browser"')));
+  assert.ok(!card.includes('badge warn'), card);
+  assert.ok(card.includes('하위 스택 1개'), card);
+});
+
+test('부모 상세 화면에 하위 스택 목록과 when 이 있다', async t => {
+  const { s, cookie } = await tree(t);
+  const page = (await s.req('/s/browser')).text;
+  const kids = page.slice(page.indexOf('class="children"'));
+  assert.ok(page.includes('class="children"') && kids.includes('href="/s/browser/neo"'), page);
+  assert.ok(page.includes('BrowserOS neo 로 웹을 다룰 때'));
+  assert.ok(page.includes('네오'));
+  assert.ok(!page.includes('/add?kind=stack&amp;parent=browser'));
+  const admin = (await getAs(s, cookie, '/s/browser')).text;
+  assert.ok(admin.includes('href="/add?kind=stack&amp;parent=browser"'), admin);
+  // 부모 화면의 파일 트리에는 하위 스택 파일이 없고, 경고도 부모 것만.
+  const files = page.slice(page.indexOf('<aside class="files">'));
+  assert.ok(!files.includes('00-x.md'));
+  assert.ok(!page.includes('01-bad.md'));
+});
+
+test('하위 스택 상세는 /s/<경로> 로, 파일은 /s/<경로>/<파일> 로 열고 부모가 빵부스러기에 있다', async t => {
+  const { s, cookie } = await tree(t);
+  const first = await s.req('/s/browser/neo');
+  assert.equal(first.status, 200);
+  assert.ok(first.text.includes('01-bad.md'), 'own warning shows on the child page');
+  const crumbs = first.text.slice(first.text.indexOf('<nav class="crumbs">'), first.text.indexOf('</nav>', first.text.indexOf('<nav class="crumbs">')));
+  assert.ok(crumbs.includes('href="/s/browser"'), crumbs);
+  const file = await s.req('/s/browser/neo/00-x.md');
+  assert.equal(file.status, 200);
+  assert.ok(file.text.includes('rules/browser/neo/00-x.md'));
+  assert.ok(first.text.includes('<li data-depth="1"><a class="blk on" href="/s/browser/neo"'), 'sidebar indents the child under its parent');
+  const crumbsOf = text => text.slice(text.indexOf('<nav class="crumbs">'), text.indexOf('</nav>', text.indexOf('<nav class="crumbs">')));
+  const edit = crumbsOf((await getAs(s, cookie, '/edit/rules/browser/neo/00-x.md')).text);
+  assert.ok(edit.includes('href="/s/browser"') && edit.includes('href="/s/browser/neo"'), edit);
+  assert.equal((await s.req('/s/browser/nope')).status, 404);
+  assert.equal((await s.req('/s/nope/neo')).status, 404);
+});
+
+test('파일 없는 묶음 스택도 상세가 열리고 하위 스택을 보인다', async t => {
+  const { s } = await tree(t);
+  const r = await s.req('/s/lang');
+  assert.equal(r.status, 200);
+  assert.ok(!r.text.includes('00-t.md'), 'the child file is not the bundle stack own file');
+  const kids = r.text.slice(r.text.indexOf('class="children"'));
+  assert.ok(r.text.includes('class="children"') && kids.includes('href="/s/lang/ts"'));
+});
+
+test('파일 화면에서 하위 스택 폴더를 지우면 남은 부모 상세로 간다', async t => {
+  const { s, cookie } = await tree(t);
+  const r = await postForm(s, '/delete/rules/browser/neo', { message: '지움' }, { cookie });
+  assert.equal(r.status, 303);
+  assert.equal(r.headers.location, '/s/browser');
+  assert.equal(s.store.fileAt('rules/browser/neo/00-x.md'), null);
+  const top = await postForm(s, '/delete/rules/browser', { message: '지움' }, { cookie });
+  assert.equal(top.headers.location, '/');
+});

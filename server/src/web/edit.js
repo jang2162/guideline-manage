@@ -10,6 +10,7 @@ import { html, hrefFor, parentOf, diffBlock } from './layout.js';
 import { sendView, tabOf, crumbsFor, hereHref, catalogAt } from './frame.js';
 import { blockOf, LIST_HREF, PROTECTED_DOCS } from './blocks.js';
 import { TEMPLATES } from './templates.js';
+import { parentKey } from '../../../cli/src/blocks.js';
 import { t } from '../../../cli/src/i18n.js';
 
 // 브라우저는 textarea 의 줄바꿈을 CRLF 로 보낸다. 웹 저장이 파일 전체를 CRLF 로 바꾸지 않게 LF 로 맞춘다.
@@ -166,8 +167,10 @@ async function postDelete(ctx) {
     changes: Object.fromEntries(targets.map(q => [q, null])),
     base: Object.fromEntries(targets.map(q => [q, hashes.get(q)])),
   });
-  // 블록 전체를 지웠으면 그 탭 목록으로, 아니면 남은 상위(블록 상세나 설정)로.
-  redirect(ctx.res, block && block.rel === '' ? LIST_HREF[block.kind] : hereHref(store, parentOf(p)));
+  // 블록 전체를 지웠으면 그 탭 목록으로(하위 스택이면 남은 부모 상세로), 아니면 남은 상위(블록 상세나 설정)로.
+  const whole = block && block.rel === '';
+  const up = whole && block.kind === 'stack' ? parentKey(`rules/${block.name}`) : null;
+  redirect(ctx.res, up ? hereHref(store, up) : whole ? LIST_HREF[block.kind] : hereHref(store, parentOf(p)));
 }
 
 async function postRename(ctx) {

@@ -142,3 +142,82 @@ test('블록 추가에서 필요한 블록을 넣으면 첫 파일 frontmatter �
   await postForm(s, '/add', { kind: 'mcp', name: 'new-mcp', requires: 'rules/base' }, { cookie });
   assert.deepEqual(summary(s).requires['mcp/new-mcp'], ['rules/base']);
 });
+
+const TREE = {
+  'rules/browser/README.md': '# browser\n',
+  'rules/browser/00-a.md': '---\nload: always\n---\n# a\n',
+  'rules/browser/neo/README.md': '# neo\n',
+  'rules/browser/neo/00-x.md': '---\nload: always\n---\n# x\n',
+  'rules/browser/neo/deep/00-y.md': '---\nload: always\n---\n# y\n',
+  'rules/tools/deploy__gitlab.example.com/00-d.md': '---\nload: always\n---\n# d\n',
+  'skills/s/SKILL.md': '---\nname: s\ndescription: 스킬\nrequires: [rules/browser/neo, rules/browser/neo/deep]\n---\n# s\n',
+};
+
+async function tree(t) {
+  const s = await startApp(t);
+  s.store.commit({ ...META, changes: TREE });
+  return { s, cookie: await login(s) };
+}
+
+test('부모 이름을 바꾸면 자손과 requires 키가 함께 바뀐다', async t => {
+  const { s, cookie } = await tree(t);
+  // 자손 스택이 다른 자손을 requires 로 가리켜도 옮긴 자리에서 고친다.
+  await post(s, cookie, '/settings/stack/browser/neo', { action: 'meta', requires: 'rules/browser/neo/deep' });
+  const head = s.store.headRevision();
+  const r = await post(s, cookie, '/settings/stack/browser', { action: 'rename', name: 'web' });
+  assert.equal(r.status, 303);
+  assert.equal(r.headers.location, '/settings/stack/web');
+  assert.equal(s.store.headRevision(), head + 1);
+  assert.equal(text(s, 'rules/browser/neo/00-x.md'), null);
+  assert.ok(text(s, 'rules/web/neo/00-x.md'));
+  assert.ok(text(s, 'rules/web/neo/deep/00-y.md'));
+  const sum = summary(s);
+  assert.deepEqual(sum.requires['skills/s'], ['rules/web/neo', 'rules/web/neo/deep']);
+  assert.deepEqual(sum.requires['rules/web/neo'], ['rules/web/neo/deep']);
+});
+
+test('하위 스택 이름 바꾸기는 마지막 조각만 바꾸고 부모는 그대로다', async t => {
+  const { s, cookie } = await tree(t);
+  const page = (await getAs(s, cookie, '/settings/stack/browser/neo')).text;
+  assert.ok(page.includes('name="name" value="neo"'), page);
+  assert.ok(page.includes('guideline source'));
+  const r = await post(s, cookie, '/settings/stack/browser/neo', { action: 'rename', name: 'neo2' });
+  assert.equal(r.headers.location, '/settings/stack/browser/neo2');
+  assert.ok(text(s, 'rules/browser/neo2/deep/00-y.md'));
+  assert.deepEqual(summary(s).requires['skills/s'], ['rules/browser/neo2', 'rules/browser/neo2/deep']);
+  assert.equal((await post(s, cookie, '/settings/stack/browser/neo2', { action: 'rename', name: 'x/y' })).status, 400);
+});
+
+test('하위 스택이 있으면 이름 바꾸기·삭제 확인 문구에 개수가 있고, 지우면 자손도 지운다', async t => {
+  const { s, cookie } = await tree(t);
+  const page = (await getAs(s, cookie, '/settings/stack/browser')).text;
+  assert.equal(page.split('하위 스택 2개 포함').length - 1, 2, page);
+  const leaf = (await getAs(s, cookie, '/settings/stack/browser/neo/deep')).text;
+  assert.ok(!leaf.includes('개 포함'));
+  const r = await post(s, cookie, '/settings/stack/browser/neo', { action: 'delete' });
+  assert.equal(r.headers.location, '/s/browser');
+  assert.equal(text(s, 'rules/browser/neo/deep/00-y.md'), null);
+  assert.ok(text(s, 'rules/browser/00-a.md'));
+  assert.equal((await post(s, cookie, '/settings/stack/browser', { action: 'delete' })).headers.location, '/');
+});
+
+test('스택 설정에서 when 을 README frontmatter 한 줄로 저장한다', async t => {
+  const { s, cookie } = await tree(t);
+  const page = (await getAs(s, cookie, '/settings/stack/browser/neo')).text;
+  assert.ok(page.includes('name="when"'));
+  assert.ok(!(await getAs(s, cookie, '/settings/skill/s')).text.includes('name="when"'));
+  await post(s, cookie, '/settings/stack/browser/neo', { action: 'meta', when: 'neo 로 웹을\r\n다룰 때: 항상' });
+  assert.equal(summary(s).stacks.find(x => x.name === 'browser/neo').when, 'neo 로 웹을 다룰 때: 항상');
+  assert.ok((await getAs(s, cookie, '/settings/stack/browser/neo')).text.includes('value="neo 로 웹을 다룰 때: 항상"'));
+  await post(s, cookie, '/settings/stack/browser/neo', { action: 'meta', when: '' });
+  assert.equal(summary(s).stacks.find(x => x.name === 'browser/neo').when, null);
+});
+
+test('도메인 하위 스택의 설정은 마지막 조각에서 도구·도메인을 가른다', async t => {
+  const { s, cookie } = await tree(t);
+  const page = (await getAs(s, cookie, '/settings/stack/tools/deploy__gitlab.example.com')).text;
+  assert.ok(page.includes('name="name" value="deploy"'), page);
+  assert.ok(page.includes('name="domain" value="gitlab.example.com"'));
+  const r = await post(s, cookie, '/settings/stack/tools/deploy__gitlab.example.com', { action: 'rename', name: 'ship', domain: 'gitlab.example.com' });
+  assert.equal(r.headers.location, '/settings/stack/tools/ship__gitlab.example.com');
+});

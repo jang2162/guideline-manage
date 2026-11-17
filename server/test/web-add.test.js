@@ -79,3 +79,31 @@ test('틀린 이름·도메인·이미 있는 이름은 400 이고 아무것도 
   assert.equal(s.store.headRevision(), head);
   assert.equal((await postForm(s, '/add', { kind: 'stack', name: 'x' }, { cookie, origin: 'http://evil.test' })).status, 403);
 });
+
+test('하위 스택을 추가하면 rules/<부모>/<이름>/ 에 뼈대를 만든다', async t => {
+  const { s, cookie } = await setup(t);
+  const form = (await getAs(s, cookie, '/add?kind=stack&parent=base')).text;
+  assert.ok(form.includes('name="parent" value="base"'), form);
+  assert.ok(form.includes('하위 스택 추가'));
+  assert.equal((await getAs(s, cookie, '/add?kind=stack&parent=nope')).status, 404);
+  const r = await postForm(s, '/add', { kind: 'stack', parent: 'base', name: 'neo', label: '네오' }, { cookie });
+  assert.equal(r.status, 303);
+  assert.equal(r.headers.location, '/s/base/neo');
+  assert.match(s.store.fileAt('rules/base/neo/README.md').toString(), /# neo /);
+  assert.match(s.store.fileAt('rules/base/neo/00-general.md').toString(), /^---\nload: always\n---\n/);
+  const st = summaryOf(s).stacks.find(x => x.name === 'base/neo');
+  assert.equal(st.parent, 'base');
+  assert.equal(summaryOf(s).labels['rules/base/neo'], '네오');
+  assert.deepEqual(summaryOf(s).warnings, []);
+  // 이름 검사는 마지막 조각에. 같은 부모 아래 같은 이름은 이미 있음, 없는 부모는 404.
+  const head = s.store.headRevision();
+  assert.equal((await postForm(s, '/add', { kind: 'stack', parent: 'base', name: 'a/b' }, { cookie })).status, 400);
+  const dup = await postForm(s, '/add', { kind: 'stack', parent: 'base', name: 'neo' }, { cookie });
+  assert.equal(dup.status, 400);
+  assert.ok(dup.text.includes('이미 있는 이름'));
+  assert.equal((await postForm(s, '/add', { kind: 'stack', parent: 'nope', name: 'x' }, { cookie })).status, 404);
+  assert.equal(s.store.headRevision(), head);
+  // 도메인 스택도 하위 스택이 될 수 있다.
+  const dom = await postForm(s, '/add', { kind: 'stack', parent: 'base', name: 'deploy', domain: 'gitlab.example.com' }, { cookie });
+  assert.equal(dom.headers.location, '/s/base/deploy__gitlab.example.com');
+});

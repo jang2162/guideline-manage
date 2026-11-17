@@ -1,6 +1,7 @@
 // 리비전·제안 상세의 왼쪽: 바뀐 파일을 종류 → 블록 → 파일 트리로. 가운데에는 고른 파일 하나만 보인다.
 import { html, blockLabel } from './layout.js';
 import { labelOf } from './frame.js';
+import { blockOf } from './blocks.js';
 import { t } from '../../../cli/src/i18n.js';
 
 const ORDER = ['stack', 'skill', 'agent', 'mcp', 'docs'];
@@ -14,18 +15,34 @@ const KIND_LABEL = {
 };
 
 /**
- * 경로의 종류·블록. 카탈로그에 없는 블록(지운 블록)도 첫 두 조각으로 정한다. 어느 블록에도 안 맞으면 문서 묶음.
+ * 경로의 종류·블록. 스택은 카탈로그 스택 이름 중 최장 접두(하위 스택 파일은 하위 스택 묶음에).
+ * 카탈로그에 없는 스택(지운 스택)은 파일이 놓인 폴더를 스택으로 본다. 어느 블록에도 안 맞으면 문서 묶음.
  * @returns {{ kind: string, name: string | null, rel: string }}
  */
-function placeOf(p) {
+function placeOf(p, summary) {
   const segs = p.split('/');
   const kind = KIND_OF_DIR[segs[0]];
   if (kind === 'agent') {
     if (segs.length === 2 && segs[1].endsWith('.md') && segs[1] !== 'README.md') return { kind, name: segs[1].slice(0, -'.md'.length), rel: segs[1] };
+  } else if (kind === 'stack' && segs.length >= 3) {
+    const b = blockOf(p, summary);
+    if (b?.kind === 'stack' && b.rel) return b;
+    return { kind, name: segs.slice(1, -1).join('/'), rel: segs[segs.length - 1] };
   } else if (kind && segs.length >= 3) {
     return { kind, name: segs[1], rel: segs.slice(2).join('/') };
   }
   return { kind: 'docs', name: null, rel: p };
+}
+
+/** 블록 이름을 조각마다 비교한다. 부모 스택 바로 뒤에 하위 스택이 온다(`base`, `base/neo`, `base-x`). */
+function byName(a, b) {
+  const x = String(a).split('/');
+  const y = String(b).split('/');
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const c = x[i].localeCompare(y[i]);
+    if (c) return c;
+  }
+  return x.length - y.length;
 }
 
 /**
@@ -37,7 +54,7 @@ function placeOf(p) {
 export function groupChanges(paths, summary) {
   const kinds = new Map();
   for (const p of paths) {
-    const { kind, name, rel } = placeOf(p);
+    const { kind, name, rel } = placeOf(p, summary);
     if (!kinds.has(kind)) kinds.set(kind, new Map());
     const blocks = kinds.get(kind);
     if (!blocks.has(name)) blocks.set(name, []);
@@ -47,7 +64,7 @@ export function groupChanges(paths, summary) {
   return ORDER.filter(k => kinds.has(k)).map(kind => ({
     kind,
     blocks: [...kinds.get(kind)]
-      .sort(([a], [b]) => String(a).localeCompare(String(b)))
+      .sort(([a], [b]) => byName(a, b))
       .map(([name, files]) => ({
         name,
         label: name === null ? null : labelOf(summary, kind, name),
