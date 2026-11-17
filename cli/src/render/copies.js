@@ -10,10 +10,10 @@ import { t } from '../i18n.js';
  * 새 배치(.guideline/)에 있어야 할 사본. 원본의 모양과 바이트를 그대로 둔다 — frontmatter 를 벗기거나 색인·toml 을 만드는 것은
  * apply 가 사본에서 조합한다. 디스크는 보지 않는다.
  * @param {{ tree: import('../tree.js').Tree, manifest: import('../manifest.js').Manifest, items: string[],
- *   rulerAgentsEnabled?: boolean, management?: { additions?: { source: string, text: string }[] } }} opts
+ *   management?: { additions?: { source: string, text: string }[] } }} opts
  *   items 는 반영할 수 있는 항목(원본에 있고 막히지 않은 것). 스택 키는 그 스택의 파일로 펼친다
  */
-export function desiredCopies({ tree, items, rulerAgentsEnabled = false, management = {} }) {
+export function desiredCopies({ tree, items, management = {} }) {
   const outputs = [];
   const todos = [];
   // 원본에 CRLF 가 있어도 프로젝트에는 LF 로 쓴다. 디스크 쪽도 같은 규칙(normalized)으로 읽어 비교한다.
@@ -27,10 +27,7 @@ export function desiredCopies({ tree, items, rulerAgentsEnabled = false, managem
       continue;
     }
     if (id.startsWith('agents/')) {
-      // 서브에이전트는 ruler 가 [agents] 를 켜야 쓴다. 사본은 켜기 전에도 둔다.
-      if (!rulerAgentsEnabled) {
-        todos.push({ kind: 'subagents-off', item: id, message: t('todo.agentsDisabled', { name: id.slice('agents/'.length, -'.md'.length) }) });
-      }
+      // 서브에이전트는 ruler 가 [agents] 를 켜야 쓴다. 사본은 켜기 전에도 두고, 켜지 않았다는 할 일은 조합(compose)이 낸다.
       file(copyPath(id), tree.read(id), [id]);
       continue;
     }

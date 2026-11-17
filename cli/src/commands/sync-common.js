@@ -5,6 +5,8 @@ import { applyFiles, writeFileAtomic, ApplyError } from '../apply.js';
 import { MANIFEST, LOCK, manifestText, lockText } from '../manifest.js';
 import { printTodos } from '../todos.js';
 import { rootNestedOn, nestedOffTodo } from '../unit.js';
+import { compose } from '../compose.js';
+import { rulerAgentsEnabled } from '../project-state.js';
 import { t } from '../i18n.js';
 
 /** 프로젝트의 node_modules/.bin/ruler 나 PATH 의 ruler. 없으면 null. 내려받아 실행하지 않는다. */
@@ -30,11 +32,58 @@ export function defaultRunRuler(bin, cwd) {
 }
 
 /**
+ * 동기화 할 일에 조합 할 일을 더한다. 같은 할 일(종류·항목·문구)은 한 번만, 조합의 no-copy 는 동기화가 그 항목(그 안의 파일 포함)에
+ * 이미 이유를 낸 것이면 뺀다 — 막힘·mcp-build 처럼 동기화가 사본을 쓰지 않은 이유가 더 정확하다.
+ */
+export function mergeTodos(syncTodos, composeTodos) {
+  const seen = new Set(syncTodos.map(x => `${x.kind}\0${x.item ?? ''}\0${x.message}`));
+  const within = (id, key) => id === key || id.startsWith(`${key}/`);
+  const out = [...syncTodos];
+  for (const x of composeTodos) {
+    if (seen.has(`${x.kind}\0${x.item ?? ''}\0${x.message}`)) continue;
+    if (x.kind === 'no-copy' && syncTodos.some(s => s.item && within(s.item, x.item))) continue;
+    out.push(x);
+  }
+  return out;
+}
+
+/** 이 단위의 생성물을 조합한다(디스크는 읽기만). ruler.toml 은 ruler.project.toml 에서 만든다. */
+export function composeUnit({ project, nested, manifest }) {
+  return compose({ project, manifest, nested, rulerAgentsEnabled: rulerAgentsEnabled(project) });
+}
+
+/** 조합한 것을 쓴다. 실패하면 오류를 내고 { failed: ApplyError }. */
+export function writeComposedOrFail(project, files, err) {
+  try {
+    return applyFiles(project, files);
+  } catch (e) {
+    if (!(e instanceof ApplyError)) throw e;
+    err(t('apply.writeFailed', { reason: e.message }));
+    if (e.written.length) err(t('apply.writtenSoFar', { files: e.written.join(', ') }));
+    return { failed: e };
+  }
+}
+
+/** git 루트에서 ruler apply. 못 하면 할 일을 더한다. */
+export function rulerStep({ root, env, runRuler, todos }) {
+  const bin = findRuler(root, env);
+  if (!bin) {
+    todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerMissing', { root }) });
+  } else if (runRuler(bin, root) !== 0) {
+    todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerFailed', { bin }) });
+  }
+}
+
+/**
  * 렌더링 결과를 단위 디렉터리에 쓰고, 매니페스트·잠금을 마지막에 쓴 뒤 git 루트에서 ruler apply 를 돈다.
+ * 새 배치(layout 'guideline')면 잠금까지 쓴 다음 .guideline/ 에서 생성물을 조합해 쓰고 ruler 를 돈다 —
+ * 조합이 .ruler/ruler.toml 을 쓴 뒤에만 ruler 를 돌아야 모든 에이전트 몫(CLAUDE.md 등)이 생기지 않는다.
  * @returns {{ code: number, written: string[], deleted: string[], todos: object[] }}
  */
-export function finishApply({ project, root = project, nested = false, result, manifest, lock = result.lock, env = process.env, runRuler = defaultRunRuler, err = console.error }) {
-  const todos = [...result.todos];
+export function finishApply({
+  project, root = project, nested = false, result, manifest, lock = result.lock, layout = 'ruler', env = process.env, runRuler = defaultRunRuler, err = console.error,
+}) {
+  let todos = [...result.todos];
   let applied;
   try {
     applied = applyFiles(project, result.files);
@@ -47,15 +96,18 @@ export function finishApply({ project, root = project, nested = false, result, m
   }
   writeFileAtomic(path.join(project, MANIFEST), manifestText(manifest));
   writeFileAtomic(path.join(project, LOCK), lockText(lock));
-  if (nested && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
-  if (applied.written.length || applied.deleted.length) {
-    const bin = findRuler(root, env);
-    if (!bin) {
-      todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerMissing', { root }) });
-    } else if (runRuler(bin, root) !== 0) {
-      todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerFailed', { bin }) });
+  if (layout === 'guideline') {
+    const composed = composeUnit({ project, nested, manifest });
+    todos = mergeTodos(todos, composed.todos);
+    const w = writeComposedOrFail(project, composed.files, err);
+    if (w.failed) {
+      err(t('apply.composeNotWritten'));
+      return { code: 1, written: [...applied.written, ...w.failed.written], deleted: [...applied.deleted, ...w.failed.deleted], todos };
     }
+    applied = { written: [...applied.written, ...w.written], deleted: [...applied.deleted, ...w.deleted] };
   }
+  if (nested && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
+  if (applied.written.length || applied.deleted.length) rulerStep({ root, env, runRuler, todos });
   return { code: 0, ...applied, todos };
 }
 

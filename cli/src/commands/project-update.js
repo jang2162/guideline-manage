@@ -4,6 +4,7 @@ import { diskReader } from '../project-state.js';
 import { expandBlocks } from '../catalog.js';
 import { unitInfo, unitProblem } from '../unit.js';
 import { render } from '../render/index.js';
+import { layoutOf } from '../layout.js';
 import { fetchSources, virtualize, toRealLock, aliasMoveTodos, missingRequiresTodos, protectedPaths, manifestClashes } from '../workspace.js';
 import { finishApply, report } from './sync-common.js';
 import { t } from '../i18n.js';
@@ -77,15 +78,16 @@ export async function projectUpdate({
   const v = virtualize({ manifest, lock, trees, protect });
   const unit = unitInfo(dir, git);
   const decisions = Object.fromEntries(expandBlocks(v.tree, v.view.items).map(id => [id, { action: 'keep' }]));
+  const layout = layoutOf(lock, dir) === 'guideline' ? 'guideline' : 'ruler';
   const rendered = render({
-    tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, force, nested: unit.nested, management: v.management,
+    tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, force, nested: unit.nested, management: v.management, layout,
   });
   for (const p of protect) delete rendered.files[p];
   const revisions = Object.fromEntries([...trees].map(([name, t]) => [name, t.revision]));
   const realLock = toRealLock({ viewLock: rendered.lock, sources: v.sources, revisions, previous: lock, keep: failed, protect });
   rendered.todos.push(...v.problems, ...aliasMoveTodos({ previous: lock, next: realLock, project: dir }));
   rendered.todos.push(...missingRequiresTodos({ manifest, trees, many: v.many }));
-  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err });
+  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, layout, env, runRuler, err });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   return failures.length && done.code === 0 ? 1 : done.code;
 }

@@ -75,15 +75,15 @@ test('desiredCopies 는 출처별 관리 지침을 소유 출력으로 낸다', 
   assert.equal(m.content.toString(), '## 보안\n\n검토\n');
 });
 
-test('desiredCopies 는 막힘·mcp-build·env·subagents-off 할 일을 desiredOutputs 와 같은 조건으로 낸다', () => {
+test('desiredCopies 는 막힘·mcp-build·env 할 일을 desiredOutputs 와 같은 조건으로 낸다(subagents-off 는 조합이 낸다)', () => {
   const { outputs, todos } = desiredCopies({ tree: renderTree(), manifest: manifestOf('ruler', ALL), items: ALL });
-  assert.deepEqual(todos.map(t => t.kind).sort(), ['env', 'mcp-build', 'subagents-off']);
+  assert.deepEqual(todos.map(t => t.kind).sort(), ['env', 'mcp-build']);
   assert.deepEqual(todos.find(t => t.kind === 'env').data, { vars: ['GITLAB_TOKEN'], readme: 'mcp/gl/README.md' });
   assert.equal(todos.find(t => t.kind === 'mcp-build').data.readme, 'mcp/b/README.md');
   // 짓는 법만 있는 서버는 복사할 파일이 없다
   assert.equal(outputs.some(o => o.path.startsWith('.guideline/mcp/b/')), false);
-  const on = desiredCopies({ tree: renderTree(), manifest: manifestOf('ruler', ALL), items: ALL, rulerAgentsEnabled: true });
-  assert.equal(on.todos.some(t => t.kind === 'subagents-off'), false);
+  // [agents] 가 꺼져 있어도 서브에이전트 사본은 둔다
+  assert.ok(outputs.some(o => o.path === '.guideline/agents/rev.md'));
   // server.json 이 틀린 서버는 blocked
   const bad = desiredCopies({ tree: renderTree({ 'mcp/c7/server.json': '{' }), manifest: manifestOf('ruler', ALL), items: ['mcp/c7'] });
   assert.deepEqual(bad.todos.map(t => t.kind), ['blocked']);
@@ -102,7 +102,7 @@ test('render(layout guideline) 는 잠금 v3 과 .guideline 출력만 낸다', (
   assert.equal(text(r, '.guideline/rules/base/00-a.md'), SOURCE['rules/base/00-a.md']);
   const out = r.lock.outputs.find(o => o.path === '.guideline/rules/base/00-a.md');
   assert.equal(out.hash, sha256(SOURCE['rules/base/00-a.md']));
-  assert.deepEqual(kinds(r), ['env', 'mcp-build', 'setup', 'subagents-off']);
+  assert.deepEqual(kinds(r), ['env', 'mcp-build', 'setup']);
   // 잠금 파일로 쓰고 읽어도 v3
   assert.equal(checkLock(JSON.parse(lockText({ ...r.lock, revisions: { default: 5 } }))).version, 3);
 });

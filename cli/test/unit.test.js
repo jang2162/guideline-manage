@@ -5,7 +5,7 @@ import path from 'node:path';
 import { tmpDir, write } from './helpers.js';
 import { runGit } from '../src/projects.js';
 import { manifestText } from '../src/manifest.js';
-import { unitInfo, unitProblem, rootNestedOn, rootStacks, NOT_RULER, INSTRUCTIONS_GONE } from '../src/unit.js';
+import { unitInfo, unitProblem, rootNestedOn, rootStacks, nestedOffTodo, NOT_RULER, INSTRUCTIONS_GONE } from '../src/unit.js';
 
 function repo(t) {
   const d = tmpDir('guideline-unit-');
@@ -42,6 +42,15 @@ test('rootNestedOn 은 ruler.project.toml 을 먼저 읽는다', t => {
   assert.equal(rootNestedOn(root), false);
   write(root, '.ruler/ruler.project.toml', 'nested = true\n');
   assert.equal(rootNestedOn(root), true);
+});
+
+test('nested-off 할 일은 ruler.project.toml 을 가리키고, 루트에 ruler.toml 만 있으면(이전 전) 그것을 가리킨다', t => {
+  const root = repo(t);
+  assert.match(nestedOffTodo(root).message, /의 \.ruler\/ruler\.project\.toml 에서 nested = true 켜기/);
+  write(root, '.ruler/ruler.toml', 'default_agents = ["claude"]\n');
+  assert.match(nestedOffTodo(root).message, /의 \.ruler\/ruler\.toml 에서 nested = true 켜기/);
+  write(root, '.ruler/ruler.project.toml', 'default_agents = ["claude"]\n');
+  assert.match(nestedOffTodo(root).message, /의 \.ruler\/ruler\.project\.toml 에서 nested = true 켜기/);
 });
 
 test('rootNestedOn 과 rootStacks', t => {

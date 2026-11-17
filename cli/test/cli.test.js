@@ -198,3 +198,16 @@ test('propose --apply --review 는 명령줄에서 2', () => {
   assert.match(r.out, /--apply 와 --review 는 같이 쓸 수 없음/);
   fs.rmSync(folder, { recursive: true, force: true });
 });
+
+test('help 에 apply 가 있고, apply 는 --project·--json 만 받으며 받은 적 없는 프로젝트에서 2', t => {
+  const dir = tmpDir('guideline-empty-');
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  assert.match(run(['help'], dir).out, /^ {2}apply {4}서버 없이 \.guideline\/ 에서 에이전트 파일을 조합하고 ruler 실행/m);
+  const bad = run(['apply', '--server', 'http://x'], dir);
+  assert.equal(bad.code, 2);
+  assert.match(bad.out, /apply 에서 쓸 수 있는 옵션: --project, --json/);
+  fs.mkdirSync(path.join(dir, '.ruler'));
+  const r = run(['apply', '--project', dir], dir);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /guideline pick 먼저/);
+});

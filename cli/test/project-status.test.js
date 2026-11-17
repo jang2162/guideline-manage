@@ -11,6 +11,11 @@ import { diskReader } from '../src/project-state.js';
 import { MANIFEST, LOCK, manifestText, lockText } from '../src/manifest.js';
 import { projectStatus } from '../src/commands/project-status.js';
 import { memoryTree } from '../src/tree.js';
+import { checkManifest } from '../src/manifest.js';
+import { virtualize, toRealLock } from '../src/workspace.js';
+import { PROJECT_TOML } from '../src/layout.js';
+import { RULER_TOML_BASE } from '../src/render/outputs.js';
+import { projectApply } from '../src/commands/project-apply.js';
 
 async function setup(t, opts) {
   const s = await startApp(t, opts);
@@ -131,4 +136,46 @@ test('status 는 whoami 가 없는 옛 서버(404)에서도 실패하지 않고 
   const text = collect();
   assert.equal(await projectStatus({ project: p, env, out: text.out, fetchImpl: old }), 0);
   assert.doesNotMatch(text.text(), /토큰:/);
+});
+
+/** 새 배치 프로젝트: .guideline/ 사본·잠금 v3·ruler.project.toml 을 쓰고 apply 로 생성물까지 맞춘다. */
+async function setupNew(t) {
+  const s = await startApp(t);
+  s.store.commit({ ...META, source: 'import', changes: SOURCE });
+  const token = s.tokens.issue({ name: 'cli-t', scope: 'read' }).token;
+  const p = fs.realpathSync(tmpDir('guideline-status-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(p, '.ruler'));
+  const manifest = checkManifest({ version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: s.base, items: ['rules/base'], aliases: {} } } });
+  const trees = new Map([['default', { server: s.base, revision: 1, tree: memoryTree(SOURCE) }]]);
+  const v = virtualize({ manifest, lock: null, trees });
+  const r = render({ tree: v.tree, revision: 0, manifest: v.view, lock: null, project: diskReader(p), management: v.management, layout: 'guideline' });
+  applyFiles(p, r.files);
+  write(p, MANIFEST, manifestText(manifest));
+  write(p, LOCK, lockText(toRealLock({ viewLock: r.lock, sources: v.sources, revisions: { default: 1 } })));
+  write(p, PROJECT_TOML, RULER_TOML_BASE(['claude']));
+  assert.equal(await projectApply({ dir: p, out: () => {}, err: () => {}, env: { PATH: '' }, git: () => ({ status: 1, stdout: '' }) }), 0);
+  return { p, env: { GUIDELINE_TOKEN: token } };
+}
+
+test('status 는 생성물이 낡았으면 apply 할 일을 낸다', async t => {
+  const { p, env } = await setupNew(t);
+  const fresh = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: fresh.out, err: () => {} }), 0);
+  assert.equal(JSON.parse(fresh.text()).todos.some(x => x.kind === 'apply'), false);
+
+  // 사본을 고쳤는데 조합하지 않았다
+  write(p, '.guideline/rules/base/00-a.md', `${ALWAYS}# 에이\n\n고침\n`);
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o.out, err: () => {} }), 0);
+  const todo = JSON.parse(o.text()).todos.find(x => x.kind === 'apply');
+  assert.equal(todo.message, '생성물이 낡음 — guideline apply 실행');
+
+  // 서버 없이도 이 판정은 한다
+  const m = JSON.parse(fs.readFileSync(path.join(p, MANIFEST), 'utf8'));
+  m.sources.default.server = 'http://127.0.0.1:9';
+  write(p, MANIFEST, `${JSON.stringify(m, null, 2)}\n`);
+  const off = collect();
+  assert.equal(await projectStatus({ project: p, env, out: off.out, err: () => {} }), 1);
+  assert.match(off.text(), /할 일\n {2}- 생성물이 낡음 — guideline apply 실행/);
 });

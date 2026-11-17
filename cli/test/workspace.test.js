@@ -114,3 +114,17 @@ test('toRealLock: 가상 잠금이 v3(새 배치)이면 실제 잠금도 v3, 아
   assert.ok(real.outputs.some(o => o.path === '.guideline/rules/base/00-a.md' && o.items[0] === 'default:rules/base/00-a.md'));
   assert.equal(toRealLock({ viewLock: { ...guide.lock, version: 1 }, sources: v.sources, revisions: { default: 1 } }).version, 2);
 });
+
+test('protectedPaths: 새 배치면 닿지 못한 출처의 관리 지침 사본도 지키고, 잠금이 그것을 옮긴다', () => {
+  const manifest = { sources: {
+    a: { server: 'http://a', items: ['rules/base'], aliases: {} },
+    b: { server: 'http://b', items: ['rules/web'], aliases: {} },
+  } };
+  const own = p => ({ path: p, items: [], hash: 'h' });
+  const lock = { version: 3, revisions: { a: 1, b: 2 }, sources: {}, outputs: [own('.guideline/management/a.md'), own('.guideline/management/b.md')] };
+  const protect = protectedPaths({ manifest, lock, failed: ['b'] });
+  assert.deepEqual([...protect], ['.guideline/management/b.md']);
+  // 받은 출처(a)만으로 다시 만든 잠금에도 b 의 사본 출력이 남는다(다음 동기화가 지우지 않게)
+  const real = toRealLock({ viewLock: { version: 3, sources: {}, outputs: [own('.guideline/management/a.md')] }, sources: [], revisions: { a: 3 }, previous: lock, keep: ['b'], protect });
+  assert.deepEqual(real.outputs.map(o => o.path).sort(), ['.guideline/management/a.md', '.guideline/management/b.md']);
+});

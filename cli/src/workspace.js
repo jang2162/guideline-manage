@@ -6,6 +6,7 @@ import { qualify, splitQualified, readManifest } from './manifest.js';
 import { sourceView, mergeViews, toVirtual, realOf, aliasProblems, unitOf, finalUnit, unitName, collisions, collisionMessage } from './sources.js';
 import { readText } from './tree.js';
 import { blockKeys, elementRequires } from './catalog.js';
+import { managementCopy } from './layout.js';
 import { t } from './i18n.js';
 
 // 여러 출처의 원본을 받아 하나의 가상 원본으로 합치고(렌더링·상태 코드가 그대로 쓰게), 결과 잠금을 출처 붙은 id 로 되돌린다.
@@ -85,7 +86,8 @@ const stackDir = p => {
 };
 
 /**
- * 닿지 못한 출처가 있을 때 건드리지 않을 생성물 경로: 그 출처 최종 스택의 색인, 관리 지침, docs/guideline/README.md.
+ * 닿지 못한 출처가 있을 때 건드리지 않을 생성물 경로: 그 출처 최종 스택의 색인, 관리 지침, docs/guideline/README.md,
+ * 새 배치면 그 출처의 관리 지침 사본.
  * 그 출처의 원본 없이 다시 만들면 내용이 빠지기 때문이다. 이 경로들은 렌더링에서 빼고 잠금의 이전 것을 옮긴다.
  * @param {{ manifest: object, lock: object | null, failed: string[] }} opts
  * @returns {Set<string>}
@@ -101,10 +103,12 @@ export function protectedPaths({ manifest, lock, failed }) {
       if (u?.startsWith('rules/')) stacks.add(unitName(finalUnit(u, s.aliases ?? {})));
     }
   }
+  // 새 배치의 출처별 관리 지침 사본(.guideline/management/<출처>.md)은 그 출처의 원본에서만 다시 만들 수 있다
+  const mine = new Set(failed.map(managementCopy));
   for (const o of lock.outputs) {
     if (o.items.length) continue;
     const d = stackDir(o.path);
-    if (o.path === '.ruler/guideline.md' || o.path === 'docs/guideline/README.md' || (d && stacks.has(d))) out.add(o.path);
+    if (o.path === '.ruler/guideline.md' || o.path === 'docs/guideline/README.md' || mine.has(o.path) || (d && stacks.has(d))) out.add(o.path);
   }
   return out;
 }

@@ -7,6 +7,7 @@ import { source } from './commands/source.js';
 import { projectPick } from './commands/project-pick.js';
 import { projectUpdate } from './commands/project-update.js';
 import { projectStatus } from './commands/project-status.js';
+import { projectApply } from './commands/project-apply.js';
 import { login, logout } from './commands/login.js';
 import { locale } from './commands/locale.js';
 import { t, currentLocale } from './i18n.js';
@@ -19,6 +20,7 @@ export const ALLOWED_OPTIONS = {
   pick: ['project', 'no-browser', 'new', 'server', 'source', 'recommend', 'json'],
   update: ['project', 'server', 'source', 'force', 'json'],
   status: ['project', 'server', 'source', 'json'],
+  apply: ['project', 'json'],
   login: ['server', 'token-stdin'],
   logout: ['server'],
   propose: ['project', 'server', 'source', 'title', 'message', 'only', 'from', 'dry-run', 'apply', 'review', 'json'],
@@ -144,6 +146,10 @@ export async function main(argv) {
 
   if (command === 'status') {
     return projectStatus({ project: values.project, server: values.server, source: values.source, json: values.json, cwd });
+  }
+
+  if (command === 'apply') {
+    return projectApply({ project: values.project, json: values.json, cwd });
   }
 
   if (command === 'locale') {

@@ -14,6 +14,8 @@ import { revisionLabel } from './project-update.js';
 import { inferAgents, formPayload, diskReader } from '../project-state.js';
 import { unitInfo, unitProblem, rootStacks } from '../unit.js';
 import { render } from '../render/index.js';
+import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../render/outputs.js';
+import { layoutOf, rulerTomlText, PROJECT_TOML, RULER_TOML } from '../layout.js';
 import { finishApply, report } from './sync-common.js';
 import { t } from '../i18n.js';
 
@@ -116,7 +118,7 @@ export async function projectPick({
   const unit = isNew ? { dir, root: dir, nested: false } : unitInfo(dir, git);
   const status = isNew ? { gitRepo: false, dirty: false } : projectStatus(dir, git, unit.root);
   // 중첩 단위에 ruler.toml 이 아직 없으면 git 루트의 에이전트를 따른다
-  const agentsFrom = unit.nested && !fs.existsSync(path.join(dir, '.ruler', 'ruler.toml')) ? unit.root : dir;
+  const agentsFrom = unit.nested && rulerTomlText(dir) === null ? unit.root : dir;
   const agents = manifest?.agents ?? (isNew ? null : inferAgents(agentsFrom));
   if (agents) working.agents = agents;
 
@@ -239,8 +241,10 @@ export async function projectPick({
     for (const b of sel.blocked) if (own(b.id)) decisions[b.id] = { state: 'blocked', reason: b.reason };
     orphans.push(...sel.items.filter(i => i.kind === 'orphan' && i.action === 'remove').map(i => i.id));
   }
+  // 새 프로젝트와 처음 받는 프로젝트는 새 배치(.guideline/ 사본 + 조합)로 시작한다. 이미 받은 프로젝트는 그 배치를 따른다.
+  const layout = isNew || !manifest || layoutOf(lock, dir) === 'guideline' ? 'guideline' : 'ruler';
   const rendered = render({
-    tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, orphans, nested: unit.nested, management: v.management,
+    tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, orphans, nested: unit.nested, management: v.management, layout,
   });
   for (const p of protect) delete rendered.files[p];
   const revisions = Object.fromEntries([...trees].map(([n, t]) => [n, submitted.get(n)?.revision ?? t.revision]));
@@ -251,13 +255,28 @@ export async function projectPick({
       rendered.todos.push({ kind: 'override', item: o.target, message: `${o.file} 「${o.heading}」: ${o.reason}` });
     }
   }
-  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, env, runRuler, err });
+  if (layout === 'guideline' && !fs.existsSync(path.join(dir, ...PROJECT_TOML.split('/')))) {
+    rendered.files[PROJECT_TOML] = projectTomlFirst(dir, unit.nested, nextManifest.agents);
+  }
+  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, layout, env, runRuler, err });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;
   return failures.length || others.failures.length ? 1 : 0;
 }
 
 const trim = s => s.replace(/\/+$/, '');
+
+/**
+ * 새 배치로 시작할 때의 .ruler/ruler.project.toml. 프로젝트가 둔 ruler.toml 이 있으면 그 설정을 옮긴다(처음 받는 프로젝트라 지침 서버가
+ * 넣은 MCP 표가 없다). 없으면 기본 설정 — 조합이 이것에 고른 MCP 를 얹어 ruler.toml 을 만든다.
+ */
+function projectTomlFirst(dir, nested, agents) {
+  try {
+    return fs.readFileSync(path.join(dir, ...RULER_TOML.split('/')));
+  } catch {
+    return Buffer.from((nested ? NESTED_TOML_BASE : RULER_TOML_BASE)(agents));
+  }
+}
 
 /** 잠금에서 출처 하나의 것만. 폼이 그 출처의 사본 상태만 보게 한다. */
 function lockOf(lock, name) {

@@ -64,31 +64,41 @@ function managementOf(tree, manifest) {
   return { stackSource, additions };
 }
 
-/** .guideline/overrides/<스택 경로>/override.md·override.d/*.md → .ruler/<스택 경로>/…. 경로 → 내용. */
-function overrideCopies(tree) {
-  const out = new Map();
+/**
+ * .guideline/overrides/<스택 경로>/override.md·override.d/*.md → .ruler/<스택 경로>/…. 경로 → 내용.
+ * 고른 스택(조상 포함)의 바꿈만 옮긴다. 고르지 않은 스택의 바꿈 자리는 unchosen 에 담는다(파일이 있는 자리만).
+ * @param {Set<string>} chosen 고른 스택 경로(`base`, `base/web`)
+ * @returns {{ copies: Map<string, Buffer>, unchosen: string[] }}
+ */
+function overrideCopies(tree, chosen) {
+  const copies = new Map();
+  const unchosen = [];
   const walk = stack => {
     const base = joinPath(OVERRIDES, stack);
+    let own = false;
+    const put = (rel, file) => {
+      own = true;
+      if (chosen.has(stack)) copies.set(`.ruler/${stack}/${rel}`, tree.read(file));
+    };
     for (const e of tree.list(base)) {
       if (e.name.startsWith('.')) continue;
       if (!e.dir) {
-        if (stack && e.name === 'override.md') out.set(`.ruler/${stack}/override.md`, tree.read(joinPath(base, e.name)));
+        if (stack && e.name === 'override.md') put('override.md', joinPath(base, e.name));
         continue;
       }
       if (e.name === 'override.d') {
         if (!stack) continue;
         for (const f of tree.list(joinPath(base, e.name))) {
-          if (!f.dir && f.name.endsWith('.md') && !f.name.startsWith('.')) {
-            out.set(`.ruler/${stack}/override.d/${f.name}`, tree.read(joinPath(base, `override.d/${f.name}`)));
-          }
+          if (!f.dir && f.name.endsWith('.md') && !f.name.startsWith('.')) put(`override.d/${f.name}`, joinPath(base, `override.d/${f.name}`));
         }
         continue;
       }
       walk(joinPath(stack, e.name));
     }
+    if (own && !chosen.has(stack)) unchosen.push(stack);
   };
   walk('');
-  return out;
+  return { copies, unchosen: unchosen.sort(byStr) };
 }
 
 /**
@@ -112,7 +122,15 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   const keys = virtualKeys(manifest).filter(k => !(nested && isRootOnly(k)));
   const items = expandBlocks(tree, keys).filter(id => tree.exists(id));
   const view = { version: 1, form: 'ruler', instructionFiles: [], agents: manifest.agents, items: keys };
-  const { outputs, todos } = desiredOutputs({ tree, manifest: view, items, rulerAgentsEnabled, management: managementOf(tree, manifest) });
+  const { outputs, todos: made } = desiredOutputs({ tree, manifest: view, items, rulerAgentsEnabled, management: managementOf(tree, manifest) });
+  // 새 배치에서 서브에이전트는 사본이 있고 조합만 하지 않은 것이다. 설정 자리도 ruler.project.toml 이다.
+  const todos = made.map(x => (x.kind === 'subagents-off'
+    ? { ...x, message: t('todo.agentsNotComposed', { name: x.item.slice('agents/'.length, -'.md'.length) }) }
+    : x));
+  // 고른 항목인데 사본이 없으면(막혔거나 MCP 를 만들어야 해서 동기화가 쓰지 않은 것) 조용히 빠지지 않게 알린다.
+  for (const k of keys) {
+    if (!tree.exists(k)) todos.push({ kind: 'no-copy', item: k, message: t('todo.noCopy', { item: k }) });
+  }
 
   const want = new Map();
   for (const o of outputs) if (o.kind === 'file') want.set(o.path, o.content);
@@ -133,7 +151,12 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   }
   want.set(RULER_TOML, Buffer.from(toml));
 
-  for (const [p, c] of overrideCopies(tree)) want.set(p, c);
+  const chosen = new Set(keys.filter(k => k.startsWith('rules/')).map(k => k.slice('rules/'.length)));
+  const { copies, unchosen } = overrideCopies(tree, chosen);
+  for (const [p, c] of copies) want.set(p, c);
+  for (const stack of unchosen) {
+    todos.push({ kind: 'override-unchosen', item: null, message: t('todo.overrideUnchosen', { stack }) });
+  }
 
   const generated = [...want.keys()].sort(byStr);
   const files = {};

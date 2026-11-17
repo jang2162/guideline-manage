@@ -241,3 +241,29 @@ test('compose 는 매니페스트에 없는 출처의 관리 지침 사본을 �
   const r = compose({ project: p, manifest: MANIFEST, nested: false, rulerAgentsEnabled: true });
   assert.doesNotMatch(r.files['.ruler/guideline.md'].toString(), /사라진 출처/);
 });
+
+test('compose 는 고르지 않은 스택의 바꿈을 옮기지 않고 override-unchosen 으로 알린다', t => {
+  const { p } = guideProject(t);
+  write(p, '.guideline/overrides/base/override.md', '## 바꿈\n');
+  write(p, '.guideline/overrides/other/override.md', '## 안 고름\n');
+  write(p, '.guideline/overrides/base/zzz/override.d/a.md', '## 고르지 않은 하위 스택\n');
+  const r = compose({ project: p, manifest: MANIFEST, nested: false, rulerAgentsEnabled: true });
+  assert.ok(r.files['.ruler/base/override.md']);
+  assert.ok(!r.generated.some(x => x.startsWith('.ruler/other/') || x.startsWith('.ruler/base/zzz/')), r.generated.join(', '));
+  assert.deepEqual(r.todos.filter(x => x.kind === 'override-unchosen').map(x => x.message), [
+    '.guideline/overrides/base/zzz/: 고르지 않은 스택이라 바꿈을 조합하지 않음 — 스택을 고르거나 바꿈을 지우기',
+    '.guideline/overrides/other/: 고르지 않은 스택이라 바꿈을 조합하지 않음 — 스택을 고르거나 바꿈을 지우기',
+  ]);
+});
+
+test('compose 는 사본이 없는 고른 항목을 no-copy 로 알리고, 서브에이전트는 새 배치 문구로 알린다', t => {
+  const { p } = guideProject(t, MANIFEST, { rulerAgentsEnabled: false });
+  const r = compose({ project: p, manifest: MANIFEST, nested: false, rulerAgentsEnabled: false });
+  // mcp/b 는 짓는 법만 있어 동기화가 사본을 쓰지 않는다
+  assert.deepEqual(r.todos.filter(x => x.kind === 'no-copy').map(x => x.item), ['mcp/b']);
+  assert.equal(r.todos.find(x => x.kind === 'subagents-off').message,
+    'rev: .guideline/ 에 사본은 있지만 .ruler/ruler.project.toml 에 [agents] enabled = true 가 없어 조합하지 않음 — 켤지 결정(켜면 .gitignore 에 생성물이 추가됨)');
+  fs.rmSync(path.join(p, `.guideline/rules/${DEPLOY}`), { recursive: true });
+  const gone = compose({ project: p, manifest: MANIFEST, nested: false, rulerAgentsEnabled: false });
+  assert.deepEqual(gone.todos.filter(x => x.kind === 'no-copy').map(x => x.item).sort(), ['mcp/b', `rules/${DEPLOY}`]);
+});
