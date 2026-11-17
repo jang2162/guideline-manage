@@ -21,7 +21,7 @@ description: Picks the guidelines on the guideline server that fit this project 
 
 ## What to do
 
-First check the state with `guideline status --json` and report it in one line (items behind, files edited in the project, new files).
+First check the state with `guideline status --json` and report it in one line (items behind, files edited in the project).
 
 | Request | Command |
 | --- | --- |
@@ -39,8 +39,8 @@ First check the state with `guideline status --json` and report it in one line (
 
 ## Recommend and receive
 
-1. Read the source with `guideline list --json`. Block keys match the keys of the `categories`, `labels` and `requires` maps: `rules/<stack>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`. A guideline file's `when` says when to read it.
-2. Look at the project's config files, packages and tools, and choose blocks. Write each reason from evidence in the project (e.g. "`lefthook.yml` exists"). Leave out blocks with no evidence.
+1. Read the source with `guideline list --json`. Block keys match the keys of the `categories`, `labels` and `requires` maps: `rules/<stack>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`. A guideline file's `when` says when to read it, and a child stack's `when` (shown after its name in `guideline list`) says which work needs it. Stacks nest: `rules/browser/browseros-neo` is a child stack of `rules/browser`.
+2. Look at the project's config files, packages and tools, and choose blocks. **Read each child stack's `when` and choose the child stacks that fit this project**; the form checks a chosen child's ancestor stacks too, so you need not list them. Write each reason from evidence in the project (e.g. "`lefthook.yml` exists"). Leave out blocks with no evidence.
 3. Write the recommendation as a JSON file — `{"rules/base": "common to every project", "rules/lefthook": "lefthook.yml exists"}`. Required blocks (`requires`) are checked by the form, so they need not be listed.
 4. Run `guideline pick --recommend <file> --json` in the background, as in "pick". The form opens with the recommendations checked. Tell the user to review it and submit — **submitting the form is the confirmation.** If the form shows no "Agent pick" marks, the server is older than 0.19 — tell the user and have them choose in the form directly.
 5. With several sources, add `--source <name>` and do one source at a time (that is what exit code 2 means here). A key not in the source stops with exit code 2 naming the key — read the list again and fix it.
@@ -59,10 +59,10 @@ Handle the `todos` in the JSON from `pick`, `update` or `status` one by one.
 | `override` | An override section points at a file or section the source does not have. Fix the first line of the override section |
 | `subagents-off` | Ask whether to turn on `[agents] enabled = true` in `.ruler/ruler.toml` (it adds generated files to `.gitignore`) |
 | `ruler-apply` | Ask whether you may run the suggested command |
-| `new-file`, `removed-upstream` | Tell the user, and suggest `guideline pick` to choose or remove it |
+| `removed-upstream` | Tell the user, and suggest `guideline pick` to remove it |
 | `missing-requires` | A received block (`item`) needs blocks that were not received (`data.missing`, source keys). Tell the user which blocks are missing, write a recommendation file with them (`{"<missing block>": "needed by <item>"}`) and run `guideline pick --recommend <file> --json` as in "Recommend and receive" — submitting the form is the confirmation. With several sources (`item` starts with `<source>:`), add `--source <source>` |
 | `blocked` | Not applied because of a source warning. The copy stays as it is. Report that the source should be fixed |
-| `leftover` | Unchecked in the form, but the copy differs from the source, so it was not deleted. Show the diff and ask whether to delete it |
+| `leftover` | Unchecked in the form (or dropped from a chosen stack by the source), but the copy differs from the source, so it was not deleted. Show the diff and ask whether to delete it |
 | `nested-off` | Ask whether to turn on `nested = true` in `.ruler/ruler.toml` at the git root. Otherwise ruler does not build this directory's guidelines |
 | `mcp-local` | The project changed an MCP setting. To send it upstream, propose `server.json` with the `guideline-export` skill |
 | `adopted` | A copy `propose` left out. It already differed from the source when first received — if it is an old version, proposing it would undo source changes. Show the diff, and propose it with `guideline propose --only <item>` only when the project really edited it. If it is an old version, suggest matching it with `guideline update --force` |
@@ -75,5 +75,5 @@ Do not commit. Report the changed files, the to-dos you handled and the ones lef
 ## Rules
 
 - **Do not edit the copies directly.** Files recorded in `guideline-lock.json` and `docs/guideline/` are written only by the CLI.
-- Write anything that should differ for this project only as an override (the management guideline gives the place and format).
+- Write anything that should differ for this project only as an override (the management guideline gives the place and format). Do not put project files inside a received stack folder (`.ruler/<stack>/`, sub-folders included): they show up as "removed from source".
 - **Do not write secrets into project files.** Even if the user tells you a value, tell them to keep it in an environment variable.

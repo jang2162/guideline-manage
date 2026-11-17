@@ -5,6 +5,7 @@
 | Content | Location |
 | --- | --- |
 | Rules that hold for one stack (a group that shares guidelines) | `rules/<stack>/` |
+| Rules only some projects of a stack need | a child stack, a folder inside the stack: `rules/<stack>/<child>/` (→ "Child stacks") |
 | A procedure used by several projects | `skills/<name>/SKILL.md` |
 | A subagent used by several projects | `agents/<name>.md` |
 | An MCP server used by several projects | `mcp/<name>/server.json`, `mcp/<name>/README.md`. Only `README.md` when values differ per project |
@@ -60,9 +61,9 @@ The default for a topic belongs to the broad stack (for example `base`). Changin
 | `05-switch.md` "When Orca is running, create worktrees with Orca too" | `base/01-git.md` "Create worktrees inside the repository, one per task" |
 ```
 
-- A cell is `` `<file>` "<## section title>" ``. This stack's side gives only the file name; the overridden side gives `<stack>/<file>`. Copy the section title after `## ` exactly.
+- A cell is `` `<file>` "<## section title>" ``. This stack's side gives only the file name; the overridden side gives `<stack path>/<file>` — for a child stack, the whole path, such as `browser/browseros-neo/02-tabs.md`. Copy the section title after `## ` exactly.
 - Overriding only part of it is fine. The overriding section's body says what it replaces and what still applies.
-- **A broad stack never points at a narrow stack.** Projects that did not receive the narrow stack would be left with text pointing at a stack they do not have.
+- **A broad stack never points at a narrow stack.** Projects that did not receive the narrow stack would be left with text pointing at a stack they do not have. This includes its own child stacks: a row whose overridden side is a descendant of this stack gets a warning in `guideline list`. A child stack overriding its parent or another stack is fine.
 - If the same topic differs with no environment condition, that is not an override but a contradiction in the source. Fix one side.
 
 **Put overriding sections in `load: always` files.**
@@ -174,6 +175,36 @@ The same tool can need different rules on different servers (companies, instance
 ## Skeleton stacks
 
 A `rules/<stack>/` with only `README.md` is a skeleton and does not appear in `guideline list`. It becomes a stack the moment its first guideline file (`NN-*.md`) is added.
+
+## Child stacks
+
+Rules that only some projects of a stack need go in a **child stack**: a folder inside the stack folder that has its own guideline files. For example, `rules/browser/` holds what holds for every browser task, and `rules/browser/browseros-neo/` holds what only projects that use BrowserOS neo need.
+
+```
+rules/browser/README.md
+rules/browser/00-tool-choice.md
+rules/browser/browseros-neo/README.md
+rules/browser/browseros-neo/01-limits.md
+```
+
+- **Nest folders.** The stack's name is its path under `rules/` (`browser/browseros-neo`), its block key is `rules/browser/browseros-neo` and its project folder is `.ruler/browser/browseros-neo/`. Depth is not limited.
+- **Only the files directly in a folder belong to that stack.** A child's files do not belong to its parent, and the parent's files do not belong to the child.
+- **A parent may hold only child stacks.** Such a bundle stack has no guideline files of its own and needs no README; it groups its children in the lists and the form.
+- **A folder whose last name part has a `.` and no `__` is not a stack.** The tool reads such a name as a file (`v1.2`), so the folder shows in the `Ignored` section of `guideline list` and its files are not received. Write `v1-2`. Domain stacks (`<tool>__<domain>`) keep their dots, and may have child stacks.
+- **Write `when` for every child stack.** Put one line in the `rules/<stack>/README.md` frontmatter that says which worker needs it. Write the task or the worker ("when working with the browser through BrowserOS neo", "for workers who deploy to the staging server"), not the topic. Quote the value when it contains `: `. `guideline list`, the form and the web show it, and an agent that recommends blocks reads it.
+
+  ```markdown
+  ---
+  when: "when working with the browser through BrowserOS neo"
+  ---
+  ```
+
+- **Choosing a child stack chooses its ancestors.** A project that receives `browser/browseros-neo` also receives `browser`, and the form marks the ancestor **Ancestor**. Choosing a parent does not choose its children, and unchecking an ancestor unchecks the descendants. So a child may assume what its ancestors say. A child must not repeat the parent's rules or contradict them.
+- **Aliases belong to top-level stacks.** `aliases` in a project's `guideline.json` renames `rules/<top-level stack>`, and the children follow it (`.ruler/<alias>/<child>/`).
+- **`requires`, `categories`, `label` and `SETUP.md` work per stack.** Put them in the child's own README or folder, using the child's block key (`rules/browser/browseros-neo`).
+
+- **Why:** a project that needs the browser rules but not the BrowserOS neo rules should not get them, and splitting them into sibling stacks loses the fact that one builds on the other.
+- **How to apply:** after writing, check that `guideline list <source folder>` shows the child under its parent with its `when`, and that the folder is not in `Ignored` or `warning`.
 
 ## Skills
 

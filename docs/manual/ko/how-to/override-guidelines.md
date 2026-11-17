@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/how-to/override-guidelines.md @ v0.21.0 -->
+<!-- source: docs/manual/en/how-to/override-guidelines.md @ v0.23.0 -->
 [English](../../en/how-to/override-guidelines.md) | **한국어**
 
 # 이 프로젝트에만 다르게 하기
@@ -25,6 +25,12 @@
    ```
 
 3. 파일 전체를 바꾸려면 그 줄에서 「」 로 감싼 절 제목을 빼세요.
+
+하위 스택은 자기 폴더를 쓰세요: `.ruler/<부모>/<하위>/override.md`.
+
+받은 스택 폴더(`.ruler/<스택>/`) 안에는 하위 폴더를 포함해 프로젝트 파일을 두지 마세요.
+그 폴더는 원본의 것이라서, 원본에 없는 파일이나 하위 폴더는 원본에서 사라진 사본으로 보입니다.
+프로젝트 고유 규칙은 `override.md` 나 `override.d/` 에 두세요.
 
 바꾼 파일이나 절이 원본에서 사라지면 `override` 할 일이 나옵니다.
 

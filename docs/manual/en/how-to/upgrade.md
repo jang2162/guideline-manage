@@ -31,6 +31,8 @@ npm install -g guideline-manage
 
 - A server rejects a CLI older than 0.12.0 with "The CLI is too old — upgrade guideline-manage".
 - Fetching from a public server without a token needs CLI 0.16 or later. The 0.15 CLI stops before asking the server when it has no token.
+- **Upgrade the CLI and the server together to 0.24 or later** for the pick form: it chooses whole stacks and writes `guideline.json` version 3. A 0.24 server refuses an older CLI's form ("update the guideline CLI to 0.24.0 or newer"), and a 0.24 CLI skips a source whose server is older ("This server is older than the CLI", exit code 1). Updating, status and proposals do not need the server upgrade.
+- Commit `guideline.json` after the first `pick` or `update` with the new CLI. It is rewritten as version 3 (block keys); an older CLI cannot read it ("version is not 1 or 2").
 - A 0.20 or later CLI works with an older server. `whoami` returns 404 there, so `guideline propose` sends proposals as before, and `status` and `login` show no token scope. An older CLI on a 0.20 server behaves as before.
 
 ## Update the seed on a running server
@@ -48,6 +50,12 @@ A server that was started before the versions below keeps the old text, so updat
 
 > [!WARNING]
 > **Servers started before 0.21:** the `guideline-sync` skill does not handle the `missing-requires` to-do. In its "Handling to-dos" section, add `status` to the first line and add the `missing-requires` row. Copy them from the language pack's `templates/skills/guideline-sync/SKILL.md`.
+
+> [!WARNING]
+> **Servers started before 0.24:** the authoring rules have no "Child stacks" section, and the `guideline-sync` skill does not tell agents to choose child stacks by their `when`. On the web, copy these from the same files under the language pack's `templates/`.
+>
+> - Authoring rules: the "Child stacks" section, the child stack row in "Where things go", and the `<stack path>/<file>` cell and descendant warning in "Overriding another stack".
+> - `guideline-sync`: the child stack sentences in steps 1 and 2 of "Recommend and receive", and in "Handling to-dos" remove `new-file` from the `new-file`, `removed-upstream` row (the to-do no longer exists) and extend the `leftover` row.
 
 ## Next
 

@@ -12,7 +12,7 @@ Common options: `--project <path>` (default: current directory), `--server <URL>
 
 | Command | What it does |
 | --- | --- |
-| `guideline pick` | Opens the server form and applies the chosen items on submit. `--new <name\|path>` creates a new project (`git init`) and applies. `--no-browser` only prints the address. `--recommend <file\|->` opens the form with blocks an agent chose (JSON `{"block key": "reason"}`) already checked — one source at a time (add `--source` when there are several). Needs a 0.19+ server; an older server opens the form without the recommendations |
+| `guideline pick` | Opens the server form and applies the chosen items on submit. `--new <name\|path>` creates a new project (`git init`) and applies. `--no-browser` only prints the address. `--recommend <file\|->` opens the form with blocks an agent chose (JSON `{"block key": "reason"}`) already checked — one source at a time (add `--source` when there are several). Needs a 0.19+ server; an older server opens the form without the recommendations. Picking stacks needs a 0.24+ server (see [Exit codes](#exit-codes)) |
 | `guideline update` | Re-applies the chosen items from the latest server revision. Skips files edited in the project; `--force` overwrites them |
 | `guideline status` | Shows whether the applied guidelines are current and what the project changed, plus the stored token's name and scope (`token` in `--json`; nothing when there is no token or the server is older than 0.20) |
 | `guideline propose` | Turns edited copies back into source form and proposes them. With an `admin` scope token it applies them directly instead (no review); `--review` sends a proposal anyway, `--apply` applies explicitly (an error with a non-admin token). Passing both is a usage error (exit code 2). `--dry-run` (also says which of the two sending would do), `--title`, `--message`, `--only <item,…>`, `--from <folder>`. `--json` adds `mode`: `apply` or `proposal` (absent when there is nothing to send). The dry run is the authoritative way to see the mode: it asks with the same token and server the real send uses, while `status` may resolve a different token (several sources, `GUIDELINE_TOKEN`) |
@@ -28,6 +28,16 @@ This happens, for example, when the source gained a new `requires` after the pro
 `data.missing` lists the missing block keys; add them with `guideline pick`.
 With several sources, each source is judged by its own `requires` and its own blocks, before aliases.
 
+When the source drops a file from a stack you chose, `status` shows it as `upstream` (`both` when the project also edited it) and `update` deletes it.
+An edited copy is not deleted: it stays and a `leftover` to-do asks you to check it and delete it or send it upstream.
+A file or sub-folder in `.ruler/<stack>/` that is not in the source reads as removed from the source for the same reason, so keep project-only rules in `override.md` or `override.d/` ([Override a guideline in one project](how-to/override-guidelines.md)).
+
+### `guideline.json`
+
+`items` of each source are **block keys**: `rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>` (`"version": 3`).
+A child stack is listed together with its ancestor stacks, for example `["rules/browser", "rules/browser/browseros-neo"]`.
+An older file (`"version": 1` or `2`, with file paths) is read as before and rewritten as version 3 the next time `pick` writes it.
+
 ## Source commands
 
 | Command | What it does |
@@ -37,6 +47,7 @@ With several sources, each source is judged by its own `requires` and its own bl
 | `guideline proposals [number]` | Without a number, lists the server's proposals: number, status, title, author, project, date and file count. `--status pending\|accepted\|rejected` filters the list. With a number, shows that proposal: its details, whether it is Outdated and the conflicting paths, and each file's kind and diff against its base. `--json` prints the server's response as is. Also `--server` and `--source`. Issued tokens see only their own proposals; the admin token and an `admin` scope token see all. Accept or reject on the web or through the API |
 
 `list` shows stacks (guideline files with their load, and overrides between stacks), skills, subagents and MCP servers.
+A child stack is indented under its parent and shown by its whole path (`browser/browseros-neo`), followed by its `when` from the README frontmatter.
 It also shows files left out for breaking the rules (Ignored) and things to fix (warning), each with its reason.
 Warnings do not change the exit code (0).
 The writing rules are the source's `docs/authoring.md`.
@@ -59,9 +70,15 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 | Code | Meaning |
 | --- | --- |
 | 0 | Success |
-| 1 | Failure (server unreachable, no permission, write failure, language pack problems and so on). Also 1 when one source failed and the others were applied |
+| 1 | Failure (server unreachable, no permission, write failure, language pack problems and so on). Also 1 when one source failed and the others were applied. A source whose server is older than 0.24 counts as a failed source (see below) |
 | 2 | Usage error, not a ruler project, name clash |
 | 3 | `pick`: not submitted (cancelled, tab closed, never opened). Nothing was written |
+
+A server older than 0.24 cannot take stack choices.
+`pick` then cancels that source's form, says "This server is older than the CLI" and leaves the source as it was.
+The other sources are still picked, and the exit code is 1 because a source failed; with no source picked it is also 1.
+Upgrade the server, or use an older CLI.
+A 0.24 server refuses a CLI that does not send the stack form's `formVersion` with 426 "update the guideline CLI to 0.24.0 or newer".
 
 ## The pick form
 
@@ -75,6 +92,12 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 | source updated | The source changed after you received it | **update** starts turned on |
 | edited in project | The project changed it after receiving it | Left as is. Turn on **overwrite** to revert it to the source |
 
+- **The form chooses whole stacks**, not single files. A stack row has one checkbox that covers all its files; the files under it have no checkboxes of their own.
+- **Child stacks form a tree.** A child stack is indented under its parent and shows its `when`, the work that needs it. A parent that holds only child stacks (a bundle stack) is a row of its own.
+  - Checking a child stack checks its ancestors too, marked **Ancestor**.
+  - Checking a parent does not check its children.
+  - Unchecking an ancestor unchecks all its descendants.
+  - Unchecking a child also unchecks the ancestors that were checked only because of it, unless you checked them yourself, another chosen child stack is still under them, or another chosen block needs them (`requires`).
 - **Unchecking an item that is already there means "remove".** It turns red and the submit button says "includes N removal(s)".
 - The form goes in steps: 1. Guidelines → 2. MCP → 3. Subagents → 4. Skills → 5. Review. Select a step tab at any time; submit from **Review** after seeing everything. Steps with nothing to choose are skipped.
 - Category buttons (`backend`, `browser` …) filter the items shown. Checks do not change. **All** clears the filter.
@@ -100,9 +123,10 @@ The row stays hidden in the DB because revisions point to it; its name can be re
 
 ## Admin web
 
-- **Lists** show stacks, skills, subagents and MCP servers. Lists only add blocks.
+- **Lists** show stacks, skills, subagents and MCP servers. Lists only add blocks. The home cards show top-level stacks only; child stacks are under their parent.
+- **Child stacks**: a stack's page lists its child stacks (and a **+ Add child stack** button for admins). A child stack is a block page of its own, at `/s/<parent>/<child>`, with its `when` shown.
 - **Block page**: the block list on the left, then the block's file tree (always ● · reference ○), then the chosen document. New file, upload, rename, delete and download live on the block page; **Download block (.tar.gz)** is in the top button row.
-- **Block settings** (`/settings/<kind>/<name>`, admin): save the display name and categories, edit **Required blocks**, add or upload files, rename the block or delete it. Renaming also fixes the `name:` line of subagents and skills and other blocks' `requires`.
+- **Block settings** (`/settings/<kind>/<name>`, admin): save the display name and categories, edit **Required blocks**, set **When it is needed** (`when`, stacks only), add or upload files, rename the block or delete it. Renaming also fixes the `name:` line of subagents and skills and other blocks' `requires`. Renaming a stack changes only its last name part, and its child stacks and the `requires` keys that point into it change with it. Moving a stack under another parent is not done on the web: use `guideline source` and `propose --from`.
 - **File edit** shows a warning preview before saving. **New file** uses the language pack's `new-file/` templates.
 - **Docs** (`/docs`) is the first kind tab. It shows and creates `docs/<name>.md` documents. The authoring rules (`authoring.md`) and the management additions (`management.md`) are grouped as "Also read by agents" and cannot be renamed or deleted on the web. New documents are not sent to projects.
 - **Usage** renders `/llms.txt` with a **Copy link** button. It is open even with `PUBLIC_READ=0`.
@@ -146,7 +170,7 @@ Accepting is one revision (source `proposal`, author = token name, message "prop
 ### CLI login and forms
 
 - **CLI login**: `guideline login` opens `/cli/login`. Selecting **Issue** in an admin session sends a single-use, two-minute code to the CLI's `127.0.0.1` callback. The CLI exchanges it at `POST /api/v1/cli/token` for a read token named `cli-<host>-<6 chars>`. `DELETE /api/v1/tokens/self` revokes the sent token (`guideline logout`).
-- **Forms**: `POST /api/v1/forms` (2 MB body) creates a form and returns `/forms/<id>?k=<link token>`. A private server needs a read token; a public server lets anyone create a form. The link covers only that form and turns into a cookie (and leaves the address) when first opened. `GET /api/v1/forms/<id>/result?wait=` waits for the result. A form created with a token returns its result only to that token; a form created without a token, only to the admin or to a request with the link token in the `X-Form-Link` header. Forms finished more than a day ago are deleted when a new form is created.
+- **Forms**: `POST /api/v1/forms` (2 MB body) creates a form and returns `/forms/<id>?k=<link token>`. A private server needs a read token; a public server lets anyone create a form. The link covers only that form and turns into a cookie (and leaves the address) when first opened. `GET /api/v1/forms/<id>/result?wait=` waits for the result. The request body carries `formVersion: 2` (stack choices); a body without it is refused with 426. A form created with a token returns its result only to that token; a form created without a token, only to the admin or to a request with the link token in the `X-Form-Link` header. Forms finished more than a day ago are deleted when a new form is created.
 - **`/llms.txt`**: the usage and setup guide for agents. It opens without login. It is the language pack's `templates/llms.txt`, with `{{SERVER}}` filled from `PUBLIC_URL`, rebuilt per request.
 
 ## Markers in guidelines
