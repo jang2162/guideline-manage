@@ -277,3 +277,17 @@ test('mergeTodos: 같은 할 일은 한 번, 동기화가 이유를 낸 항목(�
   ];
   assert.deepEqual(mergeTodos(sync, composed).map(x => x.message), ['e', 'b', 'm', 'n3', 'c']);
 });
+
+test('apply 는 사본 폴더에 frontmatter 없는 파일이 있어도 죽지 않고 막힘 할 일을 낸다', async t => {
+  noFetch(t);
+  const p = gitDir(t);
+  syncNew(p);
+  write(p, '.guideline/rules/base/07-x.md', '# 프로젝트가 둔 파일\n');
+  const o = collect();
+  const code = await projectApply({ dir: p, json: true, out: o.out, err: () => {}, env: withRuler(p), runRuler: rulerCalls() });
+  assert.equal(code, 0);
+  const r = JSON.parse(o.text());
+  assert.deepEqual(r.todos.filter(x => x.kind === 'blocked').map(x => x.item), ['rules/base/07-x.md']);
+  assert.ok(exists(p, '.ruler/base/00-a.md'));
+  assert.equal(exists(p, '.ruler/base/07-x.md'), false);
+});

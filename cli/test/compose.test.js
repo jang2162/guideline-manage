@@ -267,3 +267,14 @@ test('compose 는 사본이 없는 고른 항목을 no-copy 로 알리고, 서�
   const gone = compose({ project: p, manifest: MANIFEST, nested: false, rulerAgentsEnabled: false });
   assert.deepEqual(gone.todos.filter(x => x.kind === 'no-copy').map(x => x.item).sort(), ['mcp/b', `rules/${DEPLOY}`]);
 });
+
+test('사본 폴더의 frontmatter 없는 파일은 막힘 할 일로 빼고 나머지는 조합한다', t => {
+  const p = dir(t);
+  write(p, '.guideline/rules/base/00-a.md', `${ALWAYS}# a\n\nA\n`);
+  write(p, '.guideline/rules/base/07-x.md', '# frontmatter 없음\n');
+  const manifest = { version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: 'http://x', items: ['rules/base'], aliases: {} } } };
+  const r = compose({ project: p, manifest });
+  assert.deepEqual(r.todos.filter(x => x.kind === 'blocked').map(x => x.item), ['rules/base/07-x.md']);
+  assert.equal(r.files['.ruler/base/00-a.md'].toString(), '# a\n\nA\n');
+  assert.equal(Object.keys(r.files).some(f => f.includes('07-x')), false);
+});

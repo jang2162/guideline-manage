@@ -344,6 +344,7 @@ test('새 배치 프로젝트에서 두 번째 pick 의 폼이 같은/다른/없
   write(p, '.guideline/rules/base/07-gone.md', '# 사라짐\n');
   write(p, '.guideline/skills/old/SKILL.md', '# 옛 스킬\n');
   write(p, '.guideline/skills/old/img/x.png', 'x');
+  write(p, '.guideline/skills/old/.DS_Store', 'x');
   write(p, '.guideline/overrides/base/override.md', '## 없는 파일\n\n바꾸는 절: `base/07-none.md`\n');
   let seen;
   const second = (items, data) => {
@@ -367,4 +368,24 @@ test('새 배치 프로젝트에서 두 번째 pick 의 폼이 같은/다른/없
   assert.match(read(p, '.guideline/rules/base/00-a.md'), /고친 본문/);
   const r = JSON.parse(o.text());
   assert.ok(r.todos.some(x => x.kind === 'override' && x.message.startsWith('.guideline/overrides/base/override.md')), r.todos.map(x => x.message).join('\n'));
+});
+
+test('pick 은 폼에 올리지 않은 고아 id 를 제출해도 아무것도 지우지 않는다', async t => {
+  const { s, env } = await server(t);
+  const p = gitProject(t, { '.ruler/ruler.toml': 'default_agents = ["claude"]\n', 'src/app.js': 'app\n' });
+  const pickBase = checkOnly(i => i.id.startsWith('rules/base/'));
+  assert.equal(await projectPick({ project: p, env, ...quiet, out: () => {}, open: driver(s, { choose: pickBase }) }), 0);
+  // 조작된 결과: 폼에 없던 고아 id(프로젝트 폴더, 사본 폴더)를 지움으로 싣는다
+  const forged = async (url, init) => {
+    const res = await fetch(url, init);
+    if (!/\/forms\/[^/]+\/result/.test(String(url))) return res;
+    const body = await res.json();
+    if (body.status === 'submitted') {
+      for (const id of ['src', '.guideline/rules']) body.selection.items.push({ kind: 'orphan', id, action: 'remove', state: 'orphan' });
+    }
+    return new Response(JSON.stringify(body), { status: res.status, headers: { 'Content-Type': 'application/json' } });
+  };
+  assert.equal(await projectPick({ project: p, env, ...quiet, out: () => {}, fetchImpl: forged, open: driver(s, { choose: pickBase }) }), 0);
+  assert.equal(read(p, 'src/app.js'), 'app\n');
+  assert.ok(exists(p, '.guideline/rules/base/00-a.md'));
 });

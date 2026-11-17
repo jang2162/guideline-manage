@@ -5,6 +5,7 @@ import { GUIDE_DIR, PROJECT_TOML, RULER_TOML } from './layout.js';
 import { desiredOutputs, RULER_TOML_BASE, NESTED_TOML_BASE, isRootOnly } from './render/outputs.js';
 import { setTable, tableSlice } from './toml-table.js';
 import { expandBlocks } from './catalog.js';
+import { blockedReason } from './render/index.js';
 import { withAncestors } from './blocks.js';
 import { unitOf, unitName, finalUnit } from './sources.js';
 import { readBlock, writeBlock } from './gitignore-block.js';
@@ -120,13 +121,19 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
 
   // 사본이 있는 항목만 조합한다. 막혔거나 원본에서 사라진 항목은 동기화가 지난 사본을 남겨 두므로 그것을 쓴다.
   const keys = virtualKeys(manifest).filter(k => !(nested && isRootOnly(k)));
-  const items = expandBlocks(tree, keys).filter(id => tree.exists(id));
+  // 사본 폴더에는 프로젝트가 둔 파일이나 frontmatter 가 깨진 사본이 있을 수 있다. 원본처럼 막고(조합에서 빼고) 할 일로 알린다.
+  const blocked = [];
+  const items = expandBlocks(tree, keys).filter(id => tree.exists(id)).filter(id => {
+    const reason = blockedReason(tree, id, nested);
+    if (reason) blocked.push({ kind: 'blocked', item: id, message: t('todo.blocked', { item: id, reason }) });
+    return !reason;
+  });
   const view = { version: 1, form: 'ruler', instructionFiles: [], agents: manifest.agents, items: keys };
   const { outputs, todos: made } = desiredOutputs({ tree, manifest: view, items, rulerAgentsEnabled, management: managementOf(tree, manifest) });
   // 새 배치에서 서브에이전트는 사본이 있고 조합만 하지 않은 것이다. 설정 자리도 ruler.project.toml 이다.
-  const todos = made.map(x => (x.kind === 'subagents-off'
+  const todos = [...blocked, ...made.map(x => (x.kind === 'subagents-off'
     ? { ...x, message: t('todo.agentsNotComposed', { name: x.item.slice('agents/'.length, -'.md'.length) }) }
-    : x));
+    : x))];
   // 고른 항목인데 사본이 없으면(막혔거나 MCP 를 만들어야 해서 동기화가 쓰지 않은 것) 조용히 빠지지 않게 알린다.
   for (const k of keys) {
     if (!tree.exists(k)) todos.push({ kind: 'no-copy', item: k, message: t('todo.noCopy', { item: k }) });

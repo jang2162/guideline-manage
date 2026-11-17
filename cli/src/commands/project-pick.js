@@ -17,7 +17,6 @@ import { render } from '../render/index.js';
 import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../render/outputs.js';
 import { layoutOf, rulerTomlText, PROJECT_TOML, RULER_TOML } from '../layout.js';
 import { finishApply, report } from './sync-common.js';
-import { listFiles } from '../propose.js';
 import { t } from '../i18n.js';
 
 const isDir = p => {
@@ -201,7 +200,9 @@ export async function projectPick({
     const stillBlocked = v.view.items.filter(k => sel.blocked.some(b => blockKey(b.id) === k));
     const real = id => realOf(id, v.sources)?.id ?? id;
     sources[name] = { ...sources[name], items: withAncestors([...keep, ...stillBlocked].filter(Boolean).map(real)) };
-    submitted.set(name, { sel, v, revision: sel.revision, overrides: payload.overrides });
+    // 지울 수 있는 고아는 이 폼에 올린 것뿐이다(제출을 믿지 않는다)
+    const offered = new Set(payload.items.filter(i => i.kind === 'orphan').map(i => i.id));
+    submitted.set(name, { sel, v, revision: sel.revision, overrides: payload.overrides, offered });
   }
   for (const f of failures) err(f);
   if (submitted.size === 0) return failures.length ? 1 : 3;
@@ -237,12 +238,14 @@ export async function projectPick({
   // 렌더링의 결정은 폼에서 사용자가 바꾼 것(받기·지우기·덮어쓰기·막힘)만 싣는다. 고른 스택의 파일은 매니페스트의 블록 키로 렌더링이 펼친다.
   const decisions = {};
   const orphans = [];
-  for (const [name, { sel }] of submitted) {
+  for (const [name, { sel, offered }] of submitted) {
     // 같은 가상 id 를 다른 출처가 가질 수 있다(다른 출처가 쓰는 이름이라 이 폼에서 막힌 항목). 그 결정은 이 출처의 항목에만 준다.
     const own = id => realOf(id, v.sources)?.source === name;
-    for (const i of sel.items) if (i.kind === 'orphan' || own(i.id)) decisions[i.id] = { action: i.action, overwrite: i.overwrite === true, state: i.state };
+    // 폼에 올리지 않은 고아 id 는 조작된 제출이다. 지울 범위가 디렉터리 트리라 할 일·경고 없이 버린다.
+    const items = sel.items.filter(i => i.kind !== 'orphan' || offered.has(i.id));
+    for (const i of items) if (i.kind === 'orphan' || own(i.id)) decisions[i.id] = { action: i.action, overwrite: i.overwrite === true, state: i.state };
     for (const b of sel.blocked) if (own(b.id)) decisions[b.id] = { state: 'blocked', reason: b.reason };
-    orphans.push(...sel.items.filter(i => i.kind === 'orphan' && i.action === 'remove').flatMap(i => orphanFiles(dir, i.id)));
+    orphans.push(...items.filter(i => i.kind === 'orphan' && i.action === 'remove').flatMap(i => orphanFiles(dir, i.id)));
   }
   // 새 프로젝트와 처음 받는 프로젝트는 새 배치(.guideline/ 사본 + 조합)로 시작한다. 이미 받은 프로젝트는 그 배치를 따른다.
   const layout = isNew || !manifest || layoutOf(lock, dir) === 'guideline' ? 'guideline' : 'ruler';
@@ -299,10 +302,23 @@ function untrackMoved(dir, git) {
 }
 
 /** 잠금에서 출처 하나의 것만. 폼이 그 출처의 사본 상태만 보게 한다. */
-/** 지울 고아의 파일들. 새 배치의 스킬·MCP 고아는 디렉터리 하나라 그 안의 파일을 모두 지운다. */
+/**
+ * 지울 고아의 파일들. 새 배치의 스킬·MCP 고아는 디렉터리 하나라 그 안의 파일을 모두 지운다 — 숨은 파일(.DS_Store)까지 지워야
+ * 폴더가 비어 정리되고 다음 폼에 같은 고아가 다시 뜨지 않는다. 심볼릭 링크는 따라가지 않고 링크 자체를 지운다.
+ */
 function orphanFiles(dir, id) {
   const abs = path.join(dir, ...id.split('/'));
-  return fs.existsSync(abs) && fs.statSync(abs).isDirectory() ? listFiles(abs).map(rel => `${id}/${rel}`) : [id];
+  if (!fs.existsSync(abs) || !fs.lstatSync(abs).isDirectory()) return [id];
+  const out = [];
+  const walk = rel => {
+    for (const d of fs.readdirSync(path.join(abs, rel), { withFileTypes: true })) {
+      const r = rel ? `${rel}/${d.name}` : d.name;
+      if (d.isDirectory()) walk(r);
+      else out.push(`${id}/${r}`);
+    }
+  };
+  walk('');
+  return out.sort();
 }
 
 function lockOf(lock, name) {
