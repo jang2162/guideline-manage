@@ -8,7 +8,7 @@ import { asTree, readText } from './tree.js';
 import { t } from './i18n.js';
 import { marker } from './markers.js';
 import { stackNameProblem } from './stack-name.js';
-import { blockKey } from './blocks.js';
+import { blockKey, isWithin } from './blocks.js';
 
 // export 함수의 src 는 문서 저장소 루트의 디스크 경로나 트리(tree.js)다. 서버는 DB 트리를 넘긴다.
 
@@ -139,6 +139,8 @@ function rowProblem(stack, row, listed, read) {
   const fromRef = from.file;
   const toRef = `${to.stack}/${to.file}`;
   if (to.stack === stack) return t('catalog.sameStack', { ref: toRef, title: to.title });
+  // 넓은 스택이 좁은 스택을 가리키면 하위가 상위를 바꾸는 방향과 거꾸로다. 같은 스택은 위에서 따로 걸렀다.
+  if (isWithin(`rules/${to.stack}`, `rules/${stack}`)) return t('catalog.overrideDescendant', { stack, target: to.stack });
   const fromPath = `rules/${stack}/${from.file}`;
   const toPath = `rules/${to.stack}/${to.file}`;
   if (!listed(stack).has(fromPath)) return t('catalog.noFile', { ref: fromRef });

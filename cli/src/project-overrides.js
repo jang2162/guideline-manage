@@ -5,10 +5,10 @@ import { stackFiles } from './catalog.js';
 import { asTree, readText } from './tree.js';
 import { t } from './i18n.js';
 
-/** 바꿈 절의 첫 줄. 1: 스택, 2: 파일, 3: 절 제목(없으면 파일 전체). */
+/** 바꿈 절의 첫 줄. 1: 스택 경로, 2: 파일(마지막 조각), 3: 절 제목(없으면 파일 전체). */
 export const OVERRIDE_LINES = [
-  /^Overrides: `([^`/]+)\/([^`]+)`(?: "(.+)")?\s*$/,
-  /^바꾸는 절: `([^`/]+)\/([^`]+)`(?: 「(.+)」)?\s*$/,
+  /^Overrides: `([^`/]+(?:\/[^`/]+)*)\/([^`/]+)`(?: "(.+)")?\s*$/,
+  /^바꾸는 절: `([^`/]+(?:\/[^`/]+)*)\/([^`/]+)`(?: 「(.+)」)?\s*$/,
 ];
 const INSTRUCTION_SECTION = /^(.+) (?:프로젝트 바꿈|project overrides)$/;
 const FIRST_LINE_BAD = () => t('overrides.badFirstLine');
@@ -31,23 +31,29 @@ function parse(file, stack, section) {
 
 const byFile = (a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
 
-/** .ruler/<스택>/override.md 와 .ruler/<스택>/override.d/*.md 의 ## 절. */
+/** .ruler/ 아래 모든 깊이의 <스택 경로>/override.md 와 override.d/*.md 의 ## 절. 스택은 .ruler/ 기준 경로. */
 function rulerOverrides(project) {
   const dir = path.join(project, '.ruler');
   if (!fs.existsSync(dir)) return [];
   const result = [];
-  for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (!d.isDirectory() || d.name === 'skills' || d.name === 'agents') continue;
+  const walk = (stack) => {
+    const abs = path.join(dir, stack);
     const files = [];
-    if (fs.existsSync(path.join(dir, d.name, 'override.md'))) files.push(`.ruler/${d.name}/override.md`);
-    const extra = path.join(dir, d.name, 'override.d');
-    if (fs.existsSync(extra)) {
-      for (const f of fs.readdirSync(extra).filter(f => f.endsWith('.md'))) files.push(`.ruler/${d.name}/override.d/${f}`);
+    if (stack && fs.existsSync(path.join(abs, 'override.md'))) files.push(`.ruler/${stack}/override.md`);
+    const extra = path.join(abs, 'override.d');
+    if (stack && fs.existsSync(extra)) {
+      for (const f of fs.readdirSync(extra).filter(f => f.endsWith('.md'))) files.push(`.ruler/${stack}/override.d/${f}`);
     }
     for (const rel of files) {
-      for (const s of sectionsAt(fs.readFileSync(path.join(project, rel), 'utf8'), 2)) result.push(parse(rel, d.name, s));
+      for (const s of sectionsAt(fs.readFileSync(path.join(project, rel), 'utf8'), 2)) result.push(parse(rel, stack, s));
     }
-  }
+    for (const d of fs.readdirSync(abs, { withFileTypes: true })) {
+      if (!d.isDirectory() || d.name === 'override.d') continue;
+      if (!stack && (d.name === 'skills' || d.name === 'agents')) continue;
+      walk(stack ? `${stack}/${d.name}` : d.name);
+    }
+  };
+  walk('');
   return result.sort(byFile);
 }
 

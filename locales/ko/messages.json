@@ -25,6 +25,7 @@
   "catalog.noSkillMd": "SKILL.md 없음",
   "catalog.notDir": "디렉터리가 아님",
   "catalog.notMd": ".md 가 아님",
+  "catalog.overrideDescendant": "{stack} 이(가) 자기 하위 스택 {target} 을(를) 바꾸려 함 — 넓은 스택이 좁은 스택을 가리키지 않는다",
   "catalog.overrideNotAlways": "`{ref}` — 바꾸는 절의 파일이 load: always 가 아님",
   "catalog.sameStack": "`{ref}` 「{title}」 — 바뀌는 절이 같은 스택에 있음",
   "catalog.subdirIgnored": "하위 디렉터리는 읽지 않음",

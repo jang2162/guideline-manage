@@ -25,6 +25,7 @@
   "catalog.noSkillMd": "no SKILL.md",
   "catalog.notDir": "not a directory",
   "catalog.notMd": "not a .md file",
+  "catalog.overrideDescendant": "{stack} overrides its own child stack {target} — a broad stack does not point at a narrower one",
   "catalog.overrideNotAlways": "`{ref}` — the overriding file is not load: always",
   "catalog.sameStack": "`{ref}` \"{title}\" — the overridden section is in the same stack",
   "catalog.subdirIgnored": "subdirectories are not read",

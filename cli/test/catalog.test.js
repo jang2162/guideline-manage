@@ -297,6 +297,36 @@ test('warnings 는 바꿈 표의 틀린 행 다섯 종류를 README 경로로 �
   assert.equal(stackOverrides('orca', root).overrides.length, 1);
 });
 
+test('stackOverrides 는 자손 스택을 가리키는 행을 경고로 빼고, 자기 스택·조상·형제 행은 그대로 둔다', t => {
+  const root = makeDocsRepo();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  write(root, 'rules/base/00-alpha.md', `${ALWAYS}# alpha\n\n## 기본 절\n\nA1\n`);
+  write(root, 'rules/browser/00-tool.md', `${ALWAYS}# tool\n\n## 도구 절\n\n본문\n`);
+  write(root, 'rules/browser/neo/00-neo.md', `${ALWAYS}# neo\n\n## 네오 절\n\n본문\n`);
+  write(root, 'rules/browser/neo/deep/00-deep.md', `${ALWAYS}# deep\n\n## 깊은 절\n\n본문\n`);
+  write(root, 'rules/browser/other/00-o.md', `${ALWAYS}# o\n\n## 다른 절\n\n본문\n`);
+  const rows = [
+    '| `00-tool.md` 「도구 절」 | `browser/neo/00-neo.md` 「네오 절」 |',
+    '| `00-tool.md` 「도구 절」 | `browser/neo/deep/00-deep.md` 「깊은 절」 |',
+    '| `00-tool.md` 「도구 절」 | `base/00-alpha.md` 「기본 절」 |',
+  ];
+  write(root, 'rules/browser/README.md', `## 다른 스택을 바꾸는 것\n\n| 이 스택의 절 | 바꾸는 절 |\n| --- | --- |\n${rows.join('\n')}\n`);
+  const r = stackOverrides('browser', root);
+  assert.deepEqual(r.overrides.map(o => o.to.path), ['rules/base/00-alpha.md']);
+  assert.deepEqual(r.warnings, [
+    { path: 'rules/browser/README.md', message: 'browser 이(가) 자기 하위 스택 browser/neo 을(를) 바꾸려 함 — 넓은 스택이 좁은 스택을 가리키지 않는다' },
+    { path: 'rules/browser/README.md', message: 'browser 이(가) 자기 하위 스택 browser/neo/deep 을(를) 바꾸려 함 — 넓은 스택이 좁은 스택을 가리키지 않는다' },
+  ]);
+  // 하위 스택이 조상·형제 스택을 가리키는 것은 허용
+  write(root, 'rules/browser/neo/README.md', `## 다른 스택을 바꾸는 것\n\n| 이 스택의 절 | 바꾸는 절 |\n| --- | --- |\n| \`00-neo.md\` 「네오 절」 | \`browser/00-tool.md\` 「도구 절」 |\n| \`00-neo.md\` 「네오 절」 | \`browser/other/00-o.md\` 「다른 절」 |\n`);
+  const n = stackOverrides('browser/neo', root);
+  assert.deepEqual(n.warnings, []);
+  assert.deepEqual(n.overrides.map(o => [o.from.path, o.to.path]), [
+    ['rules/browser/neo/00-neo.md', 'rules/browser/00-tool.md'],
+    ['rules/browser/neo/00-neo.md', 'rules/browser/other/00-o.md'],
+  ]);
+});
+
 test('stackSetup 은 rules/<스택>/SETUP.md 가 있는지 본다', t => {
   const root = makeDocsRepo();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
