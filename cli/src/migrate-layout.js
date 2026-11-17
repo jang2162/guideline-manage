@@ -149,6 +149,7 @@ export function migrateLayout({ project, manifest, lock, trees, git = runGit, ne
   const v = virtualize({ manifest, lock, trees });
   const tree = v.tree;
   const old = lock ? v.viewLock : guessLock({ tree, view: v.view, read, toml, nested, rulerAgentsEnabled: rulerAgentsEnabled(project) });
+  const hashes = treeHashes(tree);
   const files = {};
   const outputs = [];
   const untrack = new Set(GENERATED.filter(p => read(p) !== null));
@@ -173,9 +174,13 @@ export function migrateLayout({ project, manifest, lock, trees, git = runGit, ne
       outputs.push({ path: to, items: o.items, hash: want ? sha256(want) : o.hash, ...adopted });
       continue;
     }
-    const content = normalized(to, s.content);
-    files[to] = content;
+    // 손대지 않은 사본은 잠금 리비전 원본 바이트 그대로(되돌림의 오차에 기대지 않는다). 다만 그 원본으로 만든 사본이 아니면
+    // (막혀서 지난 리비전 것이 남은 사본) 되돌린 내용을 쓴다.
     const unchanged = sha256(cur) === o.hash;
+    const reverted = normalized(to, s.content);
+    const fromSource = unchanged && want !== null && o.items.every(i => old.sources[i] === itemHash(hashes, i));
+    const content = fromSource ? want : reverted;
+    files[to] = content;
     outputs.push({ path: to, items: o.items, hash: unchanged ? sha256(content) : want ? sha256(want) : o.hash, ...adopted });
   }
 
@@ -190,7 +195,6 @@ export function migrateLayout({ project, manifest, lock, trees, git = runGit, ne
   }
 
   // 3. 사본 출력이 없던 항목(MCP, 꺼져 있던 서브에이전트)과 관리 지침은 잠금 리비전 원본 그대로
-  const hashes = treeHashes(tree);
   const rest = Object.keys(old.sources).filter(id => !mapped.has(id) && itemHash(hashes, id) !== null && !blockedReason(tree, id, nested));
   for (const d of desiredCopies({ tree, items: rest, management: v.management }).outputs) {
     files[d.path] = d.content;
@@ -209,8 +213,12 @@ export function migrateLayout({ project, manifest, lock, trees, git = runGit, ne
     }
   }
 
-  // 5. 바꿈 파일
-  for (const { stack, rel } of rulerOverrideFiles(project)) {
+  // 5. 바꿈 파일: 받은 스택(잠금의 사본 자리와 매니페스트의 스택, 별칭 이름)의 것만. 프로젝트 자체 폴더의 것은 그대로 둔다.
+  const stacks = new Set([
+    ...old.outputs.map(o => /^rules\/(.+)\/[^/]+$/.exec(sourceOf(tree, o.path, null)?.path ?? '')?.[1]).filter(Boolean),
+    ...v.view.items.filter(k => k.startsWith('rules/')).map(k => k.slice('rules/'.length)),
+  ]);
+  for (const { stack, rel } of rulerOverrideFiles(project).filter(x => stacks.has(x.stack))) {
     const from = `.ruler/${stack}/${rel}`;
     files[overridePath(stack, rel)] = read(from);
     files[from] = null;
@@ -223,21 +231,71 @@ export function migrateLayout({ project, manifest, lock, trees, git = runGit, ne
 
   const revisions = lock ? { ...lock.revisions } : Object.fromEntries([...trees].map(([n, x]) => [n, x.revision]));
   const next = toRealLock({ viewLock: { version: 3, sources: old.sources, outputs }, sources: v.sources, revisions });
-  const tracked = inGit && untrack.size ? trackedOf(project, [...untrack].sort(), git) : [];
-  return { files, lock: next, todos: [...v.problems], notes: { untrack: tracked } };
+  const todos = [...v.problems];
+  const candidates = [...untrack].sort();
+  let tracked = inGit && candidates.length ? trackedOf(project, candidates, git) : [];
+  if (tracked === null) {
+    // 무엇을 추적하는지 모르면 빼지 못한다 — 조용히 넘어가면 옛 사본이 추적에 남으므로 명령을 알린다
+    todos.push({ kind: 'untracked', item: null, message: t('todo.untrackUnknown', { paths: candidates.join(' '), dir: project }) });
+    tracked = [];
+  }
+  return { files, lock: next, todos, notes: { untrack: tracked } };
 }
 
-/** paths 중 git 이 추적 중인 것(정렬). */
+/** paths 중 git 이 추적 중인 것(정렬). git 이 답하지 못하면 null. */
 function trackedOf(project, paths, git) {
   const r = git(['ls-files', '-z', '--', ...paths], project);
-  if (r.status !== 0) return [];
+  if (r.status !== 0) return null;
   const set = new Set(r.stdout.split('\0').filter(Boolean));
   return paths.filter(p => set.has(p));
 }
 
 const PACKAGE = 'package.json';
 const RULER_APPLY = /\bruler apply\b/;
-const PREPARE_LINE = /("prepare"\s*:\s*)"((?:[^"\\]|\\.)*)"/;
+
+/** text[i] 의 문자열 토큰이 끝난 다음 위치. */
+function stringEnd(text, i) {
+  let k = i + 1;
+  while (k < text.length && text[k] !== '"') k += text[k] === '\\' ? 2 : 1;
+  return k + 1;
+}
+
+/** text[i] 에서 시작하는 JSON 값이 끝난 다음 위치. */
+function valueEnd(text, i) {
+  if (text[i] === '"') return stringEnd(text, i);
+  if (text[i] !== '{' && text[i] !== '[') {
+    let k = i;
+    while (k < text.length && !/[,}\]\s]/.test(text[k])) k++;
+    return k;
+  }
+  let depth = 0;
+  for (let k = i; k < text.length; k++) {
+    if (text[k] === '"') k = stringEnd(text, k) - 1;
+    else if (text[k] === '{' || text[k] === '[') depth++;
+    else if ((text[k] === '}' || text[k] === ']') && --depth === 0) return k + 1;
+  }
+  return text.length;
+}
+
+/** text[start] 의 객체 바로 아래 멤버 name 의 값 범위 [start, end). 없으면 null. 원문 서식을 지키며 고치려고 위치만 찾는다. */
+function memberRange(text, start, name) {
+  let k = start + 1;
+  const skip = () => {
+    while (k < text.length && /[\s,]/.test(text[k])) k++;
+  };
+  for (skip(); k < text.length && text[k] === '"'; skip()) {
+    const keyEnd = stringEnd(text, k);
+    const key = JSON.parse(text.slice(k, keyEnd));
+    k = keyEnd;
+    while (/\s/.test(text[k])) k++;
+    k++; // :
+    while (/\s/.test(text[k])) k++;
+    const end = valueEnd(text, k);
+    if (key === name) return { start: k, end };
+    k = end;
+  }
+  return null;
+}
 
 /** 잠금 파일로 고른 패키지 매니저의 「guideline-manage 를 dev 의존성으로 더하는」 명령. 단위에서, 없으면 git 루트에서 찾는다. */
 function addDevCommand(dirs) {
@@ -275,8 +333,12 @@ export function preparePackage({ project, root = project, hook = false }) {
   if (!dep) {
     return { files: {}, todos: [{ kind: 'dev-dependency', item: null, message: t('todo.devDependency', { command: addDevCommand([project, root]) }) }] };
   }
-  // 글자 그대로 고친다(들여쓰기·키 순서를 지킨다)
-  const next = text.replace(PREPARE_LINE, (all, head, value) => `${head}"${value.replace(/\bruler apply\b/g, 'guideline apply')}"`);
+  // 글자 그대로 고친다(들여쓰기·키 순서를 지킨다). scripts 안의 prepare 만 — 다른 객체의 같은 이름 키는 건드리지 않는다
+  const scripts = memberRange(text, text.indexOf('{'), 'scripts');
+  const at = scripts && text[scripts.start] === '{' ? memberRange(text, scripts.start, 'prepare') : null;
+  if (!at || text[at.start] !== '"') return { files: {}, todos: [] };
+  // 'ruler apply' 에는 JSON 이스케이프할 글자가 없어 원문 문자열에서 바로 바꿔도 같다
+  const next = text.slice(0, at.start) + text.slice(at.start, at.end).replace(/\bruler apply\b/g, 'guideline apply') + text.slice(at.end);
   if (next === text) return { files: {}, todos: [] };
   return {
     files: { [PACKAGE]: Buffer.from(next) },

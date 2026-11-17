@@ -130,8 +130,13 @@ test('이전은 바꿈 파일을 .guideline/overrides 로 옮긴다', async t =>
   const { s, env } = await server(t);
   const over = '## 바꿈\n\nOverrides: `base/00-a.md` "절 하나"\n\n다르게\n';
   const extra = '## 더\n\nOverrides: `base/00-a.md`\n\n전체\n';
-  const { p } = oldProject(t, s, { files: { '.ruler/base/override.md': over, '.ruler/base/override.d/x.md': extra } });
+  const mine = '## 내 폴더\n\n프로젝트 것\n';
+  const { p } = oldProject(t, s, { files: { '.ruler/base/override.md': over, '.ruler/base/override.d/x.md': extra, '.ruler/mine/override.md': mine } });
   assert.equal(await projectUpdate({ project: p, env, ...quiet, out: () => {} }), 0);
+  // 받은 스택이 아닌 프로젝트 자체 폴더의 override.md 는 옮기지 않고 추적도 그대로
+  assert.equal(read(p, '.ruler/mine/override.md'), mine);
+  assert.equal(exists(p, '.guideline/overrides/mine'), false);
+  assert.equal(runGit(['ls-files', '--', '.ruler/mine/override.md'], p).stdout, '.ruler/mine/override.md\n');
   assert.equal(read(p, '.guideline/overrides/base/override.md'), over);
   assert.equal(read(p, '.guideline/overrides/base/override.d/x.md'), extra);
   // .ruler/ 쪽은 조합이 다시 만든 생성물이고 git 은 더 이상 추적하지 않는다
@@ -157,9 +162,11 @@ test('이전은 커밋 안 된 변경이 있으면 멈춘다', async t => {
   assert.deepEqual(snapshot(p), before);
 });
 
-test('이전은 옛 사본을 git 추적에서 빼고 .gitignore 블록에 올린다', async t => {
+test('이전은 옛 사본을 git 추적에서 빼고 .gitignore 블록에 올린다(프로젝트 자체 파일은 그대로)', async t => {
   const { s, env } = await server(t);
-  const { p } = oldProject(t, s);
+  // 프로젝트 자체 지침, 원본에 없는 스킬, 받은 스택 폴더에 프로젝트가 더한 파일
+  const own = { '.ruler/50-project.md': '# 프로젝트\n', '.ruler/skills/my-skill/SKILL.md': '---\nname: my-skill\n---\n', '.ruler/base/50-mine.md': '# 내 것\n' };
+  const { p } = oldProject(t, s, { files: own });
   assert.equal(await projectUpdate({ project: p, env, ...quiet, out: () => {} }), 0);
   const tracked = runGit(['ls-files'], p).stdout.split('\n').filter(Boolean);
   for (const x of ['.ruler/base/00-a.md', 'docs/guideline/base/01-b.md', 'docs/guideline/base/SETUP.md', '.ruler/base/99-reference.md',
@@ -169,6 +176,11 @@ test('이전은 옛 사본을 git 추적에서 빼고 .gitignore 블록에 올�
   }
   const block = readBlock(read(p, '.gitignore'));
   for (const x of ['/.ruler/base/00-a.md', '/.ruler/base/99-reference.md', '/docs/guideline/base/01-b.md', '/.ruler/ruler.toml']) assert.ok(block.includes(x), x);
+  for (const [x, text] of Object.entries(own)) {
+    assert.ok(tracked.includes(x), `${x} 는 추적에 남는다`);
+    assert.equal(block.includes(`/${x}`), false, `${x} 는 블록에 없다`);
+    assert.equal(read(p, x), text);
+  }
   // 커밋할 것: 매니페스트·잠금·.guideline/·ruler.project.toml·.gitignore. 추적에서 뺀 생성물은 git status 에 다시 나오지 않는다
   git(['add', '-A'], p);
   const staged = runGit(['diff', '--cached', '--no-renames', '--name-status'], p).stdout;
@@ -208,6 +220,11 @@ test('prepare 는 guideline-manage 가 있을 때만 guideline apply 로 바뀐�
   assert.match(preparePackage({ project: dir }).todos[0].message, /yarn add -D guideline-manage/);
   fs.rmSync(path.join(dir, 'yarn.lock'));
   assert.match(preparePackage({ project: dir }).todos[0].message, /npm install -D guideline-manage/);
+  // scripts 밖의 같은 이름 키(config.prepare)는 건드리지 않는다
+  const other = '{\n  "config": { "prepare": "ruler apply" },\n  "scripts": {\n    "build": "x",\n    "prepare": "ruler apply"\n  },\n  "devDependencies": { "guideline-manage": "1" }\n}\n';
+  write(dir, 'package.json', other);
+  assert.equal(preparePackage({ project: dir }).files['package.json'].toString(),
+    other.replace('"prepare": "ruler apply"\n', '"prepare": "guideline apply"\n'));
   fs.rmSync(path.join(dir, 'package.json'));
   assert.deepEqual(preparePackage({ project: dir }).todos, []);
   assert.equal(preparePackage({ project: dir, hook: true }).todos[0].kind, 'apply-hook');
@@ -282,6 +299,9 @@ test('migrateLayout 은 디스크에 쓰지 않고, 지운 사본은 쓰지 않�
   const { manifest, lock } = writeOldLayout(p, { source, items: ['rules/base/00-a.md', 'rules/base/01-b.md', 'skills/s', 'agents/rev.md'] });
   fs.rmSync(path.join(p, 'docs/guideline/base/01-b.md'));
   write(p, '.ruler/skills/s/extra.md', '프로젝트가 더함\n');
+  // 옛 CLI 가 조금 다르게 벗겨 쓴 사본(끝 빈 줄 하나 더). 잠금 해시와 같으니 손대지 않은 것 — 되돌린 글자가 아니라 원본 바이트를 쓴다
+  write(p, '.ruler/base/00-a.md', `${BODY_A}\n`);
+  lock.outputs.find(o => o.path === '.ruler/base/00-a.md').hash = sha256(`${BODY_A}\n`);
   const before = snapshot(p);
   const noGit = () => ({ status: 128, stdout: '' });
   const r = migrateLayout({ project: p, manifest, lock, trees: new Map([['default', { revision: 1, tree: memoryTree(source) }]]), git: noGit });
@@ -291,6 +311,7 @@ test('migrateLayout 은 디스크에 쓰지 않고, 지운 사본은 쓰지 않�
   assert.ok(r.lock.outputs.some(x => x.path === '.guideline/management/default.md'));
   assert.equal(r.files['.guideline/skills/s/extra.md'].toString(), '프로젝트가 더함\n');
   assert.equal(r.lock.outputs.some(x => x.path === '.guideline/skills/s/extra.md'), false);
+  assert.equal(r.files['.guideline/rules/base/00-a.md'].toString(), SOURCE['rules/base/00-a.md']);
   assert.deepEqual(snapshot(p), before);
   assert.equal(Object.hasOwn(r.files, '.guideline/rules/base/01-b.md'), false);
   assert.ok(r.lock.outputs.some(x => x.path === '.guideline/rules/base/01-b.md'));
@@ -299,4 +320,29 @@ test('migrateLayout 은 디스크에 쓰지 않고, 지운 사본은 쓰지 않�
   assert.deepEqual(r.notes.untrack, []);
   // sourceOf 는 지침 사본에 원본 frontmatter 를 다시 붙인다
   assert.equal(sourceOf(memoryTree(SOURCE), '.ruler/base/00-a.md', Buffer.from(BODY_A)).content.toString(), SOURCE['rules/base/00-a.md']);
+});
+
+test('이전 도중 조합을 쓰지 못해도 옛 사본은 git 추적에서 빼고, 커밋 전에 apply 하라고 알린다', async t => {
+  const { s, env } = await server(t);
+  // .gitignore 자리에 폴더가 있어 조합이 블록을 쓰지 못한다
+  const { p } = oldProject(t, s, { files: { '.gitignore/keep': 'x\n' } });
+  const e = collect();
+  assert.equal(await projectUpdate({ project: p, env, ...quiet, err: e.out, out: () => {} }), 1);
+  assert.match(e.text(), /생성물은 쓰지 못함/);
+  // 잠금은 이미 v3 라 다음 update 는 이전을 건너뛴다 — 그래서 지금 뺐어야 한다
+  assert.equal(readLock(p).version, 3);
+  assert.equal(runGit(['ls-files', '--', '.ruler/base/00-a.md', RULER_TOML], p).stdout, '');
+  assert.match(e.text(), /새 배치로 옮김/);
+  assert.match(e.text(), /커밋 전에 guideline apply 실행/);
+});
+
+test('git 이 추적 파일 목록을 답하지 못하면 이전은 그 명령을 할 일로 알린다', t => {
+  const p = fs.realpathSync(tmpDir('guideline-migrate-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  const { manifest, lock } = writeOldLayout(p);
+  const fake = args => (args[0] === 'ls-files' ? { status: 128, stdout: '' } : { status: 0, stdout: args[0] === 'rev-parse' ? 'true\n' : '' });
+  const r = migrateLayout({ project: p, manifest, lock, trees: new Map([['default', { revision: 1, tree: memoryTree(SOURCE) }]]), git: fake });
+  assert.deepEqual(r.notes.untrack, []);
+  const todo = r.todos.find(x => x.kind === 'untracked');
+  assert.match(todo.message, /git rm --cached --ignore-unmatch -- .*\.ruler\/base\/00-a\.md/);
 });

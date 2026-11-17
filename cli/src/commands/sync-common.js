@@ -159,17 +159,25 @@ export async function migrateIfOld({ dir, unit, manifest, lock, env, home, fetch
   }
   writeFileAtomic(path.join(dir, MANIFEST), manifestText(manifest));
   writeFileAtomic(path.join(dir, LOCK), lockText(m.lock));
+  const todos = [{ kind: 'migrated', item: null, message: t('migrate.done') }, ...m.todos, ...prep.todos];
+  const untrack = m.notes.untrack;
+  const untrackOld = () => {
+    if (untrack.length && git(['rm', '--cached', '--quiet', '--', ...untrack], dir).status !== 0) {
+      todos.push({ kind: 'untracked', item: null, message: t('todo.untrackMigrated', { paths: untrack.join(' '), dir }) });
+    }
+  };
   // .gitignore 블록을 먼저 써야 추적에서 뺀 생성물이 다시 커밋되지 않는다
   const composed = composeWithStray({ project: dir, nested: unit.nested, manifest });
   if (writeComposedOrFail(dir, composed.files, err).failed) {
     err(t('apply.composeNotWritten'));
+    // 잠금은 이미 v3 라 다음 update 는 이전을 건너뛴다 — 지금 추적에서 빼지 않으면 옛 사본이 영영 추적에 남는다.
+    // 블록은 다음 apply 가 쓴다. 그 전에 git add -A 로 다시 넣지 않게 apply 먼저 하라고 알린다.
+    untrackOld();
+    todos.push({ kind: 'apply', item: null, message: t('todo.applyBeforeCommit') });
+    printTodos(todos, err);
     return { code: 1 };
   }
-  const todos = [{ kind: 'migrated', item: null, message: t('migrate.done') }, ...m.todos, ...prep.todos];
-  const untrack = m.notes.untrack;
-  if (untrack.length && git(['rm', '--cached', '--quiet', '--', ...untrack], dir).status !== 0) {
-    todos.push({ kind: 'untracked', item: null, message: t('todo.untrackMigrated', { paths: untrack.join(' '), dir }) });
-  }
+  untrackOld();
   return { lock: m.lock, todos };
 }
 
