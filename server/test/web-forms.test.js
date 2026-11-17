@@ -226,6 +226,9 @@ test('정적 forms.js 가 blocks.js 를 import 하고, 스택 나무·조상·�
   assert.match(src, /^import \{[^}]*\bancestorKeys\b[^}]*\} from '\.\/blocks\.js';$/m);
   assert.match(src, /^import \{[^}]*\bstackRows\b[^}]*\} from '\.\/selection\.js';$/m);
   for (const key of ['web.client.ancestor', 'web.client.childrenReleased']) assert.ok(src.includes(`'${key}'`), key);
+  // .stack 은 app.css 의 폼 배치 클래스(max-width 640px, 안의 label 을 세로로)라 스택 행에 쓰면 행이 좁아지고 갱신 칸이 꺾인다.
+  assert.doesNotMatch(src, /class="[^"]*\bstack(?![\w-])/);
+  assert.match(src, /class="group stack-group/);
 });
 
 test('폼 페이지는 조상·자손 풀림 문구를 브라우저 문구 블록에 싣는다', async t => {

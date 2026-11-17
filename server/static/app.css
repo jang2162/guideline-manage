@@ -252,22 +252,22 @@ main.bare.wide { max-width: 980px; margin: 24px auto 96px; }
 .act-add { background: var(--accent-soft); color: var(--accent-text); }
 .act-update { background: var(--warn-bg); color: var(--warn-fg); }
 .act-remove { background: var(--error-bg); color: var(--error-fg); }
-/* 지침 단계의 스택 나무: 하위 스택은 깊이만큼 들여 쓰고 왼쪽 선으로 부모에 잇는다. 파일 행에는 선택 칸이 없다. */
-.group.stack > summary { flex-wrap: wrap; }
-.group.stack .when { flex-basis: 100%; padding-left: 26px; color: var(--muted); font-size: 12px; font-weight: 400; }
-.group.stack.child { border-left: 3px solid var(--accent-soft); }
-.group.stack[data-depth="1"] { margin-left: 24px; }
-.group.stack[data-depth="2"] { margin-left: 48px; }
-.group.stack[data-depth="3"] { margin-left: 72px; }
-.group.stack[data-depth="4"] { margin-left: 96px; }
-.group.stack[data-depth="5"] { margin-left: 120px; }
+/* 지침 단계의 스택 나무(.stack 은 폼 배치용 클래스라 겹치지 않게 stack-group): 하위 스택은 깊이만큼 들여 쓰고 왼쪽 선으로 부모에 잇는다. 파일 행에는 선택 칸이 없다. */
+.group.stack-group > summary { flex-wrap: wrap; }
+.group.stack-group .when { flex-basis: 100%; padding-left: 26px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.group.stack-group.child { border-left: 3px solid var(--accent-soft); }
+.group.stack-group[data-depth="1"] { margin-left: 24px; }
+.group.stack-group[data-depth="2"] { margin-left: 48px; }
+.group.stack-group[data-depth="3"] { margin-left: 72px; }
+.group.stack-group[data-depth="4"] { margin-left: 96px; }
+.group.stack-group[data-depth="5"] { margin-left: 120px; }
 .row .main.file { padding-left: 26px; }
 @media (max-width: 760px) {
-  .group.stack[data-depth="1"] { margin-left: 12px; }
-  .group.stack[data-depth="2"] { margin-left: 24px; }
-  .group.stack[data-depth="3"] { margin-left: 36px; }
-  .group.stack[data-depth="4"] { margin-left: 48px; }
-  .group.stack[data-depth="5"] { margin-left: 60px; }
+  .group.stack-group[data-depth="1"] { margin-left: 12px; }
+  .group.stack-group[data-depth="2"] { margin-left: 24px; }
+  .group.stack-group[data-depth="3"] { margin-left: 36px; }
+  .group.stack-group[data-depth="4"] { margin-left: 48px; }
+  .group.stack-group[data-depth="5"] { margin-left: 60px; }
 }
 .note { padding: 6px 12px; font-size: 12.5px; background: var(--warn-bg); color: var(--warn-fg); border-top: 1px solid var(--line-soft); }
 .form-bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; background: var(--bg); border-top: 1px solid var(--line); box-shadow: var(--shadow); }

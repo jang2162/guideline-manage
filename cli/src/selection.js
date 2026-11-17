@@ -1,5 +1,5 @@
 // 서버와 폼 화면이 함께 쓴다. 브라우저에서도 돌아야 하므로 ./blocks.js 말고는 import 하지 않는다.
-import { blockKey } from './blocks.js';
+import { blockKey, ancestorKeys, isWithin } from './blocks.js';
 
 /** 프로젝트에 있는 상태. 체크를 풀면 제거다. */
 const PRESENT = ['same', 'different', 'moved', 'present'];
@@ -225,5 +225,46 @@ export function stackRows(stacks) {
     for (const k of kids.get(s.name) ?? []) walk(k, depth + 1);
   };
   for (const s of roots) walk(s, 0);
+  return out;
+}
+
+/**
+ * 하위 스택 unit 을 고를 때 함께 켤 조상: 아직 골라지지 않은 조상, 가까운 것부터.
+ * @param {string} unit
+ * @param {Set<string>} chosen
+ * @returns {string[]}
+ */
+export function ancestorsToChoose(unit, chosen) {
+  return ancestorKeys(unit).filter(a => !chosen.has(a));
+}
+
+/**
+ * 스택 unit 을 풀 때 함께 풀릴 골라진 자손(자기 자신 제외).
+ * @param {string} unit
+ * @param {Set<string>} chosen
+ * @returns {string[]}
+ */
+export function chosenDescendants(unit, chosen) {
+  return [...chosen].filter(u => u !== unit && isWithin(u, unit));
+}
+
+/**
+ * 하위 스택 unit 을 푼 뒤 함께 풀 조상, 가까운 것부터. 조상으로 켰고(ancestor), 사람이 만지지 않았고, 골라져 있고,
+ * 골라진 다른 자손이 없고, 남는 골라진 블록이 (간접으로도) 필요로 하지 않는 것만. 하나라도 걸리면 거기서 멈춘다
+ * — 남는 조상은 그 위 조상을 붙잡기 때문이다. releasable 과 같은 불변식: 자동 해제는 남는 블록이 필요로 하는 것을 풀지 않는다.
+ * @param {string} unit 막 풀린 하위 스택
+ * @param {{ chosen: Set<string>, ancestor: Set<string>, touched: Set<string>, requires: Record<string, string[]> }} state chosen 은 unit 을 푼 뒤
+ * @returns {string[]}
+ */
+export function releasableAncestors(unit, { chosen, ancestor, touched, requires }) {
+  const left = new Set(chosen);
+  const out = [];
+  for (const a of ancestorKeys(unit)) {
+    if (!ancestor.has(a) || touched.has(a) || !left.has(a)) break;
+    if (chosenDescendants(a, left).length) break;
+    left.delete(a);
+    if (requiredClosure([...left], requires).includes(a)) break;
+    out.push(a);
+  }
   return out;
 }

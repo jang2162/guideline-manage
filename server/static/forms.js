@@ -1,6 +1,6 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows } from './selection.js';
+import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors } from './selection.js';
 import { ancestorKeys, isWithin } from './blocks.js';
 
 const $ = sel => document.querySelector(sel);
@@ -186,17 +186,16 @@ function releaseDeps(units, before) {
   }
 }
 
-/** 하위 스택을 풀면, 그 때문에 켰던 조상 중 골라진 자손이 더 없는 것을 가까운 것부터 함께 푼다. */
+/** 하위 스택을 풀면 그 때문에 켰던 조상을 함께 푼다. 판정(남는 블록이 필요로 하는 조상은 남김)은 selection.js releasableAncestors. */
 function releaseAncestors(unit) {
-  for (const a of ancestorKeys(unit)) {
-    const chosen = chosenUnits();
-    if (!state.ancestor.has(a) || state.touched.has(a) || !chosen.has(a)) return;
-    if ([...chosen].some(u => u !== a && isWithin(u, a))) return;
+  const chosen = chosenUnits();
+  const gone = releasableAncestors(unit, { chosen, ancestor: state.ancestor, touched: state.touched, requires: requiresMap() });
+  for (const a of gone) {
     setStack(a, false);
     state.ancestor.delete(a);
     state.notes.push(t('web.client.autoReleased', { by: unitName(unit), needs: unitName(a) }));
-    releaseDeps([a], chosen);
   }
+  if (gone.length) releaseDeps(gone, chosen);
 }
 
 /**
@@ -211,12 +210,12 @@ function userStack(name, on) {
   state.auto.delete(unit);
   state.ancestor.delete(unit);
   if (on && !before.has(unit)) {
-    const up = ancestorKeys(unit).filter(a => turnOn(a));
+    const up = ancestorsToChoose(unit, before).filter(a => turnOn(a));
     for (const a of up) state.ancestor.add(a);
     pullRequires([unit, ...up]);
   }
   if (!on && before.has(unit)) {
-    const kids = [...before].filter(u => u !== unit && isWithin(u, unit));
+    const kids = chosenDescendants(unit, before);
     for (const k of kids) {
       setStack(k, false);
       state.auto.delete(k);
@@ -377,7 +376,7 @@ function renderList() {
         ...(setup && visible(setup) ? [rowHtml(setup, 'SETUP.md', t('web.client.setupDoc'), { select: false })] : []),
       ];
       const short = s.parent ? s.name.slice(s.parent.length + 1) : s.name;
-      out.push(`<details class="group stack${depth ? ' child' : ''}" data-group="${esc(id)}" data-depth="${Math.min(depth, 5)}" ${state.open.has(id) ? 'open' : ''}><summary>`
+      out.push(`<details class="group stack-group${depth ? ' child' : ''}" data-group="${esc(id)}" data-depth="${Math.min(depth, 5)}" ${state.open.has(id) ? 'open' : ''}><summary>`
         + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${checked ? 'checked' : ''} ${!bundle && on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length || bundle ? '' : 'disabled'}>`
         + `<b>${blockHtml(short, s.label, s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(unit)}`
         + `${(project().rootStacks ?? []).includes(s.name) ? `<span class="cats">${esc(t('web.client.inRoot'))}</span>` : ''}`
