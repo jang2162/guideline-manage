@@ -201,6 +201,17 @@ test('하위 스택이 있으면 이름 바꾸기·삭제 확인 문구에 개�
   assert.equal((await post(s, cookie, '/settings/stack/browser', { action: 'delete' })).headers.location, '/');
 });
 
+test('묶음 부모의 유일한 하위 스택을 지우면 404 가 아닌 화면으로 간다', async t => {
+  const { s, cookie } = await tree(t);
+  // tools 는 자기 파일이 없는 묶음 스택이라 마지막 자식이 사라지면 스택 목록에서 빠진다.
+  const r = await post(s, cookie, '/settings/stack/tools/deploy__gitlab.example.com', { action: 'delete' });
+  assert.equal(r.status, 303);
+  assert.equal(text(s, 'rules/tools/deploy__gitlab.example.com/00-d.md'), null);
+  assert.ok(!summary(s).stacks.some(x => x.name === 'tools'));
+  const landing = await getAs(s, cookie, r.headers.location);
+  assert.equal(landing.status, 200, r.headers.location);
+});
+
 test('스택 설정에서 when 을 README frontmatter 한 줄로 저장한다', async t => {
   const { s, cookie } = await tree(t);
   const page = (await getAs(s, cookie, '/settings/stack/browser/neo')).text;

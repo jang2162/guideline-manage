@@ -6,7 +6,7 @@ import { HttpError, readForm, redirect } from '../http.js';
 import { WriteError, ConflictError } from '../store.js';
 import { checkOrigin, requireAdminWeb } from './auth.js';
 import { html } from './layout.js';
-import { catalogAt, sendView, labelOf } from './frame.js';
+import { catalogAt, sendView, labelOf, hereHref } from './frame.js';
 import { KINDS, TAB, LIST_HREF, namesOf, blockDir, blockHref, metaFile, settingsHref, blockOfKey, keyOfBlock, descendantStacks } from './blocks.js';
 import { NAME, DOMAIN } from './add.js';
 import { frontmatter, setFrontmatterValue, categoriesValue, readQuoted } from '../../../cli/src/frontmatter.js';
@@ -181,9 +181,10 @@ function remove(ctx, { kind, name }, message) {
     changes: Object.fromEntries(files.map(p => [p, null])),
     base: Object.fromEntries(files.map(p => [p, hashes.get(p)])),
   });
-  // 하위 스택을 지웠으면 남은 부모 상세로.
+  // 하위 스택을 지웠으면 남은 부모 화면으로. 자기 파일 없는 묶음 부모는 마지막 자식이 사라지면 스택이 아니게 되므로
+  // 지금 저장소 기준으로 화면을 고른다(edit.js 의 삭제와 같다. 화면이 없으면 홈).
   const up = kind === 'stack' ? parentKey(keyOfBlock(kind, name)) : null;
-  return up ? blockHref('stack', up.slice('rules/'.length)) : LIST_HREF[kind];
+  return up ? hereHref(ctx.store, up) : LIST_HREF[kind];
 }
 
 const ACTIONS = { meta: saveMeta, rename, delete: (ctx, b, form, message) => remove(ctx, b, message) };
