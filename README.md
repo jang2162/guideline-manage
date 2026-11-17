@@ -15,6 +15,7 @@ Keep shared coding-agent guidelines on a guideline server and pick them into rul
 Teams that use coding agents copy the same guidelines into every project: per-stack rules, skills, subagents and MCP settings.
 The copies drift apart, and nobody knows which project has the latest rules.
 guideline-manage keeps one source on a **guideline server**, and each project picks the parts it needs with the `guideline` CLI.
+The received guidelines are kept as copies in `.guideline/`, and `guideline apply` composes the files ruler reads from them.
 Every project records what it received, so the CLI can tell what changed in the source or in the project, and edits travel back as reviewed proposals.
 It is for teams whose projects use [ruler](https://github.com/intellectronica/ruler) (`.ruler/`) to generate CLAUDE.md, AGENTS.md and other agent files.
 
@@ -23,6 +24,7 @@ It is for teams whose projects use [ruler](https://github.com/intellectronica/ru
 - Choose guidelines per project in a web form that shows what is the same, different or missing before anything is written.
 - Bring every project up to date with `guideline update` without losing edits made in the project.
 - Override a shared rule in one project while the received copies stay in sync with the source.
+- Set up a fresh clone or a new worktree with `guideline apply`: it composes the git-ignored agent files from the committed `.guideline/` copies without the server.
 - Send local edits upstream as proposals that an admin reviews with diffs and a 3-way merge.
 - Combine guidelines from several servers in one project, with aliases for clashing names.
 - Hand the work to an agent: the server's `/llms.txt` and the `guideline-sync` skill tell agents how to receive guidelines and handle to-dos.
@@ -75,7 +77,12 @@ The guideline server runs with Docker Compose from this repository. See [Deploy 
 3. The terminal lists what was written and what is left to do. For example, choosing a `base` stack with three files prints:
 
    ```text
-   Applied (r2) — 6 written, 0 deleted
+   Applied (r2) — 11 written, 0 deleted
+     write  .guideline/rules/base/00-agent.md
+     write  .guideline/rules/base/01-git.md
+     write  .guideline/rules/base/02-docs.md
+     write  .ruler/ruler.project.toml
+     write  .gitignore
      write  .ruler/base/00-agent.md
      write  .ruler/base/01-git.md
      write  .ruler/base/99-reference.md
@@ -84,7 +91,8 @@ The guideline server runs with Docker Compose from this repository. See [Deploy 
      write  docs/guideline/base/02-docs.md
    ```
 
-   Commit the changed files together with `guideline.json` and `guideline-lock.json`.
+   Commit `.guideline/`, `.ruler/ruler.project.toml`, `.gitignore`, `guideline.json` and `guideline-lock.json`.
+   The files under `.ruler/<stack>/`, `.ruler/guideline.md` and `docs/guideline/` are generated and listed in `.gitignore`; after a fresh clone or in a new worktree, run `guideline apply` to create them.
 
 No server yet? [Getting Started](docs/manual/en/getting-started.md) starts one on your machine first.
 

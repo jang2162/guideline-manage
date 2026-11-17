@@ -213,7 +213,7 @@ test('apply 는 중첩 단위에서 그 단위만 조합하고, 루트에 ruler.
   assert.deepEqual(runRuler.calls, []);
   const r = JSON.parse(o.text());
   const rootTodo = r.todos.find(x => x.kind === 'root-apply');
-  assert.match(rootTodo.message, /git 루트에서 먼저 guideline apply 를 돌리고 여기서 다시 실행/);
+  assert.match(rootTodo.message, /git 루트에서 먼저 guideline apply 를 돌리거나\(또는 거기에 nested = true 인 \.ruler\/ruler\.toml 을 직접 두고\) 여기서 다시 실행/);
   assert.ok(rootTodo.message.includes(root));
   assert.equal(r.todos.some(x => x.kind === 'ruler-apply'), false);
   // 쓴 것은 모두 단위 안(단위 기준 경로), 루트 전용 항목(스킬)은 조합하지 않는다

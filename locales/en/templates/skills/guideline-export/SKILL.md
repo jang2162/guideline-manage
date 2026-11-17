@@ -18,17 +18,17 @@ description: Proposes sections of this project's guidelines that other projects 
    - If uploading says "This token cannot propose", tell the user to get a token with the `propose` scope from an admin and store it with `guideline login --server <URL> --token-stdin`, then stop.
 3. If `<source folder>/docs/authoring.md` has no `## Subagents` or `## MCP servers` section, stop before uploading subagents or MCP servers and ask the guideline admin to add that section to the source. When uploading an MCP server built from its README, also read the `### Servers built when applied` section.
 4. If `<source folder>/docs/authoring.md` has no `## Load — always and reference` section, stop the same way before uploading guideline files. The rule for choosing the load is in that section. When uploading an override of another stack, also read the `## Overriding another stack` section.
-5. **Edits to received copies are not this skill's job.** Copies that `guideline status` shows as "edited in project" are sent with `guideline propose` (it turns the copy back into source form). This skill uploads guidelines that are new to the source. `propose` leaves out copies that already differed from the source when first received (to-do `adopted`), because proposing an old version would undo source changes.
+5. **Edits to received copies are not this skill's job.** Copies that `guideline status` shows as "edited in project" are sent with `guideline propose` (the copies in `.guideline/` are already in source form, so they go up as they are). This skill uploads guidelines that are new to the source. `propose` leaves out copies that already differed from the source when first received (to-do `adopted`), because proposing an old version would undo source changes.
 
 ## Steps
 
 1. **Collect this project's guidelines,** whatever their form.
-   - `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.ruler/`, `.claude/rules/`, `.cursor/rules/`, `.github/copilot-instructions.md`, guideline files in subdirectories, project skills (`.claude/skills/`, `.agents/skills/`, `.ruler/skills/`)
+   - `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.ruler/`, `.claude/rules/`, `.cursor/rules/`, `.github/copilot-instructions.md`, guideline files in subdirectories, project skills (`.claude/skills/`, `.agents/skills/`, `.ruler/skills/`). `.ruler/` holds the project's own `.ruler/*.md` and `ruler.project.toml` next to generated files
    - Subagents: `.claude/agents/`, `.codex/agents/`, `.cursor/agents/`, `.github/agents/`, `.ruler/agents/`
-   - MCP settings: `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `[mcp_servers]` and `[agents.<agent>.mcp_servers]` in `.ruler/ruler.toml`, `.ruler/mcp.json`
-   - Copies written by `guideline` are copies of the source, so do not upload them again as stack candidates: `.ruler/<stack>/` (same name as a source stack), `docs/guideline/`, indexes (`.ruler/<stack>/99-reference.md`), the management guideline (`.ruler/guideline.md`), and `guideline.json`/`guideline-lock.json`. Setup doc copies (`docs/guideline/<stack>/SETUP.md`) are under `docs/guideline/` too. If one differs from the source without its frontmatter, report the difference in the "Already present / conflicts" table.
-   - Project overrides (`.ruler/<stack>/override.md`, `.ruler/<stack>/override.d/*.md`) are the project's deliberate changes to the source. Do not upload them as stack candidates; show them in the "Project overrides" table in step 4.
-   - When generated files and their source exist together (`CLAUDE.md`, `.claude/agents/` and `.mcp.json` in a ruler project), read only the source (`.ruler/`). When two files are copies of each other, read only one.
+   - MCP settings: `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `[mcp_servers]` and `[agents.<agent>.mcp_servers]` in `.ruler/ruler.project.toml` (the project's own; `.ruler/ruler.toml` is generated), `.ruler/mcp.json`
+   - Copies written by `guideline` are copies of the source, so do not upload them again as stack candidates: everything in `.guideline/` except `overrides/` (the copies, and the management additions in `.guideline/management/`), the generated files made from them (`.ruler/<stack>/` with the same name as a source stack, `docs/guideline/`, indexes `.ruler/<stack>/99-reference.md`, the management guideline `.ruler/guideline.md`, `.ruler/ruler.toml`), and `guideline.json`/`guideline-lock.json`. Setup doc copies (`.guideline/rules/<stack>/SETUP.md`, generated into `docs/guideline/<stack>/SETUP.md`) are among them. If a copy differs from the source, report the difference in the "Already present / conflicts" table.
+   - Project overrides (`.guideline/overrides/<stack path>/override.md`, `.guideline/overrides/<stack path>/override.d/*.md`) are the project's deliberate changes to the source. Do not upload them as stack candidates; show them in the "Project overrides" table in step 4.
+   - When generated files and their source exist together (`CLAUDE.md`, `.claude/agents/` and `.mcp.json` in a ruler project), read only the source (`.guideline/`, `.ruler/ruler.project.toml` and the project's own `.ruler/*.md`). When two files are copies of each other, read only one.
 
 2. **Learn the source's layout.** Run `guideline list <source folder>` to see the stacks (guideline files and loads), skills, subagents and MCP servers, and read the relevant files and `docs/authoring.md`.
 
@@ -65,7 +65,7 @@ description: Proposes sections of this project's guidelines that other projects 
 ### Project overrides
 | Override | Overridden section | Suggestion |
 | --- | --- | --- |
-| .ruler/base/override.md "Create worktrees in ~/worktrees" | base/06-worktree-setup.md "Create worktrees inside the repository, one per task" | keep in the project |
+| .guideline/overrides/base/override.md "Create worktrees in ~/worktrees" | base/06-worktree-setup.md "Create worktrees inside the repository, one per task" | keep in the project |
 
 Project-specific sections: N
 ```

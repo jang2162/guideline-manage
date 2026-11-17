@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/getting-started.md @ v0.21.0 -->
+<!-- source: docs/manual/en/getting-started.md @ v0.23.0 -->
 [English](../en/getting-started.md) | **한국어**
 
 # 시작하기
@@ -10,7 +10,10 @@
 지침 원본(서버 DB) ── 관리자 웹: 보기·편집·이력·토큰
         │
         ▼  guideline pick / update (로그인한 CLI)
-프로젝트: 사본 + guideline.json(고른 항목) + guideline-lock.json(반영 기록)
+프로젝트: .guideline/ 의 사본 + guideline.json(고른 항목) + guideline-lock.json(반영 기록)
+        │
+        ▼  guideline apply (서버가 필요 없음, pick·update 가 끝에 같은 일을 함)
+ruler 가 읽을 생성물(.ruler/<스택>/, .ruler/guideline.md, docs/guideline/ …, git 이 무시함)
 ```
 
 에이전트에게는 서버의 `/llms.txt`(예: `http://localhost:3000/llms.txt`)를 읽히세요. 이 매뉴얼을 에이전트용으로 줄인 것입니다.
@@ -120,7 +123,7 @@ guideline pick --server http://localhost:3000
 
 CLI 가 `guideline.json` 에 서버 주소를 남기므로 두 번째부터는 `--server` 를 빼도 됩니다.
 
-CLI 가 서버에서 원본을 받아 프로젝트와 비교합니다.
+CLI 가 서버에서 원본을 받아 `.guideline/` 의 사본과 비교합니다.
 그 결과로 서버에 폼을 만들고 브라우저로 엽니다.
 폼을 제출할 때까지 터미널은 기다립니다.
 
@@ -139,9 +142,12 @@ CLI 가 서버에서 원본을 받아 프로젝트와 비교합니다.
 
 ```text
 반영 완료(r3) — 쓴 파일 5, 지운 파일 1
+  쓰기  .guideline/rules/base/01-git.md
+  쓰기  .guideline/rules/mise/SETUP.md
   쓰기  .ruler/base/01-git.md
   쓰기  docs/guideline/mise/SETUP.md
-  지우기  docs/guideline/old-stack/02-notes.md
+  쓰기  .gitignore
+  지우기  .guideline/rules/old-stack/02-notes.md
 할 일
   - mise: 세팅 문서대로 세팅 — docs/guideline/mise/SETUP.md
 ```
@@ -149,22 +155,59 @@ CLI 가 서버에서 원본을 받아 프로젝트와 비교합니다.
 할 일은 CLI 가 혼자 못 하는 일입니다. MCP 비밀값, 환경 변수, 세팅 문서, 이미 있는 파일과의 충돌 등이 있습니다.
 직접 하거나 [에이전트에게 맡기세요](how-to/hand-off-to-an-agent.md).
 
-받은 지침은 다음 자리에 생깁니다.
+받은 지침은 두 종류의 자리에 생깁니다.
 
-| 무엇 | 자리 |
-| --- | --- |
-| 상시 지침 | `.ruler/<스택>/NN-*.md` |
-| 참조 지침 | `docs/guideline/<스택>/` + 색인 `.ruler/<스택>/99-reference.md` |
-| 세팅 문서 | `docs/guideline/<스택>/SETUP.md` |
-| 스킬·서브에이전트 | `.ruler/skills/`, `.ruler/agents/`(`[agents] enabled = true` 일 때) |
-| MCP | `.ruler/ruler.toml` |
-| 관리 지침 | `.ruler/guideline.md` |
+| 무엇 | 자리 | git |
+| --- | --- | --- |
+| 받은 지침·세팅 문서·스킬·서브에이전트·MCP 서버의 사본(원본 그대로) | `.guideline/rules/<스택>/`, `.guideline/skills/<이름>/`, `.guideline/agents/`, `.guideline/mcp/<이름>/` | 커밋 |
+| 바꿈 | `.guideline/overrides/<스택 경로>/` | 커밋 |
+| 프로젝트의 ruler 설정(에이전트, `nested`, 직접 쓴 MCP 서버) | `.ruler/ruler.project.toml` | 커밋 |
+| ruler 가 읽을 상시 지침 | `.ruler/<스택>/NN-*.md` | 생성물, git 이 무시함 |
+| 참조 지침·세팅 문서 | `docs/guideline/<스택>/` + 색인 `.ruler/<스택>/99-reference.md` | 생성물, git 이 무시함 |
+| 스킬·서브에이전트 | `.ruler/skills/`, `.ruler/agents/`(`ruler.project.toml` 에 `[agents] enabled = true` 일 때) | 생성물, git 이 무시함 |
+| MCP | `.ruler/ruler.toml`(`ruler.project.toml` + 받은 MCP 서버) | 생성물, git 이 무시함 |
+| 관리 지침 | `.ruler/guideline.md` | 생성물, git 이 무시함 |
 
-반영한 뒤에는 git 루트에서 `ruler apply` 가 돌아야 합니다.
+CLI 가 `.guideline/` 에서 생성물을 조합하고 `.gitignore` 의 블록(`# START guideline generated files`)에 적습니다.
+생성물은 고치지 마세요. 다음 `guideline apply` 가 덮어씁니다.
+조합한 뒤에는 git 루트에서 `ruler apply` 가 돕니다.
 프로젝트에 ruler 가 설치돼 있으면 CLI 가 돌리고, 없으면 할 일로 알립니다.
 
-마지막으로 바뀐 파일을 확인하고 `guideline.json`·`guideline-lock.json` 과 함께 직접 커밋하세요.
+마지막으로 바뀐 파일을 확인하고 직접 커밋하세요: `.guideline/`, `guideline.json`, `guideline-lock.json`, `.ruler/ruler.project.toml`, `.gitignore`.
 CLI 는 커밋하지 않습니다.
+
+## 6. 새로 클론하거나 새 워크트리를 만들었을 때
+
+생성물은 git 에 없으므로, 새로 클론했거나 새 워크트리를 만든 곳에는 `.ruler/<스택>/` 이 아직 없습니다.
+거기서 `guideline apply` 를 실행하세요.
+`.guideline/` 과 `.ruler/ruler.project.toml` 을 읽어 생성물을 쓰고 ruler 를 돌립니다. 서버에는 묻지 않습니다.
+
+```bash
+guideline apply
+```
+
+```text
+반영 완료(r3) — 쓴 파일 5, 지운 파일 0
+  쓰기  .ruler/base/01-git.md
+  …
+```
+
+설치할 때 자동으로 하려면 `guideline-manage` 를 개발 의존성으로 넣고 `package.json` 의 `prepare` 에서 `guideline apply` 를 부르세요.
+
+```bash
+pnpm add -D guideline-manage    # 또는: npm install -D, yarn add -D, bun add -d
+```
+
+```json
+{ "scripts": { "prepare": "guideline apply" } }
+```
+
+`prepare` 가 `ruler apply` 를 돌고 있었다면 `guideline-manage` 가 의존성에 들어간 뒤 CLI 가 알아서 바꿉니다([서버와 CLI 올리기](how-to/upgrade.md#guideline-배치로-프로젝트-옮기기)).
+`package.json` 이 없으면 CLI 가 `apply-hook` 할 일을 남깁니다. 세팅 단계에서 `guideline apply` 를 부르세요. 예를 들어 Orca 의 `orca.yaml` 에 있는 `scripts.setup` 입니다.
+
+> [!WARNING]
+> `guideline apply` 전에 `ruler apply` 만 돌리지 마세요. `.ruler/ruler.toml` 이 없으면 ruler 가 모든 에이전트 몫을 쓰고, 그 `CLAUDE.md` 를 Claude Code 가 `AGENTS.md` 대신 읽습니다.
+> `guideline apply` 는 그런 파일을 지우고 알립니다([문제 해결](troubleshooting.md#cli)).
 
 ## 다음 문서
 

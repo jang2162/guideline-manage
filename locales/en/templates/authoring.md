@@ -107,7 +107,7 @@ label: Internal dev server deploy
 
 - It goes where the block rows of the "Categories" table say (stack README, `SKILL.md`, subagent file, MCP README). Not on guideline files.
 - One line. Quote it with double quotes when it contains `: `.
-- Only the shown name changes. The folder name, the project's `.ruler/<stack>/` and the name CLI commands take stay the same. It differs from source aliases (`aliases` in `guideline.json`), which change the folder name inside projects.
+- Only the shown name changes. The folder name, the project's `.guideline/rules/<stack>/` and the name CLI commands take stay the same. It differs from source aliases (`aliases` in `guideline.json`), which change the folder name inside projects.
 
 - **Why:** people cannot tell what a rule set is from its name, so they skip it or pick the wrong one.
 - **How to apply:** after adding it, check that `guideline list <source folder>` shows the display name right after the name.
@@ -131,7 +131,7 @@ requires: [rules/browseros-neo]
 
 ## Setup docs
 
-Setup that must be done when adopting a stack or on every clone (config files, hook installation, environment variables) goes in `rules/<stack>/SETUP.md`, not in a guideline file. It is not read every session; applying copies it to the project's `docs/guideline/<stack>/SETUP.md`, and the project's management guideline tells agents to read it when setting up.
+Setup that must be done when adopting a stack or on every clone (config files, hook installation, environment variables) goes in `rules/<stack>/SETUP.md`, not in a guideline file. It is not read every session; applying copies it to the project's `.guideline/rules/<stack>/SETUP.md` and composes it into `docs/guideline/<stack>/SETUP.md`, and the project's management guideline tells agents to read it when setting up.
 
 ```markdown
 # <stack> setup
@@ -170,7 +170,7 @@ Do not invent a Why. If you do not know the reason, hold off on adding the rule.
 The same tool can need different rules on different servers (companies, instances). Then name the stack `<tool>__<domain>`. Examples: `deploy-package__gitlab.develma.com`, `deploy-agent__deploy.kbrainc.dev`.
 
 - Use `__` once. The part after it must look like a domain (lowercase letters, digits, `-`, and at least one dot). Otherwise `guideline list` shows a warning (the stack still works).
-- The web shows the tool name with the domain as a tag. Project paths (`.ruler/<stack>/`) and CLI output keep the full name.
+- The web shows the tool name with the domain as a tag. Project paths (`.guideline/rules/<stack>/`) and CLI output keep the full name.
 
 ## Skeleton stacks
 
@@ -187,7 +187,7 @@ rules/browser/browseros-neo/README.md
 rules/browser/browseros-neo/01-limits.md
 ```
 
-- **Nest folders.** The stack's name is its path under `rules/` (`browser/browseros-neo`), its block key is `rules/browser/browseros-neo` and its project folder is `.ruler/browser/browseros-neo/`. Depth is not limited.
+- **Nest folders.** The stack's name is its path under `rules/` (`browser/browseros-neo`), its block key is `rules/browser/browseros-neo` and its project folder is `.guideline/rules/browser/browseros-neo/` (composed into `.ruler/browser/browseros-neo/`). Depth is not limited.
 - **Only the files directly in a folder belong to that stack.** A child's files do not belong to its parent, and the parent's files do not belong to the child.
 - **A parent may hold only child stacks.** Such a bundle stack has no guideline files of its own and needs no README; it groups its children in the lists and the form.
 - **A child stack folder whose name has a `.` and no `__` is not a stack.** Inside a stack the tool reads such a name as a file (`v1.2`), so the folder shows in the `Ignored` section of `guideline list` and its files are not received. Write `v1-2`. This applies only to child stack folders: a top-level stack folder directly under `rules/` (`next.js`) is a stack. Domain stacks (`<tool>__<domain>`) keep their dots, and may have child stacks.
@@ -200,7 +200,7 @@ rules/browser/browseros-neo/01-limits.md
   ```
 
 - **Choosing a child stack chooses its ancestors.** A project that receives `browser/browseros-neo` also receives `browser`, and the form marks the ancestor **Ancestor**. Choosing a parent does not choose its children, and unchecking an ancestor unchecks the descendants. So a child may assume what its ancestors say. A child must not repeat the parent's rules or contradict them.
-- **Aliases belong to top-level stacks.** `aliases` in a project's `guideline.json` renames `rules/<top-level stack>`, and the children follow it (`.ruler/<alias>/<child>/`).
+- **Aliases belong to top-level stacks.** `aliases` in a project's `guideline.json` renames `rules/<top-level stack>`, and the children follow it (`.guideline/rules/<alias>/<child>/`).
 - **`requires`, `categories`, `label` and `SETUP.md` work per stack.** Put them in the child's own README or folder, using the child's block key (`rules/browser/browseros-neo`).
 
 - **Why:** a project that needs the browser rules but not the BrowserOS neo rules should not get them, and splitting them into sibling stacks loses the fact that one builds on the other.

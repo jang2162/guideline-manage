@@ -107,7 +107,7 @@ label: 사내 개발서버 배포
 
 - 다는 곳은 「분류」 표의 블록 자리와 같다(스택 README, `SKILL.md`, 서브에이전트 파일, MCP README). 지침 파일에는 달지 않는다.
 - 값은 한 줄이다. `: ` 가 있으면 큰따옴표로 감싼다.
-- 보이는 이름만 바뀐다. 폴더 이름, 프로젝트의 `.ruler/<스택>/`, CLI 명령에 쓰는 이름은 그대로다. `guideline.json` 의 출처 별칭(`aliases`)과 다르다 — 출처 별칭은 프로젝트에 들어가는 폴더 이름을 바꾼다.
+- 보이는 이름만 바뀐다. 폴더 이름, 프로젝트의 `.guideline/rules/<스택>/`, CLI 명령에 쓰는 이름은 그대로다. `guideline.json` 의 출처 별칭(`aliases`)과 다르다 — 출처 별칭은 프로젝트에 들어가는 폴더 이름을 바꾼다.
 
 - **Why:** 이름만 보고 무슨 규칙인지 몰라 고르지 못하거나 잘못 고른다.
 - **How to apply:** 단 뒤 `guideline list <원본 폴더>` 에서 이름 바로 뒤에 표시 이름이 나오는지 본다.
@@ -131,7 +131,7 @@ requires: [rules/browseros-neo]
 
 ## 세팅 문서
 
-스택을 프로젝트에 들일 때나 클론마다 해야 하는 세팅(설정 파일, 훅 설치, 환경 변수)은 지침 파일이 아니라 `rules/<스택>/SETUP.md` 에 쓴다. 상시로 읽히지 않고, 반영할 때 프로젝트의 `docs/guideline/<스택>/SETUP.md` 로 복사된다. 프로젝트의 관리 지침이 세팅할 때 이 문서를 읽게 한다.
+스택을 프로젝트에 들일 때나 클론마다 해야 하는 세팅(설정 파일, 훅 설치, 환경 변수)은 지침 파일이 아니라 `rules/<스택>/SETUP.md` 에 쓴다. 상시로 읽히지 않고, 반영할 때 프로젝트의 `.guideline/rules/<스택>/SETUP.md` 로 복사되고 `docs/guideline/<스택>/SETUP.md` 로 조합된다. 프로젝트의 관리 지침이 세팅할 때 이 문서를 읽게 한다.
 
 ```markdown
 # <스택> 세팅
@@ -170,7 +170,7 @@ Why 를 지어내지 않는다. 근거를 모르면 올리는 것을 미룬다.
 같은 도구라도 돌아가는 서버(회사·인스턴스)가 다르면 규칙이 달라진다. 그럴 때 스택 이름을 `<도구>__<도메인>` 으로 짓는다. 예: `deploy-package__gitlab.develma.com`, `deploy-agent__deploy.kbrainc.dev`.
 
 - `__` 는 하나만 쓴다. 뒤쪽은 도메인 모양(소문자·숫자·`-` 와 점 하나 이상)이어야 한다. 아니면 `guideline list` 에 경고가 나온다(스택은 그대로 쓰인다).
-- 웹은 도구 이름을 크게, 도메인을 꼬리표로 보인다. 프로젝트의 경로(`.ruler/<스택>/`)와 CLI 출력은 전체 이름 그대로다.
+- 웹은 도구 이름을 크게, 도메인을 꼬리표로 보인다. 프로젝트의 경로(`.guideline/rules/<스택>/`)와 CLI 출력은 전체 이름 그대로다.
 
 ## 뼈대 스택
 
@@ -187,7 +187,7 @@ rules/browser/browseros-neo/README.md
 rules/browser/browseros-neo/01-limits.md
 ```
 
-- **폴더를 중첩한다.** 스택 이름은 `rules/` 아래 경로(`browser/browseros-neo`), 블록 키는 `rules/browser/browseros-neo`, 프로젝트 폴더는 `.ruler/browser/browseros-neo/` 이다. 깊이 제한은 없다.
+- **폴더를 중첩한다.** 스택 이름은 `rules/` 아래 경로(`browser/browseros-neo`), 블록 키는 `rules/browser/browseros-neo`, 프로젝트 폴더는 `.guideline/rules/browser/browseros-neo/`(조합하면 `.ruler/browser/browseros-neo/`)이다. 깊이 제한은 없다.
 - **폴더 바로 안의 파일만 그 스택의 것이다.** 하위의 파일은 부모에 속하지 않고, 부모의 파일은 하위에 속하지 않는다.
 - **부모는 하위 스택만 가질 수 있다.** 이런 묶음 스택은 자기 지침 파일이 없어도 되고 README 도 필요 없다. 목록과 폼에서 하위 스택을 묶어 보인다.
 - **이름에 `.` 가 있고 `__` 가 없는 하위 스택 폴더는 스택이 아니다.** 스택 안에서는 도구가 그런 이름을 파일(`v1.2`)로 읽기 때문에, 그 폴더는 `guideline list` 의 `무시됨` 에 나오고 안의 파일은 받지 않는다. `v1-2` 로 쓴다. 이 규칙은 하위 스택 폴더 이름에만 해당한다. `rules/` 바로 아래의 최상위 스택 폴더(`next.js`)는 스택이다. 도메인 스택(`<도구>__<도메인>`)은 점을 그대로 쓰고 하위 스택도 가질 수 있다.
@@ -200,7 +200,7 @@ rules/browser/browseros-neo/01-limits.md
   ```
 
 - **하위 스택을 고르면 조상이 따라온다.** `browser/browseros-neo` 를 받는 프로젝트는 `browser` 도 받고, 폼은 조상에 **조상** 표시를 한다. 부모를 골라도 하위는 따라오지 않고, 조상을 끄면 자손이 풀린다. 그래서 하위 스택은 조상이 말한 것을 전제로 써도 된다. 부모의 규칙을 되풀이하거나 거스르지 않는다.
-- **별칭은 최상위 스택에만 단다.** 프로젝트 `guideline.json` 의 `aliases` 는 `rules/<최상위 스택>` 의 이름을 바꾸고, 하위 스택이 따라간다(`.ruler/<별칭>/<하위>/`).
+- **별칭은 최상위 스택에만 단다.** 프로젝트 `guideline.json` 의 `aliases` 는 `rules/<최상위 스택>` 의 이름을 바꾸고, 하위 스택이 따라간다(`.guideline/rules/<별칭>/<하위>/`).
 - **`requires`, `categories`, `label`, `SETUP.md` 는 스택마다 따로 동작한다.** 하위 스택의 README 와 폴더에 하위의 블록 키(`rules/browser/browseros-neo`)로 쓴다.
 
 - **Why:** 브라우저 규칙은 필요하지만 BrowserOS neo 규칙은 필요 없는 프로젝트가 후자를 받으면 안 된다. 나란한 스택으로 쪼개면 한쪽이 다른 쪽 위에 서 있다는 사실이 사라진다.

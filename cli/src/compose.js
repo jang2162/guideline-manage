@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { diskTree, joinPath } from './tree.js';
-import { GUIDE_DIR, PROJECT_TOML, RULER_TOML } from './layout.js';
+import { GUIDE_DIR, PROJECT_TOML, RULER_TOML, copyPath } from './layout.js';
 import { desiredOutputs, RULER_TOML_BASE, NESTED_TOML_BASE, isRootOnly } from './render/outputs.js';
 import { setTable, tableSlice } from './toml-table.js';
 import { expandBlocks } from './catalog.js';
@@ -125,7 +125,7 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   const blocked = [];
   const items = expandBlocks(tree, keys).filter(id => tree.exists(id)).filter(id => {
     const reason = blockedReason(tree, id, nested);
-    if (reason) blocked.push({ kind: 'blocked', item: id, message: t('todo.blocked', { item: id, reason }) });
+    if (reason) blocked.push({ kind: 'blocked', item: id, message: t('todo.blockedCopy', { path: copyPath(id), reason }) });
     return !reason;
   });
   const view = { version: 1, form: 'ruler', instructionFiles: [], agents: manifest.agents, items: keys };

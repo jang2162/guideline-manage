@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/configuration.md @ v0.21.0 -->
+<!-- source: docs/manual/en/configuration.md @ v0.23.0 -->
 [English](../en/configuration.md) | **한국어**
 
 # 설정
@@ -22,6 +22,26 @@
 | --- | --- |
 | `~/.config/guideline/config.json` | CLI 설정. `GUIDELINE_LANG` 이 없을 때 `{ "lang": "ko" }` 로 언어를 정합니다 |
 | `~/.config/guideline/credentials.json` | 서버마다 저장한 토큰(권한 600) |
+
+## 프로젝트 파일
+
+CLI 가 프로젝트(단위 디렉터리)에서 읽고 쓰는 파일입니다.
+
+| 파일 | 내용 | git |
+| --- | --- | --- |
+| `guideline.json` | 매니페스트: 출처와 고른 블록(`items`), 에이전트, 별칭 | 커밋 |
+| `guideline-lock.json` | 반영 기록: 리비전, 쓴 사본과 해시 | 커밋 |
+| `.guideline/rules/`, `.guideline/skills/`, `.guideline/agents/`, `.guideline/mcp/` | 받은 사본(원본 그대로) | 커밋 |
+| `.guideline/overrides/<스택 경로>/override.md`, `override.d/*.md` | 프로젝트의 바꿈 | 커밋 |
+| `.guideline/management/<출처>.md` | 관리 지침에 붙일 출처의 `docs/management.md` | 커밋 |
+| `.ruler/ruler.project.toml` | 프로젝트의 ruler 설정: `default_agents`, `[agents]`, `nested`, `output_path`, 직접 쓴 MCP 서버 | 커밋 |
+| `.ruler/*.md`(예: `.ruler/50-project.md`) | 프로젝트 자체의 지침 | 커밋 |
+| `.ruler/<스택>/`, `.ruler/guideline.md`, `.ruler/skills/`, `.ruler/agents/`, `.ruler/ruler.toml`, `docs/guideline/` | `guideline apply` 가 `.guideline/` 에서 만든 생성물 | 커밋 안 함: `.gitignore` 에 적힘 |
+| `.gitignore` | CLI 가 관리하는 블록 `# START guideline generated files` … `# END guideline generated files` 가 있음 | 커밋 |
+
+생성물은 고치지 마세요. 다음 `guideline apply` 가 덮어씁니다.
+`.ruler/ruler.toml` 은 `ruler.project.toml` 에 받은 MCP 서버를 더해 만듭니다.
+`ruler.project.toml` 에 직접 쓴 표가 받은 표와 이름이 같으면 직접 쓴 표가 이기고, CLI 가 `mcp-conflict` 할 일을 남깁니다.
 
 ## 서버 환경 변수
 

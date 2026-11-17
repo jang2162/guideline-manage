@@ -274,6 +274,8 @@ test('사본 폴더의 frontmatter 없는 파일은 막힘 할 일로 빼고 나
   const manifest = { version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: 'http://x', items: ['rules/base'], aliases: {} } } };
   const r = compose({ project: p, manifest });
   assert.deepEqual(r.todos.filter(x => x.kind === 'blocked').map(x => x.item), ['rules/base/07-x.md']);
+  // 사용자가 고쳐야 하는 파일은 원본 id 가 아니라 .guideline/ 의 자리다
+  assert.match(r.todos.find(x => x.kind === 'blocked').message, /^\.guideline\/rules\/base\/07-x\.md: /);
   assert.equal(r.files['.ruler/base/00-a.md'].toString(), '# a\n\nA\n');
   assert.equal(Object.keys(r.files).some(f => f.includes('07-x')), false);
 });

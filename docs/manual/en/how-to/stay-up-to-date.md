@@ -15,6 +15,8 @@ guideline pick              # to change what you chose
 ```
 
 `update` skips files edited in the project and leaves a `skipped` to-do, so edits are never lost.
+Edit a copy in `.guideline/`, never the generated files in `.ruler/` and `docs/guideline/`: `update` and `apply` rewrite those.
+After `update` the generated files are composed again and `ruler apply` runs at the git root.
 
 ## Read the status
 
@@ -25,6 +27,7 @@ guideline pick              # to change what you chose
 | edited in project | The copy was edited in the project | Send it upstream with `guideline propose`, move it to an [override](override-guidelines.md), or `update --force` |
 | both changed | Both changed | Look at the diff and decide |
 | missing | The copy was deleted | `update` writes it again |
+| `apply` to-do (from `status`) | The generated files differ from what `.guideline/` composes: the copies or `ruler.project.toml` changed, or the generated files are missing | `guideline apply` (no server needed) |
 | not applied (conflict) | It already existed and differed on first receive, so it was not written | **show diff** in `pick`, then **update** |
 | removed from source | Deleted from the source | Remove it in `pick` |
 
@@ -39,6 +42,8 @@ When it is newly received or the source changes, you get a `setup` to-do.
 2. If it is not, follow `## Setup`.
 
 Anyone who freshly clones the project follows it too.
+The generated copy `docs/guideline/<stack>/SETUP.md` is not in git, so run `guideline apply` first after a clone or in a new worktree (see [Getting started](../getting-started.md#6-set-up-a-fresh-clone-or-a-new-worktree)).
+The received copy is also in `.guideline/rules/<stack>/SETUP.md`.
 
 ## Next
 

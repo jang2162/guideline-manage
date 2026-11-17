@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/how-to/receive-from-several-sources.md @ v0.21.0 -->
+<!-- source: docs/manual/en/how-to/receive-from-several-sources.md @ v0.23.0 -->
 [English](../../en/how-to/receive-from-several-sources.md) | **한국어**
 
 # 여러 서버에서 받기
@@ -13,11 +13,11 @@
    "company": { "server": "https://guideline.example.com", "items": [], "aliases": { "rules/base": "company-base" } }
    ```
 
-   그러면 사내 `base` 는 `.ruler/company-base/` 로 들어오고, 바꿈 첫 줄도 `company-base/<파일>` 로 씁니다. 별칭을 바꾸면 예전 자리의 사본은 지워지고, 그 자리의 바꿈 파일은 `alias` 할 일로 알립니다.
+   그러면 사내 `base` 는 `.guideline/rules/company-base/` 로 들어오고(조합하면 `.ruler/company-base/`), 바꿈 첫 줄도 `company-base/<파일>` 로 씁니다. 별칭을 바꾸면 예전 자리의 사본은 지워지고, 그 자리의 바꿈 파일은 `alias` 할 일로 알립니다(`.guideline/overrides/<옛 이름>/` 을 `.guideline/overrides/<새 이름>/` 으로 옮기세요).
 3. **최신으로 유지하세요.** `guideline status`·`guideline update` 는 모든 출처를 봅니다. 하나만 보려면 `--source` 를 주세요. 한 서버에 닿지 못하면 그 출처만 그대로 두고 나머지를 반영합니다.
 4. **제안은 출처마다 따로 갑니다.** `guideline propose` 는 고친 사본을 출처별로 나눠 각 서버에 제안 하나씩 보냅니다.
 
-관리 지침(`.ruler/guideline.md`)에는 각 출처의 `docs/management.md` 가 `## <출처> 추가 지침` 으로 붙습니다.
+각 출처의 `docs/management.md` 는 `.guideline/management/<출처>.md` 에 두고, 생성물인 관리 지침(`.ruler/guideline.md`)에 `## <출처> 추가 지침` 으로 붙입니다.
 사내 출처의 관리자는 모든 사내 프로젝트에 퍼뜨릴 운영 규칙을 여기에 씁니다.
 
 ## 다음 문서

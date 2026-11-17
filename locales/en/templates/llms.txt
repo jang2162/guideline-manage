@@ -1,12 +1,12 @@
 # Guideline server
 
-> A server that keeps a team's shared coding-agent guidelines (per-stack rules, skills, subagents, MCP settings). In a project, the `guideline` CLI picks and receives guidelines and applies them as ruler sources (`.ruler/`); edits go back as proposals. This server's address is {{SERVER}}.
+> A server that keeps a team's shared coding-agent guidelines (per-stack rules, skills, subagents, MCP settings). In a project, the `guideline` CLI picks and receives guidelines as copies in `.guideline/`, and `guideline apply` composes the ruler sources (`.ruler/`) from them; edits go back as proposals. This server's address is {{SERVER}}.
 
 This document is the guide agents and people read when they first use this server.
 
 ## Setup (once per machine)
 
-1. You need Node 24 or later and the `guideline` CLI (the `guideline-manage` npm package, 0.16 or later):
+1. You need Node 24 or later and the `guideline` CLI (the `guideline-manage` npm package, 0.24 or later):
 
    ```bash
    npm install -g guideline-manage
@@ -38,16 +38,20 @@ guideline pick --new <name>    # new project: create GUIDELINE_PROJECTS_DIR/<nam
 guideline status               # are the applied guidelines current, and what did the project change?
 guideline update               # same items, latest version. Files edited in the project are skipped
 guideline update --force       # also overwrite files edited in the project
+guideline apply                # compose the generated agent files from .guideline/ without the server, then run ruler
 ```
 
 - `pick` sends only the result of comparing the project with the source to the server and prints the form address (`Form: <address>` on stderr). It waits until items are checked in the form and submitted. MCP values (secrets) are not sent.
 - The form chooses **whole stacks**, not single files. A stack with child stacks (`browser/browseros-neo` inside `browser`) shows them as a tree, each with its `when` (the work that needs it). Checking a child stack checks its ancestors too, marked "Ancestor" (the ancestor's own files come with it); checking a parent does not check its children; unchecking an ancestor unchecks its descendants. Unchecking a child also unchecks the ancestors that were checked only because of it, unless you checked them yourself, another chosen child stack is still under them, or another chosen block needs them (`requires`).
 - Form states: "same" is already applied, "different" means the project copy differs from the source (turn on "update" to overwrite it), "missing" is not there yet (check it to add). Unchecking an existing item means "remove". The form goes step by step — guidelines, MCP, subagents, skills, review — and category buttons only filter the items shown (checks do not change). Blocks a chosen block requires (`requires`) are checked too.
 - A domain stack `<tool>__<domain>` (e.g. `deploy-package__gitlab.develma.com`) holds the rules for using that tool on that server. Pick only stacks whose domain matches the server the project uses.
-- Where copies go: always-on guidelines in `.ruler/<stack>/NN-*.md` (`.ruler/<parent>/<child>/NN-*.md` for a child stack), reference guidelines in `docs/guideline/<stack>/` with the index `.ruler/<stack>/99-reference.md`, skills in `.ruler/skills/`, MCP in `.ruler/ruler.toml`. After applying, `ruler apply` runs at the git root (when ruler is installed).
-- Applying creates `guideline.json` (chosen items) and `guideline-lock.json` (applied revision and hashes). Commit them with the applied files. The CLI does not commit.
-- **Monorepos**: run in a subdirectory with its own `.ruler/` and that directory becomes a separate unit, with its own manifest, lock and copies. Skills, subagents and MCP servers are received only at the git root. ruler builds that directory's guidelines only when `.ruler/ruler.toml` at the git root has `nested = true`.
-- Exit codes: 0 done, 1 error, 2 usage error (including "not a ruler project"), 3 cancelled or expired (nothing written). A source whose server is too old for the stack form (older than 0.24.0) is skipped with "This server is older than the CLI" and counts as an error (exit code 1).
+- **Where things go.** Received copies are written as they are in the source, in `.guideline/`: guidelines in `.guideline/rules/<stack>/NN-*.md` (`.guideline/rules/<parent>/<child>/` for a child stack), skills in `.guideline/skills/<name>/`, subagents in `.guideline/agents/`, MCP servers in `.guideline/mcp/<name>/`, and each source's management additions in `.guideline/management/<source>.md`. Overrides are in `.guideline/overrides/<stack path>/`. The project's ruler settings are in `.ruler/ruler.project.toml`.
+- **Generated files.** `guideline apply` composes what ruler reads from `.guideline/`: `.ruler/<stack>/NN-*.md` and the index `.ruler/<stack>/99-reference.md`, `.ruler/guideline.md` (the management guideline), `.ruler/skills/`, `.ruler/agents/`, `.ruler/ruler.toml` (`ruler.project.toml` plus the received MCP servers) and `docs/guideline/` (reference guidelines and setup docs). They are listed in a block in `.gitignore` (`# START guideline generated files` … `# END guideline generated files`) and are not committed. After composing, `apply` runs `ruler apply` at the git root (when ruler is installed). `pick` and `update` do the same at the end.
+- **Commit** `guideline.json` (chosen items), `guideline-lock.json` (applied revision and hashes), `.guideline/`, `.ruler/ruler.project.toml`, `.gitignore` and the project's own `.ruler/*.md`. The CLI does not commit.
+- **After a clone or in a new worktree**, the generated files do not exist yet. Run `guideline apply`: it needs no server. A project with a `package.json` that has `guideline-manage` in its dependencies runs it from `scripts.prepare`, so `pnpm install` does it. Do not run `ruler apply` alone before that: without `.ruler/ruler.toml` ruler writes files for every agent, including a `CLAUDE.md` that hides `AGENTS.md` from Claude Code (`apply` deletes such a file and says so).
+- **Moving an old project.** The first `pick` or `update` with this CLI moves a project that was received in the old layout (copies in `.ruler/<stack>/` and `docs/guideline/`): copies go to `.guideline/` with the project's edits kept, overrides to `.guideline/overrides/`, `ruler.toml` to `ruler.project.toml`, old copies are removed from the git index (`git rm --cached`), and `prepare` in `package.json` changes from `ruler apply` to `guideline apply`. It stops with "Commit or stash your changes first" when tracked files in the directory have uncommitted changes. Review with `git status` and commit. Until the move, `status`, `propose` and `apply` stop with exit code 2 ("This project still uses the old layout"), and an old CLI cannot read the new files.
+- **Monorepos**: run in a subdirectory with its own `.ruler/` and that directory becomes a separate unit, with its own manifest, lock and copies. Skills, subagents and MCP servers are received only at the git root. ruler builds that directory's guidelines only when the git root's ruler settings (`.ruler/ruler.project.toml`) have `nested = true`. Run `guideline apply` at the git root first: a unit's `apply` stops before ruler (to-do `root-apply`) while the git root has no `.ruler/ruler.toml`.
+- Exit codes: 0 done, 1 error, 2 usage error (including "not a ruler project", and `apply` in a project that has not received anything yet or is still in the old layout), 3 cancelled or expired (nothing written). A source whose server is too old for the stack form (older than 0.24.0) is skipped with "This server is older than the CLI" and counts as an error (exit code 1).
 
 ## Receiving from several sources
 
@@ -71,11 +75,11 @@ guideline update --source company    # update only that source
 ```
 
 - `items` are block keys (`rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>`), and a child stack comes with its ancestor stacks. Do not write file paths.
-- When two sources give the same name (stack, skill, subagent, MCP server), `pick` stops with "Name clash" (exit code 2, nothing written). Give one source an alias in `aliases`, `"<unit>": "<new name>"` (the unit is `rules/<top-level stack>` — child stacks follow their top-level stack's alias — `skills/<name>`, `agents/<name>.md` or `mcp/<name>`), and it is received under that name: `.ruler/company-base/`, the skill's `name:` line, `[mcp_servers.<new name>]` in `ruler.toml`.
+- When two sources give the same name (stack, skill, subagent, MCP server), `pick` stops with "Name clash" (exit code 2, nothing written). Give one source an alias in `aliases`, `"<unit>": "<new name>"` (the unit is `rules/<top-level stack>` — child stacks follow their top-level stack's alias — `skills/<name>`, `agents/<name>.md` or `mcp/<name>`), and it is received under that name: `.guideline/rules/company-base/` (composed into `.ruler/company-base/`), the skill's `name:` line, `[mcp_servers.<new name>]` in `ruler.toml`.
 - Store a token per server with `guideline login --server <URL>`. With several sources, `GUIDELINE_TOKEN` is not used.
 - If one source's server cannot be reached, that source is left as it is, the rest is applied, and the exit code is 1.
 - `propose` sends one proposal per source to that source's server (aliases are turned back into the original names).
-- Each source's `docs/management.md` is appended to the management guideline (`.ruler/guideline.md`) as `## <source> additional guidelines`.
+- Each source's `docs/management.md` is kept in `.guideline/management/<source>.md` and appended to the management guideline (`.ruler/guideline.md`) as `## <source> additional guidelines`.
 
 ## Sending changes upstream (proposals)
 
@@ -90,39 +94,51 @@ guideline proposals                      # list your proposals (--status pending
 guideline proposals <number>             # one proposal: Outdated and conflicts, each file's diff (--json: the server's response)
 ```
 
-- `propose` sends only copies that are "edited in project" according to the lock. Guideline copies get the source frontmatter back; skills send each file's change, addition or deletion. MCP edits are not sent automatically (to-do `mcp-local`).
+- `propose` sends only copies in `.guideline/` that are "edited in project" according to the lock. Copies are already in source form, so they are sent as they are; skills and MCP servers send each file's change, addition or deletion. Edit an MCP server in `.guideline/mcp/<name>/server.json`. A received MCP table that was edited in `.ruler/ruler.project.toml` is not sent, and `status` shows it as current.
 - Write new guidelines, skills or MCP servers into a folder from `guideline source`, at their source paths (`rules/<stack>/NN-*.md`, `skills/<name>/`, `mcp/<name>/server.json` and so on), then send them with `propose --from`. The writing rules are that folder's `docs/authoring.md`. Agents use the `guideline-export` skill.
 - Admins review the diff under "Proposals" on the web and accept, reject or edit it. If the source changed in the meantime, non-overlapping changes are merged; overlapping ones make the proposal Outdated and it cannot be accepted.
 - `guideline proposals` shows your own proposals; with an `admin` scope token it shows every proposal, so an agent can review them. Accepting and rejecting are on the web or through the API.
 
 ## What agents do
 
-`pick --json`, `update --json` and `status --json` print `{ revision, written, deleted, todos }` (`status` only carries the to-dos it can tell). Whatever the CLI could not do alone is left in `todos`. Handle them one by one and report what you handled and what is left. **Submitting the form is the user's confirmation, so do not ask again before applying.**
+`pick --json`, `update --json`, `status --json` and `apply --json` print `{ revision, written, deleted, todos }` (`status` only carries the to-dos it can tell). Whatever the CLI could not do alone is left in `todos`. Handle them one by one and report what you handled and what is left. **Submitting the form is the user's confirmation, so do not ask again before applying.**
 
 | kind | What to do |
 | --- | --- |
-| `mcp-build` | Following the "Build on apply" section of `data.text` (the source `mcp/<name>/README.md`), read this project's values and build the MCP entry in `.ruler/ruler.toml`. Show the values and where they came from and get confirmation before writing |
+| `mcp-build` | Following the "Build on apply" section of `data.text` (the source `mcp/<name>/README.md`), read this project's values and build the MCP entry in `.ruler/ruler.project.toml` (`.ruler/ruler.toml` is regenerated by `guideline apply`). Show the values and where they came from and get confirmation before writing |
 | `env` | Tell the user which environment variables to set (`data.vars`) and how to obtain them per the README |
 | `setup` | Check `## Check` in `docs/guideline/<stack>/SETUP.md`; if it is not done, go through `## Setup` with the user |
 | `conflict` | The same name already exists and differs from the source. Show the diff and let the user choose (turn on update in the next `pick`) |
 | `skipped` | Skipped because the project edited the file. Ask whether to send it upstream with `guideline propose` or overwrite it with `update --force` |
 | `override` | An override section points at a file or section the source does not have. Fix the override section's first line |
-| `subagents-off` | Ask whether to turn on `[agents] enabled = true` in `.ruler/ruler.toml` |
+| `override-unchosen` | `.guideline/overrides/<stack>/` belongs to a stack that is not chosen, so it was not composed. Ask whether to pick the stack or delete the override |
+| `subagents-off` | The subagent has a copy in `.guideline/` but was not composed. Ask whether to turn on `[agents] enabled = true` in `.ruler/ruler.project.toml` (it adds generated files to `.gitignore`), then run `guideline apply` |
+| `apply` | The generated agent files are out of date (from `status`, or after a move that could not write them). Run `guideline apply`; it needs no server. Run it before committing, or `git add -A` puts the old copies back |
 | `ruler-apply` | Ask whether you may run the suggested `ruler apply` command |
-| `nested-off` | Ask whether to turn on `nested = true` in `.ruler/ruler.toml` at the git root |
-| `mcp-local` | The project changed an MCP setting. To send it upstream, edit `server.json` in a `guideline source` folder and send it with `propose --from` |
+| `root-apply` | A monorepo unit's `apply` did not run ruler because the git root has no `.ruler/ruler.toml` yet. Run `guideline apply` at the git root first (or put `.ruler/ruler.toml` with `nested = true` there yourself), then run it in the unit again |
+| `nested-off` | Ask whether to turn on `nested = true` in `.ruler/ruler.project.toml` at the git root |
+| `no-copy` | A chosen item has no copy in `.guideline/` (blocked, or an MCP entry to build), so it was not composed. Run `guideline update` to see why |
+| `mcp-conflict` | A received MCP table was not added to `.ruler/ruler.toml`: the project's `ruler.project.toml` already has a table with that name (the project's own is kept), or the TOML shape clashes. Show the table and let the user resolve it. If the project changed a received MCP table, edit `.guideline/mcp/<name>/server.json` and send it with `guideline propose`; the changed table stays in `ruler.project.toml` and `status` shows the MCP as current |
+| `untracked` | A file is now generated but git still tracks it, or the CLI removed it from the git index (`git rm --cached`, the file stays on disk), or it could not ask git and gives a command. Show the command and, with the user's go-ahead, run it; tell the user to check `git status` and commit |
+| `stray-ruler-output` | ruler ran without `.ruler/ruler.toml` (usually `ruler apply` right after a clone) and wrote a file for every agent. The CLI deleted `CLAUDE.md` because it carries ruler's marker, or kept it because it has none. Tell the user; if it was kept, check whether it hides `AGENTS.md` from Claude Code and ask before deleting it. Only `CLAUDE.md` is checked: other agents' files ruler wrote may remain |
+| `migrated` | The project moved to the new layout. Tell the user what moved, and that they should review with `git status` and commit. Handle the other to-dos |
+| `manifest-v3` | `guideline.json` was rewritten as version 3 (whole stacks), so the rest of each chosen stack's files were added. Tell the user, and commit `guideline.json` with the rest |
+| `prepare` | `prepare` in `package.json` now runs `guideline apply` instead of `ruler apply`. Show the change; the user reviews and commits it |
+| `dev-dependency` | `guideline-manage` is not in this project's dependencies, so `prepare` was left alone. Run the command shown (add it as a dev dependency), then `guideline apply`, which changes `prepare` |
+| `apply-hook` | There is no `package.json`, so nothing composes agent files after a clone. Add `guideline apply` to the project's setup step (for Orca, `scripts.setup` in `orca.yaml`) |
 | `adopted` | A copy `propose` left out. It already differed from the source when first received (it may be an old version). Use `guideline propose --only <item>` only if the project really edited it; if it is an old version, `guideline update --force` |
-| `alias` | An alias problem. For "the stack moved", move the override files to `.ruler/<new name>/`. Otherwise fix `aliases` in `guideline.json` |
+| `alias` | An alias problem. For "the stack moved", move the override files to `.guideline/overrides/<new name>/`. Otherwise fix `aliases` in `guideline.json` |
 | `removed-upstream` | Tell the user, and suggest `guideline pick` to remove it |
 | `missing-requires` | A received block (`item`) needs blocks that were not received (`data.missing`; from `update` and `status`). Tell the user which blocks are missing, and run `guideline pick --recommend <file> --json` with a recommendation file holding them (add `--source <source>` when there are several sources); submitting the form is the confirmation |
-| `blocked` | Not applied because of a source warning (or because it is a nested directory). The copy stays as it is. Report the reason |
+| `blocked` | Not applied because of a source warning (or because it is a nested directory), or a file in `.guideline/` could not be composed (the message gives its path). The copy stays as it is. Report the reason |
 | `leftover` | Unchecked, or dropped from a chosen stack by the source, but the copy differs from the source, so it was not deleted. Show the diff and ask whether to delete it |
 
 ## Rules
 
-- **Do not edit the copies directly.** Files recorded in `guideline-lock.json` and `docs/guideline/` are written only by the CLI. To share an edit, send it with `guideline propose`.
-- **Do not put project files inside `.ruler/<stack>/` folders** (including sub-folders of a stack folder). Received stack folders belong to the source: a file or sub-folder that is not in the source shows up as "removed from source". Project-only rules are overrides, below.
-- Write anything that should differ for this project only as an **override**: `.ruler/<stack>/override.md` (or `override.d/*.md`; `.ruler/<parent>/<child>/override.md` for a child stack). Start each override with the line ``Overrides: `<stack>/<file>` "<## section title>"`` (drop the quoted title for the whole file). Overrides win over the copies, and the CLI never touches them.
+- **Do not edit the copies in `.guideline/` directly** (everything there except `overrides/`), nor `guideline.json` and `guideline-lock.json`: the CLI writes them. To share an edit, send it with `guideline propose`.
+- **Do not edit the generated files** (`.ruler/<stack>/`, `.ruler/guideline.md`, `.ruler/skills/`, `.ruler/ruler.toml`, `docs/guideline/`): the next `guideline apply` overwrites them. Settings of ruler go in `.ruler/ruler.project.toml`.
+- **Do not put project files inside `.guideline/rules/<stack>/` or the generated `.ruler/<stack>/` folders** (sub-folders included). A received stack folder belongs to the source: a file or sub-folder that is not in the source shows up as "removed from source". Project-only rules are overrides, below, or `.ruler/*.md`.
+- Write anything that should differ for this project only as an **override**: `.guideline/overrides/<stack path>/override.md` (or `override.d/*.md`; `.guideline/overrides/<parent>/<child>/override.md` for a child stack). Start each override with the line ``Overrides: `<stack>/<file>` "<## section title>"`` (drop the quoted title for the whole file). Overrides win over the copies, and the CLI never touches them.
 - When a stack needs setup, follow `docs/guideline/<stack>/SETUP.md`.
 - Never put secrets in proposals either. Write MCP values as `${VAR}` references.
 
