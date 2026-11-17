@@ -1,4 +1,5 @@
 import { sha256, normalized, itemHash, treeHashes } from '../hashes.js';
+import { desiredCopies } from './copies.js';
 import { desiredOutputs, desiredPart, RULER_TOML_BASE, NESTED_TOML_BASE, isRootOnly, ROOT_ONLY_REASON } from './outputs.js';
 import { setTable, tableSlice, parseKeyPath } from '../toml-table.js';
 import { readTier } from '../tiers.js';
@@ -48,13 +49,14 @@ const setPart = (text, output, value) => setTable(text ?? '', parseKeyPath(outpu
 /**
  * 원본·매니페스트·잠금·디스크·결정을 합쳐 쓸 파일, 새 잠금, 할 일을 낸다. 디스크에 쓰지 않는다.
  * 경로는 모두 단위 디렉터리 기준이다. 매니페스트의 스택 키는 입구에서 그 스택의 파일로 펼친다 — 스택에 새로 생긴 파일은
- * 그냥 쓰고, 원본이 뺀 파일은 지운다. 결정·잠금은 파일 id 다. 원본에 없는 스택 키는 그대로 남아 removed-upstream 이 된다.
+ * 그냥 쓰고, 원본이 뺀 파일은 지운다. 결정·잠금은 파일 id 다. layout 이 guideline 이면 .guideline/ 사본만 내고 잠금을 version 3 으로 낸다. 원본에 없는 스택 키는 그대로 남아 removed-upstream 이 된다.
  * @param {{ tree: import('../tree.js').Tree, revision: number, manifest: import('../manifest.js').Manifest,
  *   lock: import('../manifest.js').Lock | null, project: { read: Function, exists: Function, rulerAgentsEnabled: boolean },
  *   decisions?: Record<string, { action?: string, overwrite?: boolean, state?: string, reason?: string }>,
- *   force?: boolean, orphans?: string[], nested?: boolean }} opts
+ *   force?: boolean, orphans?: string[], nested?: boolean, layout?: 'ruler' | 'guideline' }} opts
  */
-export function render({ tree, revision, manifest, lock = null, project, decisions = {}, force = false, orphans = [], nested = false, management = {} }) {
+export function render({ tree, revision, manifest, lock = null, project, decisions = {}, force = false, orphans = [], nested = false, management = {}, layout = 'ruler' }) {
+  const guide = layout === 'guideline';
   const hashes = treeHashes(tree);
   const prevSources = lock?.sources ?? {};
   const prevOutputs = lock?.outputs ?? [];
@@ -100,7 +102,11 @@ export function render({ tree, revision, manifest, lock = null, project, decisio
   const original = raw === null ? null : lf(raw.toString('utf8'));
   let toml = original ?? (nested ? NESTED_TOML_BASE : RULER_TOML_BASE)(manifest.agents);
 
-  const { outputs: desired, todos: more } = desiredOutputs({ tree, manifest, items: renderable, rulerAgentsEnabled: project.rulerAgentsEnabled, management });
+  // 새 배치는 원본 모양 사본만 쓴다(toml·색인·변환은 apply 가 조합한다). 옛 배치는 .ruler/·docs/guideline/·toml 을 쓴다.
+  const outputsFor = (ids, extra = {}) => (guide
+    ? desiredCopies({ tree, manifest, items: ids, rulerAgentsEnabled: project.rulerAgentsEnabled, ...extra })
+    : desiredOutputs({ tree, manifest, items: ids, rulerAgentsEnabled: project.rulerAgentsEnabled, ...extra }));
+  const { outputs: desired, todos: more } = outputsFor(renderable, { management });
   todos.push(...more);
   for (const id of renderable) {
     const m = SETUP.exec(id);
@@ -193,7 +199,7 @@ export function render({ tree, revision, manifest, lock = null, project, decisio
   // 잠금이 모르는 사본은 항목 단위로, 그 항목의 사본이 모두 원본으로 만든 것과 같을 때만 지운다.
   // 하나라도 다르면 프로젝트에서 고친 것일 수 있어 그 항목은 하나도 지우지 않는다.
   if (unlockedRemovals.length > 0) {
-    const { outputs: gone } = desiredOutputs({ tree, manifest, items: unlockedRemovals, rulerAgentsEnabled: project.rulerAgentsEnabled });
+    const { outputs: gone } = outputsFor(unlockedRemovals);
     const byItem = new Map();
     const ownedLeft = new Set();
     for (const d of gone) {
@@ -228,7 +234,7 @@ export function render({ tree, revision, manifest, lock = null, project, decisio
     }
   }
   for (const p of orphans) files[p] = null;
-  if (toml !== original) files[TOML] = Buffer.from(toml);
+  if (!guide && toml !== original) files[TOML] = Buffer.from(toml);
 
-  return { files, lock: { version: 1, revision, sources, outputs }, todos };
+  return { files, lock: { version: guide ? 3 : 1, revision, sources, outputs }, todos };
 }

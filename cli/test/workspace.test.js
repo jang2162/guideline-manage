@@ -101,3 +101,16 @@ test('showId: 다중 출처에서 원본이 뺀 파일 id 도 출처를 붙여 �
   assert.equal(showId('rules/b-base/09-gone.md', sources), 'b:rules/base/09-gone.md');
   assert.equal(showId('rules/base/LICENSE', sources), 'a:rules/base/LICENSE');
 });
+
+test('toRealLock: 가상 잠금이 v3(새 배치)이면 실제 잠금도 v3, 아니면 v2', () => {
+  const trees = new Map([['default', { server: 'http://d', revision: 1, tree: memoryTree(SOURCE) }]]);
+  const manifest = checkManifest({ version: 2, form: 'ruler', agents: ['claude'], sources: {
+    default: { server: 'http://d', items: ['rules/base/00-a.md'] },
+  } });
+  const v = virtualize({ manifest, lock: null, trees });
+  const guide = render({ tree: v.tree, revision: 1, manifest: v.view, lock: null, project: memProject(), layout: 'guideline', management: v.management });
+  const real = toRealLock({ viewLock: guide.lock, sources: v.sources, revisions: { default: 1 } });
+  assert.equal(real.version, 3);
+  assert.ok(real.outputs.some(o => o.path === '.guideline/rules/base/00-a.md' && o.items[0] === 'default:rules/base/00-a.md'));
+  assert.equal(toRealLock({ viewLock: { ...guide.lock, version: 1 }, sources: v.sources, revisions: { default: 1 } }).version, 2);
+});

@@ -184,7 +184,8 @@ export function toRealLock({ viewLock, sources, revisions, previous = null, keep
     const r = realOf(id, sources);
     return r ? qualify(r.source, r.id) : null;
   };
-  const out = { version: 2, revisions: { ...revisions }, sources: {}, outputs: [] };
+  // 렌더링이 새 배치(v3)로 냈으면 실제 잠금도 v3, 아니면 v2
+  const out = { version: viewLock.version === 3 ? 3 : 2, revisions: { ...revisions }, sources: {}, outputs: [] };
   for (const [id, h] of Object.entries(viewLock.sources)) {
     const q = real(id);
     if (q) out.sources[q] = h;
