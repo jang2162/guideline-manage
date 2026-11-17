@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpDir, write, ALWAYS } from './helpers.js';
 import {
-  rulerAgentsEnabled, inferAgents, diskReader, itemStates, newFiles, formItems, formPayload, statusTodos, kindOf,
+  rulerAgentsEnabled, inferAgents, diskReader, itemStates, formItems, formPayload, statusTodos, kindOf,
 } from '../src/project-state.js';
 import { render } from '../src/render/index.js';
 import { desiredOutputs } from '../src/render/outputs.js';
@@ -61,10 +61,20 @@ test('itemStates 는 잠금 기준 일곱 상태를 가린다', t => {
   assert.equal(outputs.find(o => o.path === '.ruler/guideline.md').state, 'current');
 });
 
-test('newFiles 는 고른 스택의 고르지 않은 지침 파일·세팅 문서', () => {
-  const tree = renderTree({ 'rules/base/02-new.md': `${ALWAYS}# 새\n` });
-  assert.deepEqual(newFiles(tree, manifestOf('ruler', ['rules/base/00-a.md'])), ['rules/base/01-b.md', 'rules/base/02-new.md', 'rules/base/SETUP.md']);
-  assert.deepEqual(newFiles(tree, manifestOf('ruler', ['skills/s'])), []);
+test('itemStates 는 스택 키를 파일로 펼쳐 상태를 내고, 잠금에 없는 새 지침 파일은 충돌이 아니라 원본 새로 나옴이다', t => {
+  const { p, lock } = installed(t, 'ruler', ['rules/base/00-a.md']);
+  const tree = renderTree({ 'rules/base/02-new.md': `${ALWAYS}# 새\n`, 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n` });
+  const manifest = manifestOf('ruler', ['rules/base', 'rules/base/sub', 'rules/gone']);
+  const { states } = itemStates({ tree, reader: diskReader(p), manifest, lock });
+  assert.deepEqual([...states], [
+    ['rules/base/00-a.md', 'current'],
+    ['rules/base/01-b.md', 'upstream'],
+    ['rules/base/02-new.md', 'upstream'],
+    ['rules/base/SETUP.md', 'upstream'],
+    ['rules/base/sub/00-s.md', 'upstream'],
+    ['rules/gone', 'removed'],
+  ]);
+  assert.deepEqual(statusTodos(states).map(x => [x.kind, x.item]), [['removed-upstream', 'rules/gone']]);
 });
 
 test('formItems 는 잠금 항목을 잠금 상태로 바꾸고 원본에서 사라진 항목을 추가하며 잠금 출력의 고아는 뺀다', t => {
@@ -107,7 +117,7 @@ test('첫 반영에서 충돌한 항목은 최신이 아니라 「반영 안 됨
   applyFiles(p, r.files);
   const { states } = itemStates({ tree: renderTree(), reader: diskReader(p), manifest, lock: r.lock });
   assert.equal(states.get('skills/s'), 'unsynced');
-  assert.deepEqual(statusTodos(states, []).map(x => x.kind), ['conflict']);
+  assert.deepEqual(statusTodos(states).map(x => x.kind), ['conflict']);
   const item = formItems({ tree: renderTree(), project: p, manifest, lock: r.lock, reader: diskReader(p) }).items.find(i => i.id === 'skills/s');
   assert.equal(item.state, 'different');
   assert.equal(item.lockState, undefined);

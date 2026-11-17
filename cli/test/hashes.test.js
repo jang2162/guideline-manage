@@ -33,6 +33,9 @@ test('itemHash 는 파일 항목이면 파일 해시, 디렉터리 항목이면 
   assert.equal(itemHash(hashes, 'skills/s'), dirHash([{ path: 'SKILL.md', hash: 'h2' }, { path: 'img/a.png', hash: 'h3' }]));
   assert.equal(itemHash(hashes, 'skills/none'), null);
   assert.equal(itemHash(hashes, 'rules/base/99-x.md'), null);
+  // 스택 키는 디렉터리 항목이 아니다 — 렌더링·상태가 파일 id 로 펼친 뒤 부른다
+  assert.equal(isDirItem('rules/base'), false);
+  assert.equal(itemHash(hashes, 'rules/base'), null);
 });
 
 test('treeHashes 는 트리의 모든 파일을 해시한다', () => {

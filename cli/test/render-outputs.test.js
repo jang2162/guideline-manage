@@ -5,6 +5,7 @@ import { indexText, managementText, docsReadme } from '../src/render/text.js';
 import { tableText } from '../src/toml-table.js';
 import { codexEntry } from '../src/render/mcp.js';
 import { DEPLOY, ALL, renderTree, manifestOf } from './render-fixture.js';
+import { ALWAYS, reference } from './helpers.js';
 
 const ids = outputs => outputs.map(o => (o.key ? `${o.path}#${o.key}` : o.path)).sort();
 const C7 = { type: 'stdio', command: 'npx', args: ['-y', 'c7'] };
@@ -66,4 +67,29 @@ test('RULER_TOML_BASE 와 중첩 단위의 NESTED_TOML_BASE', () => {
 
 test('isRootOnly 는 스킬·서브에이전트·MCP 다', () => {
   assert.deepEqual(['skills/s', 'agents/a.md', 'mcp/c7', 'rules/base/00-a.md', 'rules/base/SETUP.md'].map(isRootOnly), [true, true, true, false, false]);
+});
+
+test('하위 스택은 .ruler/<부모>/<자식>/ 에 쓰고 색인도 따로 만든다', () => {
+  const tree = renderTree({
+    'rules/browser/00-tool.md': `${ALWAYS}# 도구\n`,
+    'rules/browser/neo/00-x.md': `${ALWAYS}# 엑스\n`,
+    'rules/browser/neo/01-y.md': `${reference('neo 로 볼 때')}# 와이\n`,
+    'rules/browser/neo/SETUP.md': '# neo 세팅\n',
+  });
+  const items = ['rules/browser', 'rules/browser/neo'];
+  const { outputs } = desiredOutputs({ tree, manifest: manifestOf('ruler', items), items });
+  assert.deepEqual(ids(outputs), [
+    '.ruler/browser/00-tool.md',
+    '.ruler/browser/neo/00-x.md',
+    '.ruler/browser/neo/99-reference.md',
+    '.ruler/guideline.md',
+    'docs/guideline/README.md',
+    'docs/guideline/browser/neo/01-y.md',
+    'docs/guideline/browser/neo/SETUP.md',
+  ]);
+  const at = p => outputs.find(o => o.path === p);
+  assert.deepEqual(at('.ruler/browser/neo/00-x.md').items, ['rules/browser/neo/00-x.md']);
+  assert.equal(at('.ruler/browser/neo/99-reference.md').content.toString(),
+    indexText('browser/neo', [{ when: 'neo 로 볼 때', path: 'docs/guideline/browser/neo/01-y.md' }]));
+  assert.equal(at('.ruler/guideline.md').content.toString(), managementText({ setupStacks: ['browser/neo'] }));
 });

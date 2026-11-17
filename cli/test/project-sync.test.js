@@ -4,10 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { startApp, testConfig, META } from '../../server/test/helpers.js';
 import { tmpDir, write, read, exists, collect, ALWAYS } from './helpers.js';
-import { SOURCE } from './render-fixture.js';
+import { SOURCE, manifestOf } from './render-fixture.js';
+import { render } from '../src/render/index.js';
+import { applyFiles } from '../src/apply.js';
+import { diskReader } from '../src/project-state.js';
+import { memoryTree } from '../src/tree.js';
 import { projectPick } from '../src/commands/project-pick.js';
 import { projectUpdate } from '../src/commands/project-update.js';
-import { readManifest, readLock, manifestText } from '../src/manifest.js';
+import { readManifest, readLock, manifestText, lockText } from '../src/manifest.js';
 import { runGit } from '../src/projects.js';
 
 async function server(t) {
@@ -57,8 +61,8 @@ test('ruler 프로젝트: 고른 것을 쓰고 매니페스트·잠금을 남긴
   assert.ok(exists(p, 'docs/guideline/base/SETUP.md'));
   assert.ok(exists(p, '.ruler/skills/s/img/a.png'));
   assert.deepEqual(readManifest(p), {
-    version: 2, form: 'ruler', agents: ['claude'],
-    sources: { default: { server: s.base, items: ['rules/base/00-a.md', 'rules/base/01-b.md', 'rules/base/SETUP.md', 'skills/s'], aliases: {} } },
+    version: 3, form: 'ruler', agents: ['claude'],
+    sources: { default: { server: s.base, items: ['rules/base', 'skills/s'], aliases: {} } },
   });
   assert.equal(readLock(p).revisions.default, 1);
   const r = JSON.parse(o.text());
@@ -150,7 +154,9 @@ test('update: 원본 새로 나옴은 쓰고, 프로젝트에서 고친 파일�
   assert.equal(r.revision, 2);
   assert.equal(read(p, '.ruler/base/00-a.md'), '# 에이\n\n새 본문\n');
   assert.equal(read(p, 'docs/guideline/base/01-b.md'), '# 고침\n');
-  assert.deepEqual(r.todos.map(x => x.kind).filter(k => k !== 'ruler-apply').sort(), ['new-file', 'skipped']);
+  assert.equal(read(p, '.ruler/base/02-new.md'), '# 새\n');
+  assert.ok(r.written.includes('.ruler/base/02-new.md'));
+  assert.deepEqual(r.todos.map(x => x.kind).filter(k => k !== 'ruler-apply').sort(), ['skipped']);
   assert.equal(readLock(p).revisions.default, 2);
   assert.equal(await projectUpdate({ project: p, env, ...quiet, force: true, out: () => {} }), 0);
   assert.equal(read(p, 'docs/guideline/base/01-b.md'), '# 비\n\n본문 B\n');
@@ -209,5 +215,32 @@ test('중첩 디렉터리: 그 안에만 쓰고, 루트 전용 항목은 막히�
   assert.deepEqual(calls, [root]);
   const out = JSON.parse(o.text());
   assert.ok(out.todos.some(x => x.kind === 'nested-off'));
-  assert.deepEqual(readManifest(sub).sources.default.items, ['rules/base/00-a.md']);
+  assert.deepEqual(readManifest(sub).sources.default.items, ['rules/base']);
+});
+
+test('v2 일부 선택은 update 에서 스택 전체가 된다', async t => {
+  const { s, env } = await server(t);
+  const p = gitProject(t, { '.ruler/ruler.toml': 'default_agents = ["claude"]\n' });
+  const first = render({
+    tree: memoryTree(SOURCE), revision: 1, manifest: manifestOf('ruler', ['rules/base/00-a.md'], { agents: ['claude'] }), lock: null, project: diskReader(p),
+  });
+  applyFiles(p, first.files);
+  write(p, 'guideline.json', `${JSON.stringify({
+    version: 2, form: 'ruler', agents: ['claude'], sources: { default: { server: s.base, items: ['rules/base/00-a.md'] } },
+  }, null, 2)}\n`);
+  write(p, 'guideline-lock.json', lockText(first.lock));
+  assert.equal(exists(p, 'docs/guideline/base/01-b.md'), false);
+
+  const o = collect();
+  assert.equal(await projectUpdate({ project: p, env, ...quiet, json: true, out: o.out }), 0);
+  const r = JSON.parse(o.text());
+  for (const f of ['docs/guideline/base/01-b.md', 'docs/guideline/base/SETUP.md', '.ruler/base/99-reference.md']) {
+    assert.ok(r.written.includes(f), f);
+    assert.ok(exists(p, f), f);
+  }
+  assert.equal(r.todos.some(x => x.kind === 'new-file'), false);
+  const saved = JSON.parse(read(p, 'guideline.json'));
+  assert.equal(saved.version, 3);
+  assert.deepEqual(saved.sources.default.items, ['rules/base']);
+  assert.deepEqual(Object.keys(readLock(p).sources).sort(), ['default:rules/base/00-a.md', 'default:rules/base/01-b.md', 'default:rules/base/SETUP.md']);
 });

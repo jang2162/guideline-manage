@@ -4,13 +4,13 @@ import { inspect, itemDiff } from './inspect.js';
 import { currentPart, blockedReason } from './render/index.js';
 import { desiredOutputs, desiredPart, isRootOnly, ROOT_ONLY_REASON } from './render/outputs.js';
 import { sha256, itemHash, treeHashes } from './hashes.js';
-import { stackFiles, stackSetup } from './catalog.js';
+import { expandBlocks } from './catalog.js';
 import { itemKey } from './selection.js';
 import { AGENTS } from './manifest.js';
 import { t } from './i18n.js';
 
-const RULE = /^rules\/([^/]+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
-const SETUP = /^rules\/([^/]+)\/SETUP\.md$/;
+const RULE = /^rules\/(.+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
+const SETUP = /^rules\/(.+)\/SETUP\.md$/;
 const DIFF_ITEM_MAX = 64 * 1024;
 const DIFF_TOTAL_MAX = 1024 * 1024;
 const keyOf = o => `${o.path}\0${o.key ?? ''}`;
@@ -81,11 +81,13 @@ const stackOf = id => RULE.exec(id)?.[1] ?? SETUP.exec(id)?.[1] ?? null;
 /**
  * 매니페스트 항목마다 잠금 기준 상태와, 잠금 출력마다 디스크 상태.
  * 디스크 사본이 최신 원본으로 만든 것과 같으면(제안이 수락된 뒤) 그 출력은 current 로 본다.
+ * 매니페스트의 스택 키는 입구에서 그 스택의 파일로 펼친다. 상태는 파일 id 마다 낸다(원본에 없는 스택 키는 그대로 removed).
  * @returns {{ states: Map<string, string>, outputs: object[] }}
  */
 export function itemStates({ tree, reader, manifest, lock, nested = false, management = {} }) {
   const hashes = treeHashes(tree);
-  const live = manifest.items.filter(id => itemHash(hashes, id) !== null && !blockedReason(tree, id, nested));
+  const items = expandBlocks(tree, manifest.items);
+  const live = items.filter(id => itemHash(hashes, id) !== null && !blockedReason(tree, id, nested));
   const want = new Map(desiredOutputs({ tree, manifest, items: live, rulerAgentsEnabled: reader.rulerAgentsEnabled, management }).outputs
     .map(d => [keyOf(d), desiredPart(d)]));
   const outputs = lock.outputs.map(o => {
@@ -97,15 +99,16 @@ export function itemStates({ tree, reader, manifest, lock, nested = false, manag
     return { ...o, state };
   });
   const states = new Map();
-  for (const id of manifest.items) {
+  for (const id of items) {
     const h = itemHash(hashes, id);
     if (h === null) {
       states.set(id, 'removed');
       continue;
     }
-    // 첫 반영에서 이미 있는 것과 충돌해 원본 해시를 남기지 않은 항목
     if (!Object.hasOwn(lock.sources, id)) {
-      states.set(id, 'unsynced');
+      // 지침 파일·세팅 문서는 이미 있는 사본을 받아들이므로 충돌하지 않는다 — 잠금에 없으면 고른 스택에 새로 생긴 것이라 update 가 쓴다.
+      // 나머지는 첫 반영에서 이미 있는 것과 충돌해 원본 해시를 남기지 않은 항목이다.
+      states.set(id, RULE.test(id) || SETUP.test(id) ? 'upstream' : 'unsynced');
       continue;
     }
     const mine = outputs.filter(o => o.items.includes(id));
@@ -117,26 +120,13 @@ export function itemStates({ tree, reader, manifest, lock, nested = false, manag
   return { states, outputs };
 }
 
-/** 매니페스트에 지침 파일이 있는 스택의, 고르지 않은 지침 파일·세팅 문서. */
-export function newFiles(tree, manifest) {
-  const chosen = new Set(manifest.items);
-  const stacks = [...new Set(manifest.items.map(stackOf).filter(Boolean))].sort();
-  const out = [];
-  for (const s of stacks) {
-    for (const f of stackFiles(s, tree)) if (!chosen.has(f)) out.push(f);
-    if (stackSetup(s, tree) && !chosen.has(`rules/${s}/SETUP.md`)) out.push(`rules/${s}/SETUP.md`);
-  }
-  return out;
-}
-
 /** status·update 가 내는 할 일(잠금 상태에서 나오는 것). */
-export function statusTodos(states, fresh, show = id => id) {
+export function statusTodos(states, show = id => id) {
   const todos = [];
   for (const [id, s] of states) {
     if (s === 'removed') todos.push({ kind: 'removed-upstream', item: show(id), message: t('todo.removedUpstream', { item: show(id) }) });
     if (s === 'unsynced') todos.push({ kind: 'conflict', item: show(id), message: t('todo.unsynced', { item: show(id) }) });
   }
-  for (const f of fresh) todos.push({ kind: 'new-file', item: show(f), message: t('todo.newFile', { item: show(f) }) });
   return todos;
 }
 

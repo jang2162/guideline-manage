@@ -3,11 +3,12 @@ import { desiredOutputs, desiredPart, RULER_TOML_BASE, NESTED_TOML_BASE, isRootO
 import { setTable, tableSlice, parseKeyPath } from '../toml-table.js';
 import { readTier } from '../tiers.js';
 import { readText } from '../tree.js';
-import { stackOverrides } from '../catalog.js';
+import { stackOverrides, expandBlocks } from '../catalog.js';
+import { blockKey, isWithin } from '../blocks.js';
 import { t } from '../i18n.js';
 
-const RULE = /^rules\/([^/]+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
-const SETUP = /^rules\/([^/]+)\/SETUP\.md$/;
+const RULE = /^rules\/(.+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
+const SETUP = /^rules\/(.+)\/SETUP\.md$/;
 const eq = (a, b) => Buffer.from(a).equals(Buffer.from(b));
 const keyOf = o => `${o.path}\0${o.key ?? ''}`;
 const label = o => (o.key ? `${o.path} (${o.key})` : o.path);
@@ -46,7 +47,8 @@ const setPart = (text, output, value) => setTable(text ?? '', parseKeyPath(outpu
 
 /**
  * 원본·매니페스트·잠금·디스크·결정을 합쳐 쓸 파일, 새 잠금, 할 일을 낸다. 디스크에 쓰지 않는다.
- * 경로는 모두 단위 디렉터리 기준이다.
+ * 경로는 모두 단위 디렉터리 기준이다. 매니페스트의 스택 키는 입구에서 그 스택의 파일로 펼친다 — 스택에 새로 생긴 파일은
+ * 그냥 쓰고, 원본이 뺀 파일은 지운다. 결정·잠금은 파일 id 다. 원본에 없는 스택 키는 그대로 남아 removed-upstream 이 된다.
  * @param {{ tree: import('../tree.js').Tree, revision: number, manifest: import('../manifest.js').Manifest,
  *   lock: import('../manifest.js').Lock | null, project: { read: Function, exists: Function, rulerAgentsEnabled: boolean },
  *   decisions?: Record<string, { action?: string, overwrite?: boolean, state?: string, reason?: string }>,
@@ -60,8 +62,11 @@ export function render({ tree, revision, manifest, lock = null, project, decisio
   const sources = {};
   const renderable = [];
   const carried = new Set();
+  const items = expandBlocks(tree, manifest.items);
+  // 원본에서 사라진 스택 키(`rules/gone`)는 지난 잠금의 그 스택 파일 id(`rules/gone/00-a.md`)들을 그대로 둔다
+  const isCarried = id => carried.has(id) || [...carried].some(c => c.startsWith('rules/') && isWithin(blockKey(id) ?? '', c));
 
-  for (const id of manifest.items) {
+  for (const id of items) {
     const h = itemHash(hashes, id);
     if (h === null) {
       carried.add(id);
@@ -77,11 +82,11 @@ export function render({ tree, revision, manifest, lock = null, project, decisio
     renderable.push(id);
     sources[id] = h;
   }
-  for (const id of carried) if (prevSources[id]) sources[id] = prevSources[id];
+  for (const [id, h] of Object.entries(prevSources)) if (isCarried(id)) sources[id] = h;
 
   // 잠금이 모르는 채로 체크를 푼 항목(0.10 방식에서 옮길 때). 잠금에 있는 출력은 아래의 지난 잠금 정리가 지운다.
   const unlockedRemovals = Object.entries(decisions)
-    .filter(([id, d]) => d.action === 'remove' && !manifest.items.includes(id) && !prevOutputs.some(o => o.items.includes(id)))
+    .filter(([id, d]) => d.action === 'remove' && !items.includes(id) && !prevOutputs.some(o => o.items.includes(id)))
     .map(([id]) => id)
     .filter(id => itemHash(hashes, id) !== null && !(nested && isRootOnly(id)))
     .sort();
@@ -165,7 +170,7 @@ export function render({ tree, revision, manifest, lock = null, project, decisio
   // 지난 잠금에 있었는데 이번에 바라지 않는 출력은 지운다. 그대로 둘 항목의 출력은 남긴다.
   for (const o of prevOutputs) {
     if (desiredKeys.has(keyOf(o))) continue;
-    if (o.items.some(i => carried.has(i))) {
+    if (o.items.some(isCarried)) {
       outputs.push(o);
       continue;
     }
