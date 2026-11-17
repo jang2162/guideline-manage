@@ -2,13 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyFiles, writeFileAtomic, ApplyError } from '../apply.js';
-import { MANIFEST, LOCK, manifestText, lockText } from '../manifest.js';
+import { MANIFEST, LOCK, manifestText, lockText, manifestVersionOnDisk } from '../manifest.js';
 import { printTodos } from '../todos.js';
 import { rootNestedOn, nestedOffTodo } from '../unit.js';
 import { compose } from '../compose.js';
 import { rulerAgentsEnabled } from '../project-state.js';
-import { RULER_TOML } from '../layout.js';
+import { RULER_TOML, layoutOf } from '../layout.js';
 import { strayRulerOutput } from '../stray.js';
+import { fetchSources } from '../workspace.js';
+import { migrateLayout, preparePackage } from '../migrate-layout.js';
 import { t } from '../i18n.js';
 
 /** 프로젝트의 node_modules/.bin/ruler 나 PATH 의 ruler. 없으면 null. 내려받아 실행하지 않는다. */
@@ -98,13 +100,12 @@ export function rulerStep({ root, env, runRuler, todos }) {
 }
 
 /**
- * 렌더링 결과를 단위 디렉터리에 쓰고, 매니페스트·잠금을 마지막에 쓴 뒤 git 루트에서 ruler apply 를 돈다.
- * 새 배치(layout 'guideline')면 잠금까지 쓴 다음 .guideline/ 에서 생성물을 조합해 쓰고 ruler 를 돈다 —
- * 조합이 .ruler/ruler.toml 을 쓴 뒤에만 ruler 를 돌아야 모든 에이전트 몫(CLAUDE.md 등)이 생기지 않는다.
+ * 렌더링 결과(.guideline/ 사본)를 단위 디렉터리에 쓰고, 매니페스트·잠금을 쓴 뒤 .guideline/ 에서 생성물을 조합해 쓰고
+ * git 루트에서 ruler apply 를 돈다 — 조합이 .ruler/ruler.toml 을 쓴 뒤에만 ruler 를 돌아야 모든 에이전트 몫(CLAUDE.md 등)이 생기지 않는다.
  * @returns {{ code: number, written: string[], deleted: string[], todos: object[] }}
  */
 export function finishApply({
-  project, root = project, nested = false, result, manifest, lock = result.lock, layout = 'ruler', env = process.env, runRuler = defaultRunRuler, err = console.error,
+  project, root = project, nested = false, result, manifest, lock = result.lock, env = process.env, runRuler = defaultRunRuler, err = console.error,
 }) {
   let todos = [...result.todos];
   let applied;
@@ -119,19 +120,63 @@ export function finishApply({
   }
   writeFileAtomic(path.join(project, MANIFEST), manifestText(manifest));
   writeFileAtomic(path.join(project, LOCK), lockText(lock));
-  if (layout === 'guideline') {
-    const composed = composeWithStray({ project, nested, manifest });
-    todos = mergeTodos(todos, composed.todos);
-    const w = writeComposedOrFail(project, composed.files, err);
-    if (w.failed) {
-      err(t('apply.composeNotWritten'));
-      return { code: 1, written: [...applied.written, ...w.failed.written], deleted: [...applied.deleted, ...w.failed.deleted], todos };
-    }
-    applied = { written: [...applied.written, ...w.written], deleted: [...applied.deleted, ...w.deleted] };
+  const composed = composeWithStray({ project, nested, manifest });
+  todos = mergeTodos(todos, composed.todos);
+  const w = writeComposedOrFail(project, composed.files, err);
+  if (w.failed) {
+    err(t('apply.composeNotWritten'));
+    return { code: 1, written: [...applied.written, ...w.failed.written], deleted: [...applied.deleted, ...w.failed.deleted], todos };
   }
+  applied = { written: [...applied.written, ...w.written], deleted: [...applied.deleted, ...w.deleted] };
   if (nested && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
   if (applied.written.length || applied.deleted.length) rulerStep({ root, env, runRuler, todos });
   return { code: 0, ...applied, todos };
+}
+
+/**
+ * 옛 배치(잠금 v1·v2, 잠금 없는 0.10 이전)면 반영 전에 새 배치로 옮긴다: 잠금 리비전 원본으로 사본을 .guideline/ 에 되돌려 쓰고,
+ * package.json 의 prepare 를 고치고, 매니페스트·잠금(v3)을 쓰고, 생성물을 조합한 뒤(.gitignore 블록) 옛 사본을 git 추적에서 뺀다.
+ * 새 배치면 아무것도 하지 않는다. 실패하면 { code }.
+ * @returns {Promise<{ lock: object | null, todos: object[] } | { code: number }>}
+ */
+export async function migrateIfOld({ dir, unit, manifest, lock, env, home, fetchImpl, git, err }) {
+  if (!manifest || layoutOf(lock, dir) !== 'ruler') return { lock, todos: [] };
+  const { trees, failures } = await fetchSources({ manifest, lock, latest: new Set(), env, home, fetchImpl });
+  if (failures.length) {
+    for (const f of failures) err(`${f.source}: ${f.message}`);
+    return { code: 1 };
+  }
+  const m = migrateLayout({ project: dir, manifest, lock, trees, git, nested: unit.nested });
+  if (m.error) {
+    err(m.error);
+    return { code: 1 };
+  }
+  const prep = preparePackage({ project: dir, root: unit.root, hook: true });
+  const w = writeComposedOrFail(dir, { ...m.files, ...prep.files }, err);
+  if (w.failed) {
+    err(t('apply.lockNotWritten'));
+    return { code: 1 };
+  }
+  writeFileAtomic(path.join(dir, MANIFEST), manifestText(manifest));
+  writeFileAtomic(path.join(dir, LOCK), lockText(m.lock));
+  // .gitignore 블록을 먼저 써야 추적에서 뺀 생성물이 다시 커밋되지 않는다
+  const composed = composeWithStray({ project: dir, nested: unit.nested, manifest });
+  if (writeComposedOrFail(dir, composed.files, err).failed) {
+    err(t('apply.composeNotWritten'));
+    return { code: 1 };
+  }
+  const todos = [{ kind: 'migrated', item: null, message: t('migrate.done') }, ...m.todos, ...prep.todos];
+  const untrack = m.notes.untrack;
+  if (untrack.length && git(['rm', '--cached', '--quiet', '--', ...untrack], dir).status !== 0) {
+    todos.push({ kind: 'untracked', item: null, message: t('todo.untrackMigrated', { paths: untrack.join(' '), dir }) });
+  }
+  return { lock: m.lock, todos };
+}
+
+/** 읽은 매니페스트가 v1·v2 였으면(이번에 v3 로 쓴다) 알리는 할 일. */
+export function manifestV3Todos(dir) {
+  const v = manifestVersionOnDisk(dir);
+  return v !== null && v < 3 ? [{ kind: 'manifest-v3', item: null, message: t('migrate.manifestV3') }] : [];
 }
 
 /** 반영 결과를 낸다. json 이면 stdout 에 JSON 하나만. */

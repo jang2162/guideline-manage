@@ -4,9 +4,9 @@ import { diskReader } from '../project-state.js';
 import { expandBlocks } from '../catalog.js';
 import { unitInfo, unitProblem } from '../unit.js';
 import { render } from '../render/index.js';
-import { layoutOf } from '../layout.js';
 import { fetchSources, virtualize, toRealLock, aliasMoveTodos, missingRequiresTodos, protectedPaths, manifestClashes } from '../workspace.js';
-import { finishApply, report } from './sync-common.js';
+import { printTodos } from '../todos.js';
+import { finishApply, report, migrateIfOld, manifestV3Todos } from './sync-common.js';
 import { t } from '../i18n.js';
 
 /**
@@ -67,27 +67,36 @@ export async function projectUpdate({
   const dir = project !== undefined ? expandPath(project) : cwd;
   const opened = openProject({ dir, server, source, err });
   if (opened.code !== undefined) return opened.code;
-  const { manifest, lock } = opened;
+  const { manifest } = opened;
+  const unit = unitInfo(dir, git);
+  const v3 = manifestV3Todos(dir);
+  // 옛 배치면 먼저 새 배치로 옮긴다(잠금 리비전 원본이 필요하다). 그다음은 새 배치로 평소처럼 받는다.
+  const moved = await migrateIfOld({ dir, unit, manifest, lock: opened.lock, env, home, fetchImpl, git, err });
+  if (moved.code !== undefined) return moved.code;
+  const { lock } = moved;
   const latest = new Set(source !== undefined ? [source] : Object.keys(manifest.sources));
   const { trees, failures } = await fetchSources({ manifest, lock, latest, env, home, fetchImpl });
   for (const f of failures) err(`${f.source}: ${f.message}`);
-  if (trees.size === 0) return 1;
+  if (trees.size === 0) {
+    // 옮긴 것은 이미 썼다 — 그 할 일(커밋하라)은 알린다
+    printTodos(moved.todos, err);
+    return 1;
+  }
 
   const failed = failures.map(f => f.source);
   const protect = protectedPaths({ manifest, lock, failed });
   const v = virtualize({ manifest, lock, trees, protect });
-  const unit = unitInfo(dir, git);
   const decisions = Object.fromEntries(expandBlocks(v.tree, v.view.items).map(id => [id, { action: 'keep' }]));
-  const layout = layoutOf(lock, dir) === 'guideline' ? 'guideline' : 'ruler';
   const rendered = render({
-    tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, force, nested: unit.nested, management: v.management, layout,
+    tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, force, nested: unit.nested, management: v.management,
   });
   for (const p of protect) delete rendered.files[p];
   const revisions = Object.fromEntries([...trees].map(([name, t]) => [name, t.revision]));
   const realLock = toRealLock({ viewLock: rendered.lock, sources: v.sources, revisions, previous: lock, keep: failed, protect });
   rendered.todos.push(...v.problems, ...aliasMoveTodos({ previous: lock, next: realLock, project: dir }));
   rendered.todos.push(...missingRequiresTodos({ manifest, trees, many: v.many }));
-  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, layout, env, runRuler, err });
+  rendered.todos.unshift(...moved.todos, ...v3);
+  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   return failures.length && done.code === 0 ? 1 : done.code;
 }

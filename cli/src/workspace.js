@@ -6,7 +6,7 @@ import { qualify, splitQualified, readManifest } from './manifest.js';
 import { sourceView, mergeViews, toVirtual, realOf, aliasProblems, unitOf, finalUnit, unitName, collisions, collisionMessage } from './sources.js';
 import { readText } from './tree.js';
 import { blockKeys, elementRequires } from './catalog.js';
-import { managementCopy, overridePath } from './layout.js';
+import { managementCopy, GUIDE_DIR } from './layout.js';
 import { t } from './i18n.js';
 
 // 여러 출처의 원본을 받아 하나의 가상 원본으로 합치고(렌더링·상태 코드가 그대로 쓰게), 결과 잠금을 출처 붙은 id 로 되돌린다.
@@ -75,44 +75,21 @@ export async function fetchSources({
   return { trees, failures };
 }
 
-const NOT_STACK = new Set(['skills', 'agents']);
-/**
- * 생성물이 놓인 `.ruler/` 아래 디렉터리 경로(`browser/neo`). 사본·색인은 자기 스택 폴더 바로 안에 놓이므로 이것이 그 스택이다 —
- * 부모 스택과 하위 스택의 주인이 달라도 하위 스택 폴더의 것은 하위 스택 몫이다(최장 일치). 스킬·서브에이전트 자리는 null.
- */
-const stackDir = p => {
-  const d = /^\.ruler\/(.+)\/[^/]+$/.exec(p)?.[1] ?? null;
-  return d && !NOT_STACK.has(d.split('/')[0]) ? d : null;
-};
-
-/** 새 배치 지침 사본(.guideline/rules/<스택 경로>/<파일>)의 스택 경로. 아니면 null. */
+/** 지침 사본(.guideline/rules/<스택 경로>/<파일>)의 스택 경로. 아니면 null. */
 const copyStackDir = p => /^\.guideline\/rules\/(.+)\/[^/]+$/.exec(p)?.[1] ?? null;
 
 /**
- * 닿지 못한 출처가 있을 때 건드리지 않을 생성물 경로: 그 출처 최종 스택의 색인, 관리 지침, docs/guideline/README.md,
- * 새 배치면 그 출처의 관리 지침 사본.
- * 그 출처의 원본 없이 다시 만들면 내용이 빠지기 때문이다. 이 경로들은 렌더링에서 빼고 잠금의 이전 것을 옮긴다.
+ * 닿지 못한 출처가 있을 때 건드리지 않을 경로: 그 출처의 관리 지침 사본(.guideline/management/<출처>.md).
+ * 그 출처의 원본에서만 다시 만들 수 있기 때문이다. 이 경로들은 렌더링에서 빼고 잠금의 이전 것을 옮긴다.
+ * 그 출처 항목의 사본은 virtualize 가 잠금에서 빼고 toRealLock 이 옮기므로 따로 지키지 않는다.
  * @param {{ manifest: object, lock: object | null, failed: string[] }} opts
  * @returns {Set<string>}
  */
-export function protectedPaths({ manifest, lock, failed }) {
+export function protectedPaths({ lock, failed }) {
   const out = new Set();
   if (!failed.length || !lock) return out;
-  const stacks = new Set();
-  for (const name of failed) {
-    const s = manifest.sources[name];
-    for (const id of s?.items ?? []) {
-      const u = unitOf(id);
-      if (u?.startsWith('rules/')) stacks.add(unitName(finalUnit(u, s.aliases ?? {})));
-    }
-  }
-  // 새 배치의 출처별 관리 지침 사본(.guideline/management/<출처>.md)은 그 출처의 원본에서만 다시 만들 수 있다
   const mine = new Set(failed.map(managementCopy));
-  for (const o of lock.outputs) {
-    if (o.items.length) continue;
-    const d = stackDir(o.path);
-    if (o.path === '.ruler/guideline.md' || o.path === 'docs/guideline/README.md' || mine.has(o.path) || (d && stacks.has(d))) out.add(o.path);
-  }
+  for (const o of lock.outputs) if (!o.items.length && mine.has(o.path)) out.add(o.path);
   return out;
 }
 
@@ -192,7 +169,7 @@ export function toRealLock({ viewLock, sources, revisions, previous = null, keep
     return r ? qualify(r.source, r.id) : null;
   };
   // 렌더링이 새 배치(v3)로 냈으면 실제 잠금도 v3, 아니면 v2
-  const out = { version: viewLock.version === 3 ? 3 : 2, revisions: { ...revisions }, sources: {}, outputs: [] };
+  const out = { version: 3, revisions: { ...revisions }, sources: {}, outputs: [] };
   for (const [id, h] of Object.entries(viewLock.sources)) {
     const q = real(id);
     if (q) out.sources[q] = h;
@@ -216,11 +193,10 @@ export function toRealLock({ viewLock, sources, revisions, previous = null, keep
  */
 export function aliasMoveTodos({ previous, next, project }) {
   if (!previous) return [];
-  // 잠금마다 그 배치로 스택 자리를 읽는다: 새 배치(v3)는 .guideline/rules/<스택 경로>/ 사본, 옛 배치는 .ruler/<스택 경로>/
-  const dirs = lock => new Set(lock.outputs.map(o => (lock.version === 3 ? copyStackDir : stackDir)(o.path)).filter(Boolean));
+  // 스택 자리는 .guideline/rules/<스택 경로>/ 사본, 바꿈은 .guideline/overrides/<스택 경로>/ 에 있다
+  const dirs = lock => new Set(lock.outputs.map(o => copyStackDir(o.path)).filter(Boolean));
   const now = dirs(next);
-  // 바꿈은 지난 배치의 자리에 있다: 새 배치면 .guideline/overrides/<스택 경로>/, 옛 배치면 .ruler/<스택 경로>/
-  const home = d => (previous.version === 3 ? overridePath(d, '').slice(0, -1) : `.ruler/${d}`);
+  const home = d => `${GUIDE_DIR}/overrides/${d}`;
   const out = [];
   for (const d of [...dirs(previous)].sort(byStr)) {
     if (now.has(d)) continue;

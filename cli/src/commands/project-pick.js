@@ -15,8 +15,9 @@ import { inferAgents, formPayload, diskReader } from '../project-state.js';
 import { unitInfo, unitProblem, rootStacks } from '../unit.js';
 import { render } from '../render/index.js';
 import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../render/outputs.js';
-import { layoutOf, rulerTomlText, PROJECT_TOML, RULER_TOML } from '../layout.js';
-import { finishApply, report } from './sync-common.js';
+import { rulerTomlText, PROJECT_TOML, RULER_TOML } from '../layout.js';
+import { finishApply, report, migrateIfOld, manifestV3Todos } from './sync-common.js';
+import { printTodos } from '../todos.js';
 import { t } from '../i18n.js';
 
 const isDir = p => {
@@ -116,6 +117,16 @@ export async function projectPick({
   const single = Object.keys(sources).length === 1;
 
   const unit = isNew ? { dir, root: dir, nested: false } : unitInfo(dir, git);
+  const v3 = isNew ? [] : manifestV3Todos(dir);
+  // 옛 배치면 폼을 만들기 전에 새 배치로 옮긴다 — 폼이 .guideline/ 사본과 원본을 비교하고 반영도 새 배치로 쓴다
+  let migrated = [];
+  if (manifest) {
+    const servers = Object.fromEntries(Object.entries(manifest.sources).map(([n, s]) => [n, { ...s, server: sources[n]?.server ?? s.server }]));
+    const moved = await migrateIfOld({ dir, unit, manifest: { ...manifest, sources: servers }, lock, env, home, fetchImpl, git, err });
+    if (moved.code !== undefined) return moved.code;
+    lock = moved.lock;
+    migrated = moved.todos;
+  }
   const status = isNew ? { gitRepo: false, dirty: false } : projectStatus(dir, git, unit.root);
   // 중첩 단위에 ruler.toml 이 아직 없으면 git 루트의 에이전트를 따른다
   const agentsFrom = unit.nested && rulerTomlText(dir) === null ? unit.root : dir;
@@ -147,8 +158,6 @@ export async function projectPick({
       tree: v.tree, revision: src.revision, projectPath: dir, isNew, agents, status,
       manifest: manifest && Object.hasOwn(base.sources, name) ? v.view : null, lock: v.viewLock,
       nested: unit.nested, rootStacks: unit.nested ? rootStacks(unit.root) : [], management: v.management,
-      // 가상 잠금은 version 을 잃으므로 배치는 실제 잠금으로 정한다
-      layout: isNew ? 'guideline' : layoutOf(lock, dir),
     });
     const aliases = sources[name].aliases ?? {};
     if (recommended) {
@@ -205,7 +214,11 @@ export async function projectPick({
     submitted.set(name, { sel, v, revision: sel.revision, overrides: payload.overrides, offered });
   }
   for (const f of failures) err(f);
-  if (submitted.size === 0) return failures.length ? 1 : 3;
+  if (submitted.size === 0) {
+    // 옮긴 것은 이미 썼다 — 고르지 않았어도 그 할 일(커밋하라)은 알린다
+    printTodos(migrated, err);
+    return failures.length ? 1 : 3;
+  }
 
   // 제출하지 않은 새 출처는 매니페스트에 남기지 않는다
   for (const name of targets) if (!submitted.has(name) && !Object.hasOwn(base.sources, name)) delete sources[name];
@@ -247,27 +260,26 @@ export async function projectPick({
     for (const b of sel.blocked) if (own(b.id)) decisions[b.id] = { state: 'blocked', reason: b.reason };
     orphans.push(...items.filter(i => i.kind === 'orphan' && i.action === 'remove').flatMap(i => orphanFiles(dir, i.id)));
   }
-  // 새 프로젝트와 처음 받는 프로젝트는 새 배치(.guideline/ 사본 + 조합)로 시작한다. 이미 받은 프로젝트는 그 배치를 따른다.
-  const layout = isNew || !manifest || layoutOf(lock, dir) === 'guideline' ? 'guideline' : 'ruler';
   const rendered = render({
-    tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, orphans, nested: unit.nested, management: v.management, layout,
+    tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, orphans, nested: unit.nested, management: v.management,
   });
   for (const p of protect) delete rendered.files[p];
   const revisions = Object.fromEntries([...trees].map(([n, t]) => [n, submitted.get(n)?.revision ?? t.revision]));
   const realLock = toRealLock({ viewLock: rendered.lock, sources: v.sources, revisions, previous: lock, keep: failed, protect });
   rendered.todos.push(...v.problems, ...aliasMoveTodos({ previous: lock, next: realLock, project: dir }));
+  rendered.todos.unshift(...migrated, ...v3);
   for (const { overrides } of submitted.values()) {
     for (const o of overrides.filter(x => !x.valid)) {
       rendered.todos.push({ kind: 'override', item: o.target, message: `${o.file} 「${o.heading}」: ${o.reason}` });
     }
   }
   let moved = false;
-  if (layout === 'guideline' && !fs.existsSync(path.join(dir, ...PROJECT_TOML.split('/')))) {
+  if (!fs.existsSync(path.join(dir, ...PROJECT_TOML.split('/')))) {
     const first = projectTomlFirst(dir, unit.nested, nextManifest.agents);
     rendered.files[PROJECT_TOML] = first.content;
     moved = first.moved;
   }
-  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, layout, env, runRuler, err });
+  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, env, runRuler, err });
   if (done.code === 0 && moved) done.todos.push(...untrackMoved(dir, git));
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;
@@ -324,7 +336,7 @@ function orphanFiles(dir, id) {
 function lockOf(lock, name) {
   const mine = q => splitQualified(q).source === name;
   return {
-    version: 2,
+    version: lock.version,
     revisions: lock.revisions[name] ? { [name]: lock.revisions[name] } : {},
     sources: Object.fromEntries(Object.entries(lock.sources).filter(([q]) => mine(q))),
     outputs: lock.outputs.filter(o => o.items.length > 0 && o.items.every(mine)),
@@ -349,8 +361,7 @@ function takenUnits(sources, name) {
 }
 
 /**
- * 다른 출처의 사본인가. 다른 출처의 잠금 출력이거나, 그 경로를 품는 가장 깊은 최종 스택 자리(.ruler/<스택 경로>/,
- * docs/guideline/<스택 경로>/, 새 배치의 .guideline/rules/<스택 경로>/)를 다른 출처가 쓴다 — 부모 스택을 다른 출처가 가졌어도 자식 폴더는 자식 소유자의 것이다.
+ * 다른 출처의 사본인가. 다른 출처의 잠금 출력이거나, 그 경로를 품는 가장 깊은 최종 스택 자리(.guideline/rules/<스택 경로>/)를 다른 출처가 쓴다 — 부모 스택을 다른 출처가 가졌어도 자식 폴더는 자식 소유자의 것이다.
  * 출처 하나의 폼이 다른 출처의 사본을 「원본에서 사라짐」 으로 보이지 않게 한다.
  */
 function otherOwned(sources, lock, name) {
@@ -365,7 +376,7 @@ function otherOwned(sources, lock, name) {
     }
   }
   const ownerOf = p => {
-    const m = /^(?:\.ruler|docs\/guideline|\.guideline\/rules)\/(.+)\/[^/]+$/.exec(p);
+    const m = /^\.guideline\/rules\/(.+)\/[^/]+$/.exec(p);
     for (let d = m?.[1] ?? ''; d; d = d.includes('/') ? d.slice(0, d.lastIndexOf('/')) : '') {
       if (stacks.has(d)) return stacks.get(d);
     }

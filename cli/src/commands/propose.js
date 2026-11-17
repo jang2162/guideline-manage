@@ -143,6 +143,11 @@ export async function propose({
     err(t('propose.notYet'));
     return 2;
   }
+  // 옛 배치의 사본은 update 가 .guideline/ 으로 옮긴 뒤에 제안한다
+  if (layoutOf(lock, dir) === 'ruler') {
+    err(t('apply.needsUpdate'));
+    return 2;
+  }
   // 기준은 잠금의 리비전이다. 출처가 하나라도 받지 못하면 그 출처의 변경은 올리지 않는다.
   const { trees, failures } = await fetchSources({ manifest, lock, latest: new Set(), env, home, fetchImpl });
   for (const f of failures) err(`${f.source}: ${f.message}`);
@@ -156,8 +161,7 @@ export async function propose({
     const r = realOf(id, v.sources);
     return r && onlySet.has(`${r.source}:${r.id}`);
   })) : null;
-  // 가상 잠금은 version 을 잃으므로 배치는 실제 잠금으로 정한다
-  const { changes, todos } = localChanges({ base: v.tree, project: dir, lock: v.viewLock, only: wanted, layout: layoutOf(lock, dir) });
+  const { changes, todos } = localChanges({ base: v.tree, project: dir, lock: v.viewLock, only: wanted });
   const shown = todos.map(t => (t.item ? { ...t, item: show(t.item) } : t));
   const bySource = toRealChanges({ changes, sources: v.sources, trees });
   const targets = v.sources.map(s => s.name).filter(n => source === undefined || n === source);

@@ -287,8 +287,10 @@
   "todo.agentsNotComposed": "{name}: .guideline/ 에 사본은 있지만 .ruler/ruler.project.toml 에 [agents] enabled = true 가 없어 조합하지 않음 — 켤지 결정(켜면 .gitignore 에 생성물이 추가됨)",
   "todo.aliasMoved": "{path}: 별칭 때문에 스택 자리가 바뀜 — 바꿈을 새 자리로 옮기기",
   "todo.apply": "생성물이 낡음 — guideline apply 실행",
+  "todo.applyHook": "package.json 이 없어 클론 뒤 에이전트 파일을 조합할 곳이 없음 — 세팅 단계(예: orca.yaml 의 scripts.setup)에서 guideline apply 부르기",
   "todo.blocked": "{item}: 반영 불가({reason}) — 원본 수정 필요",
   "todo.conflict": "{what}: 이미 있는데 원본과 다름 — 차이를 보고 선택",
+  "todo.devDependency": "prepare 가 에이전트 파일을 조합하게 이 프로젝트에 guideline CLI 를 더하기: {command} 한 뒤 guideline apply 실행",
   "todo.env": "{name}: 환경 변수 {vars} 설정 — 발급 방법은 {id}/README.md",
   "todo.heading": "할 일",
   "todo.leftoverDropped": "{path}: 더 이상 받지 않는 사본인데 프로젝트에서 고침 — guideline propose 하거나 확인 후 삭제",
@@ -301,6 +303,7 @@
   "todo.nestedOff": "git 루트({root})의 {file} 에서 nested = true 켜기 — 켜지 않으면 ruler 가 이 디렉터리의 지침을 만들지 않음",
   "todo.noCopy": "{item}: 골랐지만 .guideline/ 에 사본이 없어 조합하지 않음 — guideline update 로 이유 확인",
   "todo.overrideUnchosen": ".guideline/overrides/{stack}/: 고르지 않은 스택이라 바꿈을 조합하지 않음 — 스택을 고르거나 바꿈을 지우기",
+  "todo.prepareChanged": "{file}: prepare 가 이제 ruler apply 대신 guideline apply 를 부름(조합한 뒤 ruler 를 돎) — 확인하고 커밋",
   "todo.removedUpstream": "{item}: 원본에서 사라짐 — guideline pick 에서 해제",
   "todo.rootApply": "ruler 를 돌지 않음: git 루트({root})에 아직 .ruler/ruler.toml 이 없고, 없으면 ruler 가 nested 를 끈 채 모든 에이전트 몫을 씀 — git 루트에서 먼저 guideline apply 를 돌리고 여기서 다시 실행",
   "todo.rulerFailed": "ruler apply 실패 — git 루트에서 `{bin} apply` 를 직접 실행해 오류 확인",
@@ -312,6 +315,7 @@
   "todo.strayRulerRemoved": "{file}: 지움 — .ruler/ruler.toml 이 없을 때 ruler 가 모든 에이전트 몫으로 만든 것이고, Claude Code 가 AGENTS.md 대신 이것을 읽음",
   "todo.unsynced": "{item}: 이미 있는 것과 달라 반영하지 못함 — guideline pick 에서 차이를 보고 갱신 켜기",
   "todo.untrackFailed": "{path}: 이제 생성물인데 git 이 아직 추적함 — {dir} 에서 git rm --cached {path} 실행 후 커밋",
+  "todo.untrackMigrated": "옛 사본을 git 인덱스에서 빼지 못함 — {dir} 에서 git rm --cached -- {paths} 실행 후 커밋",
   "todo.untracked": "{path}: 설정을 {to} 로 옮겨 이제 생성물이라 git 인덱스에서 뺌(git rm --cached) — git status 로 확인하고 커밋",
   "tokens.badName": "이름은 영문·숫자와 . _ - 로 1~64자",
   "tokens.badScope": "범위는 read·propose·admin 중 하나여야 함",
@@ -673,5 +677,8 @@
   "web.client.step.rules": "지침",
   "web.client.step.mcp": "MCP",
   "web.client.step.agents": "서브에이전트",
-  "web.client.step.skills": "스킬"
+  "web.client.step.skills": "스킬",
+  "migrate.dirty": "먼저 변경을 커밋하거나 치우기 — 새 배치로 옮기면 추적 중인 파일을 다시 씀",
+  "migrate.done": "이 프로젝트를 새 배치로 옮김: 사본은 .guideline/ 에, 생성물은 .gitignore 에 적힘. git status 로 확인하고 커밋",
+  "migrate.manifestV3": "guideline.json 을 버전 3(스택 단위)으로 바꿈 — 고른 스택의 나머지 파일도 받음"
 }

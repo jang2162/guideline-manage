@@ -24,9 +24,14 @@ export async function projectStatus({
     out(t('status.notYet'));
     return 0;
   }
-  // 새 배치면 생성물이 .guideline/ 에서 조합한 것과 같은지 본다. 서버 없이 하는 판정이라 받기에 실패해도 낸다.
+  // 옛 배치는 update 가 옮긴 뒤에 본다(사본 자리가 다르다)
+  if (layoutOf(lock, dir) === 'ruler') {
+    err(t('apply.needsUpdate'));
+    return 2;
+  }
+  // 생성물이 .guideline/ 에서 조합한 것과 같은지 본다. 서버 없이 하는 판정이라 받기에 실패해도 낸다.
   const unit = unitInfo(dir, git);
-  const applyTodos = layoutOf(lock, dir) === 'guideline' && Object.keys(composeUnit({ project: dir, nested: unit.nested, manifest }).files).length
+  const applyTodos = Object.keys(composeUnit({ project: dir, nested: unit.nested, manifest }).files).length
     ? [{ kind: 'apply', item: null, message: t('todo.apply') }]
     : [];
   // --source 면 그 출처만 받는다. 나머지는 받지 못한 출처처럼 다뤄 그 잠금과 공유 생성물을 비교에서 뺀다.
@@ -44,7 +49,7 @@ export async function projectStatus({
   const unfetched = Object.keys(manifest.sources).filter(n => !trees.has(n));
   const v = virtualize({ manifest, lock, trees, protect: protectedPaths({ manifest, lock, failed: unfetched }) });
   const { states, outputs } = itemStates({
-    tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management, layout: layoutOf(lock, dir),
+    tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management,
   });
   const show = id => showId(id, v.sources, v.many);
   const todos = [...applyTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];

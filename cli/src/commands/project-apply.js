@@ -3,6 +3,7 @@ import { layoutOf } from '../layout.js';
 import { unitInfo, rootNestedOn, nestedOffTodo } from '../unit.js';
 import { openProject, revisionLabel } from './project-update.js';
 import { composeWithStray, writeComposedOrFail, rulerStep, report, defaultRunRuler } from './sync-common.js';
+import { preparePackage } from '../migrate-layout.js';
 import { t } from '../i18n.js';
 
 /**
@@ -29,7 +30,10 @@ export async function projectApply({
 
   const unit = unitInfo(dir, git);
   const { files, todos } = composeWithStray({ project: dir, nested: unit.nested, manifest });
-  const w = writeComposedOrFail(dir, files, err);
+  // prepare 가 아직 ruler apply 를 부르면 고친다(guideline-manage 를 설치한 뒤 처음 apply 에서 바뀐다)
+  const prep = preparePackage({ project: dir, root: unit.root });
+  todos.push(...prep.todos);
+  const w = writeComposedOrFail(dir, { ...files, ...prep.files }, err);
   if (w.failed) return 1;
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   // apply 는 ruler apply 를 대신하므로 바뀐 것이 없어도 ruler 를 돈다(에이전트 파일만 지워진 경우).

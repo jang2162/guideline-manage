@@ -94,6 +94,16 @@ export function checkManifest(m) {
   return { version: 3, form: m.form, agents: [...m.agents], sources };
 }
 
+/** 디스크의 매니페스트가 적힌 버전(1·2·3). 없거나 읽을 수 없으면 null. v1·v2 를 처음 v3 로 쓸 때 알리려고 본다. */
+export function manifestVersionOnDisk(project) {
+  try {
+    const v = JSON.parse(fs.readFileSync(path.join(project, MANIFEST), 'utf8'))?.version;
+    return Number.isInteger(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 /** @returns {Manifest | null} */
 export function readManifest(project) {
   const m = readJsonFile(path.join(project, MANIFEST));

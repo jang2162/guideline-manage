@@ -287,8 +287,10 @@
   "todo.agentsNotComposed": "{name}: copied to .guideline/ but not composed because .ruler/ruler.project.toml lacks [agents] enabled = true — decide whether to turn it on (it adds generated files to .gitignore)",
   "todo.aliasMoved": "{path}: the stack moved (alias) — move the override to the new place",
   "todo.apply": "Generated agent files are out of date — run guideline apply",
+  "todo.applyHook": "No package.json here, so nothing composes agent files after a clone — call guideline apply from your setup step (for example scripts.setup in orca.yaml)",
   "todo.blocked": "{item}: cannot be applied ({reason}) — fix the source",
   "todo.conflict": "{what}: already exists and differs from the source — check the diff and choose",
+  "todo.devDependency": "Add the guideline CLI to this project so prepare can compose agent files: {command}, then run guideline apply",
   "todo.env": "{name}: set the environment variable(s) {vars} — see {id}/README.md for how to get them",
   "todo.heading": "To do",
   "todo.leftoverDropped": "{path}: no longer received but edited in the project — guideline propose it, or check it and delete it",
@@ -301,6 +303,7 @@
   "todo.nestedOff": "Turn on nested = true in {file} at the git root ({root}) — otherwise ruler does not build this directory's guidelines",
   "todo.noCopy": "{item}: chosen but .guideline/ has no copy of it, so it was not composed — run guideline update to see why",
   "todo.overrideUnchosen": ".guideline/overrides/{stack}/: the stack is not chosen, so its override was not composed — pick the stack or delete the override",
+  "todo.prepareChanged": "{file}: prepare now runs guideline apply instead of ruler apply (it composes, then runs ruler) — review and commit",
   "todo.removedUpstream": "{item}: removed from the source — remove it in guideline pick",
   "todo.rootApply": "ruler was not run: the git root ({root}) has no .ruler/ruler.toml yet, and without it ruler writes files for every agent with nested off — run guideline apply in the git root first, then run it here again",
   "todo.rulerFailed": "ruler apply failed — run `{bin} apply` in the git root to see the error",
@@ -312,6 +315,7 @@
   "todo.strayRulerRemoved": "{file}: deleted — ruler made it for every agent while .ruler/ruler.toml was missing, and Claude Code would read it instead of AGENTS.md",
   "todo.unsynced": "{item}: could not be applied because an existing copy differs — check the diff in guideline pick and turn on update",
   "todo.untrackFailed": "{path}: now a generated file but still tracked by git — run git rm --cached {path} in {dir} and commit",
+  "todo.untrackMigrated": "Could not remove the old copies from the git index — run git rm --cached -- {paths} in {dir} and commit",
   "todo.untracked": "{path}: its settings moved to {to} and it is now a generated file, so it was removed from the git index (git rm --cached) — review with git status and commit",
   "tokens.badName": "Names are 1–64 characters of letters, digits and . _ -",
   "tokens.badScope": "The scope must be read, propose or admin",
@@ -673,5 +677,8 @@
   "web.client.step.rules": "Guidelines",
   "web.client.step.mcp": "MCP",
   "web.client.step.agents": "Subagents",
-  "web.client.step.skills": "Skills"
+  "web.client.step.skills": "Skills",
+  "migrate.dirty": "Commit or stash your changes first — moving to the new layout rewrites tracked files",
+  "migrate.done": "Moved this project to the new layout: copies are in .guideline/, generated files are listed in .gitignore. Review with git status and commit",
+  "migrate.manifestV3": "guideline.json now lists whole stacks (version 3) — the rest of each chosen stack's files were added"
 }
