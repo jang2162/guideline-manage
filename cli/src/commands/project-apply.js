@@ -1,13 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expandPath, runGit } from '../projects.js';
-import { MANIFEST, LOCK } from '../manifest.js';
-import { layoutOf } from '../layout.js';
+import { MANIFEST } from '../manifest.js';
+import { layoutOf, RULER_TOML } from '../layout.js';
 import { unitInfo, rootNestedOn, nestedOffTodo } from '../unit.js';
-import { openProject, revisionLabel } from './project-update.js';
-import { composeWithStray, composeInputs, writeComposedOrFail, rulerStep, report, defaultRunRuler } from './sync-common.js';
+import { revisionLabel } from './project-update.js';
+import {
+  composeWithStray, composeInputs, writeComposedOrFail, rulerStep, report, defaultRunRuler, openProject, subUnits, composeSubUnits, revisionTodos,
+} from './sync-common.js';
 import { preparePackage } from '../migrate-layout.js';
-import { personalRevisionTodos } from '../personal-sync.js';
 import { t } from '../i18n.js';
 
 /**
@@ -64,63 +65,14 @@ export async function projectApply({
   return subs?.failed ? 1 : 0;
 }
 
-/** 개인 사본과 프로젝트 잠금의 리비전이 출처별로 다르면 알리는 할 일(개인 겹이 없으면 없음). */
-function revisionTodos(inputs, manifest, lock) {
-  return inputs.personal ? personalRevisionTodos({ store: inputs.personal.store, manifest, local: inputs.personal.local, lock }) : [];
-}
-
-/** git 루트 아래 git 이 추적하는 하위 단위(guideline-lock.json 이 있는 디렉터리, 루트 자신은 빼고). 루트 기준 상대 경로, 정렬. */
-export function subUnits(root, git = runGit) {
-  const r = git(['ls-files', '-z', '--', `:(glob)**/${LOCK}`], root);
-  if (r.status !== 0) return [];
-  const dirs = r.stdout.split('\0').filter(f => f.includes('/') && path.posix.basename(f) === LOCK).map(f => path.posix.dirname(f));
-  return [...new Set(dirs)].sort();
-}
-
-/**
- * 하위 단위들을 조합해 쓴다(ruler 는 돌지 않는다). 옛 배치 단위는 건너뛰고 그 단위에서 update 하라고, 열 수 없는 단위는 그 이유를 알린다.
- * 단위의 할 일·경로는 루트 기준으로 앞에 단위 경로를 붙인다.
- * @returns {{ written: string[], deleted: string[], todos: object[], composed: { rel: string, lock: object }[], failed: boolean }}
- */
-function composeSubUnits({ root, subs, err, git = runGit }) {
-  const res = { written: [], deleted: [], todos: [], composed: [], failed: false };
-  for (const rel of subs) {
-    const dir = path.join(root, ...rel.split('/'));
-    const inUnit = x => ({ ...x, unit: rel, message: t('apply.unitTodo', { dir: rel, message: x.message }) });
-    const problems = [];
-    const opened = openProject({ dir, err: m => problems.push(m) });
-    if (opened.code !== undefined) {
-      res.todos.push({ kind: 'unit-problem', item: null, unit: rel, message: t('todo.unitProblem', { dir: rel, reason: problems.join(' / ') }) });
-      continue;
-    }
-    const layout = layoutOf(opened.lock, dir);
-    if (layout !== 'guideline') {
-      res.todos.push(layout === 'ruler'
-        ? { kind: 'unit-update', item: null, unit: rel, message: t('todo.unitUpdate', { dir: rel }) }
-        : { kind: 'unit-problem', item: null, unit: rel, message: t('todo.unitProblem', { dir: rel, reason: t('update.notYet') }) });
-      continue;
-    }
-    const inputs = composeInputs({ project: dir, unit: { root }, git });
-    const { files, todos, exclude } = composeWithStray({ project: dir, nested: true, manifest: opened.manifest, personal: inputs.personal });
-    todos.unshift(...inputs.todos, ...revisionTodos(inputs, opened.manifest, opened.lock));
-    const prep = preparePackage({ project: dir, root });
-    todos.push(...prep.todos);
-    const w = writeComposedOrFail(dir, { ...files, ...prep.files }, err, exclude);
-    const done = w.failed ?? w;
-    res.written.push(...done.written.map(p => `${rel}/${p}`));
-    res.deleted.push(...done.deleted.map(p => `${rel}/${p}`));
-    res.todos.push(...todos.map(inUnit));
-    if (w.failed) res.failed = true;
-    else res.composed.push({ rel, lock: opened.lock });
-  }
-  return res;
-}
-
 /** 루트가 guideline 프로젝트가 아닌 모노레포: 하위 단위만 조합하고 루트에서 ruler 를 돈다(루트의 ruler.toml 은 프로젝트가 둔 것). */
 function applyUnitsOnly({ root, subs, json, env, out, err, runRuler, git }) {
   const r = composeSubUnits({ root, subs, err, git });
   const todos = [...r.todos];
-  if (r.composed.length && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
+  // 이 루트는 guideline 이 ruler.toml 을 조합하지 않는다: ruler 가 읽는 것은 프로젝트가 둔 RULER_TOML 뿐이다. 그것이 없으면 ruler 를 돌지
+  // 않고 root-ruler-toml 이 그것을 두라고 하므로 nested-off 는 내지 않는다
+  const hasToml = fs.existsSync(path.join(root, ...RULER_TOML.split('/')));
+  if (r.composed.length && hasToml && !rootNestedOn(root, RULER_TOML)) todos.push(nestedOffTodo(root, RULER_TOML));
   if (r.composed.length) rulerStep({ root, env, runRuler, todos, rootIsUnit: false });
   // 단위마다 리비전: 출처가 하나면 「단위 r1」, 여럿이면 「단위:출처 r1」
   const revision = {};

@@ -400,3 +400,55 @@ test('update 는 개인 겹을 지키고 info/exclude 블록을 쓴다', async t
   assert.equal(read(p, '.gitignore').includes('extra'), false, gi);
   assert.match(read(p, '.git/info/exclude'), /# START guideline personal files \. @\.\n\/\.ruler\/extra\/00-e\.md\n/);
 });
+
+test('N2 루트 update 는 하위 단위를 조합한다', async t => {
+  const { s, env } = await server(t);
+  const root = fs.realpathSync(gitProject(t, {
+    '.ruler/ruler.toml': 'default_agents = ["claude"]\nnested = true\n',
+    'packages/api/.ruler/.keep': '',
+  }));
+  const pickBase = dir => projectPick({ project: dir, env, ...quiet, open: driver(s, { choose: checkOnly(i => i.id.startsWith('rules/base/')) }) });
+  assert.equal(await pickBase(root), 0);
+  assert.equal(await pickBase(path.join(root, 'packages', 'api')), 0);
+  runGit(['add', '-A'], root);
+  runGit(['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'c'], root);
+  const c = `${root}-clone`;
+  t.after(() => fs.rmSync(c, { recursive: true, force: true }));
+  runGit(['clone', '-q', root, c], path.dirname(root));
+  const sub = path.join(c, 'packages', 'api');
+  assert.equal(exists(sub, '.ruler/base/00-a.md'), false);
+  // 하위 단위의 개인 겹도 얹는다
+  const store = personalStore({ dir: sub, root: c });
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  write(store, '.guideline/rules/extra/00-e.md', `${ALWAYS}# 개인 더함\n`);
+
+  const seen = [];
+  const runRuler = (bin, cwd) => {
+    // ruler 가 돌 때 하위 단위의 생성물이 이미 있어야 nested 로 그 AGENTS.md 가 채워진다
+    seen.push({ cwd, sub: exists(sub, '.ruler/base/00-a.md') && exists(sub, '.ruler/ruler.toml') });
+    return 0;
+  };
+  // ruler 를 찾게 하는 PATH(작업 트리 밖이라 git status 에 보이지 않는다)
+  const bin = tmpDir('guideline-bin-');
+  t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
+  write(bin, 'ruler', '#!/bin/sh\n');
+  fs.chmodSync(path.join(bin, 'ruler'), 0o755);
+  const withPath = { ...env, PATH: bin };
+  const o = collect();
+  assert.equal(await projectUpdate({ project: c, env: withPath, ...quiet, runRuler, json: true, out: o.out }), 0);
+  assert.deepEqual(seen, [{ cwd: c, sub: true }]);
+  const r = JSON.parse(o.text());
+  assert.ok(r.written.includes('packages/api/.ruler/base/00-a.md'), r.written.join(', '));
+  assert.match(read(sub, '.ruler/extra/00-e.md'), /# 개인 더함/);
+  assert.match(read(c, '.git/info/exclude'), /# START guideline personal files packages\/api @\.\n\/packages\/api\/\.ruler\/extra\/00-e\.md\n/);
+  assert.equal(runGit(['status', '--porcelain', '--untracked-files=all'], c).stdout, '');
+
+  // 루트 pick 도 하위 단위를 조합한다
+  fs.rmSync(path.join(sub, '.ruler', 'base'), { recursive: true });
+  const o2 = collect();
+  assert.equal(await projectPick({
+    project: c, env: withPath, ...quiet, runRuler, json: true, out: o2.out, open: driver(s, { choose: checkOnly(i => i.id.startsWith('rules/base/')) }),
+  }), 0);
+  assert.ok(JSON.parse(o2.text()).written.includes('packages/api/.ruler/base/00-a.md'));
+  assert.ok(exists(sub, '.ruler/base/00-a.md'));
+});

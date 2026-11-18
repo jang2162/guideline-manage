@@ -413,6 +413,46 @@ test('루트가 guideline 프로젝트가 아닌 모노레포에서도 루트 ap
   assert.match(e.text(), /guideline pick 먼저/);
 });
 
+test('N1 비-guideline 루트에 설정이 없으면 nested-off 대신 root-ruler-toml 만', async t => {
+  const q = gitDir(t, { 'README.md': '루트\n' });
+  syncNew(path.join(q, 'apps/web'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  commitAll(q);
+  const o = collect();
+  assert.equal(await projectApply({ dir: cloneOf(t, q), json: true, out: o.out, err: () => {}, env: { PATH: '' } }), 0);
+  assert.deepEqual(JSON.parse(o.text()).todos.filter(x => x.kind.startsWith('root-') || x.kind === 'nested-off').map(x => x.kind), ['root-ruler-toml']);
+
+  // ruler.toml 이 있으면 nested 판정은 그것만 읽는다 — ruler 는 ruler.project.toml 을 읽지 않는다(이 루트는 guideline 이 조합하지 않는다)
+  const r = gitDir(t, { [RULER_TOML]: 'default_agents = ["claude"]\nnested = false\n', [PROJECT_TOML]: NESTED_ROOT_TOML });
+  syncNew(path.join(r, 'apps/web'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  commitAll(r);
+  const rc = cloneOf(t, r);
+  const o2 = collect();
+  assert.equal(await projectApply({ dir: rc, json: true, out: o2.out, err: () => {}, env: { PATH: '' } }), 0);
+  const off = JSON.parse(o2.text()).todos.filter(x => x.kind === 'nested-off');
+  assert.equal(off.length, 1);
+  assert.match(off[0].message, /의 \.ruler\/ruler\.toml 에서 nested = true 켜기/);
+});
+
+test('N3 하위 단위 쓰기 실패는 단위 경로와 할 일을 낸다', async t => {
+  const root = gitDir(t, { [RULER_TOML]: NESTED_ROOT_TOML });
+  syncNew(path.join(root, 'apps/web'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  syncNew(path.join(root, 'apps/ok'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  commitAll(root);
+  const c = cloneOf(t, root);
+  // 스택 폴더 자리에 파일이 있으면 그 단위의 생성물을 쓸 수 없다
+  write(c, 'apps/web/.ruler/base', '막음\n');
+  const o = collect();
+  const e = collect();
+  assert.equal(await projectApply({ dir: c, json: true, out: o.out, err: e.out, env: { PATH: '' } }), 1);
+  assert.match(e.text(), /^apps\/web: 쓰기 실패: /m);
+  const r = JSON.parse(o.text());
+  const failed = r.todos.filter(x => x.kind === 'unit-write-failed');
+  assert.deepEqual(failed.map(x => x.unit), ['apps/web']);
+  assert.match(failed[0].message, /^apps\/web: 생성물을 다 쓰지 못함 — 이번 ruler 결과에서 이 단위의 AGENTS\.md 등을 믿지 말고/);
+  // 다른 단위는 그대로 조합한다
+  assert.ok(exists(c, 'apps/ok/.ruler/base/00-a.md'));
+});
+
 // ── 개인 겹 (실제 git 저장소: 이 저장소 자신의 .git 은 건드리지 않는다) ──
 
 const EXTRA_COPY = { 'rules/extra/00-e.md': `---\nload: always\n---\n# 개인 더함\n` };

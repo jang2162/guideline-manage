@@ -2,20 +2,66 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyFiles, writeFileAtomic, ApplyError } from '../apply.js';
-import { MANIFEST, LOCK, manifestText, lockText, manifestVersionOnDisk } from '../manifest.js';
+import { MANIFEST, LOCK, manifestText, lockText, manifestVersionOnDisk, readManifest, readLock, ManifestError } from '../manifest.js';
 import { printTodos } from '../todos.js';
-import { rootNestedOn, nestedOffTodo } from '../unit.js';
+import { rootNestedOn, nestedOffTodo, unitProblem } from '../unit.js';
 import { compose } from '../compose.js';
 import { rulerAgentsEnabled } from '../project-state.js';
 import { RULER_TOML, layoutOf } from '../layout.js';
 import { strayRulerOutput } from '../stray.js';
-import { fetchSources } from '../workspace.js';
+import { fetchSources, manifestClashes } from '../workspace.js';
 import { migrateLayout, preparePackage, readOnlyPrepareTodos } from '../migrate-layout.js';
 import { personalPlace, readLocal, LocalError } from '../personal.js';
 import { writeExclude, readExclude } from '../exclude.js';
-import { writePersonal } from '../personal-sync.js';
+import { writePersonal, personalRevisionTodos } from '../personal-sync.js';
 import { runGit } from '../projects.js';
 import { t } from '../i18n.js';
+
+/**
+ * 프로젝트의 매니페스트·잠금을 읽고 단위 검사를 한다. 문제가 있으면 { code }.
+ * --server 는 출처가 하나일 때만 그 출처의 주소를 바꾼다.
+ */
+export function openProject({ dir, server, source, err, needManifest = true }) {
+  let manifest;
+  let lock;
+  try {
+    manifest = readManifest(dir);
+    lock = readLock(dir);
+  } catch (e) {
+    if (!(e instanceof ManifestError)) throw e;
+    err(e.message);
+    return { code: 1 };
+  }
+  if (!manifest && needManifest) {
+    err(t('update.notYet'));
+    return { code: 2 };
+  }
+  const problem = unitProblem(dir, manifest);
+  if (problem) {
+    err(problem);
+    return { code: 2 };
+  }
+  if (!manifest) return { manifest, lock };
+  // 손으로 고친 매니페스트로 이름이 겹치면 한쪽 사본이 다른 쪽을 덮는다 — 아무것도 하지 않는다
+  const clashes = manifestClashes(manifest);
+  if (clashes.length) {
+    for (const m of clashes) err(m);
+    return { code: 2 };
+  }
+  const names = Object.keys(manifest.sources);
+  if (source !== undefined && !names.includes(source)) {
+    err(t('update.unknownSource', { name: source, names: names.join(', ') }));
+    return { code: 2 };
+  }
+  if (server !== undefined) {
+    if (names.length > 1 && source === undefined) {
+      err(t('common.serverWithManySources'));
+      return { code: 2 };
+    }
+    manifest.sources[source ?? names[0]].server = server;
+  }
+  return { manifest, lock };
+}
 
 /** 프로젝트의 node_modules/.bin/ruler 나 PATH 의 ruler. 없으면 null. 내려받아 실행하지 않는다. */
 export function findRuler(project, env = process.env) {
@@ -156,11 +202,11 @@ export function rulerStep({ root, env, runRuler, todos, rootIsUnit = true }) {
 
 /**
  * 렌더링 결과(.guideline/ 사본)를 단위 디렉터리에 쓰고, 매니페스트·잠금을 쓴 뒤 .guideline/ 에서 생성물을 조합해 쓰고
- * git 루트에서 ruler apply 를 돈다 — 조합이 .ruler/ruler.toml 을 쓴 뒤에만 ruler 를 돌아야 모든 에이전트 몫(CLAUDE.md 등)이 생기지 않는다.
+ * (git 루트면 그 아래 하위 단위도 apply 처럼 조합하고) git 루트에서 ruler apply 를 돈다 — 조합이 .ruler/ruler.toml 을 쓴 뒤에만 ruler 를 돌아야 모든 에이전트 몫(CLAUDE.md 등)이 생기지 않는다.
  * migration 은 이번 실행에서 먼저 한 이전(migrateIfOld)의 결과다. 이전이 있었으면 이 단계에서 쓴 것이 없어도 ruler 를 돈다 —
  * 이전이 바꾼 관리 지침이 AGENTS.md 에 들어가야 한다. 쓴/지운 목록에도 합친다.
  * sync({ trees, revisions }) 를 주면(update·pick) 프로젝트를 쓴 뒤 같은 원본으로 개인 사본도 받아 개인 저장소에 쓰고 그다음 조합한다.
- * @returns {{ code: number, written: string[], deleted: string[], todos: object[] }}
+ * @returns {{ code: number, unitsFailed?: true, written: string[], deleted: string[], todos: object[] }}
  */
 export function finishApply({
   project, root = project, nested = false, result, manifest, lock = result.lock, env = process.env, runRuler = defaultRunRuler, err = console.error,
@@ -192,9 +238,18 @@ export function finishApply({
   }
   applied = merged([...applied.written, ...w.written], [...applied.deleted, ...w.deleted]);
   if (nested && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
+  // git 루트면 하위 단위도 ruler 전에 조합한다 — ruler 는 nested 로 그 단위들까지 돌므로, 안 그러면 낡은(클론 직후면 없는) 생성물로 돈다
+  const subs = nested ? null : composeSubUnits({ root, subs: subUnits(root, git), err, git });
+  if (subs) {
+    applied = merged([...applied.written, ...subs.written], [...applied.deleted, ...subs.deleted]);
+    todos.push(...subs.todos);
+    if (subs.composed.length && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
+  }
   if (migration || applied.written.length || applied.deleted.length) rulerStep({ root, env, runRuler, todos });
   // prepare 가 아직 ruler apply 만 부르면 해결될 때까지 알린다(이전 때 한 번이면 놓친다). 바꾸는 것은 apply 의 몫이다.
   todos = mergeTodos(todos, readOnlyPrepareTodos({ project, root }));
+  // 하위 단위 쓰기가 실패하면 1 — 이 단위의 매니페스트·잠금·생성물은 다 썼다(unitsFailed: 이 단위의 마무리는 이어 한다)
+  if (subs?.failed) return { code: 1, unitsFailed: true, ...applied, todos };
   return { code: 0, ...applied, todos };
 }
 
@@ -222,6 +277,62 @@ export function finishPersonal({
   if (w.written.length || w.deleted.length) rulerStep({ root, env, runRuler, todos });
   todos = mergeTodos(todos, readOnlyPrepareTodos({ project, root }));
   return { code: 0, written: w.written, deleted: w.deleted, todos };
+}
+
+/** 개인 사본과 프로젝트 잠금의 리비전이 출처별로 다르면 알리는 할 일(개인 겹이 없으면 없음). */
+export function revisionTodos(inputs, manifest, lock) {
+  return inputs.personal ? personalRevisionTodos({ store: inputs.personal.store, manifest, local: inputs.personal.local, lock }) : [];
+}
+
+/** git 루트 아래 git 이 추적하는 하위 단위(guideline-lock.json 이 있는 디렉터리, 루트 자신은 빼고). 루트 기준 상대 경로, 정렬. */
+export function subUnits(root, git = runGit) {
+  const r = git(['ls-files', '-z', '--', `:(glob)**/${LOCK}`], root);
+  if (r.status !== 0) return [];
+  const dirs = r.stdout.split('\0').filter(f => f.includes('/') && path.posix.basename(f) === LOCK).map(f => path.posix.dirname(f));
+  return [...new Set(dirs)].sort();
+}
+
+/**
+ * 하위 단위들을 조합해 쓴다(ruler 는 돌지 않는다). 옛 배치 단위는 건너뛰고 그 단위에서 update 하라고, 열 수 없는 단위는 그 이유를 알린다.
+ * 단위의 할 일·경로·쓰기 실패 메시지는 루트 기준으로 앞에 단위 경로를 붙인다. 쓰다 실패한 단위는 unit-write-failed 할 일을 낸다 —
+ * 뒤이은 ruler 는 그 단위의 낡거나 반쯤 쓴 생성물로 AGENTS.md 등을 만든다.
+ * 루트의 apply 와, 비중첩 단위(git 루트)의 update·pick(finishApply)이 부른다.
+ * @returns {{ written: string[], deleted: string[], todos: object[], composed: { rel: string, lock: object }[], failed: boolean }}
+ */
+export function composeSubUnits({ root, subs, err, git = runGit }) {
+  const res = { written: [], deleted: [], todos: [], composed: [], failed: false };
+  for (const rel of subs) {
+    const dir = path.join(root, ...rel.split('/'));
+    const inUnit = x => ({ ...x, unit: rel, message: t('apply.unitTodo', { dir: rel, message: x.message }) });
+    const problems = [];
+    const opened = openProject({ dir, err: m => problems.push(m) });
+    if (opened.code !== undefined) {
+      res.todos.push({ kind: 'unit-problem', item: null, unit: rel, message: t('todo.unitProblem', { dir: rel, reason: problems.join(' / ') }) });
+      continue;
+    }
+    const layout = layoutOf(opened.lock, dir);
+    if (layout !== 'guideline') {
+      res.todos.push(layout === 'ruler'
+        ? { kind: 'unit-update', item: null, unit: rel, message: t('todo.unitUpdate', { dir: rel }) }
+        : { kind: 'unit-problem', item: null, unit: rel, message: t('todo.unitProblem', { dir: rel, reason: t('update.notYet') }) });
+      continue;
+    }
+    const inputs = composeInputs({ project: dir, unit: { root }, git });
+    const { files, todos, exclude } = composeWithStray({ project: dir, nested: true, manifest: opened.manifest, personal: inputs.personal });
+    todos.unshift(...inputs.todos, ...revisionTodos(inputs, opened.manifest, opened.lock));
+    const prep = preparePackage({ project: dir, root });
+    todos.push(...prep.todos);
+    const w = writeComposedOrFail(dir, { ...files, ...prep.files }, m => err(t('apply.unitTodo', { dir: rel, message: m })), exclude);
+    const done = w.failed ?? w;
+    res.written.push(...done.written.map(p => `${rel}/${p}`));
+    res.deleted.push(...done.deleted.map(p => `${rel}/${p}`));
+    res.todos.push(...todos.map(inUnit));
+    if (w.failed) {
+      res.failed = true;
+      res.todos.push({ kind: 'unit-write-failed', item: null, unit: rel, message: t('todo.unitWriteFailed', { dir: rel }) });
+    } else res.composed.push({ rel, lock: opened.lock });
+  }
+  return res;
 }
 
 /** 순서를 지키며 합친다(같은 경로는 한 번). */

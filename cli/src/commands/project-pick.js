@@ -279,7 +279,8 @@ export async function projectPick({
     project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, env, runRuler, err, git, migration: migrated.migration,
     sync: { trees, revisions },
   });
-  if (done.code === 0 && moved) done.todos.push(...untrackMoved(dir, git));
+  // 하위 단위 쓰기만 실패했으면 이 단위는 다 썼다 — 옮긴 ruler.toml 은 추적에서 뺀다
+  if ((done.code === 0 || done.unitsFailed) && moved) done.todos.push(...untrackMoved(dir, git));
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;
   return failures.length || others.failures.length ? 1 : 0;
@@ -588,15 +589,22 @@ async function pickLocal({
     const mine = { add: list(sel.add), remove: list(sel.remove) };
     // 다른 출처의 같은 최종 이름을 프로젝트가 골랐으면 그 더함은 조합이 쓰지 않는다(personal-shadowed). 저장하지 않고 알린다.
     const eff = effectiveItems(manifest, { version: 1, sources: { [name]: mine } });
+    // 가려진 키 아래의 더함도 뺀다: 조합이 그 조상을 다시 채우면 같은 할 일이 매번 나고, 받으면 다른 출처의 스택 안에 이 출처의 하위가 섞인다
     const shadowed = shadowedAdds(manifest, eff).filter(x => x.source === name);
+    const drop = new Set();
     for (const x of shadowed) {
+      if (drop.has(x.key)) continue; // 가려진 조상의 할 일에 이미 적었다
       const item = names.length > 1 ? `${name}:${x.key}` : x.key;
-      todos.push({ kind: 'personal-shadowed', item, message: t('pick.localShadowed', { item, by: x.by, final: x.final }) });
+      const below = mine.add.filter(k => k !== x.key && isWithin(k, x.key));
+      for (const k of [x.key, ...below]) drop.add(k);
+      const message = below.length
+        ? t('pick.localShadowedBelow', { item, by: x.by, final: x.final, below: below.join(', ') })
+        : t('pick.localShadowed', { item, by: x.by, final: x.final });
+      todos.push({ kind: 'personal-shadowed', item, message });
     }
-    const drop = new Set(shadowed.map(x => x.key));
     next.sources[name] = { add: mine.add.filter(k => !drop.has(k)), remove: mine.remove };
-    // 기본값은 서버마다다(프로젝트와 상관없이) — 가림으로 거른 것도 그대로 둔다
-    if (sel.saveDefault === true) saved.set(new URL(src.server).origin, mine);
+    // 기본값은 서버마다다(프로젝트와 상관없이) — 가림으로 거른 것도 그대로 둔다. 같은 서버의 출처가 여럿이면 합친다
+    if (sel.saveDefault === true) saved.set(new URL(src.server).origin, [...(saved.get(new URL(src.server).origin) ?? []), { name, mine }]);
     trees.set(name, tree);
   }
   for (const f of failures) err(f);
@@ -604,7 +612,13 @@ async function pickLocal({
 
   writeLocal(place.store, next);
   if (saved.size) {
-    writeDefaults({ version: 1, servers: { ...defaults.servers, ...Object.fromEntries(saved) } }, { env, home });
+    const servers = { ...defaults.servers };
+    for (const [origin, picks] of saved) {
+      const merged = mergeDefaults(picks);
+      for (const c of merged.conflicts) err(t('pick.defaultsConflict', { origin, ...c }));
+      servers[origin] = merged.value;
+    }
+    writeDefaults({ version: 1, servers }, { env, home });
   }
   const revisions = Object.fromEntries([...trees].map(([n, x]) => [n, x.revision]));
   const done = finishPersonal({
@@ -613,6 +627,28 @@ async function pickLocal({
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;
   return failures.length ? 1 : 0;
+}
+
+/**
+ * 한 서버 origin 에 「기본값으로 저장」 한 출처들의 선택(출처 이름 순)을 하나로 합친다. 한 출처가 더한 블록을 뒤 출처가 빼면(또는 그 반대)
+ * 뒤 출처의 것을 남기고 conflicts 로 알린다.
+ * @param {{ name: string, mine: { add: string[], remove: string[] } }[]} picks
+ * @returns {{ value: { add: string[], remove: string[] }, conflicts: { key: string, first: string, last: string }[] }}
+ */
+function mergeDefaults(picks) {
+  const pick = new Map();
+  const conflicts = [];
+  for (const { name, mine } of picks) {
+    for (const [list, how] of [[mine.add, 'add'], [mine.remove, 'remove']]) {
+      for (const key of list) {
+        const was = pick.get(key);
+        if (was && was.how !== how) conflicts.push({ key, first: was.name, last: name });
+        pick.set(key, { how, name });
+      }
+    }
+  }
+  const of = how => [...pick].filter(([, v]) => v.how === how).map(([k]) => k).sort();
+  return { value: { add: of('add'), remove: of('remove') }, conflicts };
 }
 
 /** 폼에 싣는 목록의 requires(실제 이름)를 별칭을 입힌 이름으로. */

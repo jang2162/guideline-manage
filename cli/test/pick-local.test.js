@@ -11,6 +11,7 @@ import { personalStore, readLocal, writeLocal } from '../src/personal.js';
 import { readDefaults, writeDefaults } from '../src/defaults.js';
 import { saveToken } from '../src/credentials.js';
 import { projectPick } from '../src/commands/project-pick.js';
+import { projectApply } from '../src/commands/project-apply.js';
 
 // 개인 저장소는 임시 git 저장소의 공용 디렉터리에, 머신 기본값·로그인은 임시 XDG_CONFIG_HOME 에 둔다
 // (이 저장소 자신의 .git 과 사용자의 ~/.config 는 건드리지 않는다).
@@ -218,6 +219,55 @@ test('pick --local 은 다른 출처가 같은 이름으로 고른 블록을 개
   assert.equal(todo.item, 'b:rules/base');
   assert.match(todo.message, /더하지 않음 — 프로젝트가 출처 a 의 같은 이름 블록\(rules\/base\)/);
   assert.equal(porcelain(p), '');
+});
+
+test('pick --local 은 가려진 조상 아래의 더함도 함께 빼고, 뺀 것을 할 일에 적는다', async t => {
+  // a 가 rules/base 를 프로젝트로 고른다. b 에서 rules/base/sub 를 개인으로 더하면 화면이 조상 rules/base 도 더한다 —
+  // 그 조상은 a 의 것에 가려지고, 그 아래 sub 를 b 사본으로 받으면 a 의 스택 안에 b 의 하위가 섞인다
+  const { s, p, env, store } = await setup(t, { sources: { a: { items: ['rules/base'] }, b: { items: ['skills/s'] } } });
+  const o = collect();
+  const e = collect();
+  const code = await projectPick({
+    project: p, source: 'b', local: true, env, ...quiet, json: true, out: o.out, err: e.out,
+    open: form(s, {}, { personalChoices: { 'rules/base/sub': 'add', 'rules/extra': 'add' } }),
+  });
+  assert.equal(code, 0, e.text());
+  assert.deepEqual(readLocal(store).sources.b, { add: ['rules/extra'], remove: [] });
+  const todos = JSON.parse(o.text()).todos.filter(x => x.kind === 'personal-shadowed');
+  assert.deepEqual(todos.map(x => x.item), ['b:rules/base']);
+  assert.match(todos[0].message, /b:rules\/base: 더하지 않음 \(아래의 rules\/base\/sub 도 함께\)/);
+  // 두 번째 조합(apply)은 같은 할 일을 다시 내지 않는다
+  const again = collect();
+  assert.equal(await projectApply({ dir: p, json: true, out: again.out, err: () => {}, env }), 0);
+  assert.deepEqual(JSON.parse(again.text()).todos.filter(x => x.kind === 'personal-shadowed'), []);
+  assert.equal(porcelain(p), '');
+});
+
+test('pick --local 은 같은 서버 origin 의 출처들이 저장한 기본값을 합친다', async t => {
+  const { s, p, env } = await setup(t, { sources: { a: { items: ['rules/base'] }, b: { items: ['skills/s'] } } });
+  const origin = new URL(s.base).origin;
+  // 출처 이름 순(a, b)으로 폼이 열린다
+  const runs = choices => {
+    let i = 0;
+    return form(s, {}, () => ({ personalChoices: choices[i++], saveDefault: true }));
+  };
+  const e = collect();
+  let code = await projectPick({
+    project: p, local: true, env, ...quiet, err: e.out,
+    open: runs([{ 'rules/extra': 'add' }, { 'skills/s': 'remove' }]),
+  });
+  assert.equal(code, 0, e.text());
+  assert.deepEqual(readDefaults({ env }).servers[origin], { add: ['rules/extra'], remove: ['skills/s'] });
+  assert.doesNotMatch(e.text(), /기본값/);
+  // 같은 블록을 한쪽은 더하고 한쪽은 빼면 이름 순 뒤의 출처를 따르고 한 줄로 알린다
+  const w = collect();
+  code = await projectPick({
+    project: p, local: true, env, ...quiet, err: w.out,
+    open: runs([{ 'skills/s': 'add' }, { 'skills/s': 'remove' }]),
+  });
+  assert.equal(code, 0, w.text());
+  assert.deepEqual(readDefaults({ env }).servers[origin], { add: [], remove: ['skills/s'] });
+  assert.match(w.text(), new RegExp(`${origin.replace(/[.]/g, '\\.')} 기본값: skills/s 는 출처 a 와 b 가 다르게 골라 b 의 것을 저장`));
 });
 
 test('프로젝트 pick 은 필수를 guideline.json 에 쓴다', async t => {

@@ -27,17 +27,25 @@ export function unitProblem(dir, manifest) {
   return null;
 }
 
-/** git 루트의 ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)에 nested = true 가 있는가. */
-export function rootNestedOn(root) {
-  return /^\s*nested\s*=\s*true\s*(?:#.*)?$/m.test(rulerTomlText(root) ?? '');
+const NESTED_ON = /^\s*nested\s*=\s*true\s*(?:#.*)?$/m;
+
+/**
+ * git 루트의 ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)에 nested = true 가 있는가.
+ * only 를 주면 그 파일만 읽는다 — guideline 프로젝트가 아닌 루트는 ruler.toml 을 조합하지 않으므로 ruler 가 읽는 RULER_TOML 만 본다.
+ */
+export function rootNestedOn(root, only = null) {
+  const text = only === null ? rulerTomlText(root) : readOr(path.join(root, ...only.split('/')));
+  return NESTED_ON.test(text ?? '');
 }
 
-/** nested = true 를 켤 자리: 루트에 ruler.toml 만 있으면(이전 전 배치) 그것, 아니면 ruler.project.toml. */
-export const nestedOffTodo = root => ({
+const readOr = file => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
+
+/** nested = true 를 켤 자리: file 을 주면 그것, 아니면 루트에 ruler.toml 만 있으면(이전 전 배치) 그것, 아니면 ruler.project.toml. */
+export const nestedOffTodo = (root, file = null) => ({
   kind: 'nested-off', item: null,
   message: t('todo.nestedOff', {
     root,
-    file: !fs.existsSync(path.join(root, ...PROJECT_TOML.split('/'))) && fs.existsSync(path.join(root, ...RULER_TOML.split('/'))) ? RULER_TOML : PROJECT_TOML,
+    file: file ?? (!fs.existsSync(path.join(root, ...PROJECT_TOML.split('/'))) && fs.existsSync(path.join(root, ...RULER_TOML.split('/'))) ? RULER_TOML : PROJECT_TOML),
   }),
 });
 

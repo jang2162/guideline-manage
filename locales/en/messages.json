@@ -336,6 +336,7 @@
   "todo.unsynced": "{item}: could not be applied because an existing copy differs — check the diff in guideline pick and turn on update",
   "todo.unitUpdate": "{dir}: still uses the old layout, so it was not composed — run guideline update there once (it needs the server)",
   "todo.unitProblem": "{dir}: not composed — {reason}",
+  "todo.unitWriteFailed": "{dir}: could not write all its generated files — do not trust what this ruler run made for this unit (its AGENTS.md and so on); fix the cause above, then run guideline apply at the git root again",
   "todo.untrackFailed": "{path}: now a generated file but still tracked by git — run git rm --cached {path} in {dir} and commit",
   "todo.untrackMigrated": "Could not remove the old copies from the git index — run git rm --cached -- {paths} in {dir} and commit",
   "todo.untrackUnknown": "Could not ask git which old copies it tracks — run git rm --cached --ignore-unmatch -- {paths} in {dir} and commit",
@@ -744,5 +745,7 @@
   "pick.serverOldPersonal": "This server does not know the personal form — pick --local needs a newer guideline server. Ask the server operator to upgrade",
   "pick.recommendRequired": "Cannot recommend removing required blocks (or stacks that contain one): {keys}",
   "pick.localShadowed": "{item}: not added — the project chose the block with the same name ({final}) from source {by}, so your copy would never be used",
+  "pick.localShadowedBelow": "{item}: not added, nor the blocks below it ({below}) — the project chose the block with the same name ({final}) from source {by}, so your copies would never be used, or would be mixed into that source's stack",
+  "pick.defaultsConflict": "{origin} defaults: {key} was chosen differently in sources {first} and {last}; saved the choice of {last}",
   "web.client.personal.stepCount": "{n} changed"
 }
