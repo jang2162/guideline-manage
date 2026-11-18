@@ -452,3 +452,54 @@ test('N2 루트 update 는 하위 단위를 조합한다', async t => {
   assert.ok(JSON.parse(o2.text()).written.includes('packages/api/.ruler/base/00-a.md'));
   assert.ok(exists(sub, '.ruler/base/00-a.md'));
 });
+
+test('루트 pick --local 도 ruler 전에 하위 단위를 조합한다', async t => {
+  const { s, env } = await server(t);
+  const root = fs.realpathSync(gitProject(t, {
+    '.ruler/ruler.toml': 'default_agents = ["claude"]\nnested = true\n',
+    'packages/api/.ruler/.keep': '',
+  }));
+  const pickBase = dir => projectPick({ project: dir, env, ...quiet, open: driver(s, { choose: checkOnly(i => i.id.startsWith('rules/base/')) }) });
+  assert.equal(await pickBase(root), 0);
+  assert.equal(await pickBase(path.join(root, 'packages', 'api')), 0);
+  runGit(['add', '-A'], root);
+  runGit(['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'c'], root);
+  const c = `${root}-clone`;
+  t.after(() => fs.rmSync(c, { recursive: true, force: true }));
+  runGit(['clone', '-q', root, c], path.dirname(root));
+  const sub = path.join(c, 'packages', 'api');
+  // 클론 직후에는 하위 단위 생성물이 없다
+  assert.equal(exists(sub, '.ruler/base/00-a.md'), false);
+
+  const seen = [];
+  const runRuler = (bin, cwd) => {
+    seen.push({ cwd, sub: exists(sub, '.ruler/base/00-a.md') && exists(sub, '.ruler/ruler.toml') });
+    return 0;
+  };
+  const bin = tmpDir('guideline-bin-');
+  const config = tmpDir('guideline-config-');
+  t.after(() => {
+    fs.rmSync(bin, { recursive: true, force: true });
+    fs.rmSync(config, { recursive: true, force: true });
+  });
+  write(bin, 'ruler', '#!/bin/sh\n');
+  fs.chmodSync(path.join(bin, 'ruler'), 0o755);
+  // 머신 기본값은 임시 설정 폴더에(사용자의 ~/.config 를 건드리지 않는다)
+  const withPath = { ...env, PATH: bin, XDG_CONFIG_HOME: config };
+  // 개인 모드 폼: 루트에서 skills/s 를 개인으로 더한다
+  const personalForm = async url => {
+    const u = new URL(url);
+    const r = await s.req(u.pathname + u.search);
+    const cookie = r.headers['set-cookie'][0].split(';')[0];
+    await s.req(`${u.pathname}/submit`, {
+      method: 'POST', body: JSON.stringify({ personalChoices: { 'skills/s': 'add' } }),
+      headers: { 'Content-Type': 'application/json', Origin: s.config.publicUrl.origin, Cookie: cookie },
+    });
+  };
+  const o = collect();
+  assert.equal(await projectPick({ project: c, local: true, env: withPath, ...quiet, runRuler, json: true, out: o.out, open: personalForm }), 0);
+  assert.deepEqual(seen, [{ cwd: c, sub: true }]);
+  const r = JSON.parse(o.text());
+  assert.ok(r.written.includes('packages/api/.ruler/base/00-a.md'), r.written.join(', '));
+  assert.equal(runGit(['status', '--porcelain', '--untracked-files=all'], c).stdout, '');
+});

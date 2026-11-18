@@ -255,7 +255,8 @@ export function finishApply({
 
 /**
  * pick --local 의 마무리: 커밋되는 파일(매니페스트·잠금·.guideline/ 사본)은 쓰지 않고, 받은 원본으로 개인 사본을 맞춘 뒤
- * 개인 겹을 넣어 생성물을 조합해 쓰고 ruler 를 돈다. 개인 선택(local.json)은 이미 써 두었어야 한다 — 조합이 그것을 다시 읽는다.
+ * 개인 겹을 넣어 생성물을 조합해 쓰고(git 루트면 그 아래 하위 단위도 apply 처럼 조합하고) ruler 를 돈다.
+ * 개인 선택(local.json)은 이미 써 두었어야 한다 — 조합이 그것을 다시 읽는다. 하위 단위 쓰기만 실패해도 code 1.
  * @param {{ project: string, root?: string, nested?: boolean, manifest: object, sync: { trees: Map<string, object>, revisions: Record<string, number> },
  *   todos?: object[], env?: object, runRuler?: Function, err?: Function, git?: Function }} opts
  * @returns {{ code: number, written: string[], deleted: string[], todos: object[] }}
@@ -273,10 +274,20 @@ export function finishPersonal({
     err(t('apply.composeNotWritten'));
     return { code: 1, written: w.failed.written ?? [], deleted: w.failed.deleted ?? [], todos };
   }
+  let written = w.written;
+  let deleted = w.deleted;
   if (nested && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
-  if (w.written.length || w.deleted.length) rulerStep({ root, env, runRuler, todos });
+  // git 루트면 finishApply 처럼 하위 단위도 ruler 전에 조합한다 — 클론 직후라면 하위 단위 생성물이 아직 없다
+  const subs = nested ? null : composeSubUnits({ root, subs: subUnits(root, git), err, git });
+  if (subs) {
+    written = union(written, subs.written);
+    deleted = union(deleted, subs.deleted);
+    todos.push(...subs.todos);
+    if (subs.composed.length && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
+  }
+  if (written.length || deleted.length) rulerStep({ root, env, runRuler, todos });
   todos = mergeTodos(todos, readOnlyPrepareTodos({ project, root }));
-  return { code: 0, written: w.written, deleted: w.deleted, todos };
+  return { code: subs?.failed ? 1 : 0, written, deleted, todos };
 }
 
 /** 개인 사본과 프로젝트 잠금의 리비전이 출처별로 다르면 알리는 할 일(개인 겹이 없으면 없음). */
@@ -296,7 +307,7 @@ export function subUnits(root, git = runGit) {
  * 하위 단위들을 조합해 쓴다(ruler 는 돌지 않는다). 옛 배치 단위는 건너뛰고 그 단위에서 update 하라고, 열 수 없는 단위는 그 이유를 알린다.
  * 단위의 할 일·경로·쓰기 실패 메시지는 루트 기준으로 앞에 단위 경로를 붙인다. 쓰다 실패한 단위는 unit-write-failed 할 일을 낸다 —
  * 뒤이은 ruler 는 그 단위의 낡거나 반쯤 쓴 생성물로 AGENTS.md 등을 만든다.
- * 루트의 apply 와, 비중첩 단위(git 루트)의 update·pick(finishApply)이 부른다.
+ * 루트의 apply 와, 비중첩 단위(git 루트)의 update·pick(finishApply)·pick --local(finishPersonal)이 부른다.
  * @returns {{ written: string[], deleted: string[], todos: object[], composed: { rel: string, lock: object }[], failed: boolean }}
  */
 export function composeSubUnits({ root, subs, err, git = runGit }) {
