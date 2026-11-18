@@ -14,9 +14,10 @@
 | 명령 | 하는 일 |
 | --- | --- |
 | `guideline pick` | 서버 폼을 열고, 제출하면 고른 항목을 반영합니다. `--new <이름\|경로>` 는 새 프로젝트를 만들고(`git init`) 반영합니다. `--no-browser` 는 주소만 냅니다. `--recommend <파일\|->` 는 에이전트가 고른 블록(JSON `{"블록 키": "이유"}`)을 미리 체크한 폼을 엽니다 — 출처 하나일 때만(여럿이면 `--source`). 0.19 이상 서버가 필요하고, 옛 서버는 추천 없이 폼을 엽니다. 스택을 고르려면 0.24 이상 서버가 필요합니다([종료 코드](#종료-코드) 참고) |
+| `guideline pick --local` | 개인 폼을 열고, 이 단위에서 내가 받는 것만 바꿉니다: 프로젝트 선택에 더하거나 거기서 뺄 블록입니다([개인 범위](#개인-범위)). 커밋되는 것은 아무것도 쓰지 않습니다. `--recommend <파일\|->` 는 `{"add": {"블록 키": "이유"}, "remove": {"블록 키": "이유"}}` 를 받습니다(그냥 `{"블록 키": "이유"}` 는 더함). git 2.31 이상의 git 저장소와, 개인 폼을 아는 서버가 필요합니다. `--new` 와 함께 쓸 수 없습니다 |
 | `guideline update` | 고른 항목 그대로 서버 최신으로 다시 반영합니다. 프로젝트에서 고친 파일은 건너뛰고, `--force` 면 덮어씁니다. 0.24 이상 CLI 의 첫 `pick`·`update` 는 옛 배치로 받은 프로젝트를 옮깁니다([서버와 CLI 올리기](how-to/upgrade.md#guideline-배치로-프로젝트-옮기기)) |
-| `guideline apply` | 서버에 묻지 않고 `.guideline/` 과 `.ruler/ruler.project.toml` 에서 생성물을 조합하고, `.gitignore` 블록을 다시 쓰고, git 루트에서 `ruler apply` 를 돕니다. 클론한 뒤, 새 워크트리에서, `prepare` 에서 쓰세요. `pick`·`update` 도 끝에 같은 일을 합니다. 바뀐 것이 없어도 ruler 를 돕니다. 옵션: `--project <경로>`, `--json`. 종료 코드 0 완료, 1 쓰기 실패, 2 아직 받은 것이 없거나 옛 배치입니다. 클론 직후라면 ruler 가 모든 에이전트 몫으로 쓴 `CLAUDE.md` 도 지웁니다([문제 해결](troubleshooting.md#cli)). 모노레포의 git 루트에서는 그 아래에서 git 이 추적하는 단위도 모두 조합한 뒤 ruler 를 한 번 돕니다. 루트가 guideline 프로젝트가 아니어도 됩니다([모노레포](how-to/use-in-a-monorepo.md)) |
-| `guideline status` | 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지 보이고, 저장된 토큰의 이름과 범위를 보입니다(`--json` 은 `token`. 토큰이 없거나 0.20 보다 옛 서버면 보이지 않습니다) |
+| `guideline apply` | 서버에 묻지 않고 `.guideline/` 과 `.ruler/ruler.project.toml` 에서 생성물을 조합하고, `.gitignore` 블록을 다시 쓰고, git 루트에서 `ruler apply` 를 돕니다. 클론한 뒤, 새 워크트리에서, `prepare` 에서 쓰세요. `pick`·`pick --local`·`update` 도 끝에 같은 방식으로 조합하지만(git 루트에서는 그 아래 단위도) ruler 는 쓴 것이 있을 때만 돕니다. `apply` 는 바뀐 것이 없어도 ruler 를 돕니다. 옵션: `--project <경로>`, `--json`. 종료 코드 0 완료, 1 쓰기 실패, 2 아직 받은 것이 없거나 옛 배치입니다. 클론 직후라면 ruler 가 모든 에이전트 몫으로 쓴 `CLAUDE.md` 도 지웁니다([문제 해결](troubleshooting.md#cli)). 모노레포의 git 루트에서는 그 아래에서 git 이 추적하는 단위도 모두 조합한 뒤 ruler 를 한 번 돕니다. 루트가 guideline 프로젝트가 아니어도 됩니다([모노레포](how-to/use-in-a-monorepo.md)) |
+| `guideline status` | 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지 보이고, 저장된 토큰의 이름과 범위를 보입니다(`--json` 은 `token`. 토큰이 없거나 0.20 보다 옛 서버면 보이지 않습니다). 개인 범위가 있으면 「개인 범위 — 더함 …」·「개인 범위 — 뺌 …」 줄과 최신이 아닌 개인 사본을 더합니다(`--json` 은 `personal`, [개인 범위](#개인-범위) 참고) |
 | `guideline propose` | 고친 사본을 원본 모양으로 되돌려 제안합니다. 범위 `admin` 토큰이면 제안 대신 바로 반영합니다(검토 없음). `--review` 는 그래도 제안으로 보내고, `--apply` 는 명시해서 바로 반영합니다(admin 토큰이 아니면 오류). 둘을 같이 주면 사용법 오류(종료 코드 2)입니다. `--dry-run`(보내면 둘 중 어느 쪽인지도 알립니다), `--title`, `--message`, `--only <항목,…>`, `--from <폴더>`. `--json` 에는 `mode`: `apply` 또는 `proposal` 이 추가됩니다(보낼 것이 없으면 없습니다). 방식은 dry-run 으로 보는 것이 정확합니다 — 실제로 보낼 때와 같은 토큰·서버로 묻지만, `status` 는 다른 토큰을 쓸 수 있습니다(출처가 여럿일 때, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | 서버에 로그인해 토큰을 저장하거나 지웁니다. `--token-stdin` 은 브라우저 없이 토큰을 넣습니다. `login` 은 저장한 뒤 토큰의 범위(`read`·`propose`·`admin`)를 알립니다 |
 
@@ -30,11 +31,13 @@
 | --- | --- |
 | `apply` | 생성물이 낡았거나(`status` 에서), 옮긴 뒤 쓰지 못했습니다. 커밋하기 전에 `guideline apply` 를 실행하세요 |
 | `root-apply` | git 루트에 `.ruler/ruler.toml` 이 없어 모노레포 단위의 `apply` 가 ruler 를 돌지 않았습니다. git 루트에서 `guideline apply` 를 먼저 실행하거나, 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두세요 |
-| `unit-update` | git 루트의 `guideline apply` 가 아직 옛 배치인 아래 단위를 건너뛰었습니다. 그 단위에서 `guideline update` 를 실행하세요 |
-| `unit-problem` | git 루트의 `guideline apply` 가 아래 단위를 열지 못했습니다. 이유가 뒤따릅니다 |
+| `unit-update` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아직 옛 배치인 아래 단위를 건너뛰었습니다. 그 단위에서 `guideline update` 를 실행하세요 |
+| `unit-problem` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아래 단위를 열지 못했습니다. 이유가 뒤따릅니다 |
+| `unit-write-failed` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아래 단위의 생성물을 다 쓰지 못했습니다(오류에 단위 경로가 붙습니다). ruler 는 돌았으므로 그 단위의 `AGENTS.md` 등 에이전트 파일을 믿지 마세요. 원인을 고친 뒤 git 루트에서 `guideline apply` 를 다시 실행하세요. 종료 코드 1 |
 | `root-ruler-toml` | git 루트가 guideline 프로젝트가 아니고 `.ruler/ruler.toml` 도 없어 `apply` 가 단위만 조합하고 ruler 는 돌지 않았습니다. 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 두고 커밋하세요 |
 | `no-copy` | 고른 항목인데 `.guideline/` 에 사본이 없어(막힘, 또는 만들어야 하는 MCP 항목) 조합하지 않았습니다. `guideline update` 가 이유를 보입니다 |
 | `override-unchosen` | `.guideline/overrides/<스택>/` 의 바꿈이 고르지 않은 스택의 것입니다. 스택을 고르거나 바꿈을 지우세요 |
+| `override-target` | 바꿈이 조합한 사본(프로젝트 사본, 개인 사본이 있으면 그 위에 얹은 것)에 없는 파일·절을 가리킵니다. 바꿈의 첫 줄을 고치거나, 리비전이 어긋났으면 `guideline update` 를 실행하세요. 개인 범위가 없는 프로젝트에서도 나옵니다 |
 | `subagents-off` | 서브에이전트 사본은 있지만 `.ruler/ruler.project.toml` 에 `[agents] enabled = true` 가 없어 조합하지 않았습니다 |
 | `mcp-conflict` | `ruler.project.toml` 에 같은 이름의 표가 이미 있거나(프로젝트 것을 둡니다) TOML 모양이 겹쳐 받은 MCP 표를 `.ruler/ruler.toml` 에 넣지 않았습니다. 프로젝트에서 고친 받은 MCP 표는 `ruler.project.toml` 에 남고, `status` 에는 MCP 가 current 로 보이지만 이 할 일을 다시 냅니다. 그 수정을 공용으로 하려면 `.guideline/mcp/<이름>/server.json` 을 고쳐 `guideline propose` 로 올리세요 |
 | `untracked` | 이제 생성물인 파일을 git 인덱스에서 뺐거나(`git rm --cached`, 파일은 남음), 못 해서 명령을 알려 줍니다 |
@@ -45,6 +48,20 @@
 | `dev-dependency` | `guideline-manage` 가 의존성에 없어 `prepare` 를 바꾸지 않았습니다. 그 전까지 클론의 `prepare` 는 ruler 만 돌아 지침 없는 `AGENTS.md` 를 만듭니다. 안내한 명령으로 추가하고 `guideline apply` 를 실행하세요 |
 | `prepare-manual` | `prepare` 가 인자를 붙여 `ruler apply` 를 불러, 그 인자를 받지 않는 `guideline apply` 로 바꾸지 않았습니다. 손으로 `guideline apply` 로 바꾸고 ruler 설정은 `.ruler/ruler.project.toml` 로 옮기세요 |
 | `apply-hook` | `package.json` 이 없습니다. 세팅 단계에서 `guideline apply` 를 부르세요(Orca: `orca.yaml` 의 `scripts.setup`) |
+
+개인 범위가 더한 종류는 다음과 같습니다. `status` 는 `personal-ignored`·`personal-shadowed`·`override-target`·`personal-revision`·`local-bad` 도 냅니다.
+
+| 종류 | 뜻 |
+| --- | --- |
+| `setup-personal` | 개인 범위로만 받은 스택에 세팅 문서가 있습니다. 커밋되는 파일을 바꾸지 않고 `docs/guideline/<스택>/SETUP.md` 를 따르고, 바꿔야 하는 단계는 사용자에게 알리세요. `setup` 대신 나옵니다 |
+| `personal-ignored` | 개인으로 뺀 블록을 프로젝트가 **필수**로 정해 그 뺌을 무시했습니다. `guideline pick --local` 에서 정리하세요 |
+| `personal-shadowed` | 개인으로 더한 블록이 프로젝트가 다른 출처에서 고른 블록과 최종 이름(별칭 뒤)이 같아 그것과 그 아래에 더한 블록을 쓰지 않습니다. `pick --local` 은 그 더함들을 저장하지 않습니다. 다른 명령에서 나왔으면 `guideline pick --local` 에서 정리하세요 |
+| `personal-revision` | 개인 사본과 프로젝트 사본이 한 출처의 다른 리비전입니다. 예: 다른 워크트리에서 `update` 한 뒤. `guideline update` 를 실행하세요(`apply`·`status` 가 냅니다) |
+| `personal-sync` | 개인 사본을 받지 못했습니다: 쓰기 오류, 또는 읽을 수 없는 개인 잠금(문구에 나온 파일을 지우세요). 프로젝트 반영은 끝났습니다. `guideline update` 를 다시 실행하세요 |
+| `local-bad` | `local.json` 을 읽을 수 없어 프로젝트 선택만으로 조합했습니다. 그 파일을 고치거나 지우세요 |
+| `ruler-leftover` | 개인 선택 때문에만 ruler 가 만들거나 바꾼 것을 그대로 두었습니다: 손으로 둔 것이 남았거나 추적되거나 claude·codex·opencode 밖 에이전트의 것이거나 그런 다른 에이전트의 설정 또는 손으로 둔 설정의 백업인 설정 파일·폴더(`.mcp.json`, `.claude/skills`, `.cursor/mcp.json`, `.mcp.json.bak` …), 또는 이번 조합에서 빠졌지만 그런 다른 에이전트의 설정에 남은 MCP 서버. 확인하고 필요 없으면 직접 지우세요 |
+
+개인 사본에서 나온 할 일에는 `--json` 에 `scope: "personal"` 이 붙습니다: `setup-personal`, `removed-upstream`(`guideline pick --local` 에서 해제), 그리고 문구가 「개인 사본 —」 으로 시작하는 다른 종류입니다. `scope: "personal"` 인 `no-copy` 는 더한 블록에 개인 사본이 없어 조합하지 않았다는 뜻입니다. `guideline update` 를 실행하세요.
 
 없어진 종류도 있습니다: `mcp-local`(MCP 사본도 다른 사본처럼 `.guideline/mcp/<이름>/server.json` 으로 제안합니다), `moved`(사본의 자리가 하나입니다), `new-file`.
 조합하지 못하는 파일의 `blocked` 할 일은 `.guideline/` 안의 경로를 보입니다.
@@ -69,6 +86,8 @@
 | `.ruler/ruler.project.toml` | 프로젝트의 ruler 설정과 직접 쓴 MCP 서버 | 커밋 |
 | `.ruler/<스택 경로>/NN-*.md`, `99-reference.md`, `.ruler/guideline.md`, `.ruler/skills/`, `.ruler/agents/`, `.ruler/ruler.toml`, `docs/guideline/` | `apply`·`pick`·`update` 가 만든 생성물 | 커밋 안 함: `.gitignore` 블록에 적힘 |
 
+[개인 범위](#개인-범위)는 파일을 작업 트리 밖, git 공용 디렉터리에 두어 커밋되지 않습니다.
+
 `.guideline/` 의 사본을 고치고 `guideline propose` 로 원본에 올리세요. 생성물을 고친 것은 다음 `apply` 때 덮입니다.
 `propose` 는 프로젝트에서 고친 `.guideline/` 사본을 그대로 올립니다. 사본이 이미 원본의 모양이기 때문입니다.
 
@@ -77,6 +96,52 @@
 각 출처의 `items` 는 **블록 키**입니다: `rules/<스택 경로>`, `skills/<이름>`, `agents/<이름>.md`, `mcp/<이름>`(`"version": 3`).
 하위 스택은 조상 스택과 함께 적힙니다. 예: `["rules/browser", "rules/browser/browseros-neo"]`.
 옛 파일(파일 경로를 쓴 `"version": 1` 이나 `2`)은 그대로 읽고, 다음에 `pick` 이나 `update` 가 쓸 때 버전 3 으로 다시 씁니다(`manifest-v3` 할 일로 알립니다).
+출처의 `required` 는 고르기 폼에서 **필수**로 표시한 블록입니다. 예: `"required": ["rules/browser"]`. 각각 `items` 에 있어야 합니다. 누구도 개인 선택으로 그 블록과 그 위의 스택을 뺄 수 없습니다. `pick` 에서 체크를 푼 블록은 필수에서도 빠집니다.
+
+## 개인 범위
+
+`guideline pick --local` 은 작업자 한 사람이 커밋되는 파일을 바꾸지 않고 프로젝트 선택에 블록을 더하거나 거기서 빼게 합니다.
+쓰는 법: [내 머신에서만 지침 쓰기](how-to/use-guidelines-only-on-your-machine.md).
+
+받는 것은 프로젝트 선택에 내 더함과 그 조상 스택을 더하고, 내 뺌과 그 아래 스택을 뺀 것입니다.
+**필수** 블록과 그 위의 스택은 뺄 수 없습니다. 그런 뺌은 무시하고 `personal-ignored` 할 일을 냅니다.
+더할 수 있는 것은 `guideline.json` 에 있는 출처의 블록뿐입니다.
+
+| 자리 | 내용 |
+| --- | --- |
+| `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` | 개인 선택: `{ "version": 1, "sources": { "<출처>": { "add": [블록 키], "remove": [블록 키] } } }`, 별칭 전 실제 이름. 단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것(`packages%2Fapi`)입니다 |
+| `<git 공용 디렉터리>/guideline/units/<단위 키>/.guideline/`, `guideline-lock.json` | 내가 더한 블록의 개인 사본과 그 잠금. `pick --local` 과 `update` 가 씁니다. 고치지 마세요 |
+| `<git 공용 디렉터리>/info/exclude` | 단위와 워크트리마다 한 블록(`# START guideline personal files <단위 경로> @<워크트리>` … `# END …`)에 개인 범위에서만 나온 생성물과 ruler 가 쓰는 에이전트 설정 파일(`.mcp.json` 등)을 적습니다. `.` 은 git 루트 단위와 메인 워크트리입니다. git 이 더는 모르는 워크트리의 블록은 다음에 쓸 때 지웁니다 |
+
+한 클론의 모든 워크트리가 git 공용 디렉터리를 함께 쓰므로, 개인 선택과 개인 사본도 함께 씁니다.
+`guideline.json`·`guideline-lock.json`·`.guideline/`·`.gitignore` 블록은 개인 범위가 없을 때와 같습니다.
+관리 지침(`.ruler/guideline.md`)에 「이 작업자의 개인 범위」 절이 붙고, 개인으로 받은 스택은 세팅 표에서 「개인」 으로 표시됩니다.
+
+- `pick --local` 은 출처마다 개인 폼을 하나씩 엽니다. 원본은 프로젝트 잠금의 리비전으로 보이고, 개인 사본도 그 리비전으로 받습니다. `guideline update` 가 프로젝트와 개인 사본을 함께 최신 리비전으로 올립니다.
+- `apply` 는 서버 없이, 어느 워크트리에서든 git 공용 디렉터리에서 개인 범위를 조합합니다.
+- `propose` 는 개인 사본을 보내지 않습니다.
+- `--recommend` 는 폼에 더함과 뺌을 미리 체크합니다. 원본에 없는 키, 필수 블록이나 그것을 품은 스택의 뺌은 폼을 열기 전에 종료 코드 2 로 멈춥니다.
+- 프로젝트가 다른 출처에서 같은 최종 이름의 블록을 골라 가려지는 개인 더함은 저장하지 않습니다(`personal-shadowed`). 그 아래 블록도 저장하지 않습니다.
+- `local.json` 이나 `defaults.json` 을 읽을 수 없으면 `pick --local` 은 종료 코드 1 로 멈추고, 그 파일을 덮어쓰지 않습니다.
+
+`status --json` 에는 `personal` 이 붙습니다.
+
+| 필드 | 뜻 |
+| --- | --- |
+| `added` | 내가 더해서 받는 블록(출처가 여럿이면 `<출처>:<키>`) |
+| `removed` | 프로젝트 선택 중 내가 받지 않는 블록. 뺀 스택 아래의 스택도 들어갑니다 |
+| `ignored` | 필수라서 무시된 뺌 |
+| `shadowed` | `[{ id, by }]`: 출처 `by` 의 블록에 가려진 더함 |
+| `items` | `[{ id, state }]`: 개인 사본과 그 상태(프로젝트 사본과 같은 상태 값) |
+
+단위가 git 저장소가 아니거나 `local.json` 을 읽을 수 없으면(`local-bad` 할 일로 알립니다) `personal` 은 `null` 입니다.
+
+### 머신 기본값
+
+개인 폼의 **이 선택을 내 기본값으로** 는 더함과 뺌을 CLI 설정 폴더의 `defaults.json`([설정](configuration.md#cli-파일))에 서버 주소(origin)마다 저장합니다.
+그 출처에 개인 선택이 아직 없는 프로젝트에서만 개인 폼을 미리 체크합니다. 원본에 없는 블록은 빼고 체크합니다.
+`update`·`apply` 는 읽지 않습니다.
+마지막으로 기본값을 저장한 실행이 그 서버의 기본값을 정합니다. 한 실행 안에서 같은 서버의 출처 여럿은 합칩니다. 어떤 블록을 출처마다 다르게 골랐으면 이름 순으로 뒤 출처의 것을 남기고 경고합니다.
 
 ## 원본 명령
 
@@ -114,6 +179,9 @@
 | 2 | 잘못된 사용, ruler 프로젝트가 아님, 이름 겹침. 옛 배치 프로젝트의 `apply`·`status`·`propose`, 아직 받은 것이 없을 때의 `apply` 도 2 |
 | 3 | `pick`: 제출하지 않음(취소, 탭 닫힘, 아무도 열지 않음). 아무것도 쓰지 않음 |
 
+`pick --local` 은 폴더가 git 저장소가 아니거나(또는 git 이 2.31 보다 옛날), 아직 받은 것이 없거나, 옛 배치 프로젝트이거나, `--new` 와 함께 쓰면 2 로 끝납니다.
+`local.json` 이나 `defaults.json` 을 읽을 수 없거나, 서버가 개인 폼을 모르면(「이 서버는 개인 폼을 모름」) 1 로 끝납니다.
+
 서버가 0.24 보다 옛날이면 스택 선택을 받지 못합니다.
 그러면 `pick` 은 그 출처의 폼을 취소하고 「서버가 CLI 보다 옛날」 이라고 알린 뒤 그 출처를 그대로 둡니다.
 나머지 출처는 그대로 고르고, 실패한 출처가 있으니 종료 코드는 1 입니다. 고른 출처가 하나도 없을 때도 1 입니다.
@@ -147,7 +215,19 @@
 - `--recommend` 로 추천한 항목에는 **에이전트 추천**과 이유가 붙습니다.
 - 작업 트리에 커밋하지 않은 변경이 있으면 경고가 뜨고, **그래도 진행**을 체크해야 제출됩니다. 먼저 커밋해 두면 반영 결과를 `git diff` 로 보기 쉽습니다.
 - 원본에 경고가 있는 항목은 「반영 불가」 로 보이고 체크할 수 없습니다. 이유가 함께 보입니다.
+- 고른 스택 행과 고른 MCP·서브에이전트·스킬 행에 **필수** 칸이 있습니다. 필수 블록은 누구의 개인 선택에서도 뺄 수 없습니다. 블록의 체크를 풀면 필수 칸도 꺼집니다. **확인**에 필수 블록 목록이 보입니다.
 - 폼은 10분 안에 열지 않거나, 연 뒤 90초 동안 화면 신호가 없으면 만료됩니다.
+
+### 개인 폼
+
+`guideline pick --local` 은 같은 폼을 개인 모드로 엽니다. 부제 끝에 「내 개인 선택」 이 붙습니다.
+
+- 블록마다 프로젝트가 받는지와 세 갈래 **그대로**·**더함**·**뺌** 이 보입니다. 프로젝트가 이미 받는 블록은 더함이, 받지 않는 블록은 뺌이 꺼져 있습니다.
+- 필수 블록은 「필수 — 뺄 수 없음」, 그 위의 스택은 「필수 블록을 품음 — 뺄 수 없음」 으로 보입니다.
+- 하위 스택을 더하면 프로젝트가 받지 않는 조상도 더합니다. 스택을 빼면 그 아래 스택도 뺍니다. 선택을 **그대로**로 되돌리면 같은 선택이던 아래 스택도 되돌립니다.
+- 맨 위 줄이 무엇으로 미리 체크했는지 알립니다: 「내 이 프로젝트 선택」 또는 「내 기본값」.
+- **확인**에 더할 것·뺄 것 목록과 **이 선택을 내 기본값으로** 칸이 있습니다. 커밋되는 것을 쓰지 않으므로 커밋 안 된 변경 경고는 없습니다.
+- 모노레포 하위 디렉터리에서 개인 폼은 git 루트에서만 받는 스킬·서브에이전트·MCP 서버를 막지 않습니다. 그것들은 git 루트의 개인 선택에서 더하세요.
 
 ## 토큰 범위
 
@@ -210,7 +290,7 @@
 ### CLI 로그인과 폼
 
 - **CLI 로그인**: `guideline login` 이 `/cli/login` 을 엽니다. 관리자 세션에서 **발급**을 누르면 2분짜리 한 번 쓰는 코드가 CLI 의 `127.0.0.1` 콜백으로 갑니다. CLI 는 그 코드를 `POST /api/v1/cli/token` 에서 읽기 토큰(이름 `cli-<호스트>-<6자>`)으로 바꿉니다. `DELETE /api/v1/tokens/self` 는 보낸 토큰을 폐기합니다(`guideline logout`).
-- **폼**: `POST /api/v1/forms`(본문 2MB)가 폼을 만들고 `/forms/<id>?k=<링크 토큰>` 을 돌려줍니다. 비공개 서버는 읽기 토큰이 필요하고, 공개 서버는 누구나 폼을 만들 수 있습니다. 그 링크는 그 폼 하나만 다루고, 처음 열 때 쿠키로 바뀌어 주소에서 빠집니다. `GET /api/v1/forms/<id>/result?wait=` 는 결과를 기다립니다. 요청 본문에는 스택 선택을 뜻하는 `formVersion: 2` 가 들어가고, 없으면 426 으로 거절합니다. 토큰으로 만든 폼은 그 토큰에게만, 토큰 없이 만든 폼은 관리자나 링크 토큰을 `X-Form-Link` 헤더로 보낸 요청에게만 결과를 줍니다. 끝난 지 하루가 지난 폼은 새 폼을 만들 때 지웁니다.
+- **폼**: `POST /api/v1/forms`(본문 2MB)가 폼을 만들고 `/forms/<id>?k=<링크 토큰>` 을 돌려줍니다. 비공개 서버는 읽기 토큰이 필요하고, 공개 서버는 누구나 폼을 만들 수 있습니다. 그 링크는 그 폼 하나만 다루고, 처음 열 때 쿠키로 바뀌어 주소에서 빠집니다. `GET /api/v1/forms/<id>/result?wait=` 는 결과를 기다립니다. 요청 본문에는 스택 선택을 뜻하는 `formVersion: 2` 가 들어가고, 없으면 426 으로 거절합니다. 응답에는 `modes: ["project", "personal"]` 이 있습니다. 본문이 `mode: "personal"` 이면 개인 폼을 열고, 결과는 `{ mode: "personal", add, remove, saveDefault, rejected: [] }`(별칭을 입힌 블록 키)입니다. 필수 블록의 뺌은 400 으로 거절합니다. 토큰으로 만든 폼은 그 토큰에게만, 토큰 없이 만든 폼은 관리자나 링크 토큰을 `X-Form-Link` 헤더로 보낸 요청에게만 결과를 줍니다. 끝난 지 하루가 지난 폼은 새 폼을 만들 때 지웁니다.
 - **`/llms.txt`**: 에이전트를 위한 사용·세팅 안내입니다. 로그인 없이 열립니다. 언어팩의 `templates/llms.txt` 에 `{{SERVER}}` 를 `PUBLIC_URL` 로 채운 것이고, 요청마다 새로 만듭니다.
 
 ## 지침의 표지 문구

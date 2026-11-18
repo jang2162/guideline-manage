@@ -30,6 +30,12 @@ It is for CLI users and server operators who are stuck.
 | A `.claude/skills/<name>` or an `.mcp.json` entry I made by hand disappeared after the first `pick` | A received skill or MCP server with the same name is built into `.ruler/` and ruler writes it over yours. The form no longer compares `.claude/skills` or `.mcp.json`, so it does not warn | Rename yours before you pick, or send it upstream with the `guideline-export` skill |
 | `The CLAUDE.md form is no longer supported` | The project was received in the 0.12 CLAUDE.md form | Move it to ruler and run `guideline pick` again |
 | `This token cannot propose` | It is a read token | Get a `propose` scope token from an admin and store it with `--token-stdin` |
+| `The personal scope needs this folder to be in a git repository, and git 2.31 or newer` (exit code 2) | `pick --local` ran outside a git repository, or git is older than 2.31 | Run it in a git repository, or upgrade git. A folder outside git has no personal scope |
+| `This server does not know the personal form` | The server is older than the CLI's personal form | Ask the server operator to upgrade the server ([Upgrade the server and the CLI](how-to/upgrade.md)) |
+| `Cannot read …/local.json — it is not a valid personal selection` (`local-bad` to-do) | Your personal selection in git's common directory is broken. Until it is fixed, `apply` composes from the project's choice only, and `pick --local` stops without overwriting it | Fix the file, or delete it to drop your personal selection, then run `guideline apply` |
+| `Cannot read …/defaults.json — it is not a valid machine defaults file` | Your machine defaults are broken, so `pick --local` stops without overwriting them | Fix or delete the file |
+| `Could not write the personal generated files to git's info/exclude` | The CLI could not write `<git common dir>/info/exclude`. It writes that block before the generated files, so it stopped without writing them (exit code 1) and they are not shown as untracked | Check the file's permissions, then run `guideline apply` |
+| Your personal additions are missing in another clone | The personal selection lives in that clone's git common directory. Worktrees of one clone share it; other clones do not | Run `guideline pick --local` in that clone. With [machine defaults](how-to/use-guidelines-only-on-your-machine.md#machine-defaults) the form starts pre-checked |
 
 ## Admin web
 

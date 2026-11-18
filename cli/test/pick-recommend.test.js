@@ -7,6 +7,8 @@ import { tmpDir, write, collect, ALWAYS } from './helpers.js';
 import { SOURCE } from './render-fixture.js';
 import { projectPick } from '../src/commands/project-pick.js';
 import { runGit } from '../src/projects.js';
+import { syncedProject } from './synced.js';
+import { MANIFEST, manifestText } from '../src/manifest.js';
 
 const WITH_REQUIRES = {
   ...SOURCE,
@@ -138,4 +140,47 @@ test('formVersion 없는 서버(옛 서버)면 폼을 취소하고 serverOld 로
   assert.equal(JSON.parse(post.body).formVersion, 2);
   assert.equal(s.app.store.db.prepare('SELECT status FROM forms').get().status, 'cancelled');
   assert.ok(!fs.existsSync(path.join(p, 'guideline.json')), '옛 서버면 아무것도 쓰지 않는다');
+});
+
+test('--recommend 는 --local 에서 remove 를 받고 필수 뺌은 거절한다', async t => {
+  const { s, env } = await server(t);
+  const p = fs.realpathSync(tmpDir('guideline-rec-local-'));
+  const config = tmpDir('guideline-rec-local-config-');
+  t.after(() => {
+    fs.rmSync(p, { recursive: true, force: true });
+    fs.rmSync(config, { recursive: true, force: true });
+  });
+  runGit(['init', '-q'], p);
+  const { manifest } = syncedProject(p, { server: s.base, items: ['rules/base', 'skills/s'], source: WITH_REQUIRES });
+  manifest.sources.default.required = ['rules/base'];
+  write(p, MANIFEST, manifestText(manifest));
+  const lenv = { ...env, XDG_CONFIG_HOME: config };
+  // 새 모양: 더함·뺌을 미리 체크하고 둘 다 추천 표시(이유)로 싣는다
+  const seen = {};
+  const e = collect();
+  const code = await projectPick({
+    project: p, local: true, env: lenv, ...quiet, err: e.out, open: peek(s, seen),
+    recommend: recFile(t, { add: { 'mcp/c7': '문서 찾기' }, remove: { 'skills/s': '안 씀' } }),
+  });
+  assert.equal(code, 3, e.text());
+  assert.equal(seen.data.mode, 'personal');
+  assert.deepEqual(seen.data.personal.add, ['mcp/c7']);
+  assert.deepEqual(seen.data.personal.remove, ['skills/s']);
+  assert.deepEqual(seen.data.recommend, { 'mcp/c7': '문서 찾기', 'skills/s': '안 씀' });
+  // 지금 모양 { 키: 이유 } 는 더함이다
+  await projectPick({ project: p, local: true, env: lenv, ...quiet, err: () => {}, open: peek(s, seen), recommend: recFile(t, { 'mcp/c7': '' }) });
+  assert.deepEqual([seen.data.personal.add, seen.data.personal.remove], [['mcp/c7'], []]);
+  // 필수(와 필수를 품은 스택)를 빼라는 추천은 폼을 만들지 않고 코드 2
+  const before = s.app.store.db.prepare('SELECT COUNT(*) AS n FROM forms').get().n;
+  const bad = collect();
+  assert.equal(await projectPick({
+    project: p, local: true, env: lenv, ...quiet, err: bad.out, open: () => assert.fail('폼을 열면 안 됨'),
+    recommend: recFile(t, { remove: { 'rules/base': '' } }),
+  }), 2);
+  assert.match(bad.text(), /필수 블록\(또는 필수를 품은 스택\)은 빼라고 추천할 수 없음: rules\/base/);
+  assert.equal(s.app.store.db.prepare('SELECT COUNT(*) AS n FROM forms').get().n, before);
+  // 새 모양은 --local 에서만 받는다
+  const plain = collect();
+  assert.equal(await projectPick({ project: p, env: lenv, ...quiet, err: plain.out, open: () => assert.fail(), recommend: recFile(t, { add: { 'mcp/c7': '' } }) }), 2);
+  assert.match(plain.text(), /JSON 이어야 함/);
 });

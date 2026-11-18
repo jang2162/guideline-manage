@@ -177,10 +177,22 @@ export function formItems({ tree, project, manifest, lock, reader, nested = fals
 
 /**
  * 서버 폼에 올리는 본문. MCP 는 inspect·itemDiff 가 키 경로만 내므로 값이 실리지 않는다.
+ * 프로젝트 모드는 그 출처의 지금 필수(가상 키, 없으면 [])를 늘 싣는다 — 서버는 payload 에 required 배열이 있을 때만 화면이 보낸
+ * 필수를 결과에 싣는다(없으면 CLI 는 매니페스트의 필수를 그대로 둔다).
+ * 개인 모드(mode 'personal')는 personal(가상 키의 chosen·required·add·remove 와 preset)을 싣고, 화면이 쓰지 않는 항목·바꿈·차이는
+ * 빈 값으로 싣는다(서버의 폼 본문 검사가 배열을 요구한다).
  */
 export function formPayload({
   tree, revision, projectPath, isNew, agents, status, manifest, lock, nested = false, rootStacks = [], management = {},
+  required = [], mode = 'project', personal = null,
 }) {
+  const projectInfo = () => ({
+    name: path.basename(projectPath), path: projectPath, form: 'ruler', instructionFiles: [],
+    agents, isNew, gitRepo: status.gitRepo, dirty: status.dirty, nested, rootStacks,
+  });
+  if (mode === 'personal') {
+    return { revision, formVersion: 2, mode, personal, project: projectInfo(), items: [], overrides: [], diffs: {} };
+  }
   const project = isNew ? null : projectPath;
   const { items, overrides } = formItems({ tree, project, manifest, lock, reader: project ? diskReader(project) : null, nested, management });
   const diffs = {};
@@ -204,12 +216,11 @@ export function formPayload({
     revision,
     // 스택 단위 선택(하위 스택)을 아는 폼 본문. 이것을 모르는 옛 서버는 응답에 formVersion 을 싣지 않는다.
     formVersion: 2,
-    project: {
-      name: path.basename(projectPath), path: projectPath, form: 'ruler', instructionFiles: [],
-      agents, isNew, gitRepo: status.gitRepo, dirty: status.dirty, nested, rootStacks,
-    },
+    mode,
+    project: projectInfo(),
     items,
     overrides,
     diffs,
+    required: [...required],
   };
 }

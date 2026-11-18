@@ -13,6 +13,7 @@ import { PROJECT_TOML, RULER_TOML } from '../src/layout.js';
 import { RULER_TOML_BASE } from '../src/render/outputs.js';
 import { writeOldLayout } from './old-layout.js';
 import { readBlock } from '../src/gitignore-block.js';
+import { personalStore, writeLocal } from '../src/personal.js';
 
 async function server(t) {
   const s = await startApp(t);
@@ -62,7 +63,7 @@ test('ruler 프로젝트: 고른 것을 쓰고 매니페스트·잠금을 남긴
   assert.ok(exists(p, '.ruler/skills/s/img/a.png'));
   assert.deepEqual(readManifest(p), {
     version: 3, form: 'ruler', agents: ['claude'],
-    sources: { default: { server: s.base, items: ['rules/base', 'skills/s'], aliases: {} } },
+    sources: { default: { server: s.base, items: ['rules/base', 'skills/s'], aliases: {}, required: [] } },
   });
   assert.equal(readLock(p).revisions.default, 1);
   // 매니페스트가 없던 첫 pick 은 새 배치: 사본은 .guideline/, 프로젝트의 ruler.toml 설정은 ruler.project.toml 로 옮긴다
@@ -380,4 +381,128 @@ test('pick 은 폼에 올리지 않은 고아 id 를 제출해도 아무것도 �
   assert.equal(await projectPick({ project: p, env, ...quiet, out: () => {}, fetchImpl: forged, open: driver(s, { choose: pickBase }) }), 0);
   assert.equal(read(p, 'src/app.js'), 'app\n');
   assert.ok(exists(p, '.guideline/rules/base/00-a.md'));
+});
+
+test('update 는 개인 겹을 지키고 info/exclude 블록을 쓴다', async t => {
+  const { s, env } = await server(t);
+  const p = fs.realpathSync(gitProject(t, { '.ruler/ruler.toml': '' }));
+  await projectPick({ project: p, env, ...quiet, out: () => {}, open: driver(s, { choose: checkOnly(i => i.id.startsWith('rules/base/')) }) });
+  const gi = read(p, '.gitignore');
+  const store = personalStore({ dir: p, root: p });
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  write(store, '.guideline/rules/extra/00-e.md', `${ALWAYS}# 개인 더함\n`);
+  s.store.commit({ ...META, changes: { 'rules/base/02-new.md': `${ALWAYS}# 새\n` } });
+  assert.equal(await projectUpdate({ project: p, env, ...quiet, out: () => {} }), 0);
+  assert.equal(read(p, '.ruler/extra/00-e.md'), '# 개인 더함\n');
+  assert.equal(read(p, '.ruler/base/02-new.md'), '# 새\n');
+  // 프로젝트 블록에는 원본 새 파일만 더해지고 개인 경로는 info/exclude 에
+  assert.ok(readBlock(read(p, '.gitignore')).includes('/.ruler/base/02-new.md'));
+  assert.equal(read(p, '.gitignore').includes('extra'), false, gi);
+  assert.match(read(p, '.git/info/exclude'), /# START guideline personal files \. @\.\n\/\.ruler\/extra\/00-e\.md\n/);
+});
+
+test('N2 루트 update 는 하위 단위를 조합한다', async t => {
+  const { s, env } = await server(t);
+  const root = fs.realpathSync(gitProject(t, {
+    '.ruler/ruler.toml': 'default_agents = ["claude"]\nnested = true\n',
+    'packages/api/.ruler/.keep': '',
+  }));
+  const pickBase = dir => projectPick({ project: dir, env, ...quiet, open: driver(s, { choose: checkOnly(i => i.id.startsWith('rules/base/')) }) });
+  assert.equal(await pickBase(root), 0);
+  assert.equal(await pickBase(path.join(root, 'packages', 'api')), 0);
+  runGit(['add', '-A'], root);
+  runGit(['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'c'], root);
+  const c = `${root}-clone`;
+  t.after(() => fs.rmSync(c, { recursive: true, force: true }));
+  runGit(['clone', '-q', root, c], path.dirname(root));
+  const sub = path.join(c, 'packages', 'api');
+  assert.equal(exists(sub, '.ruler/base/00-a.md'), false);
+  // 하위 단위의 개인 겹도 얹는다
+  const store = personalStore({ dir: sub, root: c });
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  write(store, '.guideline/rules/extra/00-e.md', `${ALWAYS}# 개인 더함\n`);
+
+  const seen = [];
+  const runRuler = (bin, cwd) => {
+    // ruler 가 돌 때 하위 단위의 생성물이 이미 있어야 nested 로 그 AGENTS.md 가 채워진다
+    seen.push({ cwd, sub: exists(sub, '.ruler/base/00-a.md') && exists(sub, '.ruler/ruler.toml') });
+    return 0;
+  };
+  // ruler 를 찾게 하는 PATH(작업 트리 밖이라 git status 에 보이지 않는다)
+  const bin = tmpDir('guideline-bin-');
+  t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
+  write(bin, 'ruler', '#!/bin/sh\n');
+  fs.chmodSync(path.join(bin, 'ruler'), 0o755);
+  const withPath = { ...env, PATH: bin };
+  const o = collect();
+  assert.equal(await projectUpdate({ project: c, env: withPath, ...quiet, runRuler, json: true, out: o.out }), 0);
+  assert.deepEqual(seen, [{ cwd: c, sub: true }]);
+  const r = JSON.parse(o.text());
+  assert.ok(r.written.includes('packages/api/.ruler/base/00-a.md'), r.written.join(', '));
+  assert.match(read(sub, '.ruler/extra/00-e.md'), /# 개인 더함/);
+  assert.match(read(c, '.git/info/exclude'), /# START guideline personal files packages\/api @\.\n\/packages\/api\/\.ruler\/extra\/00-e\.md\n/);
+  assert.equal(runGit(['status', '--porcelain', '--untracked-files=all'], c).stdout, '');
+
+  // 루트 pick 도 하위 단위를 조합한다
+  fs.rmSync(path.join(sub, '.ruler', 'base'), { recursive: true });
+  const o2 = collect();
+  assert.equal(await projectPick({
+    project: c, env: withPath, ...quiet, runRuler, json: true, out: o2.out, open: driver(s, { choose: checkOnly(i => i.id.startsWith('rules/base/')) }),
+  }), 0);
+  assert.ok(JSON.parse(o2.text()).written.includes('packages/api/.ruler/base/00-a.md'));
+  assert.ok(exists(sub, '.ruler/base/00-a.md'));
+});
+
+test('루트 pick --local 도 ruler 전에 하위 단위를 조합한다', async t => {
+  const { s, env } = await server(t);
+  const root = fs.realpathSync(gitProject(t, {
+    '.ruler/ruler.toml': 'default_agents = ["claude"]\nnested = true\n',
+    'packages/api/.ruler/.keep': '',
+  }));
+  const pickBase = dir => projectPick({ project: dir, env, ...quiet, open: driver(s, { choose: checkOnly(i => i.id.startsWith('rules/base/')) }) });
+  assert.equal(await pickBase(root), 0);
+  assert.equal(await pickBase(path.join(root, 'packages', 'api')), 0);
+  runGit(['add', '-A'], root);
+  runGit(['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'c'], root);
+  const c = `${root}-clone`;
+  t.after(() => fs.rmSync(c, { recursive: true, force: true }));
+  runGit(['clone', '-q', root, c], path.dirname(root));
+  const sub = path.join(c, 'packages', 'api');
+  // 클론 직후에는 하위 단위 생성물이 없다
+  assert.equal(exists(sub, '.ruler/base/00-a.md'), false);
+
+  const seen = [];
+  const runRuler = (bin, cwd) => {
+    seen.push({ cwd, sub: exists(sub, '.ruler/base/00-a.md') && exists(sub, '.ruler/ruler.toml') });
+    return 0;
+  };
+  const bin = tmpDir('guideline-bin-');
+  const config = tmpDir('guideline-config-');
+  t.after(() => {
+    fs.rmSync(bin, { recursive: true, force: true });
+    fs.rmSync(config, { recursive: true, force: true });
+  });
+  write(bin, 'ruler', '#!/bin/sh\n');
+  fs.chmodSync(path.join(bin, 'ruler'), 0o755);
+  // 머신 기본값은 임시 설정 폴더에(사용자의 ~/.config 를 건드리지 않는다)
+  const withPath = { ...env, PATH: bin, XDG_CONFIG_HOME: config };
+  // 개인 모드 폼: 루트에서 skills/s 를 개인으로 더한다
+  const personalForm = async url => {
+    const u = new URL(url);
+    const r = await s.req(u.pathname + u.search);
+    const cookie = r.headers['set-cookie'][0].split(';')[0];
+    await s.req(`${u.pathname}/submit`, {
+      method: 'POST', body: JSON.stringify({ personalChoices: { 'skills/s': 'add' } }),
+      headers: { 'Content-Type': 'application/json', Origin: s.config.publicUrl.origin, Cookie: cookie },
+    });
+  };
+  const o = collect();
+  assert.equal(await projectPick({ project: c, local: true, env: withPath, ...quiet, runRuler, json: true, out: o.out, open: personalForm }), 0);
+  // 개인 스킬이 ruler 출력 종류를 바꾸므로 먼저 작업 트리 밖에서 프로젝트 기준으로 한 번 돈다(커밋되는 .gitignore 의 ruler 블록)
+  assert.deepEqual(seen.filter(x => x.cwd === c), [{ cwd: c, sub: true }]);
+  assert.equal(seen.length, 2);
+  assert.ok(!seen[0].cwd.startsWith(c));
+  const r = JSON.parse(o.text());
+  assert.ok(r.written.includes('packages/api/.ruler/base/00-a.md'), r.written.join(', '));
+  assert.equal(runGit(['status', '--porcelain', '--untracked-files=all'], c).stdout, '');
 });

@@ -88,8 +88,8 @@ test('compose 는 같은 원본에서 예전 반영과 같은 파일을 만든�
   assert.match(r.files['.ruler/skills/team-s/SKILL.md'].toString(), /^---\nname: team-s\n/);
   assert.match(r.files['.ruler/ruler.toml'].toString(), /\[mcp_servers\.tm\]/);
   // generated 는 쓴 경로 전부(정렬), .gitignore 블록에 / 를 붙여 적힌다
-  assert.deepEqual(r.generated, Object.keys(want).sort());
-  assert.deepEqual(readBlock(r.files['.gitignore'].toString()), r.generated.map(x => `/${x}`));
+  assert.deepEqual(r.generated.project, Object.keys(want).sort());
+  assert.deepEqual(readBlock(r.files['.gitignore'].toString()), r.generated.project.map(x => `/${x}`));
   // 사본이 없는 항목(조합 전에 막힌 MCP 등)은 조합하지 않아 할 일이 생기지 않는다
   assert.ok(!r.todos.some(x => x.kind === 'blocked'), JSON.stringify(r.todos));
   // 조합은 .guideline/ 을 쓰지 않는다
@@ -117,8 +117,8 @@ test('compose 는 ruler.project.toml 에 MCP 표를 얹어 ruler.toml 을 쓴다
   assert.match(toml, /\[agents\.codex\.mcp_servers\.gl\]/);
   assert.ok(!Object.hasOwn(r.files, '.ruler/ruler.project.toml'));
   assert.equal(read(p, '.ruler/ruler.project.toml'), project);
-  assert.ok(r.generated.includes('.ruler/ruler.toml'));
-  assert.ok(!r.generated.includes('.ruler/ruler.project.toml'));
+  assert.ok(r.generated.project.includes('.ruler/ruler.toml'));
+  assert.ok(!r.generated.project.includes('.ruler/ruler.project.toml'));
 });
 
 test('compose 는 ruler.project.toml 이 없으면 기본 설정을 바탕으로 쓴다', t => {
@@ -154,11 +154,11 @@ test('compose 는 블록에 없는 파일을 건드리지 않는다', t => {
   const r = compose({ project: p, manifest: MANIFEST, nested: false, rulerAgentsEnabled: true });
   for (const k of ['.ruler/50-project.md', '.ruler/skills/my-skill/SKILL.md', 'docs/guideline/notes.md', 'keep.txt', '.ruler/ruler.project.toml']) {
     assert.ok(!Object.hasOwn(r.files, k), k);
-    assert.ok(!r.generated.includes(k), k);
+    assert.ok(!r.generated.project.includes(k), k);
   }
   const gi = r.files['.gitignore'].toString();
   assert.ok(gi.startsWith('node_modules\n# START guideline generated files\n'));
-  assert.deepEqual(readBlock(gi), r.generated.map(x => `/${x}`));
+  assert.deepEqual(readBlock(gi), r.generated.project.map(x => `/${x}`));
 });
 
 test('compose 는 사라진 생성물을 지우고 멱등이다', t => {
@@ -174,11 +174,11 @@ test('compose 는 사라진 생성물을 지우고 멱등이다', t => {
     company: { ...MANIFEST.sources.company, items: MANIFEST.sources.company.items.filter(i => i !== `rules/${DEPLOY}`) },
     team: MANIFEST.sources.team,
   } });
-  const gone = first.generated.filter(x => x.includes(DEPLOY));
+  const gone = first.generated.project.filter(x => x.includes(DEPLOY));
   assert.deepEqual(gone.sort(), [`.ruler/${DEPLOY}/01-y.md`, `.ruler/${DEPLOY}/99-reference.md`, `docs/guideline/${DEPLOY}/00-x.md`]);
   const second = compose({ project: p, manifest: less, nested: false, rulerAgentsEnabled: true });
   for (const g of gone) assert.equal(second.files[g], null, g);
-  assert.ok(second.generated.every(x => !x.includes(DEPLOY)));
+  assert.ok(second.generated.project.every(x => !x.includes(DEPLOY)));
   const gi = second.files['.gitignore'].toString();
   assert.ok(gi.startsWith('node_modules\n'));
   assert.ok(readBlock(gi).every(x => !x.includes(DEPLOY)));
@@ -208,7 +208,7 @@ test('compose 는 .guideline/overrides 를 .ruler/<스택>/ 로 복사한다', t
   assert.equal(r.files['.ruler/base/web/override.d/a.md'].toString(), '## 웹 바꿈\n');
   assert.equal(r.files['.ruler/team-base/override.d/z.md'].toString(), '## 팀 바꿈\n');
   assert.ok(!Object.keys(r.files).some(k => k.endsWith('b.txt')));
-  for (const k of ['.ruler/base/override.md', '.ruler/base/web/override.d/a.md', '.ruler/team-base/override.d/z.md']) assert.ok(r.generated.includes(k), k);
+  for (const k of ['.ruler/base/override.md', '.ruler/base/web/override.d/a.md', '.ruler/team-base/override.d/z.md']) assert.ok(r.generated.project.includes(k), k);
   // 바꿈을 지우면 복사본도 지운다
   applyDisk(p, r.files);
   fs.rmSync(path.join(p, '.guideline/overrides/base/web'), { recursive: true });
@@ -220,7 +220,7 @@ test('compose 는 .guideline/overrides 를 .ruler/<스택>/ 로 복사한다', t
 test('compose 는 중첩 단위에서 루트 전용 항목을 빼고 중첩 기본 설정을 쓴다', t => {
   const { p } = guideProject(t);
   const r = compose({ project: p, manifest: MANIFEST, nested: true, rulerAgentsEnabled: true });
-  assert.ok(r.generated.every(x => !x.startsWith('.ruler/skills/') && !x.startsWith('.ruler/agents/')), r.generated.join(', '));
+  assert.ok(r.generated.project.every(x => !x.startsWith('.ruler/skills/') && !x.startsWith('.ruler/agents/')), r.generated.project.join(', '));
   assert.equal(r.files['.ruler/ruler.toml'].toString(), NESTED_TOML_BASE(['claude', 'codex']));
   assert.ok(r.files['.ruler/base/00-a.md']);
   assert.ok(!r.todos.some(x => x.item?.startsWith('mcp/')), JSON.stringify(r.todos));
@@ -248,7 +248,7 @@ test('compose 는 고르지 않은 스택의 바꿈을 옮기지 않고 override
   write(p, '.guideline/overrides/base/zzz/override.d/a.md', '## 고르지 않은 하위 스택\n');
   const r = compose({ project: p, manifest: MANIFEST, nested: false, rulerAgentsEnabled: true });
   assert.ok(r.files['.ruler/base/override.md']);
-  assert.ok(!r.generated.some(x => x.startsWith('.ruler/other/') || x.startsWith('.ruler/base/zzz/')), r.generated.join(', '));
+  assert.ok(!r.generated.project.some(x => x.startsWith('.ruler/other/') || x.startsWith('.ruler/base/zzz/')), r.generated.project.join(', '));
   assert.deepEqual(r.todos.filter(x => x.kind === 'override-unchosen').map(x => x.message), [
     '.guideline/overrides/base/zzz/: 고르지 않은 스택이라 바꿈을 조합하지 않음 — 스택을 고르거나 바꿈을 지우기',
     '.guideline/overrides/other/: 고르지 않은 스택이라 바꿈을 조합하지 않음 — 스택을 고르거나 바꿈을 지우기',
@@ -278,4 +278,162 @@ test('사본 폴더의 frontmatter 없는 파일은 막힘 할 일로 빼고 나
   assert.match(r.todos.find(x => x.kind === 'blocked').message, /^\.guideline\/rules\/base\/07-x\.md: /);
   assert.equal(r.files['.ruler/base/00-a.md'].toString(), '# a\n\nA\n');
   assert.equal(Object.keys(r.files).some(f => f.includes('07-x')), false);
+});
+
+// ── 개인 겹 ──
+// compose 는 git 을 부르지 않으므로 공용 디렉터리·개인 저장소는 임시 폴더로 흉내 낸다(실제 git 은 project-apply 테스트).
+
+const EXTRA = { 'rules/extra/00-e.md': `${ALWAYS}# 개인 더함\n`, 'rules/extra/SETUP.md': '# extra 세팅\n' };
+
+/** 개인 겹 입력: local 은 출처별 { add, remove }. 개인 사본은 <store>/.guideline/ 에 둔다. */
+function personalOf(t, sources, { copies = EXTRA, unitRel = '' } = {}) {
+  const common = dir(t);
+  const store = path.join(common, 'guideline', 'units', '%root');
+  for (const [k, v] of Object.entries(copies)) write(store, `.guideline/${k}`, v);
+  const local = { version: 1, sources: Object.fromEntries(Object.entries(sources).map(([n, s]) => [n, { add: s.add ?? [], remove: s.remove ?? [] }])) };
+  return { local, store, common, unitRel, worktree: '.' };
+}
+
+/** 개인 겹 없이 조합해 쓴 프로젝트. */
+function composedProject(t, manifest = MANIFEST) {
+  const { p } = guideProject(t, manifest);
+  write(p, '.gitignore', 'node_modules\n');
+  const base = compose({ project: p, manifest, nested: false, rulerAgentsEnabled: true });
+  applyDisk(p, base.files);
+  return { p, base };
+}
+
+const run = (p, personal, manifest = MANIFEST) => compose({ project: p, manifest, nested: false, rulerAgentsEnabled: true, personal });
+
+test('개인 더함은 .gitignore 를 바꾸지 않고 exclude 로 낸다', t => {
+  const { p, base } = composedProject(t);
+  const gi = read(p, '.gitignore');
+  const personal = personalOf(t, { company: { add: ['rules/extra'] } });
+  const r = run(p, personal);
+  assert.ok(!Object.hasOwn(r.files, '.gitignore'), '커밋되는 .gitignore 가 바뀌었다');
+  assert.deepEqual(r.generated.project, base.generated.project);
+  assert.deepEqual(r.generated.personal, ['.ruler/extra/00-e.md', 'docs/guideline/extra/SETUP.md']);
+  assert.equal(r.files['.ruler/extra/00-e.md'].toString(), '# 개인 더함\n');
+  assert.deepEqual(r.exclude, {
+    markers: { start: '# START guideline personal files . @.', end: '# END guideline personal files . @.' },
+    paths: ['/.ruler/extra/00-e.md', '/docs/guideline/extra/SETUP.md'],
+  });
+  applyDisk(p, r.files);
+  assert.equal(read(p, '.gitignore'), gi);
+  // 중첩 단위의 패턴은 워크트리 루트 기준
+  const nested = run(p, { ...personal, unitRel: 'packages/a b' });
+  assert.deepEqual(nested.exclude.paths, ['/packages/a b/.ruler/extra/00-e.md', '/packages/a b/docs/guideline/extra/SETUP.md']);
+  assert.equal(nested.exclude.markers.start, '# START guideline personal files packages/a b @.');
+});
+
+test('개인 뺌은 그 스택의 생성물을 지우지만 .gitignore 블록은 그대로다', t => {
+  const { p, base } = composedProject(t);
+  const r = run(p, personalOf(t, { company: { remove: [`rules/${DEPLOY}`] } }));
+  const gone = base.generated.project.filter(x => x.includes(DEPLOY));
+  assert.equal(gone.length, 3);
+  for (const g of gone) assert.equal(r.files[g], null, g);
+  assert.ok(!Object.hasOwn(r.files, '.gitignore'));
+  assert.deepEqual(r.generated.project, base.generated.project);
+  assert.deepEqual(r.generated.personal, []);
+  assert.deepEqual(r.exclude.paths, []);
+});
+
+test('개인 선택이 비면 개인 겹 없이 조합한 것과 같다', t => {
+  const { p } = guideProject(t);
+  const plain = run(p, null);
+  const empty = run(p, personalOf(t, {}));
+  assert.deepEqual(Object.keys(empty.files), Object.keys(plain.files));
+  for (const [k, v] of Object.entries(plain.files)) assert.ok(v.equals(empty.files[k]), k);
+  assert.deepEqual(empty.generated, { project: plain.generated.project, personal: [] });
+  assert.deepEqual(empty.exclude.paths, []);
+  assert.equal(plain.exclude, null);
+  // 남은 개인 사본이 있어도 더한 것이 없으면 읽지 않는다
+  const stale = run(p, personalOf(t, {}, { copies: { 'rules/base/09-z.md': `${ALWAYS}# 남은 사본\n` } }));
+  assert.deepEqual(Object.keys(stale.files), Object.keys(plain.files));
+});
+
+test('개인 선택을 되돌리면 지난 exclude 블록의 생성물을 지운다', t => {
+  const { p } = composedProject(t);
+  const personal = personalOf(t, { company: { add: ['rules/extra'] } });
+  const added = run(p, personal);
+  applyDisk(p, added.files);
+  // apply 가 쓰는 것처럼 exclude 블록을 공용 디렉터리에 둔다
+  write(personal.common, 'info/exclude', `# 사용자 줄\n${added.exclude.markers.start}\n${added.exclude.paths.join('\n')}\n${added.exclude.markers.end}\n`);
+  const back = run(p, { ...personal, local: { version: 1, sources: {} } });
+  assert.equal(back.files['.ruler/extra/00-e.md'], null);
+  assert.equal(back.files['docs/guideline/extra/SETUP.md'], null);
+  assert.deepEqual(back.exclude.paths, []);
+  // 다른 단위의 블록에 적힌 경로는 이 단위 것이 아니다
+  const other = run(p, { ...personal, unitRel: 'sub', local: { version: 1, sources: {} } });
+  assert.ok(!Object.hasOwn(other.files, '.ruler/extra/00-e.md'));
+});
+
+test('개인으로 뺀 스택의 프로젝트 바꿈은 복사하지 않고 할 일도 없다', t => {
+  const { p } = composedProject(t);
+  write(p, `.guideline/overrides/${DEPLOY}/override.md`, '## 배포 바꿈\n');
+  write(p, '.guideline/overrides/extra/override.md', '## 개인 스택 바꿈\n');
+  write(p, '.guideline/overrides/other/override.md', '## 안 고름\n');
+  const projectOnly = run(p, null);
+  assert.ok(projectOnly.files[`.ruler/${DEPLOY}/override.md`]);
+  // 개인 사본 쪽에 바꿈이 있어도 읽지 않는다(바꿈은 프로젝트 것만)
+  const copies = { ...EXTRA, 'overrides/extra/override.d/p.md': '## 개인 사본의 바꿈\n' };
+  const r = run(p, personalOf(t, { company: { add: ['rules/extra'], remove: [`rules/${DEPLOY}`] } }, { copies }));
+  assert.ok(!Object.hasOwn(r.files, '.ruler/extra/override.d/p.md'));
+  assert.ok(!Object.hasOwn(r.files, `.ruler/${DEPLOY}/override.md`));
+  assert.ok(!r.generated.personal.includes(`.ruler/${DEPLOY}/override.md`));
+  // 프로젝트 선택으로는 생기는 경로라 .gitignore 블록에는 남는다
+  assert.ok(r.generated.project.includes(`.ruler/${DEPLOY}/override.md`));
+  // 개인으로 더한 스택의 바꿈은 옮기고 개인 경로다
+  assert.equal(r.files['.ruler/extra/override.md'].toString(), '## 개인 스택 바꿈\n');
+  assert.ok(r.generated.personal.includes('.ruler/extra/override.md'));
+  assert.deepEqual(r.todos.filter(x => x.kind === 'override-unchosen').map(x => x.message), [
+    '.guideline/overrides/other/: 고르지 않은 스택이라 바꿈을 조합하지 않음 — 스택을 고르거나 바꿈을 지우기',
+  ]);
+});
+
+test('관리 지침에 이 작업자의 더함·뺌과 세팅 규칙이 보인다', t => {
+  const manifest = checkManifest({ ...MANIFEST, sources: {
+    company: { ...MANIFEST.sources.company, required: ['rules/base'] },
+    team: MANIFEST.sources.team,
+  } });
+  const { p } = composedProject(t, manifest);
+  const plainGuide = read(p, '.ruler/guideline.md');
+  // 프로젝트 사본에 없는 관리 지침 추가분이 개인 사본에만 있어도 읽지 않는다
+  fs.rmSync(path.join(p, '.guideline/management/company.md'));
+  assert.doesNotMatch(plainGuide, /개인 범위/);
+  const r = run(p, personalOf(t, {
+    company: { add: ['rules/extra'], remove: [`rules/${DEPLOY}`, 'rules/base'] },
+    team: { remove: ['skills/s', 'mcp/none'] },
+  }, { copies: { ...EXTRA, 'management/company.md': '## 개인 사본의 관리 지침\n' } }), manifest);
+  const guide = r.files['.ruler/guideline.md'].toString();
+  assert.doesNotMatch(guide, /개인 사본의 관리 지침/);
+  // 출처가 둘이라 출처를 붙이고, 별칭을 입힌 키로 보인다
+  assert.ok(guide.includes([
+    '## 이 작업자의 개인 범위', '',
+    '이 작업자는 프로젝트 선택 위에 아래 개인 선택을 얹었다. 개인 선택은 이 작업자의 git 저장소에만 있고 커밋되지 않는다. 개인 범위에서만 나온 생성물은 `.gitignore` 가 아니라 git 의 `info/exclude` 에 적힌다.', '',
+    '- 더한 것: `rules/extra` (company)',
+    `- 뺀 것: \`rules/${DEPLOY}\` (company), \`skills/team-s\` (team)`,
+    '- 무시된 뺌: `mcp/none` (team, 뺄 것이 없음), `rules/base` (company, 필수라 뺄 수 없음)',
+    '- 개인 범위 스택(세팅 표에서 「개인」 표시)의 세팅은 세팅 문서를 따르되 커밋되는 파일을 바꾸지 않는다. 바꿔야 하는 단계(커밋되는 설정 파일, `.gitignore` 등)는 건너뛰지 말고 사용자에게 알린다.',
+  ].join('\n')), guide);
+  // 세팅 표: 개인으로 더한 스택만 「개인」
+  assert.match(guide, /^\| extra \(개인\) \| company \| `docs\/guideline\/extra\/SETUP\.md` \|$/m);
+  assert.match(guide, /^\| base \| company \| `docs\/guideline\/base\/SETUP\.md` \|$/m);
+  // 필수는 빠지지 않는다
+  assert.notEqual(r.files['.ruler/base/00-a.md'], null);
+  assert.equal(r.files['.ruler/skills/team-s/SKILL.md'], null);
+});
+
+test('개인 사본은 개인으로 더한 키 아래에서만 읽는다', t => {
+  const { p } = composedProject(t);
+  // 개인 저장소에 프로젝트 스택 base 의 지난 사본(원본에서 지워진 규칙)이 남아 있어도 되살아나지 않는다
+  const copies = { ...EXTRA, 'rules/base/09-old.md': `${ALWAYS}# 지워진 규칙\n` };
+  // 프로젝트 .guideline/ 에 개인 스택 extra 의 남은 사본이 있어도 개인 사본을 가리지 않고 섞이지 않는다
+  write(p, '.guideline/rules/extra/00-e.md', `${ALWAYS}# 프로젝트에 남은 사본\n`);
+  write(p, '.guideline/rules/extra/07-left.md', `${ALWAYS}# 남은 파일\n`);
+  const r = run(p, personalOf(t, { company: { add: ['rules/extra'] } }, { copies }));
+  assert.ok(!Object.keys(r.files).some(k => k.includes('09-old')), Object.keys(r.files).join(', '));
+  assert.ok(!r.generated.personal.some(k => k.includes('09-old') || k.includes('07-left')), r.generated.personal.join(', '));
+  assert.equal(r.files['.ruler/extra/00-e.md'].toString(), '# 개인 더함\n');
+  assert.deepEqual(r.generated.personal, ['.ruler/extra/00-e.md', 'docs/guideline/extra/SETUP.md']);
 });

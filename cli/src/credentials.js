@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { configDir } from './config-dir.js';
 
 /** @param {{ env?: object, home?: string }} [opts] */
 export function credentialsPath({ env = process.env, home = os.homedir() } = {}) {
-  const base = env.XDG_CONFIG_HOME || path.join(home, '.config');
-  return path.join(base, 'guideline', 'credentials.json');
+  return path.join(configDir({ env, home }), 'credentials.json');
 }
 
 const originOf = server => new URL(server).origin;

@@ -39,6 +39,7 @@ guideline status               # are the applied guidelines current, and what di
 guideline update               # same items, latest version. Files edited in the project are skipped
 guideline update --force       # also overwrite files edited in the project
 guideline apply                # compose the generated agent files from .guideline/ without the server, then run ruler
+guideline pick --local         # change only what you receive (personal scope, needs git); committed files stay as they are
 ```
 
 - `pick` sends only the result of comparing the project with the source to the server and prints the form address (`Form: <address>` on stderr). It waits until items are checked in the form and submitted. MCP values (secrets) are not sent.
@@ -50,7 +51,7 @@ guideline apply                # compose the generated agent files from .guideli
 - **Commit** `guideline.json` (chosen items), `guideline-lock.json` (applied revision and hashes), `.guideline/`, `.ruler/ruler.project.toml`, `.gitignore` and the project's own `.ruler/*.md`. The CLI does not commit.
 - **After a clone or in a new worktree**, the generated files do not exist yet. Run `guideline apply`: it needs no server. A project with a `package.json` that has `guideline-manage` in its dependencies runs it from `scripts.prepare`, so `pnpm install` does it. Do not run `ruler apply` alone before that: without `.ruler/ruler.toml` ruler writes files for every agent, including a `CLAUDE.md` that hides `AGENTS.md` from Claude Code (`apply` deletes such a file and says so).
 - **Moving an old project.** The first `pick` or `update` with this CLI moves a project that was received in the old layout (copies in `.ruler/<stack>/` and `docs/guideline/`): copies go to `.guideline/` with the project's edits kept, overrides to `.guideline/overrides/`, `ruler.toml` to `ruler.project.toml`, old copies are removed from the git index (`git rm --cached`), and `prepare` in `package.json` changes from `ruler apply` to `guideline apply` only when `guideline-manage` is in its dependencies and `ruler apply` has no arguments. Otherwise you get a `dev-dependency` (or `prepare-manual`) to-do, which `status` and `update` repeat until it is fixed: until then, `prepare` in a clone runs only ruler and writes an `AGENTS.md` without the guidelines. It stops with "Commit or stash your changes first" when tracked files in the directory have uncommitted changes. Review with `git status` and commit. Until the move, `status`, `propose` and `apply` stop with exit code 2 ("This project still uses the old layout"), and an old CLI cannot read the new files.
-- **Monorepos**: run in a subdirectory with its own `.ruler/` and that directory becomes a separate unit, with its own manifest, lock and copies. Skills, subagents and MCP servers are received only at the git root. ruler builds that directory's guidelines only when the git root's ruler settings (`.ruler/ruler.project.toml`) have `nested = true`. `guideline apply` at the git root also composes every unit below it that git tracks (a directory with a committed `guideline-lock.json`), then runs ruler once, so one `apply` (or the root's `prepare`) after a clone fills every unit. A unit still in the old layout is skipped (to-do `unit-update`). When the git root is not a guideline project itself, `apply` there composes the units and runs ruler with the root's own `.ruler/ruler.toml` (to-do `root-ruler-toml` when there is none). A unit's own `apply` stops before ruler (to-do `root-apply`) while the git root has no `.ruler/ruler.toml`.
+- **Monorepos**: run in a subdirectory with its own `.ruler/` and that directory becomes a separate unit, with its own manifest, lock and copies. Skills, subagents and MCP servers are received only at the git root. ruler builds that directory's guidelines only when the git root's ruler settings (`.ruler/ruler.project.toml`) have `nested = true`. `guideline apply` at the git root also composes every unit below it that git tracks (a directory with a committed `guideline-lock.json`), then runs ruler once, so one `apply` (or the root's `prepare`) after a clone fills every unit. `update`, `pick` and `pick --local` at the git root compose those units too, before ruler runs. A unit still in the old layout is skipped (to-do `unit-update`), and a unit whose generated files could not all be written gets `unit-write-failed`. When the git root is not a guideline project itself, `apply` there composes the units and runs ruler with the root's own `.ruler/ruler.toml` (to-do `root-ruler-toml` when there is none). A unit's own `apply` stops before ruler (to-do `root-apply`) while the git root has no `.ruler/ruler.toml`.
 - Exit codes: 0 done, 1 error, 2 usage error (including "not a ruler project", and `apply` in a project that has not received anything yet or is still in the old layout), 3 cancelled or expired (nothing written). A source whose server is too old for the stack form (older than 0.24.0) is skipped with "This server is older than the CLI" and counts as an error (exit code 1).
 
 ## Receiving from several sources
@@ -81,6 +82,25 @@ guideline update --source company    # update only that source
 - `propose` sends one proposal per source to that source's server (aliases are turned back into the original names).
 - Each source's `docs/management.md` is kept in `.guideline/management/<source>.md` and appended to the management guideline (`.ruler/guideline.md`) as `## <source> additional guidelines`.
 
+## Only on your machine (personal scope)
+
+A worker can add blocks to the project's choice, or remove blocks from it, for themselves only. The project and its committed files stay as they are.
+
+```bash
+guideline pick --local                       # the personal form: As project / Add / Remove per block
+guideline pick --local --recommend r.json    # pre-checked: {"add": {"block key": "reason"}, "remove": {"block key": "reason"}}
+```
+
+- **Where it is kept.** The personal selection is `local.json` in git's common directory, `<git common dir>/guideline/units/<unit key>/` (unit key `%root` for the git root unit, otherwise the URL-encoded unit path, such as `packages%2Fapi`). Every worktree of the clone shares it, and it is never committed. The personal copies (`.guideline/` and `guideline-lock.json`) live next to it. It needs a git repository and git 2.31 or later; otherwise `pick --local` stops with exit code 2.
+- **What you receive** = the project's choice + your additions (with their ancestor stacks) − your removals (with the child stacks below them). `guideline.json`, `guideline-lock.json`, `.guideline/` and the `.gitignore` block do not change. Generated files that come only from the personal scope are listed in git's `info/exclude`, in a block per unit and worktree (`# START guideline personal files <unit path> @<worktree>`, `.` for the git root unit and for the main worktree).
+- **Required.** In the project's pick form a chosen block can be marked **Required** (`sources.<name>.required` in `guideline.json`). Nobody can remove a Required block, or a stack that holds one, in a personal selection; a removal left from before is ignored (to-do `personal-ignored`).
+- **Recommending for a worker.** Judge from the worker's own work and tools, not from the project's files: a stack whose `when` names a tool ("work that uses <tool>") fits a worker who uses that tool. A plain `{"block key": "reason"}` means add. A key not in the source, or a removal of a Required block, stops with exit code 2 before the form opens.
+- **Machine defaults.** "Save this selection as my default" in the personal form stores it per server address (origin) in `~/.config/guideline/defaults.json` (`$XDG_CONFIG_HOME/guideline/` when it is set). It only pre-checks the personal form in a project where you have no personal selection yet; `update` and `apply` never read it.
+- **Updating.** `pick --local` receives the personal copies at the revision in the project's lock. `guideline update` updates the project and the personal copies together. `guideline apply` composes them in any worktree without the server. Do not edit the personal copies: `update` overwrites them and `propose` does not send them.
+- **Setup.** A stack received only personally gets a `setup-personal` to-do instead of `setup`: set it up without changing committed files, and tell the user about a step that would.
+- `guideline status` shows the personal scope on two lines ("Personal scope — added …", "removed …"); `status --json` has `personal` (`null` when the unit is not in a git repository or `local.json` cannot be read).
+- A server older than 0.24 does not know the personal form: `pick --local` stops with exit code 1 ("This server does not know the personal form").
+
 ## Sending changes upstream (proposals)
 
 The source changes through proposals an admin accepts. With an `admin` scope token, `propose` applies directly instead of proposing (the source changes right away, without review); add `--review` to get a review. Once the source changes, each project receives it with `guideline update`.
@@ -103,6 +123,8 @@ guideline proposals <number>             # one proposal: Outdated and conflicts,
 
 `pick --json`, `update --json`, `status --json` and `apply --json` print `{ revision, written, deleted, todos }` (`status` only carries the to-dos it can tell). Whatever the CLI could not do alone is left in `todos`. Handle them one by one and report what you handled and what is left. **Submitting the form is the user's confirmation, so do not ask again before applying.**
 
+A to-do with `scope: "personal"` comes from the personal copies (`setup-personal`, `removed-upstream`, and others whose message starts with "Personal copy —"). Handle it like the same kind, but do not change committed files for it; tell the user about a step that would.
+
 | kind | What to do |
 | --- | --- |
 | `mcp-build` | Following the "Build on apply" section of `data.text` (the source `mcp/<name>/README.md`), read this project's values and build the MCP entry in `.ruler/ruler.project.toml` (`.ruler/ruler.toml` is regenerated by `guideline apply`). Show the values and where they came from and get confirmation before writing |
@@ -116,8 +138,9 @@ guideline proposals <number>             # one proposal: Outdated and conflicts,
 | `apply` | The generated agent files are out of date (from `status`, or after a move that could not write them). Run `guideline apply`; it needs no server. Run it before committing, or `git add -A` puts the old copies back |
 | `ruler-apply` | Ask whether you may run the suggested `ruler apply` command |
 | `root-apply` | A monorepo unit's `apply` did not run ruler because the git root has no `.ruler/ruler.toml` yet. Run `guideline apply` at the git root first (or put `.ruler/ruler.toml` with `nested = true` there yourself), then run it in the unit again |
-| `unit-update` | `guideline apply` at the git root found a unit below it still in the old layout and did not compose it. Run `guideline update` in that unit (it needs the server) |
-| `unit-problem` | `guideline apply` at the git root could not open a unit below it (the reason follows). Fix it, or run `guideline apply` in that unit to see the error |
+| `unit-update` | `guideline apply`, `update`, `pick` or `pick --local` at the git root found a unit below it still in the old layout and did not compose it. Run `guideline update` in that unit (it needs the server) |
+| `unit-problem` | `guideline apply`, `update`, `pick` or `pick --local` at the git root could not open a unit below it (the reason follows). Fix it, or run `guideline apply` in that unit to see the error |
+| `unit-write-failed` | `guideline apply`, `update`, `pick` or `pick --local` at the git root could not write all the generated files of a unit below it (the error names the unit). ruler still ran, so do not trust that unit's `AGENTS.md` and other agent files. Fix the cause, then run `guideline apply` at the git root again |
 | `root-ruler-toml` | The git root is not a guideline project and has no `.ruler/ruler.toml`, so `apply` composed the units but did not run ruler. Ask the user to put a `.ruler/ruler.toml` with `nested = true` there and commit it, then run `guideline apply` again |
 | `nested-off` | Ask whether to turn on `nested = true` in `.ruler/ruler.project.toml` at the git root |
 | `no-copy` | A chosen item has no copy in `.guideline/` (blocked, or an MCP entry to build), so it was not composed. Run `guideline update` to see why |
@@ -132,7 +155,15 @@ guideline proposals <number>             # one proposal: Outdated and conflicts,
 | `apply-hook` | There is no `package.json`, so nothing composes agent files after a clone. Add `guideline apply` to the project's setup step (for Orca, `scripts.setup` in `orca.yaml`) |
 | `adopted` | A copy `propose` left out. It already differed from the source when first received (it may be an old version). Use `guideline propose --only <item>` only if the project really edited it; if it is an old version, `guideline update --force` |
 | `alias` | An alias problem. For "the stack moved", move the override files to `.guideline/overrides/<new name>/`. Otherwise fix `aliases` in `guideline.json` |
-| `removed-upstream` | Tell the user, and suggest `guideline pick` to remove it |
+| `removed-upstream` | Tell the user, and suggest `guideline pick` to remove it (`guideline pick --local` when it has `scope: "personal"`) |
+| `setup-personal` | A stack received only in the personal scope has a setup doc. Follow `docs/guideline/<stack>/SETUP.md` as for `setup`, but do not change committed files (`package.json`, committed config, `.gitignore`, `.ruler/ruler.project.toml` …). Do not skip a step that would silently: tell the user what it would change |
+| `personal-ignored` | The project now marks a block Required that the worker removed personally, so the removal is ignored. Tell the user; clean it up with `guideline pick --local` |
+| `personal-shadowed` | A personal addition has the same final name as a block the project picked from another source, so it is not used. From `pick --local` it was not saved; otherwise clean it up with `guideline pick --local` |
+| `personal-revision` | The personal copies and the project's copies are at different revisions of a source (another worktree ran `update`), so overrides may point at sections that differ. Run `guideline update` |
+| `personal-sync` | The personal copies could not be updated (a write error, or a personal lock that cannot be read: delete the file named). The project was applied. Fix it and run `guideline update` again |
+| `local-bad` | The personal selection (`local.json`) cannot be read, so the files were composed from the project's choice only. The user fixes or deletes that file, then run `guideline apply` |
+| `ruler-leftover` | Something ruler made or changed only for the worker's personal choice was left alone: a settings file or folder that still holds something added by hand, is tracked, belongs to an agent other than claude, codex and opencode, or is the `.bak` backup of such another agent's settings or of a settings file put there by hand — or an MCP server dropped from the composed choice is still in such another agent's settings. Tell the user; they remove it if they no longer need it |
+| `override-target` | An override points at a file or section that is not in the composed copies (the project's plus the personal ones). Fix the override's first line, or run `guideline update` when the revisions differ. Any project can get it |
 | `missing-requires` | A received block (`item`) needs blocks that were not received (`data.missing`; from `update` and `status`). Tell the user which blocks are missing, and run `guideline pick --recommend <file> --json` with a recommendation file holding them (add `--source <source>` when there are several sources); submitting the form is the confirmation |
 | `blocked` | Not applied because of a source warning (or because it is a nested directory), or a file in `.guideline/` could not be composed (the message gives its path). The copy stays as it is. Report the reason |
 | `leftover` | Unchecked, or dropped from a chosen stack by the source, but the copy differs from the source, so it was not deleted. Show the diff and ask whether to delete it |
@@ -143,7 +174,8 @@ guideline proposals <number>             # one proposal: Outdated and conflicts,
 - **Do not edit the generated files** (`.ruler/<stack>/`, `.ruler/guideline.md`, `.ruler/skills/`, `.ruler/ruler.toml`, `docs/guideline/`): the next `guideline apply` overwrites them. Settings of ruler go in `.ruler/ruler.project.toml`.
 - **Do not put project files inside `.guideline/rules/<stack>/` or the generated `.ruler/<stack>/` folders** (sub-folders included). A received stack folder belongs to the source: a file or sub-folder that is not in the source shows up as "removed from source". Project-only rules are overrides, below, or `.ruler/*.md`.
 - Write anything that should differ for this project only as an **override**: `.guideline/overrides/<stack path>/override.md` (or `override.d/*.md`; `.guideline/overrides/<parent>/<child>/override.md` for a child stack). Start each override with the line ``Overrides: `<stack>/<file>` "<## section title>"`` (drop the quoted title for the whole file). Overrides win over the copies, and the CLI never touches them.
-- When a stack needs setup, follow `docs/guideline/<stack>/SETUP.md`.
+- When a stack needs setup, follow `docs/guideline/<stack>/SETUP.md`. For a stack in the personal scope (`setup-personal`), do not change committed files.
+- **Do not edit the personal copies** in `<git common dir>/guideline/units/`: `guideline update` overwrites them and `propose` does not send them. Change what a worker receives with `guideline pick --local`.
 - Never put secrets in proposals either. Write MCP values as `${VAR}` references.
 
 ## API (`Authorization: Bearer <token>`)

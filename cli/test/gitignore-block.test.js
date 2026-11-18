@@ -91,3 +91,17 @@ test('어떤 손상 입력에도 writeBlock 두 번 뒤 블록 밖 사용자 줄
     }
   }
 });
+
+test('readBlock·writeBlock 은 표시를 받아 다른 표시의 블록을 건드리지 않는다', () => {
+  const mine = { start: '# START guideline personal files .', end: '# END guideline personal files .' };
+  const sub = { start: '# START guideline personal files sub', end: '# END guideline personal files sub' };
+  const text = `# 사용자\n${block(['/a'])}`;
+  const next = writeBlock(text, ['/x', '/sub/y'], mine);
+  assert.equal(next, `# 사용자\n${block(['/a'])}${mine.start}\n/sub/y\n/x\n${mine.end}\n`);
+  assert.deepEqual(readBlock(next), ['/a']);
+  assert.deepEqual(readBlock(next, mine), ['/sub/y', '/x']);
+  assert.deepEqual(readBlock(next, sub), []);
+  const both = writeBlock(next, ['/sub/z'], sub);
+  assert.deepEqual(readBlock(both, mine), ['/sub/y', '/x']);
+  assert.equal(writeBlock(both, [], mine), `# 사용자\n${block(['/a'])}${sub.start}\n/sub/z\n${sub.end}\n`);
+});

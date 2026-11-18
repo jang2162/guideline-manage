@@ -143,3 +143,27 @@ export function overlayTree(base, changes) {
   };
   return tree;
 }
+
+/**
+ * 두 트리를 겹쳐 읽는 트리. 같은 경로는 primary 것을 읽고, primary 에 없을 때만 secondary 를 읽는다. 목록은 둘을 합친다
+ * (한쪽이라도 디렉터리면 디렉터리). 조합이 프로젝트 사본(.guideline/) 위에 개인 사본을 얹을 때 쓴다.
+ * @param {Tree} primary
+ * @param {Tree} secondary
+ * @returns {Tree}
+ */
+export function unionTree(primary, secondary) {
+  return {
+    list(dir) {
+      const seen = new Map();
+      for (const e of primary.list(dir)) seen.set(e.name, e.dir);
+      for (const e of secondary.list(dir)) seen.set(e.name, seen.get(e.name) || e.dir);
+      return [...seen].map(([name, isDir]) => ({ name, dir: isDir })).sort(byName);
+    },
+    read(file) {
+      return primary.read(file) ?? secondary.read(file);
+    },
+    exists(p) {
+      return primary.exists(p) || secondary.exists(p);
+    },
+  };
+}

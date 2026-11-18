@@ -125,3 +125,46 @@ test('CHANGELOG 와 README 가 새 배치를 깨지는 변경으로 적는다', 
     for (const want of ['guideline apply', '.guideline/', 'ruler.project.toml']) assert.ok(text.includes(want), `${f}: ${want}`);
   }
 });
+
+// 개인 범위(pick --local)·필수 블록·머신 기본값을 문서가 실제 동작대로 적는다.
+const PERSONAL_KINDS = ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed'];
+
+test('개인 범위: 참조·설정·how-to·모노레포·문제 해결·올리기 문서가 pick --local 과 그 자리·할 일을 적는다', () => {
+  const how = 'how-to/use-guidelines-only-on-your-machine.md';
+  assert.ok(MANUAL.includes(how), how);
+  const index = read('docs/manual/README.md');
+  for (const lang of ['en', 'ko']) {
+    assert.ok(index.includes(`(${lang}/${how})`), `README 목차: ${lang}`);
+    const ref = read(`docs/manual/${lang}/reference.md`);
+    for (const want of ['guideline pick --local', 'local.json', '%root', 'info/exclude', 'defaults.json', '"required"', 'scope: "personal"', '`shadowed`', 'modes: ["project", "personal"]', how, ...PERSONAL_KINDS.map(k => `\`${k}\``)]) {
+      assert.ok(ref.includes(want), `${lang}/reference.md: ${want}`);
+    }
+    // status JSON 의 personal 이 null 인 뜻(git 아님, local.json 깨짐)
+    assert.match(ref, lang === 'en' ? /`personal` is `null` when the unit is not in a git repository, or `local\.json` cannot be read/ : /git 저장소가 아니거나 `local\.json` 을 읽을 수 없으면[^\n]*`personal` 은 `null`/, lang);
+    // 중첩 단위의 개인 폼은 루트 전용 블록을 막지 않는다(한계)
+    for (const f of [`docs/manual/${lang}/reference.md`, `docs/manual/${lang}/${how}`, `docs/manual/${lang}/how-to/use-in-a-monorepo.md`]) {
+      assert.match(read(f), lang === 'en' ? /does not (block|stop you from adding) (skills, subagents and MCP servers|them)/ : /막지 않습니다/, f);
+    }
+    const conf = read(`docs/manual/${lang}/configuration.md`);
+    for (const want of ['defaults.json', 'local.json', 'info/exclude', 'XDG_CONFIG_HOME']) assert.ok(conf.includes(want), `${lang}/configuration.md: ${want}`);
+    const page = read(`docs/manual/${lang}/${how}`);
+    for (const want of ['guideline pick --local', 'setup-personal', 'personal-revision', 'personal-ignored', 'defaults.json', 'info/exclude', '%root', '--recommend']) assert.ok(page.includes(want), `${lang}/${how}: ${want}`);
+    const mono = read(`docs/manual/${lang}/how-to/use-in-a-monorepo.md`);
+    for (const want of ['unit-write-failed', 'guideline pick --local']) assert.ok(mono.includes(want), `${lang}/use-in-a-monorepo.md: ${want}`);
+    const tr = read(`docs/manual/${lang}/troubleshooting.md`);
+    for (const want of ['local-bad', 'defaults.json', 'info/exclude']) assert.ok(tr.includes(want), `${lang}/troubleshooting.md: ${want}`);
+    const up = read(`docs/manual/${lang}/how-to/upgrade.md`);
+    for (const want of ['guideline pick --local', ...PERSONAL_KINDS.map(k => `\`${k}\``)]) assert.ok(up.includes(want), `${lang}/upgrade.md: ${want}`);
+  }
+  const glossary = read('docs/manual/glossary.md');
+  for (const want of ['| personal scope | 개인 범위 |', '| Required (block) | 필수 (블록) |', '| machine defaults | 머신 기본값 |', '| git common directory | git 공용 디렉터리 |']) assert.ok(glossary.includes(want), want);
+});
+
+test('개인 범위: CHANGELOG 와 README 가 pick --local·필수·머신 기본값·모든 프로젝트의 override-target 을 적는다', () => {
+  const log = read('CHANGELOG.md');
+  const unreleased = log.slice(log.indexOf('## Unreleased'), log.indexOf('## 0.23.0'));
+  for (const want of ['`guideline pick --local`', 'Required', 'defaults.json', 'info/exclude', '`override-target`', 'in every project', 'scope: "personal"', ...PERSONAL_KINDS.map(k => `\`${k}\``)]) {
+    assert.ok(unreleased.includes(want), want);
+  }
+  for (const f of ['README.md', 'README.ko.md']) assert.ok(read(f).includes('guideline pick --local'), f);
+});

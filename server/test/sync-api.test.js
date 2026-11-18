@@ -150,3 +150,27 @@ test('cli/token 은 코드와 verifier 를 읽기 토큰으로 바꾼다. 틀리
   for (let i = 0; i < 4; i++) await post(s, '/api/v1/cli/token', { code: 'x', verifier });
   assert.equal((await post(s, '/api/v1/cli/token', { code: 'x', verifier })).status, 429);
 });
+
+test('폼 API 는 개인 모드 본문을 검사하고 응답에 modes 를 준다', async t => {
+  const s = await withData(t);
+  const a = s.tokens.issue({ name: 'cli-a', scope: 'read' }).token;
+  const plain = await post(s, '/api/v1/forms', FORM, { auth: a });
+  assert.deepEqual(plain.json().modes, ['project', 'personal']);
+  const personal = { chosen: ['rules/a'], required: ['rules/a'], add: ['skills/s'], remove: [], preset: 'local' };
+  const ok = await post(s, '/api/v1/forms', { ...FORM, mode: 'personal', personal }, { auth: a });
+  assert.equal(ok.status, 201);
+  assert.deepEqual(ok.json().modes, ['project', 'personal']);
+  assert.equal((await post(s, '/api/v1/forms', { ...FORM, required: ['rules/a'] }, { auth: a })).status, 201, '프로젝트 모드의 필수');
+  const bad = [
+    { ...FORM, mode: 'other' },
+    { ...FORM, mode: 'personal' },
+    { ...FORM, mode: 'personal', personal: { ...personal, preset: 'mine' } },
+    { ...FORM, mode: 'personal', personal: { ...personal, add: 'skills/s' } },
+    { ...FORM, mode: 'personal', personal: { ...personal, remove: ['rules/a/00-x.md'] } },
+    { ...FORM, mode: 'personal', personal: { ...personal, chosen: [1] } },
+    { ...FORM, mode: 'personal', personal: { ...personal, required: undefined } },
+    { ...FORM, required: 'rules/a' },
+    { ...FORM, required: ['nope'] },
+  ];
+  for (const body of bad) assert.equal((await post(s, '/api/v1/forms', body, { auth: a })).status, 400, JSON.stringify(body).slice(0, 200));
+});

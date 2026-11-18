@@ -9,13 +9,16 @@ import { render } from '../src/render/index.js';
 import { applyFiles } from '../src/apply.js';
 import { diskReader } from '../src/project-state.js';
 import { virtualize, toRealLock } from '../src/workspace.js';
-import { MANIFEST, LOCK, manifestText, lockText, checkManifest } from '../src/manifest.js';
+import { MANIFEST, LOCK, manifestText, lockText, checkManifest, readManifest, readLock } from '../src/manifest.js';
 import { RULER_TOML_BASE } from '../src/render/outputs.js';
 import { PROJECT_TOML, RULER_TOML } from '../src/layout.js';
 import { readBlock } from '../src/gitignore-block.js';
 import { runGit } from '../src/projects.js';
 import { projectApply } from '../src/commands/project-apply.js';
-import { mergeTodos } from '../src/commands/sync-common.js';
+import { mergeTodos, writeComposedOrFail, finishApply, finishPersonal } from '../src/commands/sync-common.js';
+import { projectStatus } from '../src/commands/project-status.js';
+import { writeExclude, readExclude } from '../src/exclude.js';
+import { personalStore, writeLocal, worktreeId, MAIN_WORKTREE } from '../src/personal.js';
 
 const ITEMS = ['rules/base', 'skills/s', 'agents/rev.md', 'mcp/c7', 'mcp/gl', 'mcp/b'];
 
@@ -408,4 +411,302 @@ test('루트가 guideline 프로젝트가 아닌 모노레포에서도 루트 ap
   const e = collect();
   assert.equal(await projectApply({ dir: none, out: () => {}, err: e.out }), 2);
   assert.match(e.text(), /guideline pick 먼저/);
+});
+
+test('N1 비-guideline 루트에 설정이 없으면 nested-off 대신 root-ruler-toml 만', async t => {
+  const q = gitDir(t, { 'README.md': '루트\n' });
+  syncNew(path.join(q, 'apps/web'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  commitAll(q);
+  const o = collect();
+  assert.equal(await projectApply({ dir: cloneOf(t, q), json: true, out: o.out, err: () => {}, env: { PATH: '' } }), 0);
+  assert.deepEqual(JSON.parse(o.text()).todos.filter(x => x.kind.startsWith('root-') || x.kind === 'nested-off').map(x => x.kind), ['root-ruler-toml']);
+
+  // ruler.toml 이 있으면 nested 판정은 그것만 읽는다 — ruler 는 ruler.project.toml 을 읽지 않는다(이 루트는 guideline 이 조합하지 않는다)
+  const r = gitDir(t, { [RULER_TOML]: 'default_agents = ["claude"]\nnested = false\n', [PROJECT_TOML]: NESTED_ROOT_TOML });
+  syncNew(path.join(r, 'apps/web'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  commitAll(r);
+  const rc = cloneOf(t, r);
+  const o2 = collect();
+  assert.equal(await projectApply({ dir: rc, json: true, out: o2.out, err: () => {}, env: { PATH: '' } }), 0);
+  const off = JSON.parse(o2.text()).todos.filter(x => x.kind === 'nested-off');
+  assert.equal(off.length, 1);
+  assert.match(off[0].message, /의 \.ruler\/ruler\.toml 에서 nested = true 켜기/);
+});
+
+test('N3 하위 단위 쓰기 실패는 단위 경로와 할 일을 낸다', async t => {
+  const root = gitDir(t, { [RULER_TOML]: NESTED_ROOT_TOML });
+  syncNew(path.join(root, 'apps/web'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  syncNew(path.join(root, 'apps/ok'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  commitAll(root);
+  const c = cloneOf(t, root);
+  // 스택 폴더 자리에 파일이 있으면 그 단위의 생성물을 쓸 수 없다
+  write(c, 'apps/web/.ruler/base', '막음\n');
+  const o = collect();
+  const e = collect();
+  assert.equal(await projectApply({ dir: c, json: true, out: o.out, err: e.out, env: { PATH: '' } }), 1);
+  assert.match(e.text(), /^apps\/web: 쓰기 실패: /m);
+  const r = JSON.parse(o.text());
+  const failed = r.todos.filter(x => x.kind === 'unit-write-failed');
+  assert.deepEqual(failed.map(x => x.unit), ['apps/web']);
+  assert.match(failed[0].message, /^apps\/web: 생성물을 다 쓰지 못함 — 이번 ruler 결과에서 이 단위의 AGENTS\.md 등을 믿지 말고/);
+  // 다른 단위는 그대로 조합한다
+  assert.ok(exists(c, 'apps/ok/.ruler/base/00-a.md'));
+});
+
+test('N3 루트의 update·pick(finishApply)과 pick --local(finishPersonal)도 하위 단위 쓰기 실패면 코드 1 이다', async t => {
+  const root = gitDir(t, {});
+  syncNew(root, { items: ['rules/base'], toml: NESTED_ROOT_TOML });
+  syncNew(path.join(root, 'apps/web'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  commitAll(root);
+  const c = cloneOf(t, root);
+  write(c, 'apps/web/.ruler/base', '막음\n');
+  const manifest = readManifest(c);
+  const lock = readLock(c);
+  const quiet = { env: { PATH: '' }, runRuler: () => 0, err: () => {} };
+  // update·pick 의 마무리: 루트 단위는 다 썼고(매니페스트·잠금·생성물), 하위 단위만 실패했다
+  const applied = finishApply({ project: c, result: { files: {}, todos: [], lock }, manifest, lock, ...quiet });
+  assert.equal(applied.code, 1);
+  assert.equal(applied.unitsFailed, true);
+  assert.deepEqual(applied.todos.filter(x => x.kind === 'unit-write-failed').map(x => x.unit), ['apps/web']);
+  assert.ok(exists(c, '.ruler/base/00-a.md'));
+  // pick --local 의 마무리
+  writeLocal(personalStore({ dir: c, root: c }), { version: 1, sources: { default: { add: [], remove: [] } } });
+  const trees = new Map([['default', { server: 'http://x', revision: 4, tree: memoryTree(SOURCE) }]]);
+  const personal = finishPersonal({ project: c, manifest, sync: { trees, revisions: { default: 4 } }, ...quiet });
+  assert.equal(personal.code, 1);
+  assert.deepEqual(personal.todos.filter(x => x.kind === 'unit-write-failed').map(x => x.unit), ['apps/web']);
+});
+
+// ── 개인 겹 (실제 git 저장소: 이 저장소 자신의 .git 은 건드리지 않는다) ──
+
+const EXTRA_COPY = { 'rules/extra/00-e.md': `---\nload: always\n---\n# 개인 더함\n` };
+
+/** 단위의 개인 선택과 개인 사본(<store>/.guideline/)을 둔다. */
+function setPersonal(dir, root, sources, copies = EXTRA_COPY) {
+  const store = personalStore({ dir, root });
+  writeLocal(store, { version: 1, sources });
+  for (const [k, v] of Object.entries(copies)) write(store, `.guideline/${k}`, v);
+  return store;
+}
+const porcelain = p => runGit(['status', '--porcelain', '--untracked-files=all'], p).stdout;
+const excludeText = p => {
+  try {
+    return fs.readFileSync(path.join(p, '.git', 'info', 'exclude'), 'utf8');
+  } catch {
+    return '';
+  }
+};
+const apply = async p => {
+  const o = collect();
+  assert.equal(await projectApply({ dir: p, json: true, out: o.out, err: () => {}, env: { PATH: '' } }), 0);
+  return JSON.parse(o.text());
+};
+
+test('개인 더함은 .gitignore 를 바꾸지 않고 info/exclude 에 간다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  await apply(p);
+  commitAll(p);
+  const gi = read(p, '.gitignore');
+  assert.equal(porcelain(p), '');
+
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  const r = await apply(p);
+  assert.ok(r.written.includes('.ruler/extra/00-e.md'));
+  assert.equal(read(p, '.ruler/extra/00-e.md'), '# 개인 더함\n');
+  assert.equal(read(p, '.gitignore'), gi);
+  assert.ok(excludeText(p).includes('# START guideline personal files . @.\n/.ruler/extra/00-e.md\n# END guideline personal files . @.\n'), excludeText(p));
+  // 커밋되는 파일이 하나도 바뀌지 않고, 개인 생성물도 git 에 보이지 않는다
+  assert.equal(porcelain(p), '');
+  assert.match(read(p, '.ruler/guideline.md'), /더한 것: `rules\/extra`/);
+});
+
+test('개인 선택을 되돌리면 생성물과 exclude 블록이 따라온다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  write(p, '.git/info/exclude', '# 사용자 줄\n*.log\n');
+  await apply(p);
+  commitAll(p);
+  const gi = read(p, '.gitignore');
+
+  // 더했다가 되돌린다
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  await apply(p);
+  assert.ok(exists(p, '.ruler/extra/00-e.md'));
+  setPersonal(p, p, {});
+  const back = await apply(p);
+  assert.ok(back.deleted.includes('.ruler/extra/00-e.md'));
+  assert.equal(exists(p, '.ruler/extra/00-e.md'), false);
+  assert.equal(excludeText(p), '# 사용자 줄\n*.log\n');
+  assert.equal(read(p, '.gitignore'), gi);
+  assert.equal(porcelain(p), '');
+
+  // 뺐다가 되돌린다: 생성물은 지워졌다 돌아오고 .gitignore 는 내내 같다
+  setPersonal(p, p, { default: { add: [], remove: ['rules/base'] } });
+  const removed = await apply(p);
+  assert.ok(removed.deleted.includes('.ruler/base/00-a.md'));
+  assert.equal(exists(p, '.ruler/base/00-a.md'), false);
+  assert.equal(read(p, '.gitignore'), gi);
+  assert.equal(porcelain(p), '');
+  setPersonal(p, p, {});
+  await apply(p);
+  assert.equal(read(p, '.ruler/base/00-a.md'), '# 에이\n\n## 절 하나\n\n본문 A\n\n### 아래\n\n깊이\n');
+  assert.equal(excludeText(p), '# 사용자 줄\n*.log\n');
+  assert.equal(porcelain(p), '');
+});
+
+test('루트 apply 는 하위 단위의 개인 겹도 조합하고 exclude 패턴은 워크트리 루트 기준이다', async t => {
+  const root = gitDir(t);
+  syncNew(root, { items: ['rules/base'], toml: NESTED_ROOT_TOML });
+  const api = path.join(root, 'packages/api');
+  syncNew(api, { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  // 루트 apply 는 git 이 추적하는 하위 단위만 찾는다
+  commitAll(root);
+  await apply(root);
+  commitAll(root);
+  assert.ok(exists(api, '.ruler/base/00-a.md'));
+  setPersonal(api, root, { default: { add: ['rules/extra'], remove: [] } });
+  const r = await apply(root);
+  assert.ok(r.written.includes('packages/api/.ruler/extra/00-e.md'));
+  assert.equal(exists(root, '.ruler/extra/00-e.md'), false);
+  assert.ok(excludeText(root).includes('# START guideline personal files packages/api @.\n/packages/api/.ruler/extra/00-e.md\n# END guideline personal files packages/api @.\n'));
+  assert.equal(porcelain(root), '');
+  // 단위에서 직접 apply 해도 같은 블록이다
+  const before = excludeText(root);
+  await apply(api);
+  assert.equal(excludeText(root), before);
+});
+
+test('git 저장소가 아니면 개인 겹 없이 조합하고 exclude 를 쓰지 않는다, 개인 선택이 깨졌으면 알린다', async t => {
+  const p = fs.realpathSync(tmpDir('guideline-apply-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  syncNew(p, { items: ['rules/base'] });
+  const r = await apply(p);
+  assert.ok(r.written.includes('.ruler/base/00-a.md'));
+  assert.equal(r.todos.some(x => x.kind === 'local-bad'), false);
+
+  const q = gitDir(t);
+  syncNew(q, { items: ['rules/base'] });
+  const store = setPersonal(q, q, { default: { add: ['rules/extra'], remove: [] } });
+  await apply(q);
+  write(store, 'local.json', '{ 깨짐');
+  const broken = await apply(q);
+  const bad = broken.todos.find(x => x.kind === 'local-bad');
+  assert.match(bad.message, /local\.json 을\(를\) 읽을 수 없음 .* 그동안 개인 선택 없이 프로젝트 선택만으로 조합함$/);
+  // 개인 생성물과 exclude 블록은 그대로 둔다
+  assert.ok(exists(q, '.ruler/extra/00-e.md'));
+  assert.match(excludeText(q), /\/\.ruler\/extra\/00-e\.md/);
+});
+
+/** 실제 git 워크트리를 하나 더 만든다(새 브랜치). */
+function addWorktree(t, p, name) {
+  const wt = `${p}-${name}`;
+  t.after(() => fs.rmSync(wt, { recursive: true, force: true }));
+  assert.equal(runGit(['worktree', 'add', '-q', '-b', name.replace(/ /g, '-'), wt], p).status, 0);
+  return wt;
+}
+/** status 의 할 일 종류. 서버에는 닿지 않게 해 조합에서 나오는 할 일만 본다. */
+const statusKinds = async p => {
+  const o = collect();
+  await projectStatus({ project: p, json: true, out: o.out, err: () => {}, env: {}, fetchImpl: () => Promise.reject(new Error('off')) });
+  return o.text() ? JSON.parse(o.text()).todos.map(x => x.kind) : [];
+};
+const EXTRA_SOURCE = { ...SOURCE, 'rules/extra/00-e.md': EXTRA_COPY['rules/extra/00-e.md'] };
+
+test('워크트리마다 info/exclude 블록이 따로라 한쪽의 apply 가 다른 쪽 개인 생성물을 드러내지 않는다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  await apply(p);
+  commitAll(p);
+  // 기능 브랜치 워크트리에서는 프로젝트가 extra 를 고른다(개인 스택을 팀으로 올리는 흐름)
+  const wt = addWorktree(t, p, 'feat');
+  syncNew(wt, { items: ['rules/base', 'rules/extra'], source: EXTRA_SOURCE });
+  await apply(wt);
+  commitAll(wt);
+  // 개인 선택은 같은 클론의 워크트리가 함께 쓴다: 메인에서는 개인 더함, 기능 브랜치에서는 이미 고른 것
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  for (const order of [[p, wt], [wt, p]]) {
+    for (const d of order) await apply(d);
+    assert.equal(porcelain(p), '', `메인: ${excludeText(p)}`);
+    assert.equal(porcelain(wt), '', `기능: ${excludeText(p)}`);
+    assert.equal((await statusKinds(p)).includes('apply'), false);
+    assert.equal((await statusKinds(wt)).includes('apply'), false);
+  }
+  assert.ok(exists(p, '.ruler/extra/00-e.md'));
+  assert.ok(excludeText(p).includes('# START guideline personal files . @.\n/.ruler/extra/00-e.md\n# END guideline personal files . @.\n'), excludeText(p));
+  // 기능 브랜치의 블록은 비어 있어 쓰지 않는다
+  assert.equal(excludeText(p).includes('@feat'), false, excludeText(p));
+});
+
+test('없어진 워크트리의 info/exclude 블록은 다음 쓰기에서 지운다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  await apply(p);
+  commitAll(p);
+  const wt = addWorktree(t, p, 'gone wt');
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  await apply(wt);
+  const id = worktreeId(wt, path.join(p, '.git'));
+  assert.notEqual(id, MAIN_WORKTREE);
+  assert.ok(excludeText(p).includes(`# START guideline personal files . @${id}\n/.ruler/extra/00-e.md\n`), excludeText(p));
+  assert.equal(runGit(['worktree', 'remove', '--force', wt], p).status, 0);
+  await apply(p);
+  assert.equal(excludeText(p).includes(`@${id}`), false, excludeText(p));
+  assert.ok(excludeText(p).includes('# START guideline personal files . @.\n'));
+});
+
+test('exclude 블록이 줄 때는 파일 쓰기가 성공한 뒤에 줄인다', t => {
+  const p = gitDir(t);
+  const ex = { common: path.join(p, '.git'), unitRel: '', worktree: '.' };
+  writeExclude({ ...ex, paths: ['/.ruler/a.md', '/.ruler/b.md'] });
+  write(p, '.ruler/b.md', 'b\n');
+  const errs = [];
+  // 쓰기가 실패하면(잘못된 경로로 주입) 지우지 못한 b 는 블록에 남는다
+  const failed = writeComposedOrFail(p, { '.ruler/b.md': null, '../bad': 'x' }, m => errs.push(m), { ...ex, paths: ['/.ruler/a.md'] });
+  assert.ok(failed.failed);
+  assert.ok(exists(p, '.ruler/b.md'));
+  assert.deepEqual(readExclude(ex), ['/.ruler/a.md', '/.ruler/b.md']);
+  // 성공하면 줄인다
+  const ok = writeComposedOrFail(p, { '.ruler/b.md': null }, m => errs.push(m), { ...ex, paths: ['/.ruler/a.md'] });
+  assert.deepEqual(ok.deleted, ['.ruler/b.md']);
+  assert.deepEqual(readExclude(ex), ['/.ruler/a.md']);
+  // 늘 때는 파일보다 먼저 쓴다(쓰기가 실패해도 새 경로가 블록에 있다)
+  assert.ok(writeComposedOrFail(p, { '../bad': 'x' }, m => errs.push(m), { ...ex, paths: ['/.ruler/a.md', '/.ruler/c.md'] }).failed);
+  assert.deepEqual(readExclude(ex), ['/.ruler/a.md', '/.ruler/c.md']);
+});
+
+test('새 워크트리의 apply 에도 개인 범위가 들어간다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  await apply(p);
+  commitAll(p);
+  // 개인 선택·사본은 git 공용 디렉터리에 있다(앞서 update 가 받아 둔 것)
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  const wt = addWorktree(t, p, 'fresh');
+  assert.equal(exists(wt, '.ruler/extra/00-e.md'), false);
+  const r = await apply(wt);
+  assert.ok(r.written.includes('.ruler/extra/00-e.md'));
+  assert.equal(read(wt, '.ruler/extra/00-e.md'), '# 개인 더함\n');
+  assert.match(read(wt, '.ruler/guideline.md'), /더한 것: `rules\/extra`/);
+  assert.equal(porcelain(wt), '');
+});
+
+test('필수가 된 블록의 개인 뺌은 무시하고 알린다', async t => {
+  const p = gitDir(t);
+  const { manifest } = syncNew(p, { items: ['rules/base', 'skills/s'] });
+  await apply(p);
+  commitAll(p);
+  setPersonal(p, p, { default: { add: [], remove: ['rules/base'] } });
+  const removed = await apply(p);
+  assert.ok(removed.deleted.includes('.ruler/base/00-a.md'));
+  assert.equal(removed.todos.some(x => x.kind === 'personal-ignored'), false);
+  // 프로젝트가 rules/base 를 필수로 바꾼다 → 다음 apply 에서 돌아오고 개인 뺌은 무시된다는 할 일
+  write(p, MANIFEST, manifestText({ ...manifest, sources: { default: { ...manifest.sources.default, required: ['rules/base'] } } }));
+  const back = await apply(p);
+  assert.ok(back.written.includes('.ruler/base/00-a.md'));
+  const todo = back.todos.find(x => x.kind === 'personal-ignored');
+  assert.equal(todo.item, 'rules/base');
+  assert.equal(todo.message, 'rules/base: 필수가 된 블록이라 개인 뺌을 무시함 — guideline pick --local 에서 정리');
+  // status 도 같은 할 일을 낸다(서버 없이)
+  assert.ok((await statusKinds(p)).includes('personal-ignored'));
 });

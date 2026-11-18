@@ -1,5 +1,5 @@
 // 서버와 폼 화면이 함께 쓴다. 브라우저에서도 돌아야 하므로 ./blocks.js 말고는 import 하지 않는다.
-import { blockKey, ancestorKeys, isWithin } from './blocks.js';
+import { blockKey, ancestorKeys, isWithin, withAncestors } from './blocks.js';
 
 /** 프로젝트에 있는 상태. 체크를 풀면 제거다. */
 const PRESENT = ['same', 'different', 'moved', 'present'];
@@ -95,16 +95,70 @@ export function buildResult({ docsRoot, project, inspection, choices }) {
  * 서버 폼의 결과. 서버가 폼 본문의 항목과 화면의 체크로 계산한다.
  * @param {{ revision: number, items: object[], choices: object, project: { form: string, agents: string[] } | null }} opts
  */
-export function buildSelection({ revision, items, choices, project }) {
+export function buildSelection({ revision, items, choices, project, required }) {
+  const chosen = selectionItems(items, choices);
   return {
     version: 1,
     revision,
     project,
-    items: selectionItems(items, choices).map(({ kind, id, action, overwrite, state, lockState }) => ({
+    items: chosen.map(({ kind, id, action, overwrite, state, lockState }) => ({
       kind, id, action, ...(overwrite ? { overwrite } : {}), state, ...(lockState ? { lockState } : {}),
     })),
     blocked: items.filter(i => i.state === 'blocked').map(({ kind, id, stack, reason }) => ({ kind, id, stack, reason })),
+    ...(Array.isArray(required) ? { required: keptRequired(required, chosen) } : {}),
   };
+}
+
+/**
+ * 필수 중 결과에 남는 블록(조상 포함) 안의 것. 매니페스트는 필수가 items 안에 있어야 하므로, 풀린 블록의 필수는 버린다.
+ * @param {string[]} required
+ * @param {object[]} chosen selectionItems 결과
+ */
+function keptRequired(required, chosen) {
+  const kept = new Set(withAncestors(chosen.filter(i => i.action !== 'remove').map(i => blockKey(i.id)).filter(Boolean)));
+  return [...new Set(required)].filter(k => kept.has(k)).sort();
+}
+
+/** 개인 모드에서 블록 하나에 고를 수 있는 것: 프로젝트 선택 그대로·더함·뺌. */
+export const PERSONAL_CHOICES = ['keep', 'add', 'remove'];
+
+/**
+ * 개인 폼 payload 의 판정 재료. inProject: 프로젝트가 받는 블록(조상 포함), guarded: 필수와 그 조상(개인이 뺄 수 없다).
+ * @param {{ chosen: string[], required: string[] }} personal
+ */
+export function personalBasis(personal) {
+  return { inProject: new Set(withAncestors(personal.chosen ?? [])), guarded: new Set(withAncestors(personal.required ?? [])) };
+}
+
+/**
+ * 개인 폼의 제출 결과. 키는 모두 폼이 받은 이름(별칭을 입힌 가상 키)이다.
+ * - 프로젝트에 있는 블록의 더함, 없는 블록의 뺌은 아무것도 바꾸지 않으므로 버린다.
+ * - 필수와 그 조상의 뺌은 rejected(서버는 이것이 있으면 제출을 거절한다).
+ * - 뺀 스택 아래의 프로젝트 블록도 뺀다. 뺀 스택 아래의 더함은 버린다.
+ * - 더한 하위 스택의 조상 중 프로젝트에 없는 것을 더한다.
+ * @param {{ personal: { chosen: string[], required: string[] }, choices: Record<string, string>, saveDefault?: boolean }} opts
+ * @returns {{ mode: 'personal', add: string[], remove: string[], saveDefault: boolean, rejected: string[] }}
+ */
+export function personalSelection({ personal, choices, saveDefault = false }) {
+  const { inProject, guarded } = personalBasis(personal);
+  const want = v => Object.entries(choices ?? {}).filter(([, c]) => c === v).map(([k]) => k);
+  const rejected = want('remove').filter(k => guarded.has(k));
+  const cut = want('remove').filter(k => inProject.has(k) && !guarded.has(k));
+  const remove = [...inProject].filter(k => cut.some(r => isWithin(k, r)));
+  const add = withAncestors(want('add').filter(k => !inProject.has(k) && !cut.some(r => isWithin(k, r)))).filter(k => !inProject.has(k));
+  return { mode: 'personal', add: add.sort(), remove: remove.sort(), saveDefault: saveDefault === true, rejected: rejected.sort() };
+}
+
+/**
+ * 개인 폼의 초기 상태: payload 의 add·remove(이 프로젝트의 개인 선택이나 머신 기본값) 중 의미 있는 것만.
+ * 뺄 수 없는 것(필수와 그 조상, personalSelection 이 rejected 로 따로 낸다)은 그대로 둔다. 없는 블록은 'keep' 이다.
+ * @param {{ chosen: string[], required: string[], add: string[], remove: string[] }} personal
+ * @returns {Record<string, 'add' | 'remove'>}
+ */
+export function personalChoices(personal) {
+  const choices = Object.fromEntries([...(personal.add ?? []).map(k => [k, 'add']), ...(personal.remove ?? []).map(k => [k, 'remove'])]);
+  const r = personalSelection({ personal, choices });
+  return Object.fromEntries([...r.add.map(k => [k, 'add']), ...r.remove.map(k => [k, 'remove'])].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 
 export { blockKey };

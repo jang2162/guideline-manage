@@ -60,3 +60,28 @@ test('관리 지침: 출처의 추가 절은 출처 이름순으로 붙고 제�
   assert.match(t, /## personal 추가 지침\n\n### 규칙\n\n본문 P\n/);
   assert.doesNotMatch(t, /무시/);
 });
+
+test('managementText — 개인 절과 세팅 표의 개인 행', () => {
+  const personal = {
+    added: [{ key: 'rules/mise', source: null }, { key: 'rules/erdd', source: null }],
+    removed: [{ key: 'skills/s', source: null }],
+    ignored: [{ key: 'rules/base', source: null, why: 'required' }, { key: 'rules/gone', source: null, why: 'no-effect' }],
+    stacks: ['mise'],
+  };
+  assert.equal(managementText({ setupStacks: ['mise', 'base'], personal }), [
+    ...HEAD,
+    '- 프로젝트를 세팅할 때(그 스택을 처음 받았을 때, 새로 클론했을 때, 세팅이 맞는지 의심될 때)는 아래 문서를 읽고 따른다. 스택을 고른 것은 그 기술을 이 프로젝트에 들이기로 한 결정이다. 프로젝트가 아직 그 기술을 쓰지 않는다는 이유로 세팅을 건너뛰지 않는다 — 세팅이 바로 그 기술을 들이는 단계다. 세팅할 수 없으면(권한, 사람이 앱에서 해야 하는 설정 등) 건너뛰지 말고 사용자에게 알린다.', '',
+    '| 스택 | 세팅 문서 |', '| --- | --- |',
+    '| base | `docs/guideline/base/SETUP.md` |',
+    '| mise (개인) | `docs/guideline/mise/SETUP.md` |', '',
+    '## 이 작업자의 개인 범위', '',
+    '이 작업자는 프로젝트 선택 위에 아래 개인 선택을 얹었다. 개인 선택은 이 작업자의 git 저장소에만 있고 커밋되지 않는다. 개인 범위에서만 나온 생성물은 `.gitignore` 가 아니라 git 의 `info/exclude` 에 적힌다.', '',
+    '- 더한 것: `rules/erdd`, `rules/mise`',
+    '- 뺀 것: `skills/s`',
+    '- 무시된 뺌: `rules/base` (필수라 뺄 수 없음), `rules/gone` (뺄 것이 없음)',
+    '- 개인 범위 스택(세팅 표에서 「개인」 표시)의 세팅은 세팅 문서를 따르되 커밋되는 파일을 바꾸지 않는다. 바꿔야 하는 단계(커밋되는 설정 파일, `.gitignore` 등)는 건너뛰지 말고 사용자에게 알린다.', '',
+  ].join('\n'));
+  // 더한 것만 있으면 그 줄과 세팅 규칙만
+  const only = managementText({ personal: { added: [{ key: 'rules/x', source: 'team' }], removed: [], ignored: [], stacks: [] } });
+  assert.ok(only.endsWith('\n\n- 더한 것: `rules/x` (team)\n- 개인 범위 스택(세팅 표에서 「개인」 표시)의 세팅은 세팅 문서를 따르되 커밋되는 파일을 바꾸지 않는다. 바꿔야 하는 단계(커밋되는 설정 파일, `.gitignore` 등)는 건너뛰지 말고 사용자에게 알린다.\n'), only);
+});

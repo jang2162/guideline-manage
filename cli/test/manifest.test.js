@@ -21,7 +21,7 @@ test('없으면 null', t => {
 
 test('v1 매니페스트는 default 출처 하나로 읽고 v3 로 쓴다', () => {
   const m = checkManifest(V1);
-  assert.deepEqual(m, { version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: 'http://a', items: ['rules/base'], aliases: {} } } });
+  assert.deepEqual(m, { version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: 'http://a', items: ['rules/base'], aliases: {}, required: [] } } });
   assert.deepEqual(JSON.parse(manifestText(m)), {
     version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: 'http://a', items: ['rules/base'] } },
   });
@@ -160,4 +160,23 @@ test('readLock 은 틀린 모양을 거부한다', t => {
 
 test('잠금 version 이 모르는 값이면 더 새 CLI 가 썼을 수 있다고 CLI 를 올리라 한다', () => {
   assert.throws(() => checkLock({ version: 4, revisions: { default: 1 }, sources: {}, outputs: [] }), /version 이 1, 2, 3 이 아님 — 더 새 guideline CLI 가 썼을 수 있음\. CLI 를 업데이트할 것/);
+});
+
+const withRequired = (items, required) => ({ version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: 'https://s', items, required } } });
+
+test('manifest 는 required 를 읽고 쓰고 items 밖이면 거절한다', () => {
+  const m = checkManifest(withRequired(['rules/base', 'skills/x'], ['skills/x', 'rules/base', 'skills/x']));
+  assert.deepEqual(m.sources.default.required, ['rules/base', 'skills/x']);
+  assert.deepEqual(JSON.parse(manifestText(m)).sources.default.required, ['rules/base', 'skills/x']);
+  assert.throws(() => checkManifest(withRequired(['rules/base'], ['skills/x'])), e => e instanceof ManifestError && /skills\/x/.test(e.message));
+  assert.throws(() => checkManifest(withRequired(['rules/base'], ['rules/base/00-a.md'])), ManifestError);
+  assert.throws(() => checkManifest(withRequired(['rules/base'], 'rules/base')), ManifestError);
+});
+
+test('manifest 의 required 가 비어 있으면 쓰지 않고, 하위 스택 필수는 조상이 items 에 채워져 통과한다', () => {
+  const m = checkManifest(withRequired(['rules/a/b'], ['rules/a/b']));
+  assert.deepEqual(m.sources.default.items, ['rules/a', 'rules/a/b']);
+  const none = checkManifest(withRequired(['rules/base'], []));
+  assert.deepEqual(none.sources.default.required, []);
+  assert.equal('required' in JSON.parse(manifestText(none)).sources.default, false);
 });

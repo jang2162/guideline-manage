@@ -1,58 +1,14 @@
 import { expandPath, runGit } from '../projects.js';
-import { readManifest, readLock, ManifestError } from '../manifest.js';
 import { diskReader } from '../project-state.js';
 import { expandBlocks } from '../catalog.js';
-import { unitInfo, unitProblem } from '../unit.js';
+import { unitInfo } from '../unit.js';
 import { render } from '../render/index.js';
-import { fetchSources, virtualize, toRealLock, aliasMoveTodos, missingRequiresTodos, protectedPaths, manifestClashes } from '../workspace.js';
-import { finishApply, report, migrateIfOld, manifestV3Todos, finishMigrationOnly } from './sync-common.js';
+import { fetchSources, virtualize, toRealLock, aliasMoveTodos, missingRequiresTodos, protectedPaths } from '../workspace.js';
+import { finishApply, report, migrateIfOld, manifestV3Todos, finishMigrationOnly, openProject } from './sync-common.js';
 import { t } from '../i18n.js';
 
-/**
- * 프로젝트의 매니페스트·잠금을 읽고 단위 검사를 한다. 문제가 있으면 { code }.
- * --server 는 출처가 하나일 때만 그 출처의 주소를 바꾼다.
- */
-export function openProject({ dir, server, source, err, needManifest = true }) {
-  let manifest;
-  let lock;
-  try {
-    manifest = readManifest(dir);
-    lock = readLock(dir);
-  } catch (e) {
-    if (!(e instanceof ManifestError)) throw e;
-    err(e.message);
-    return { code: 1 };
-  }
-  if (!manifest && needManifest) {
-    err(t('update.notYet'));
-    return { code: 2 };
-  }
-  const problem = unitProblem(dir, manifest);
-  if (problem) {
-    err(problem);
-    return { code: 2 };
-  }
-  if (!manifest) return { manifest, lock };
-  // 손으로 고친 매니페스트로 이름이 겹치면 한쪽 사본이 다른 쪽을 덮는다 — 아무것도 하지 않는다
-  const clashes = manifestClashes(manifest);
-  if (clashes.length) {
-    for (const m of clashes) err(m);
-    return { code: 2 };
-  }
-  const names = Object.keys(manifest.sources);
-  if (source !== undefined && !names.includes(source)) {
-    err(t('update.unknownSource', { name: source, names: names.join(', ') }));
-    return { code: 2 };
-  }
-  if (server !== undefined) {
-    if (names.length > 1 && source === undefined) {
-      err(t('common.serverWithManySources'));
-      return { code: 2 };
-    }
-    manifest.sources[source ?? names[0]].server = server;
-  }
-  return { manifest, lock };
-}
+// openProject 는 sync-common 으로 옮겼다(루트의 finishApply 도 하위 단위를 열며 쓴다). 기존 가져오기를 위해 다시 내보낸다.
+export { openProject };
 
 /**
  * 매니페스트의 항목 그대로 서버 최신으로 다시 반영한다. 프로젝트에서 고친 출력은 건너뛴다(--force 면 덮어쓴다).
@@ -96,7 +52,8 @@ export async function projectUpdate({
   rendered.todos.push(...missingRequiresTodos({ manifest, trees, many: v.many }));
   rendered.todos.unshift(...moved.todos, ...v3);
   const done = finishApply({
-    project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err, migration: moved.migration,
+    project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err, git, migration: moved.migration,
+    sync: { trees, revisions },
   });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   return failures.length && done.code === 0 ? 1 : done.code;

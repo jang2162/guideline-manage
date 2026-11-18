@@ -5,13 +5,15 @@ import { printTodos } from '../todos.js';
 import { fetchSources, virtualize, showId, protectedPaths, missingRequiresTodos } from '../workspace.js';
 import { tokenInfo } from '../remote.js';
 import { openProject, revisionLabel } from './project-update.js';
-import { composeUnit, mergeTodos } from './sync-common.js';
+import { composeUnit, composeInputs, mergeTodos } from './sync-common.js';
+import { excludeStale } from '../exclude.js';
+import { personalStatus, personalRevisionTodos } from '../personal-sync.js';
 import { preparePackage } from '../migrate-layout.js';
 import { layoutOf } from '../layout.js';
 import { t } from '../i18n.js';
 
 /** status 가 조합에서 가져와 내는 할 일 종류. */
-const COMPOSE_KINDS = new Set(['mcp-conflict', 'no-copy', 'override-unchosen', 'blocked']);
+const COMPOSE_KINDS = new Set(['mcp-conflict', 'no-copy', 'override-unchosen', 'blocked', 'personal-ignored', 'personal-shadowed', 'override-target']);
 
 /**
  * 반영한 지침이 서버 최신과 같은지, 프로젝트에서 고친 것이 있는지 본다. 출처마다 최신과 비교한다.
@@ -36,10 +38,16 @@ export async function projectStatus({
   // 생성물이 .guideline/ 에서 조합한 것과 같은지 본다. 서버 없이 하는 판정이라 받기에 실패해도 낸다.
   // apply 가 고칠 prepare 도 낡은 것으로 보고, 고칠 수 없는 prepare(guideline CLI 가 의존성에 없음 등)는 해결될 때까지 알린다.
   const unit = unitInfo(dir, git);
-  const composed = composeUnit({ project: dir, nested: unit.nested, manifest });
+  // apply 와 같은 개인 겹으로 조합해야 개인 생성물을 낡은 것으로 보지 않는다
+  const inputs = composeInputs({ project: dir, unit, git });
+  const composed = composeUnit({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
   const prep = preparePackage({ project: dir, root: unit.root });
+  const excludeOld = inputs.personal !== null && excludeStale({ ...inputs.personal, paths: composed.exclude.paths });
   const localTodos = [
-    ...(Object.keys(composed.files).length || Object.keys(prep.files).length ? [{ kind: 'apply', item: null, message: t('todo.apply') }] : []),
+    ...(Object.keys(composed.files).length || Object.keys(prep.files).length || excludeOld ? [{ kind: 'apply', item: null, message: t('todo.apply') }] : []),
+    ...inputs.todos,
+    // 개인 사본과 프로젝트의 리비전이 출처별로 다르면(다른 워크트리의 update 가 개인 사본만 올림) 서버 없이도 알린다
+    ...(inputs.personal ? personalRevisionTodos({ store: inputs.personal.store, manifest, local: inputs.personal.local, lock }) : []),
     ...prep.todos.filter(x => x.kind !== 'prepare'),
     // 조합이 낼 할 일 중 프로젝트가 고칠 것(apply·update 를 돌리지 않아도 보이게)
     ...mergeTodos([], composed.todos.filter(x => COMPOSE_KINDS.has(x.kind))),
@@ -62,7 +70,15 @@ export async function projectStatus({
     tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management,
   });
   const show = id => showId(id, v.sources, v.many);
-  const todos = [...localTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];
+  // 개인 범위(git 저장소가 아니거나 개인 선택이 깨졌으면 null): 개인 더함·뺌과, 받은 원본 기준 개인 사본 상태
+  const personal = inputs.personal
+    ? personalStatus({ store: inputs.personal.store, manifest, local: inputs.personal.local, trees, nested: unit.nested })
+    : null;
+  // 개인 잠금이 깨졌으면 리비전 비교와 개인 사본 상태가 같은 할 일을 낸다 — mergeTodos 로 한 번만
+  const todos = mergeTodos(
+    [...localTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })],
+    personal?.todos ?? [],
+  );
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   const head = revisionLabel(Object.fromEntries([...trees].map(([name, t]) => [name, t.revision])));
   const applied = revisionLabel(Object.fromEntries([...trees.keys()].map(name => [name, lock.revisions[name] ?? 0])));
@@ -77,6 +93,9 @@ export async function projectStatus({
       head,
       items: [...states].map(([id, state]) => ({ id: show(id), state })),
       outputs: outputs.map(o => ({ path: o.path, ...(o.key ? { key: o.key } : {}), state: o.state })),
+      personal: personal && {
+        added: personal.added, removed: personal.removed, ignored: personal.ignored, shadowed: personal.shadowed, items: personal.items,
+      },
       todos,
       token,
     }, null, 2));
@@ -94,6 +113,15 @@ export async function projectStatus({
   out(`  ${STATE_ORDER.filter(k => counts[k]).map(k => `${stateLabel(k)} ${counts[k]}`).join(' · ')}`);
   for (const [id, s] of states) if (s !== 'current') out(`  ${stateLabel(s)}  ${show(id)}`);
   for (const o of outputs) if (o.items.length === 0 && o.state !== 'current') out(`  ${stateLabel(o.state)}  ${o.path}`);
+  if (personal && (personal.added.length || personal.removed.length || personal.items.length)) {
+    const list = keys => (keys.length ? keys.join(', ') : '-');
+    // 다른 출처의 같은 이름에 가려진 더함은 받지 않는다 — 더함 줄에서 그렇게 보인다
+    const hiddenBy = new Map(personal.shadowed.map(x => [x.id, x.by]));
+    const addedShown = personal.added.map(id => (hiddenBy.has(id) ? t('status.personalShadowed', { id, by: hiddenBy.get(id) }) : id));
+    out(`  ${t('status.personalAdded', { count: personal.added.length, items: list(addedShown) })}`);
+    out(`  ${t('status.personalRemoved', { count: personal.removed.length, items: list(personal.removed) })}`);
+    for (const { id, state } of personal.items) if (state !== 'current') out(`  ${t('status.personalCopy', { state: stateLabel(state), id })}`);
+  }
   printTodos(todos, out);
   return code;
 }

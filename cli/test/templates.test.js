@@ -89,3 +89,28 @@ test('안내 템플릿: 사본은 .guideline/, 생성물은 apply 가 만든다�
     assert.ok(docsReadme().includes('guideline apply') && docsReadme().includes('.guideline/'), lang);
   }
 });
+
+// 개인 범위: 안내 템플릿 두 벌이 pick --local 흐름과 새 할 일을 다루고, 개인 세팅은 커밋되는 파일을 바꾸지 않는다고 시킨다.
+const PERSONAL_KINDS = ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed'];
+
+test('안내 템플릿: 개인 범위의 pick --local·추천 모양·새 할 일과 scope 를 다룬다', t => {
+  for (const lang of ['en', 'ko']) {
+    use(t, lang);
+    const llms = currentLocale().template('llms.txt', { SERVER: 'http://s' });
+    const sync = currentLocale().template('skills/guideline-sync/SKILL.md');
+    for (const [name, text] of [['llms.txt', llms], ['guideline-sync', sync]]) {
+      for (const kind of PERSONAL_KINDS) assert.ok(text.includes(`| \`${kind}\` |`), `${lang} ${name}: ${kind} 행`);
+      for (const want of ['guideline pick --local', '--recommend', '{"add": {', '"remove": {', 'scope: "personal"', lang === 'en' ? '<git common dir>' : '<git 공용 디렉터리>', 'info/exclude']) {
+        assert.ok(text.includes(want), `${lang} ${name}: ${want}`);
+      }
+      // 개인 세팅 행은 커밋되는 파일을 바꾸지 않고 바꿔야 하는 단계를 알리라고 시킨다
+      const row = text.split('\n').find(l => l.startsWith('| `setup-personal` |'));
+      assert.match(row, lang === 'en' ? /do not change committed files/ : /커밋되는 파일[^|]*바꾸지 않/, `${lang} ${name}`);
+      assert.match(row, lang === 'en' ? /tell the user/ : /사용자에게 알린/, `${lang} ${name}`);
+      // 루트 단위 할 일은 apply 만이 아니라 update·pick·pick --local 도 낸다
+      for (const kind of ['unit-update', 'unit-problem', 'unit-write-failed']) {
+        assert.match(text.split('\n').find(l => l.startsWith(`| \`${kind}\` |`)), /pick --local/, `${lang} ${name}: ${kind}`);
+      }
+    }
+  }
+});

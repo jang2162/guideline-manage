@@ -37,11 +37,17 @@ Product names, commands, file names, setting keys and code stay untranslated.
 | form (pick form) | 폼 | |
 | display name | 표시 이름 | `label` |
 | category | 분류 | `categories` |
-| required blocks | 필요한 블록 | `requires` |
+| required blocks | 필요한 블록 | `requires`. Not the same as Required (`required`) |
+| Required (block) | 필수 (블록) | `required` of a source in `guideline.json`: a chosen block that nobody can remove in a personal selection |
 | alias | 별칭 | `aliases` in `guideline.json` |
 | unit directory | 단위 디렉터리 | A directory with `.ruler/` |
 | manifest | 매니페스트 | `guideline.json` |
 | lock | 잠금 | `guideline-lock.json` |
+| personal scope | 개인 범위 | What one worker adds to or removes from the project's choice with `guideline pick --local`. Never committed |
+| personal selection | 개인 선택 | `local.json` in `<git common dir>/guideline/units/<unit key>/` |
+| personal copy | 개인 사본 | A copy received for the personal scope, kept in the git common directory |
+| machine defaults | 머신 기본값 | `defaults.json` in the CLI's config folder: pre-checks the personal form, per server |
+| git common directory | git 공용 디렉터리 | The `.git` folder that all worktrees of a clone share (`git rev-parse --git-common-dir`) |
 | admin token | 관리자 토큰 | `ADMIN_TOKEN` |
 | read token | 읽기 토큰 | |
 | scope | 범위 | `read`, `propose`, `admin` |
