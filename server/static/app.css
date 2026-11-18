@@ -78,6 +78,8 @@ table, .stats, .card-t .n, .ver { font-variant-numeric: tabular-nums; }
 .side-list li[data-depth="5"] { padding-left: 60px; }
 .child-list li { padding: 4px 0; }
 .side-list .blk.on { background: var(--accent-soft); color: var(--accent-text); }
+/* --faint 는 --accent-soft 바탕 위에서 4.5:1 이 안 된다(라이트 4.18, 다크 4.25). 선택된 항목의 아랫줄은 항목 글자색을 따른다. */
+.side-list .blk.on span:not(.nm):not(.domain):not(.real) { color: inherit; }
 .side-none { color: var(--faint); font-size: 12.5px; padding: 4px 8px; margin: 0; }
 .tree { list-style: none; margin: 0 0 14px; padding: 0; }
 .tree a { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; color: var(--fg); font-family: var(--mono); font-size: 12px; }
@@ -244,6 +246,8 @@ details.manage form { margin-top: 12px; }
   .files > .tree:not(:has(details)) a { padding: 6px 10px; border: 1px solid var(--line); background: var(--bg); }
   .files > .tree:not(:has(details)) a.on { border-color: transparent; background: var(--accent-soft); }
   .files > .tree:has(details) { max-height: 40vh; overflow-y: auto; margin: 0; }
+  /* 두 트리 모두 스크롤 상자라 바깥에 그린 포커스 링이 상자 가장자리에서 잘린다. 안쪽에 그린다(여백을 두는 방법은 가장자리에 걸쳐 스크롤된 칩에서 여전히 잘린다). */
+  .files > .tree a:focus-visible, .files > .tree summary:focus-visible { outline-offset: -2px; }
   .files .legend { margin: 6px 0 0; padding: 0 2px; }
   .files .tools { flex-direction: row; padding: 0; margin-top: 8px; }
   .head .actions .button { flex: 1 1 auto; justify-content: center; }
@@ -342,6 +346,8 @@ pre.diff-lines .dh { color: var(--muted); }
 .steps .step { flex: 1 1 110px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); text-align: left; cursor: pointer; }
 .steps .step small { color: var(--faint); font-size: 11.5px; font-weight: 400; }
 .steps .step.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+/* 선택 바탕 위 --faint 대비 부족 — 위 .side-list .blk.on 과 같은 이유. */
+.steps .step.on small { color: inherit; }
 .steps .step.none { opacity: .5; cursor: default; }
 .chip.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 .confirm-step h3 { margin: 14px 0 6px; font-size: 14px; }

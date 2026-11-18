@@ -216,13 +216,26 @@ test('정적 파일: 블록 찾기와 / 키, 휴대폰 폭에서 한 단으로',
 
 test('알림 상자는 alert 이고, warn 은 배지·칩의 색 수식어로만 남아 상자 모양이 새지 않는다', async t => {
   const { s, cookie } = await seeded(t);
-  const css = (await s.req('/static/app.css')).text;
+  // 주석을 걷고 본다. 주석 안의 「.warn」 설명이 걸리지 않게.
+  const css = (await s.req('/static/app.css')).text.replace(/\/\*[\s\S]*?\*\//g, '');
   assert.match(css, /^\.alert \{/m);
-  // 줄 머리의 단독 .warn 규칙이 상자 모양(padding·margin)을 주면 .badge.warn·.k.warn 이 상자처럼 커진다.
-  assert.doesNotMatch(css, /^\.warn\b/m);
+  // 단독 .warn 선택자(.warn, p.warn, .top .warn, a, .warn 등)가 상자 모양을 주면 .badge.warn·.k.warn 이 상자처럼 커진다. 다른 클래스와 붙은 조합(.badge.warn, .warn.x)은 걸리지 않는다.
+  assert.doesNotMatch(css, /(^|[\s,}>+~])([a-z][\w-]*)?\.warn(?![-\w.])(?=[^{}]*\{)/m);
   const page = (await getAs(s, cookie, '/tokens')).text;
   assert.match(page, /<p class="alert" data-scope-warning hidden>/);
   assert.ok(!page.includes('class="warn"'));
+});
+
+test('서버가 그리는 HTML 에 단독 class="warn" 이 없다(알림 상자는 alert)', () => {
+  const dirs = [new URL('../src/web/', import.meta.url), new URL('../static/', import.meta.url)];
+  const hits = [];
+  for (const dir of dirs) {
+    for (const name of fs.readdirSync(dir).filter(n => n.endsWith('.js'))) {
+      const text = fs.readFileSync(new URL(name, dir), 'utf8');
+      for (const m of text.matchAll(/class\s*=\s*["'`]\s*warn\s*["'`]/g)) hits.push(`${name}: ${m[0]}`);
+    }
+  }
+  assert.deepEqual(hits, []);
 });
 
 test('목록 카드는 도메인 스택을 도구 이름과 도메인 꼬리표로 나눠 보인다', async t => {
