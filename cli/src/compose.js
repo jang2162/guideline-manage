@@ -13,6 +13,8 @@ import { effectiveItems, shadowedAdds } from './personal.js';
 import { readProjectOverrides, checkOverrides } from './project-overrides.js';
 import { excludeMarkers, excludePattern, unitPathOf, readExclude } from './exclude.js';
 import { LOCAL_FILE } from './personal.js';
+import { readLock, splitQualified, ManifestError } from './manifest.js';
+import { toVirtual } from './sources.js';
 import { isRulerInput, mcpNames, outputNames, pruneRulerOutputs } from './ruler-outputs.js';
 import { t } from './i18n.js';
 
@@ -197,6 +199,30 @@ function personalTree(guide, mine, added, projectKeys) {
 const stacksOf = keys => new Set(keys.filter(k => k.startsWith('rules/')).map(k => k.slice('rules/'.length)));
 
 /**
+ * 개인 사본으로 읽는 키(added) 중 사본이 없는 것. 개인 잠금(받은 파일의 가상 id)에 그 키 아래 받은 것이 하나도 없거나, 그 키 몫(더 깊은
+ * 개인 키 아래가 아닌 것)으로 받은 파일이 개인 사본에 없으면 사본이 없는 것이다. tree.exists 는 더 깊은 개인 키로 가는 폴더만 있어도 참이라
+ * 이것으로 따로 본다. 개인 잠금을 읽을 수 없으면 personal-sync 할 일이 따로 나므로 여기서는 보지 않는다.
+ */
+function missingPersonal(store, mine, manifest, added) {
+  let lock;
+  try {
+    lock = readLock(store);
+  } catch (e) {
+    if (!(e instanceof ManifestError)) throw e;
+    return [];
+  }
+  const ids = Object.keys(lock?.sources ?? {}).map(q => {
+    const { source, id } = splitQualified(q);
+    return toVirtual(id, manifest.sources[source]?.aliases ?? {});
+  });
+  const own = (id, k) => !added.some(d => d.length > k.length && isWithin(d, k) && isWithin(id, d));
+  return added.filter(k => {
+    const under = ids.filter(id => isWithin(id, k));
+    return under.length === 0 || under.some(id => own(id, k) && !mine.exists(id));
+  });
+}
+
+/**
  * 조합에 들어가는 바꿈(고른 스택의 것) 중 대상 파일·절이 조합한 사본(개인 사본을 얹은 트리)에 없는 것을 할 일로 낸다.
  * 개인·프로젝트 리비전이 어긋나 하위 스택과 부모 스택이 다른 리비전에서 오거나, 원본에서 절 제목이 바뀐 경우다.
  * 첫 줄을 읽을 수 없거나 다른 스택을 가리키는 바꿈(형식 문제)은 inspect·list 가 다루므로 여기서는 보지 않는다.
@@ -293,7 +319,8 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   // 개인 사본은 개인으로 더한 키 아래에서만 읽는다(personalTree). 개인으로 더한 하위 스택의 조상 중 프로젝트가 고르지 않은 것도
   // 개인 사본(syncPersonal 이 함께 받는다)이다 — 그 조상의 사본은 프로젝트 .guideline/ 에 없다.
   const added = layer ? fit(withAncestors(layer.added)).filter(k => !projectKeys.includes(k)) : [];
-  const tree = added.length ? personalTree(guide, diskTree(path.join(personal.store, GUIDE_DIR)), added, projectKeys) : guide;
+  const mine = added.length ? diskTree(path.join(personal.store, GUIDE_DIR)) : null;
+  const tree = added.length ? personalTree(guide, mine, added, projectKeys) : guide;
   const projectStacks = stacksOf(projectKeys);
   const management = managementOf(guide, chosen);
   if (layer?.note) management.personal = { ...layer.note, stacks: [...stacksOf(keys)].filter(s => !projectStacks.has(s)).sort(byStr) };
@@ -304,7 +331,13 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
     ? build({ ...shared, tree: guide, manifest, keys: projectKeys, management: managementOf(guide, manifest) }).want
     : main.want;
   const want = main.want;
-  const todos = [...(layer?.todos ?? []), ...main.todos, ...overrideTargetTodos(project, tree, keys)];
+  // 개인 사본이 없는 개인 블록은 조용히 빠지지 않게 개인 할 일로 알린다(일반 no-copy 대신)
+  const missing = mine ? missingPersonal(personal.store, mine, manifest, added) : [];
+  const noCopy = missing.map(k => ({ kind: 'no-copy', item: k, scope: 'personal', message: t('todo.noCopyPersonal', { item: k }) }));
+  const todos = [
+    ...(layer?.todos ?? []), ...noCopy, ...main.todos.filter(x => !(x.kind === 'no-copy' && missing.includes(x.item))),
+    ...overrideTargetTodos(project, tree, keys),
+  ];
 
   const generated = {
     project: [...projectWant.keys()].sort(byStr),

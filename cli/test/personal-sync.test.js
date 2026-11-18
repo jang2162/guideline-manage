@@ -112,10 +112,11 @@ test('개인으로 더한 하위 스택만 있어도 프로젝트에 없는 조�
   writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra/sub'], remove: [] } } });
   assert.deepEqual(personalTargets(readManifest(p), { version: 1, sources: { default: { add: ['rules/extra/sub'], remove: [] } } }),
     { default: ['rules/extra', 'rules/extra/sub'] });
-  // 조상을 프로젝트가 이미 골랐으면 그 사본은 프로젝트 .guideline/ 에 있다 — 개인으로 받지 않는다
+  // 조상을 이 워크트리의 프로젝트가 이미 골라도 받는다 — 개인 저장소는 프로젝트 선택이 다른 브랜치의 워크트리와 함께 쓴다
+  // (이 워크트리의 조합은 그 조상을 프로젝트 사본에서 읽는다)
   const withExtra = checkManifest({ version: 3, form: 'ruler', agents: ['claude'], sources: { default: { server: 'http://x', items: ['rules/extra'] } } });
   assert.deepEqual(personalTargets(withExtra, { version: 1, sources: { default: { add: ['rules/extra/sub'], remove: [] } } }),
-    { default: ['rules/extra/sub'] });
+    { default: ['rules/extra', 'rules/extra/sub'] });
   const r = await update(p, env);
   assert.equal(r.code, 0);
   assert.deepEqual(lockIds(store), ['default:rules/extra/00-e.md', 'default:rules/extra/sub/00-s.md']);
@@ -125,7 +126,7 @@ test('개인으로 더한 하위 스택만 있어도 프로젝트에 없는 조�
   assert.equal(porcelain(p), '');
 });
 
-test('프로젝트가 같은 블록을 고르면 개인 사본은 물러난다', async t => {
+test('프로젝트가 같은 블록을 고르면 조합은 프로젝트 사본을 쓰고, 개인 사본은 local.json 에서 빠질 때만 지운다', async t => {
   const { p, store, env } = await setup(t);
   writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
   await update(p, env);
@@ -136,14 +137,20 @@ test('프로젝트가 같은 블록을 고르면 개인 사본은 물러난다',
   write(p, MANIFEST, manifestText(m));
   const r = await update(p, env);
   assert.equal(r.code, 0);
-  // 개인 사본·잠금 항목은 지워지고 프로젝트 사본이 이긴다
-  assert.equal(exists(store, '.guideline/rules/extra/00-e.md'), false);
-  assert.deepEqual(lockIds(store), []);
+  // 개인 사본·잠금 항목은 남는다(그 블록을 고르지 않은 브랜치의 워크트리가 쓴다). 조합은 프로젝트 사본이 이긴다
+  assert.ok(exists(store, '.guideline/rules/extra/00-e.md'));
+  assert.deepEqual(lockIds(store), ['default:rules/extra/00-e.md']);
   assert.equal(read(p, '.guideline/rules/extra/00-e.md'), EXTRA['rules/extra/00-e.md']);
   // 조합 결과는 하나: 프로젝트 생성물이라 .gitignore 블록에 있고 개인 exclude 블록에는 없다
   assert.match(read(p, '.ruler/extra/00-e.md'), /# 개인 더함/);
   assert.match(read(p, '.gitignore'), /^\/\.ruler\/extra\/00-e\.md$/m);
   assert.doesNotMatch(excludeText(p), /extra/);
+  assert.equal(r.todos.some(x => x.kind === 'no-copy'), false);
+  // local.json 에서 더함이 빠지면 개인 사본·잠금 항목을 지운다
+  writeLocal(store, { version: 1, sources: { default: { add: [], remove: [] } } });
+  assert.equal((await update(p, env)).code, 0);
+  assert.equal(exists(store, '.guideline/rules/extra/00-e.md'), false);
+  assert.deepEqual(lockIds(store), []);
 });
 
 test('update 는 개인 사본 쓰기에 실패해도 프로젝트 반영을 마치고 할 일로 알린다', async t => {
@@ -170,7 +177,7 @@ test('개인 선택이 비어 있고 개인 잠금도 없으면 update 는 개�
   assert.equal(fs.existsSync(store), false);
 });
 
-test('syncPersonal 은 받지 못한 출처의 개인 사본·잠금을 그대로 두고, 매니페스트에서 빠진 출처의 것은 지운다', t => {
+test('syncPersonal 은 받지 못한 출처·매니페스트에 없는 출처의 개인 사본·잠금을 local.json 에 남은 한 그대로 둔다', t => {
   const store = tmpDir('guideline-personal-store-');
   t.after(() => fs.rmSync(store, { recursive: true, force: true }));
   const manifest = checkManifest({
@@ -196,9 +203,14 @@ test('syncPersonal 은 받지 못한 출처의 개인 사본·잠금을 그대�
   assert.equal(Object.keys(r.files).some(f => f.startsWith('.guideline/skills/')), false);
   assert.deepEqual(r.lock.revisions, { a: 4, b: 5 });
   assert.ok(Object.keys(r.lock.sources).includes('b:skills/s'));
-  // b 가 매니페스트에서 빠짐: 그 개인 사본은 지운다
+  // b 가 이 매니페스트에 없음(다른 브랜치의 매니페스트에만 있는 출처): local.json 에 남아 있으면 그 개인 사본·잠금은 그대로다
   const noB = { ...manifest, sources: { a: manifest.sources.a } };
-  const gone = syncPersonal({ store, manifest: noB, local, trees: onlyA, revisions: { a: 4 } });
+  const kept = syncPersonal({ store, manifest: noB, local, trees: onlyA, revisions: { a: 4 } });
+  assert.equal(Object.keys(kept.files).some(f => f.startsWith('.guideline/skills/')), false);
+  assert.ok(Object.keys(kept.lock.sources).includes('b:skills/s'));
+  assert.equal(kept.lock.revisions.b, 5);
+  // local.json 에서 b 가 빠지면 지운다
+  const gone = syncPersonal({ store, manifest: noB, local: { version: 1, sources: { a: local.sources.a } }, trees: onlyA, revisions: { a: 4 } });
   assert.equal(gone.files['.guideline/skills/s/SKILL.md'], null);
   assert.equal(Object.keys(gone.lock.sources).some(q => q.startsWith('b:')), false);
 });
@@ -281,6 +293,59 @@ const statusIn = async (dir, env) => {
   return JSON.parse(o.text());
 };
 
+test('다른 브랜치 워크트리의 update 는 그 프로젝트가 고른 블록이어도 공용 개인 사본을 지우지 않는다', async t => {
+  const { p, store, env } = await setup(t);
+  // main: 프로젝트 rules/base, 개인으로 rules/extra·rules/extra/sub(폼이 조상도 더한다)
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra', 'rules/extra/sub'], remove: [] } } });
+  assert.equal((await update(p, env)).code, 0);
+  commitAll(p);
+  assert.match(read(p, '.ruler/extra/00-e.md'), /# 개인 더함/);
+  // wt2: 다른 브랜치에서 프로젝트가 rules/extra 와 그 하위 스택을 고른다
+  const wt2 = `${p}-wt2`;
+  t.after(() => fs.rmSync(wt2, { recursive: true, force: true }));
+  assert.equal(runGit(['worktree', 'add', '-q', '-b', 'other', wt2], p).status, 0);
+  const m = readManifest(wt2);
+  m.sources.default.items = [...m.sources.default.items, 'rules/extra', 'rules/extra/sub'];
+  write(wt2, MANIFEST, manifestText(m));
+  assert.equal((await update(wt2, env)).code, 0);
+  commitAll(wt2);
+  assert.match(read(wt2, '.guideline/rules/extra/00-e.md'), /# 개인 더함/);
+  // 공용 개인 사본·잠금은 그대로다
+  assert.deepEqual(lockIds(store), ['default:rules/extra/00-e.md', 'default:rules/extra/sub/00-s.md']);
+  // main: 개인 블록이 조합에 남고, 할 일도 없다
+  const applied = await applyIn(p);
+  assert.deepEqual(applied.todos.filter(x => x.kind === 'no-copy'), []);
+  assert.match(read(p, '.ruler/extra/00-e.md'), /# 개인 더함/);
+  assert.match(read(p, '.ruler/extra/sub/00-s.md'), /# 하위/);
+  assert.equal(porcelain(p), '');
+  assert.deepEqual((await statusIn(p, env)).todos, []);
+  // wt2 는 프로젝트 사본으로 조합한다(개인 블록 표시 없음, 리비전 차이 할 일 없음)
+  assert.deepEqual((await applyIn(wt2)).todos.filter(x => x.kind === 'personal-revision' || x.kind === 'no-copy'), []);
+  assert.equal(porcelain(wt2), '');
+});
+
+test('개인 사본이 없는 개인 블록은 조용히 빠지지 않고 개인 no-copy 할 일이 된다', async t => {
+  const { p, store, env } = await setup(t);
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra', 'rules/extra/sub'], remove: [] } } });
+  assert.equal((await update(p, env)).code, 0);
+  // 조상 스택의 사본만 사라진다(하위 스택 폴더가 남아 그 자리는 폴더로 보인다)
+  fs.rmSync(path.join(store, '.guideline/rules/extra/00-e.md'));
+  const applied = await applyIn(p);
+  const todo = applied.todos.filter(x => x.kind === 'no-copy');
+  assert.deepEqual(todo, [{
+    kind: 'no-copy', item: 'rules/extra', scope: 'personal', message: 'rules/extra: 개인으로 더했지만 개인 사본이 없어 조합하지 않음 — guideline update 로 받기',
+  }]);
+  assert.equal(exists(p, '.ruler/extra/00-e.md'), false);
+  assert.match(read(p, '.ruler/extra/sub/00-s.md'), /# 하위/);
+  // 받은 적 없는 개인 더함도 같다(local.json 만 고친 경우)
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra', 'rules/extra/sub', 'skills/s'], remove: [] } } });
+  assert.ok((await applyIn(p)).todos.some(x => x.kind === 'no-copy' && x.item === 'skills/s' && x.scope === 'personal'));
+  // update 가 받으면 사라진다
+  const r = await update(p, env);
+  assert.deepEqual(r.todos.filter(x => x.kind === 'no-copy'), []);
+  assert.match(read(p, '.ruler/extra/00-e.md'), /# 개인 더함/);
+});
+
 test('다른 워크트리의 update 가 개인 사본만 올리면 apply·status 가 리비전 차이와 사라진 바꿈 대상을 알린다', async t => {
   const { s, p, store, env } = await setup(t);
   s.store.commit({ ...META, changes: { 'rules/extra/00-e.md': `${ALWAYS}# 개인 더함\n\n## 절 하나\n\n본문\n` } });
@@ -329,7 +394,7 @@ test('다른 워크트리의 update 가 개인 사본만 올리면 apply·status
   assert.equal(kinds(await applyIn(b)).includes('override-target'), false);
 });
 
-test('다른 출처의 같은 이름을 프로젝트가 골라 가려진 개인 더함은 받지 않고 알린다', async t => {
+test('다른 출처의 같은 이름을 프로젝트가 골라 가려진 개인 더함은 조합에 쓰지 않고 알린다', async t => {
   const config = tmpDir('guideline-cfg-');
   t.after(() => fs.rmSync(config, { recursive: true, force: true }));
   const env = { XDG_CONFIG_HOME: config, PATH: '' };
@@ -352,15 +417,15 @@ test('다른 출처의 같은 이름을 프로젝트가 골라 가려진 개인 
   assert.equal((await update(p, env)).code, 0);
   const store = personalStore({ dir: p, root: p });
   writeLocal(store, { version: 1, sources: { b: { add: ['rules/base'], remove: [] } } });
-  assert.deepEqual(personalTargets(readManifest(p), readLocal(store)), { a: [], b: [] });
+  // 개인 사본 대상은 local.json 의 더함 전부다 — 가려짐은 워크트리마다 조합이 판정한다
+  assert.deepEqual(personalTargets(readManifest(p), readLocal(store)), { a: [], b: ['rules/base'] });
   const r = await update(p, env);
   assert.equal(r.code, 0);
   const todo = r.todos.find(x => x.kind === 'personal-shadowed');
   assert.ok(todo, JSON.stringify(r.todos));
   assert.equal(todo.item, 'b:rules/base');
-  assert.equal(todo.message, 'b:rules/base: 개인으로 더했지만 출처 a 의 같은 이름 블록(rules/base)을 프로젝트가 골라 가려짐 — 받지 않음, guideline pick --local 에서 정리');
-  // b 의 rules/base 는 받지 않고 조합은 a 의 것이다. 관리 지침도 더한 것으로 적지 않는다
-  assert.equal(exists(store, '.guideline/rules/base'), false);
+  assert.equal(todo.message, 'b:rules/base: 개인으로 더했지만 출처 a 의 같은 이름 블록(rules/base)을 프로젝트가 골라 가려짐 — 쓰지 않음, guideline pick --local 에서 정리');
+  // 조합은 a 의 것이다(b 의 개인 사본은 쓰지 않는다). 관리 지침도 더한 것으로 적지 않는다
   assert.match(read(p, '.ruler/base/00-a.md'), /에이 본문/);
   assert.doesNotMatch(read(p, '.ruler/guideline.md'), /더한 것/);
   // apply(서버 없이)도 알린다

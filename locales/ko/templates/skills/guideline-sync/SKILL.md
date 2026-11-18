@@ -81,7 +81,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `removed-upstream` | 알리고, 지우려면 `guideline pick` 을 하자고 한다. `scope: "personal"` 이면 개인으로 더한 블록이다: `guideline pick --local` 을 하자고 한다 |
 | `setup-personal` | 개인 범위로만 받은 스택에 세팅 문서가 있다. `docs/guideline/<스택>/SETUP.md` 를 읽고 `setup` 처럼 진행하되, **커밋되는 파일(`package.json`, 커밋되는 설정 파일, `.gitignore`, `.ruler/ruler.project.toml` 등)은 바꾸지 않는다**: 개인 범위는 프로젝트를 그대로 두어야 한다. 그 밖에서 끝나는 단계(작업자의 머신, 추적되지 않는 파일)는 한다. 커밋되는 파일을 바꿔야 하는 단계는 하지 않고, 조용히 건너뛰지도 않는다: 무엇을 바꾸게 되는지 사용자에게 알린다 |
 | `personal-ignored` | 이 작업자가 개인으로 뺀 블록을 프로젝트가 필수로 정해 그 뺌을 무시하고 블록을 받았다. 사용자에게 알린다. 뺌은 `guideline pick --local` 에서 정리할 수 있다 |
-| `personal-shadowed` | 개인으로 더한 블록이 프로젝트가 다른 출처에서 고른 블록과 최종 이름이 같아, 프로젝트 사본을 쓰고 개인 사본은 받지 않는다. `pick --local` 에서 나왔으면 저장하지 않은 것이다. 다른 명령에서 나왔으면 `guideline pick --local` 에서 정리하자고 한다 |
+| `personal-shadowed` | 개인으로 더한 블록이 프로젝트가 다른 출처에서 고른 블록과 최종 이름이 같아, 프로젝트 사본을 쓰고 개인 사본은 쓰지 않는다. `pick --local` 에서 나왔으면 저장하지 않은 것이다. 다른 명령에서 나왔으면 `guideline pick --local` 에서 정리하자고 한다 |
 | `personal-revision` | 개인 사본과 프로젝트 사본이 한 출처의 다른 리비전이다(예: 다른 워크트리에서 `update`). 바꿈이 가리키는 절이 어긋날 수 있다. `guideline update` 로 맞춘다 |
 | `personal-sync` | 개인 사본을 받지 못했다: 쓰기 오류, 또는 읽을 수 없는 개인 잠금(문구에 나온 파일을 지운다). 프로젝트 반영은 끝났다. 고친 뒤 `guideline update` 를 다시 돌린다 |
 | `local-bad` | 개인 선택(`local.json`)을 읽을 수 없어 프로젝트 선택만으로 조합했다. 문구를 보여 주고, 사용자가 그 파일을 고치거나 지운 뒤(지우면 개인 선택이 사라진다) `guideline apply` 를 돌린다 |

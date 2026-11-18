@@ -55,13 +55,13 @@
 | --- | --- |
 | `setup-personal` | 개인 범위로만 받은 스택에 세팅 문서가 있습니다. 커밋되는 파일을 바꾸지 않고 `docs/guideline/<스택>/SETUP.md` 를 따르고, 바꿔야 하는 단계는 사용자에게 알리세요. `setup` 대신 나옵니다 |
 | `personal-ignored` | 개인으로 뺀 블록을 프로젝트가 **필수**로 정해 그 뺌을 무시했습니다. `guideline pick --local` 에서 정리하세요 |
-| `personal-shadowed` | 개인으로 더한 블록이 프로젝트가 다른 출처에서 고른 블록과 최종 이름(별칭 뒤)이 같아 받지 않습니다. `pick --local` 은 그 더함을 저장하지 않습니다. 다른 명령에서 나왔으면 `guideline pick --local` 에서 정리하세요 |
+| `personal-shadowed` | 개인으로 더한 블록이 프로젝트가 다른 출처에서 고른 블록과 최종 이름(별칭 뒤)이 같아 쓰지 않습니다. `pick --local` 은 그 더함을 저장하지 않습니다. 다른 명령에서 나왔으면 `guideline pick --local` 에서 정리하세요 |
 | `personal-revision` | 개인 사본과 프로젝트 사본이 한 출처의 다른 리비전입니다. 예: 다른 워크트리에서 `update` 한 뒤. `guideline update` 를 실행하세요(`apply`·`status` 가 냅니다) |
 | `personal-sync` | 개인 사본을 받지 못했습니다: 쓰기 오류, 또는 읽을 수 없는 개인 잠금(문구에 나온 파일을 지우세요). 프로젝트 반영은 끝났습니다. `guideline update` 를 다시 실행하세요 |
 | `local-bad` | `local.json` 을 읽을 수 없어 프로젝트 선택만으로 조합했습니다. 그 파일을 고치거나 지우세요 |
 | `ruler-leftover` | 개인으로 더했다가 뺀 것 때문에만 ruler 가 만든 설정 파일·폴더(`.mcp.json`, `.claude/skills` …)에 손으로 둔 것이 남았거나 추적되어 그대로 두었습니다. 확인하고 필요 없으면 직접 지우세요 |
 
-개인 사본에서 나온 할 일에는 `--json` 에 `scope: "personal"` 이 붙습니다: `setup-personal`, `removed-upstream`(`guideline pick --local` 에서 해제), 그리고 문구가 「개인 사본 —」 으로 시작하는 다른 종류입니다.
+개인 사본에서 나온 할 일에는 `--json` 에 `scope: "personal"` 이 붙습니다: `setup-personal`, `removed-upstream`(`guideline pick --local` 에서 해제), 그리고 문구가 「개인 사본 —」 으로 시작하는 다른 종류입니다. `scope: "personal"` 인 `no-copy` 는 더한 블록에 개인 사본이 없어 조합하지 않았다는 뜻입니다. `guideline update` 를 실행하세요.
 
 없어진 종류도 있습니다: `mcp-local`(MCP 사본도 다른 사본처럼 `.guideline/mcp/<이름>/server.json` 으로 제안합니다), `moved`(사본의 자리가 하나입니다), `new-file`.
 조합하지 못하는 파일의 `blocked` 할 일은 `.guideline/` 안의 경로를 보입니다.

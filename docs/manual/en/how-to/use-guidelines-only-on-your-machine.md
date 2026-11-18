@@ -82,6 +82,8 @@ Without a personal selection, this works as before: ruler alone decides, and it 
 
 - **Every worktree of a clone shares the personal selection**, because they share the git common directory. In a new worktree, `guideline apply` composes it without the server.
 - Each worktree has its own block in `info/exclude` (`# START guideline personal files <unit path> @<worktree>`; `.` is the git root unit and the main worktree). Branches with different project choices therefore do not hide each other's generated files. The block of a removed worktree goes away on the next write.
+- The personal copies hold every block you added, even one that this branch's project already picks: a worktree on another branch may not pick it. Where the project picks it, the project's copy is used. A copy is deleted only when you drop the addition in `pick --local`.
+- If a block you added has no personal copy (it was never received, or was deleted), it is not composed and you get a `no-copy` to-do with `scope: "personal"`. Run `guideline update` to receive it.
 - Another clone, or another machine, has no personal selection until you run `pick --local` there.
 
 ## Keep it up to date

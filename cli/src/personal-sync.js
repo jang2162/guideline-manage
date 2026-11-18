@@ -16,9 +16,10 @@ import { t } from './i18n.js';
 const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * 출처마다 개인 사본으로 받을 블록(실제 이름): 실제로 적용되는 개인 더함과 그 조상 중, 최종 이름(별칭을 입힌 것)을 프로젝트 선택이
- * (어느 출처로든) 갖지 않은 것. 조합은 프로젝트 선택에 있는 최종 키를 늘 프로젝트 사본에서 읽으므로 그런 키는 받아도 쓰이지 않는다 —
- * 다른 출처의 같은 이름에 가려진 개인 더함(shadowedAdds)도 그래서 받지 않는다.
+ * 출처(이 매니페스트의 것)마다 개인 사본으로 받을 블록(실제 이름): local.json 의 개인 더함과 그 조상 전부. 지금 워크트리의 프로젝트
+ * 선택으로 거르지 않는다 — 개인 저장소는 워크트리끼리 함께 쓰는데 프로젝트 선택은 브랜치마다 달라, 한 워크트리에서 프로젝트가 고른
+ * 블록이 다른 워크트리에서는 개인 사본으로만 들어온다. 「프로젝트가 같은 블록을 고르면 개인 사본을 쓰지 않는다」 는 조합(personalTree
+ * 의 주인 판정, 다른 출처 가려짐은 shadowedAdds)이 워크트리마다 정한다.
  * 조상까지 받는 이유: 하위 스택만 개인으로 더하면 조합이 그 조상 스택도 고른 것으로 보는데, 프로젝트가 그 조상을 고르지 않았으면
  * 사본이 프로젝트 .guideline/ 에 없다.
  * @param {import('./manifest.js').Manifest} manifest
@@ -26,6 +27,16 @@ const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
  * @returns {Record<string, string[]>}
  */
 export function personalTargets(manifest, local) {
+  const out = {};
+  for (const name of Object.keys(manifest.sources)) out[name] = withAncestors(local.sources[name]?.add ?? []);
+  return out;
+}
+
+/**
+ * 개인 사본 대상 중 이 워크트리의 조합이 실제로 개인 사본에서 읽는 것: 적용되는 개인 더함과 그 조상 중 최종 이름(별칭을 입힌 것)을
+ * 이 워크트리의 프로젝트 선택이 (어느 출처로든) 갖지 않은 것. 리비전 차이는 이것이 있는 출처만 알린다.
+ */
+function usedTargets(manifest, local) {
   const eff = effectiveItems(manifest, local);
   const owners = projectFinalOwners(manifest);
   const out = {};
@@ -56,18 +67,22 @@ function personalRenderTodo(x) {
   return { ...x, scope: 'personal', message: t('todo.personalCopyTodo', { message: x.message }) };
 }
 
-/** 개인 사본 대상만 담은 매니페스트(출처는 프로젝트 매니페스트 그대로 — 받지 못한 출처를 가리고 빠진 출처를 정리하게). */
+/**
+ * 개인 사본 대상만 담은 매니페스트. 출처는 프로젝트 매니페스트의 것에, local.json 에만 있는 출처(다른 브랜치의 매니페스트에만 있는 출처)를
+ * 항목 없이 더한다 — 그 출처는 받지 못한 출처처럼 다뤄져 개인 사본·잠금이 그대로 남는다(local.json 에서 빠질 때까지).
+ */
 function personalManifest(manifest, local) {
   const targets = personalTargets(manifest, local);
   const sources = {};
   for (const [name, s] of Object.entries(manifest.sources)) sources[name] = { ...s, items: targets[name] ?? [], required: [] };
+  for (const name of Object.keys(local.sources)) if (!sources[name]) sources[name] = { server: '', items: [], aliases: {}, required: [] };
   return { ...manifest, sources };
 }
 
 /**
  * 개인 사본을 받은 원본으로 맞춘다. 디스크는 읽기만 한다.
- * 프로젝트가 같은 블록을 고르게 되면 그 블록은 대상에서 빠져 개인 사본·잠금 항목이 지워진다(프로젝트 사본이 이긴다).
- * trees 에 없는 출처(받지 못함)의 개인 사본·잠금은 그대로 둔다.
+ * 개인 사본·잠금 항목은 local.json 에서 그 더함이 빠질 때만 지워진다. 프로젝트가 같은 블록을 골라도 지우지 않는다(다른 워크트리가 쓴다).
+ * trees 에 없는 출처(받지 못함, local.json 에만 있는 출처)의 개인 사본·잠금은 그대로 둔다.
  * @param {{ store: string, manifest: import('./manifest.js').Manifest, local: import('./personal.js').Local,
  *   trees: Map<string, { tree: import('./tree.js').Tree, server?: string }>, revisions: Record<string, number>, nested?: boolean }} opts
  * @returns {{ files: Record<string, Buffer | null>, lock: import('./manifest.js').Lock, todos: object[] }} files 는 store 기준 경로
@@ -75,7 +90,7 @@ function personalManifest(manifest, local) {
 export function syncPersonal({ store, manifest, local, trees, revisions, nested = false }) {
   const previous = readLock(store);
   const pm = personalManifest(manifest, local);
-  const failed = Object.keys(manifest.sources).filter(n => !trees.has(n));
+  const failed = Object.keys(pm.sources).filter(n => !trees.has(n));
   const v = virtualize({ manifest: pm, lock: previous, trees });
   // 개인 사본은 고치지 않으므로 늘 덮는다(force). 관리 지침 추가분은 프로젝트 사본에만 있다.
   const rendered = render({
@@ -172,7 +187,7 @@ export function personalRevisionTodos({ store, manifest, local, lock }) {
     return [lockBadTodo(store, e)];
   }
   if (!mine) return [];
-  const targets = personalTargets(manifest, local);
+  const targets = usedTargets(manifest, local);
   const held = new Set(Object.keys(mine.sources).map(q => splitQualified(q).source));
   const todos = [];
   for (const name of Object.keys(targets).sort(byStr)) {
