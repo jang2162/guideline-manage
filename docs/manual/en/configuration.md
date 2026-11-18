@@ -43,6 +43,9 @@ Files the CLI reads and writes in a project (a unit directory).
 
 Do not edit the generated files; the next `guideline apply` overwrites them.
 
+`.ruler/ruler.toml` is built from `ruler.project.toml` plus the received MCP servers.
+A table you wrote in `ruler.project.toml` wins over a received table with the same name, and the CLI leaves an `mcp-conflict` to-do.
+
 The personal scope (`guideline pick --local`) keeps its files outside the project, in git's common directory, so they are never committed:
 
 | File | Contents |
@@ -52,8 +55,6 @@ The personal scope (`guideline pick --local`) keeps its files outside the projec
 | `<git common dir>/info/exclude` | A block per unit and worktree that lists the generated files that come only from the personal scope |
 
 The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path (`packages%2Fapi`). The places and formats are in [Personal scope](reference.md#personal-scope).
-`.ruler/ruler.toml` is built from `ruler.project.toml` plus the received MCP servers.
-A table you wrote in `ruler.project.toml` wins over a received table with the same name, and the CLI leaves an `mcp-conflict` to-do.
 
 ## Server environment variables
 

@@ -44,6 +44,9 @@ CLI 가 프로젝트(단위 디렉터리)에서 읽고 쓰는 파일입니다.
 
 생성물은 고치지 마세요. 다음 `guideline apply` 가 덮어씁니다.
 
+`.ruler/ruler.toml` 은 `ruler.project.toml` 에 받은 MCP 서버를 더해 만듭니다.
+`ruler.project.toml` 에 직접 쓴 표가 받은 표와 이름이 같으면 직접 쓴 표가 이기고, CLI 가 `mcp-conflict` 할 일을 남깁니다.
+
 개인 범위(`guideline pick --local`)는 파일을 프로젝트 밖, git 공용 디렉터리에 두어 커밋되지 않습니다.
 
 | 파일 | 내용 |
@@ -53,8 +56,6 @@ CLI 가 프로젝트(단위 디렉터리)에서 읽고 쓰는 파일입니다.
 | `<git 공용 디렉터리>/info/exclude` | 단위와 워크트리마다 개인 범위에서만 나온 생성물을 적는 블록 |
 
 단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것(`packages%2Fapi`)입니다. 자리와 형식은 [개인 범위](reference.md#개인-범위)에 있습니다.
-`.ruler/ruler.toml` 은 `ruler.project.toml` 에 받은 MCP 서버를 더해 만듭니다.
-`ruler.project.toml` 에 직접 쓴 표가 받은 표와 이름이 같으면 직접 쓴 표가 이기고, CLI 가 `mcp-conflict` 할 일을 남깁니다.
 
 ## 서버 환경 변수
 
