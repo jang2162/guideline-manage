@@ -116,13 +116,20 @@ export function gitRoot(dir, git = runGit) {
 }
 
 /**
- * git 공용 디렉터리(워크트리끼리 나눠 쓰는 .git). git 저장소가 아니면 null.
+ * git 공용 디렉터리(워크트리끼리 나눠 쓰는 .git). git 저장소가 아니거나 git 이 `--path-format`(2.31+)을 몰라
+ * 엉뚱한 출력을 내 realpath 가 실패하면 null — 던지지 않는다.
  * @param {string} dir
  * @param {GitRunner} [git]
  */
 export function gitCommonDir(dir, git = runGit) {
   const r = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], dir);
-  return r.status === 0 && r.stdout.trim() ? fs.realpathSync(r.stdout.trim()) : null;
+  const out = r.status === 0 ? r.stdout.trim() : '';
+  if (!out) return null;
+  try {
+    return fs.realpathSync(out);
+  } catch {
+    return null;
+  }
 }
 
 /**

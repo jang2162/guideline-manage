@@ -55,3 +55,18 @@ test('defaults 는 이미 느슨한 권한으로 있던 파일도 0600 으로 �
   writeDefaults({ version: 1, servers: {} }, w);
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
+
+test('defaults 는 서버 키를 origin 으로 맞춰 쓰고 합친다', t => {
+  const w = where(t);
+  writeDefaults({ version: 1, servers: { 'https://g.example.com/': { add: ['rules/a'], remove: [] }, 'https://g.example.com/x': { add: ['skills/b'], remove: ['rules/z'] } } }, w);
+  assert.deepEqual(readDefaults(w).servers, { 'https://g.example.com': { add: ['rules/a', 'skills/b'], remove: ['rules/z'] } });
+  assert.deepEqual(defaultsFor('https://g.example.com', w), { add: ['rules/a', 'skills/b'], remove: ['rules/z'] });
+  assert.throws(() => writeDefaults({ version: 1, servers: { 'not a url': { add: [], remove: [] } } }, w), DefaultsError);
+});
+
+test('defaults 는 손으로 쓴 끝 슬래시 키도 찾는다', t => {
+  const w = where(t);
+  fs.mkdirSync(configDir(w), { recursive: true });
+  fs.writeFileSync(path.join(configDir(w), 'defaults.json'), '{"version":1,"servers":{"https://g.example.com/":{"add":["rules/a"],"remove":[]}}}');
+  assert.deepEqual(defaultsFor('https://g.example.com', w), { add: ['rules/a'], remove: [] });
+});

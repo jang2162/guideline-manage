@@ -39,15 +39,43 @@ test('gitCommonDir 은 워크트리에서도 주 저장소의 .git 을 돌려주
   assert.equal(gitCommonDir(plain), null);
 });
 
+test('gitCommonDir 은 옛 git 처럼 한 줄이 아닌 출력이나 없는 경로면 던지지 않고 null', () => {
+  const fake = stdout => () => ({ status: 0, stdout });
+  assert.equal(gitCommonDir('.', fake('--path-format=absolute\n.git\n')), null);
+  assert.equal(gitCommonDir('.', fake('/definitely/not/here/.git\n')), null);
+  assert.equal(gitCommonDir('.', fake('\n')), null);
+});
+
 test('personalStore 는 워크트리마다 같은 공용 디렉터리를 쓴다', t => {
   const { main, wt } = repoWithWorktree(t);
   const common = path.join(main, '.git');
-  assert.equal(personalStore({ dir: main, root: main }), path.join(common, 'guideline', 'units', '_root'));
-  assert.equal(personalStore({ dir: wt, root: wt }), path.join(common, 'guideline', 'units', '_root'));
+  assert.equal(personalStore({ dir: main, root: main }), path.join(common, 'guideline', 'units', '%root'));
+  assert.equal(personalStore({ dir: wt, root: wt }), path.join(common, 'guideline', 'units', '%root'));
   fs.mkdirSync(path.join(main, 'a', 'b'), { recursive: true });
   fs.mkdirSync(path.join(wt, 'a', 'b'), { recursive: true });
-  assert.equal(personalStore({ dir: path.join(main, 'a', 'b'), root: main }), path.join(common, 'guideline', 'units', 'a__b'));
-  assert.equal(personalStore({ dir: path.join(wt, 'a', 'b'), root: wt }), path.join(common, 'guideline', 'units', 'a__b'));
+  assert.equal(personalStore({ dir: path.join(main, 'a', 'b'), root: main }), path.join(common, 'guideline', 'units', 'a%2Fb'));
+  assert.equal(personalStore({ dir: path.join(wt, 'a', 'b'), root: wt }), path.join(common, 'guideline', 'units', 'a%2Fb'));
+});
+
+test('personalStore 는 서로 다른 단위에 서로 다른 저장소를 준다(a/b·a__b·_root 폴더·x_/_y·x/__y·루트)', t => {
+  const { main } = repoWithWorktree(t);
+  const dirs = ['a/b', 'a__b', '_root', 'x_/_y', 'x/__y', 'a%2Fb'];
+  const stores = [personalStore({ dir: main, root: main })];
+  for (const d of dirs) {
+    fs.mkdirSync(path.join(main, d), { recursive: true });
+    stores.push(personalStore({ dir: path.join(main, d), root: main }));
+  }
+  assert.equal(new Set(stores).size, 1 + dirs.length, stores.join('\n'));
+});
+
+test('personalStore 는 dir 과 root 를 모두 realpath 하고 root 밖이면 null', t => {
+  const { base, main, wt } = repoWithWorktree(t);
+  const link = path.join(base, 'link');
+  fs.symlinkSync(main, link);
+  const root = personalStore({ dir: main, root: main });
+  assert.equal(personalStore({ dir: main, root: link }), root);
+  assert.equal(personalStore({ dir: link, root: main }), root);
+  assert.equal(personalStore({ dir: wt, root: main }), null);
 });
 
 test('personalStore 는 git 저장소가 아니면 null', t => {
@@ -82,28 +110,45 @@ const manifest = (src = {}) => ({
 });
 const local = (name, v) => ({ version: 1, sources: { [name]: { add: [], remove: [], ...v } } });
 
-test('effectiveItems 는 더함·뺌·필수를 적용하고 더한 하위 스택의 조상을 채운다', () => {
+test('effectiveItems: 브리프 시나리오 — 필수는 남기고 무시하며 더한 하위 스택과 조상이 들어간다', () => {
   const m = manifest({ required: ['rules/base'] });
-  const r = effectiveItems(m, local('default', { add: ['rules/browser/neo'], remove: ['rules/base', 'rules/browser'] }));
+  const r = effectiveItems(m, local('default', { add: ['rules/browser/neo'], remove: ['rules/base'] }));
   assert.deepEqual(r.sources.default, {
-    items: ['rules/base'],
-    added: ['rules/browser/neo'],
-    removed: ['rules/browser'],
-    ignored: ['rules/base'],
+    items: ['rules/base', 'rules/browser', 'rules/browser/neo'],
+    added: ['rules/browser/neo'], removed: [], ignored: ['rules/base'], ignoredWhy: { 'rules/base': 'required' },
   });
 });
 
-test('effectiveItems 는 더한 것이 있으면 조상 스택을 함께 남긴다', () => {
+test('effectiveItems 는 뺀 것이 더한 것을 상쇄하면 added 에 넣지 않고 ignored 에 둔다', () => {
+  const r = effectiveItems(manifest(), local('default', { add: ['rules/browser/neo', 'skills/x'], remove: ['rules/browser', 'skills/x'] }));
+  assert.deepEqual(r.sources.default, {
+    items: ['rules/base'],
+    added: [], removed: ['rules/browser'],
+    ignored: ['rules/browser/neo', 'skills/x'], ignoredWhy: { 'rules/browser/neo': 'canceled', 'skills/x': 'canceled' },
+  });
+});
+
+test('effectiveItems 의 added 는 개인이 고른 키만이고 자동으로 채운 조상은 넣지 않는다', () => {
   const r = effectiveItems(manifest(), local('default', { add: ['rules/browser/neo', 'rules/other/sub', 'skills/x'] }));
   assert.deepEqual(r.sources.default.items, ['rules/base', 'rules/browser', 'rules/browser/neo', 'rules/other', 'rules/other/sub', 'skills/x']);
   assert.deepEqual(r.sources.default.added, ['rules/browser/neo', 'rules/other/sub', 'skills/x']);
 });
 
-test('effectiveItems 는 뺀 스택의 자손도 뺀다', () => {
+test('effectiveItems 는 이미 프로젝트가 가진 add 와 아무것도 못 뺀 remove 를 ignored 로 알린다', () => {
+  const r = effectiveItems(manifest(), local('default', { add: ['rules/base'], remove: ['skills/none'] }));
+  assert.deepEqual(r.sources.default, {
+    items: ['rules/base', 'rules/browser'],
+    added: [], removed: [],
+    ignored: ['rules/base', 'skills/none'], ignoredWhy: { 'rules/base': 'already-chosen', 'skills/none': 'no-effect' },
+  });
+});
+
+test('effectiveItems 는 뺀 스택의 자손도 빼고 removed 에는 실제로 빠진 프로젝트 항목을 담는다', () => {
   const m = manifest({ items: ['rules/browser', 'rules/browser/neo', 'rules/browserx'] });
   const r = effectiveItems(m, local('default', { remove: ['rules/browser'] }));
   assert.deepEqual(r.sources.default.items, ['rules/browserx']);
-  assert.deepEqual(r.sources.default.removed, ['rules/browser']);
+  assert.deepEqual(r.sources.default.removed, ['rules/browser', 'rules/browser/neo']);
+  assert.deepEqual(r.sources.default.ignored, []);
 });
 
 test('effectiveItems 는 필수의 조상을 빼려는 것도 무시한다', () => {
@@ -114,9 +159,13 @@ test('effectiveItems 는 필수의 조상을 빼려는 것도 무시한다', () 
   assert.deepEqual(r.sources.default.removed, []);
 });
 
-test('effectiveItems 는 매니페스트에 없는 출처의 개인 항목을 버리고 ignored 에 둔다', () => {
+test('effectiveItems 는 매니페스트에 없는 출처의 개인 항목을 sources 가 아닌 orphans 에 둔다', () => {
   const l = { version: 1, sources: { gone: { add: ['rules/x'], remove: ['skills/y'] } } };
   const r = effectiveItems(manifest(), l);
-  assert.deepEqual(r.sources.gone, { items: [], added: [], removed: [], ignored: ['rules/x', 'skills/y'] });
+  assert.deepEqual(Object.keys(r.sources), ['default']);
+  assert.deepEqual(r.orphans, { gone: { add: ['rules/x'], remove: ['skills/y'] } });
   assert.deepEqual(r.sources.default.items, ['rules/base', 'rules/browser']);
+  assert.deepEqual(effectiveItems(manifest(), { version: 1, sources: {} }).orphans, {});
+  const both = effectiveItems(manifest(), { version: 1, sources: { default: { add: ['skills/x'], remove: [] }, ...l.sources } });
+  assert.deepEqual(Object.keys(both.orphans), ['gone']);
 });

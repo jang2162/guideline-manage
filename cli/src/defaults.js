@@ -16,6 +16,22 @@ const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const uniqSorted = list => [...new Set(list)].sort(byStr);
 const originOf = server => new URL(server).origin;
 
+/** 서버 키를 origin 으로 맞춰 합친다(끝 슬래시·경로가 달라도 같은 서버). URL 이 아니면 DefaultsError. */
+function byOrigin(servers) {
+  const out = {};
+  for (const [server, s] of Object.entries(servers)) {
+    let origin;
+    try {
+      origin = originOf(server);
+    } catch {
+      throw new DefaultsError(t('defaults.badServer', { server }));
+    }
+    const cur = out[origin] ?? { add: [], remove: [] };
+    out[origin] = { add: uniqSorted([...cur.add, ...s.add]), remove: uniqSorted([...cur.remove, ...s.remove]) };
+  }
+  return Object.fromEntries(Object.keys(out).sort(byStr).map(k => [k, out[k]]));
+}
+
 export function defaultsPath(opts = {}) {
   return path.join(configDir(opts), 'defaults.json');
 }
@@ -38,17 +54,13 @@ export function readDefaults({ env = process.env, home = os.homedir() } = {}) {
     if (!s || typeof s !== 'object' || !okList(s.add) || !okList(s.remove)) throw bad();
     servers[origin] = { add: uniqSorted(s.add), remove: uniqSorted(s.remove) };
   }
-  return { version: 1, servers };
+  return { version: 1, servers: byOrigin(servers) };
 }
 
 /** 서버 origin 을 키로, 정렬해 0600 으로 쓴다(폴더는 0700). */
 export function writeDefaults(defaults, { env = process.env, home = os.homedir() } = {}) {
   const file = defaultsPath({ env, home });
-  const servers = {};
-  for (const origin of Object.keys(defaults.servers).sort(byStr)) {
-    const s = defaults.servers[origin];
-    servers[origin] = { add: uniqSorted(s.add), remove: uniqSorted(s.remove) };
-  }
+  const servers = byOrigin(defaults.servers);
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   fs.writeFileSync(file, `${JSON.stringify({ version: 1, servers }, null, 2)}\n`, { mode: 0o600 });
   fs.chmodSync(file, 0o600);

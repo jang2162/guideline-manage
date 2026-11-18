@@ -687,5 +687,6 @@
   "manifest.sourceBadRequired": "sources.{name}.required: must be a list of block keys",
   "manifest.requiredNotChosen": "sources.{name}.required: {item} is not in items — a required block has to be one of the chosen blocks",
   "local.badFile": "Cannot read {file} — it is not a valid personal selection. Fix or delete it",
-  "defaults.badFile": "Cannot read {file} — it is not a valid machine defaults file. Fix or delete it"
+  "defaults.badFile": "Cannot read {file} — it is not a valid machine defaults file. Fix or delete it",
+  "defaults.badServer": "Cannot save machine defaults for {server} — it is not a server URL"
 }

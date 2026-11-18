@@ -687,5 +687,6 @@
   "manifest.sourceBadRequired": "sources.{name}.required: 블록 키 목록이어야 한다",
   "manifest.requiredNotChosen": "sources.{name}.required: {item} 이(가) items 에 없다 — 필수 블록은 고른 블록이어야 한다",
   "local.badFile": "{file} 을(를) 읽을 수 없다 — 올바른 개인 선택 파일이 아니다. 고치거나 지워라",
-  "defaults.badFile": "{file} 을(를) 읽을 수 없다 — 올바른 머신 기본값 파일이 아니다. 고치거나 지워라"
+  "defaults.badFile": "{file} 을(를) 읽을 수 없다 — 올바른 머신 기본값 파일이 아니다. 고치거나 지워라",
+  "defaults.badServer": "{server} 의 머신 기본값을 저장할 수 없음 — 서버 주소가 아님"
 }
