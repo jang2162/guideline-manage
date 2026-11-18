@@ -74,8 +74,10 @@ When your selection changes which of them exist, the committed `.gitignore` stil
 
 - Before ruler runs with your selection, the CLI runs ruler once more in a temporary folder with the project's choice alone, and puts that `.gitignore` back afterwards. Settings files that only your selection creates (for example `.mcp.json` when the project has no MCP server) go into this worktree's block in `info/exclude` instead.
 - ruler does not remove an MCP server, a skill or a subagent it no longer receives. The CLI removes the ones you removed, and the ones you added before and no longer do, from `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`, `.opencode/skills/`, `.claude/agents/` and `.codex/agents/`.
-- A settings file or folder that only your earlier addition created, but that still holds something you put there by hand, stays. So do the `.bak` backups ruler leaves. A `ruler-leftover` to-do names it.
+- A settings file or folder that only your earlier addition created, but that still holds something you put there by hand, stays. So does the `.bak` backup ruler leaves of such a file, or of another agent's settings. A `.bak` of a claude, codex or opencode settings file that the CLI removed goes with it. A `ruler-leftover` to-do names what stays.
 - The CLI knows only those agents' settings. For any other agent you turn on in `.ruler/ruler.project.toml` (Cursor, for example), it touches nothing and gives a `ruler-leftover` to-do instead: remove the server from that agent's settings yourself.
+
+Empty your personal selection with `pick --local`. If you delete `local.json` or empty it by hand instead, the MCP servers you added on top of the project's MCP servers stay, and you remove them from `.mcp.json` and the other settings yourself.
 
 Without a personal selection, or with an empty one, this works as before: ruler alone decides, and it keeps servers and skills the project drops.
 
@@ -148,7 +150,7 @@ A key that is not in the source, or a removal of a Required block, stops with ex
 - **Sources of the project only.** You can add blocks only from the sources in `guideline.json`.
 - **Same names from another source.** If the project picked a block with the same final name from another source, your addition would never be used. `pick --local` does not save it, nor the blocks below it, and reports a `personal-shadowed` to-do. If the project picks that block after you added it, your addition and the blocks you added below it are not used either, so they never mix into the other source's stack.
 - **Monorepo subdirectories.** Skills, subagents and MCP servers are received only at the git root, but the personal form in a subdirectory does not stop you from adding them. Add them in the git root's personal selection instead.
-- **Broken files.** If `local.json` cannot be read, `apply` composes from the project's choice only (`local-bad` to-do) and `pick --local` stops with exit code 1 without overwriting it. Fix or delete the file.
+- **Broken files.** If `local.json` cannot be read, `apply` composes from the project's choice only (`local-bad` to-do) and `pick --local` stops with exit code 1 without overwriting it. Fix the file, then choose again with `pick --local`. If you delete it instead, the MCP servers you added on top of the project's MCP servers stay: remove them from `.mcp.json` and the other settings yourself.
 
 ## Next
 
