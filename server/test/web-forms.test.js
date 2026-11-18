@@ -275,6 +275,21 @@ test('프로젝트 모드 제출은 필수를 싣고, 폼 data 는 mode·require
   assert.deepEqual((await result(f)).selection.required, ['rules/base']);
 });
 
+test('payload 에 required 가 없으면(옛 CLI) 화면이 보낸 필수를 결과에 싣지 않는다', async t => {
+  // 새 화면은 늘 required 를 보낸다. payload 에 필수가 없으면 화면은 필수 없이 시작하므로 [] 를 「필수 모두 지움」 으로 믿으면 안 된다.
+  const f = await setup(t);
+  const cookie = await openForm(f);
+  assert.deepEqual((await getAs(f.s, cookie, `/forms/${f.id}/data`)).json().required, []);
+  assert.equal((await postJson(f.s, `/forms/${f.id}/submit`, { choices: {}, required: [] }, { cookie })).status, 200);
+  assert.equal(Object.hasOwn((await result(f)).selection, 'required'), false);
+});
+
+test('폼 data 의 personal 은 chosen·required·add·remove·preset 만 넘긴다', async t => {
+  const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, secret: 'x', store: '/home/me/.git' } });
+  const cookie = await openForm(f);
+  assert.deepEqual((await getAs(f.s, cookie, `/forms/${f.id}/data`)).json().personal, PERSONAL);
+});
+
 test('폼 페이지는 개인 모드·필수 문구를 브라우저 문구 블록에 싣는다', async t => {
   const f = await setup(t, {}, { mode: 'personal', personal: PERSONAL });
   const cookie = await openForm(f);

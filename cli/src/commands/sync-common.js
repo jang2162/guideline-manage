@@ -198,6 +198,32 @@ export function finishApply({
   return { code: 0, ...applied, todos };
 }
 
+/**
+ * pick --local 의 마무리: 커밋되는 파일(매니페스트·잠금·.guideline/ 사본)은 쓰지 않고, 받은 원본으로 개인 사본을 맞춘 뒤
+ * 개인 겹을 넣어 생성물을 조합해 쓰고 ruler 를 돈다. 개인 선택(local.json)은 이미 써 두었어야 한다 — 조합이 그것을 다시 읽는다.
+ * @param {{ project: string, root?: string, nested?: boolean, manifest: object, sync: { trees: Map<string, object>, revisions: Record<string, number> },
+ *   todos?: object[], env?: object, runRuler?: Function, err?: Function, git?: Function }} opts
+ * @returns {{ code: number, written: string[], deleted: string[], todos: object[] }}
+ */
+export function finishPersonal({
+  project, root = project, nested = false, manifest, sync, todos: before = [], env = process.env, runRuler = defaultRunRuler, err = console.error, git = runGit,
+}) {
+  const inputs = composeInputs({ project, unit: { root }, git });
+  let todos = [...before, ...inputs.todos];
+  if (inputs.personal) todos = mergeTodos(todos, writePersonal({ personal: inputs.personal, manifest, nested, ...sync }));
+  const composed = composeWithStray({ project, nested, manifest, personal: inputs.personal });
+  todos = mergeTodos(todos, composed.todos);
+  const w = writeComposedOrFail(project, composed.files, err, composed.exclude);
+  if (w.failed) {
+    err(t('apply.composeNotWritten'));
+    return { code: 1, written: w.failed.written ?? [], deleted: w.failed.deleted ?? [], todos };
+  }
+  if (nested && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
+  if (w.written.length || w.deleted.length) rulerStep({ root, env, runRuler, todos });
+  todos = mergeTodos(todos, readOnlyPrepareTodos({ project, root }));
+  return { code: 0, written: w.written, deleted: w.deleted, todos };
+}
+
 /** 순서를 지키며 합친다(같은 경로는 한 번). */
 const union = (a, b) => [...new Set([...a, ...b])];
 

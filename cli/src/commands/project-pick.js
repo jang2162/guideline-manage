@@ -5,10 +5,14 @@ import { expandPath, baseDir, newProjectTarget, projectStatus, createProject, ru
 import { readManifest, readLock, ManifestError } from '../manifest.js';
 import { remoteClient, loadSource, explain } from '../remote.js';
 import { tokenFor, virtualize, toRealLock, fetchSources, aliasMoveTodos, protectedPaths } from '../workspace.js';
-import { realOf, unitOf, unitName, finalUnit, collisions, collisionMessage, NAME } from '../sources.js';
+import { realOf, unitOf, unitName, finalUnit, toVirtual, collisions, collisionMessage, NAME } from '../sources.js';
 import { catalogView } from '../catalog-view.js';
 import { blockKeys } from '../catalog.js';
-import { blockKey, isWithin, withAncestors } from '../blocks.js';
+import { blockKey, isBlockKey, isWithin, withAncestors } from '../blocks.js';
+import { personalPlace, readLocal, writeLocal, effectiveItems, shadowedAdds, LocalError } from '../personal.js';
+import { readDefaults, writeDefaults, DefaultsError } from '../defaults.js';
+import { layoutOf } from '../layout.js';
+import { openProject } from './project-update.js';
 import { splitQualified } from '../manifest.js';
 import { revisionLabel } from './project-update.js';
 import { inferAgents, formPayload, diskReader } from '../project-state.js';
@@ -16,7 +20,7 @@ import { unitInfo, unitProblem, rootStacks } from '../unit.js';
 import { render } from '../render/index.js';
 import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../render/outputs.js';
 import { rulerTomlText, PROJECT_TOML, RULER_TOML } from '../layout.js';
-import { finishApply, report, migrateIfOld, manifestV3Todos, finishMigrationOnly } from './sync-common.js';
+import { finishApply, finishPersonal, report, migrateIfOld, manifestV3Todos, finishMigrationOnly } from './sync-common.js';
 import { t } from '../i18n.js';
 
 const isDir = p => {
@@ -34,8 +38,13 @@ const isDir = p => {
 export async function projectPick({
   project, newTarget, server, source, browser = true, json = false, env = process.env, out = console.log, err = console.error,
   open = openBrowser, fetchImpl = fetch, git = runGit, home, cwd = process.cwd(), pollWait = 30, runRuler,
-  recommend, readStdin = readAllStdin,
+  recommend, readStdin = readAllStdin, local = false,
 }) {
+  if (local) {
+    return pickLocal({
+      project, newTarget, server, source, browser, json, env, out, err, open, fetchImpl, git, home, cwd, pollWait, runRuler, recommend, readStdin,
+    });
+  }
   if (project !== undefined && newTarget !== undefined) {
     err(t('pick.projectAndNew'));
     return 2;
@@ -97,7 +106,8 @@ export async function projectPick({
         : cur ? t('pick.sourceNoServer', { name }) : t('pick.unknownSource', { name }));
       return 2;
     }
-    sources[name] = { server: url, items: cur?.items ?? [], aliases: cur?.aliases ?? {} };
+    // 필수는 그대로 옮긴다(폼 결과가 필수를 싣지 않으면 이것이 남는다). 버리면 pick 이 필수를 소리 없이 지운다.
+    sources[name] = { server: url, items: cur?.items ?? [], aliases: cur?.aliases ?? {}, required: cur?.required ?? [] };
   }
   let recommended = null;
   if (recommend !== undefined) {
@@ -106,7 +116,7 @@ export async function projectPick({
       err(t('pick.recommendOneSource'));
       return 2;
     }
-    recommended = await readRecommend(recommend, { cwd, readStdin });
+    recommended = await readRecommend(recommend, { cwd, readStdin, local: false });
     if (recommended.error) {
       err(recommended.error);
       return 2;
@@ -153,12 +163,13 @@ export async function projectPick({
     // 이 출처만 본 가상 원본·잠금으로 폼을 만든다. 다른 출처가 쓰는 최종 이름은 막는다.
     const only = { ...working, sources: { [name]: sources[name] } };
     const v = virtualize({ manifest: only, lock: lock && lockOf(lock, name), trees: new Map([[name, tree]]) });
+    const aliases = sources[name].aliases ?? {};
     const payload = formPayload({
       tree: v.tree, revision: src.revision, projectPath: dir, isNew, agents, status,
       manifest: manifest && Object.hasOwn(base.sources, name) ? v.view : null, lock: v.viewLock,
       nested: unit.nested, rootStacks: unit.nested ? rootStacks(unit.root) : [], management: v.management,
+      required: sources[name].required.map(k => toVirtual(k, aliases)),
     });
-    const aliases = sources[name].aliases ?? {};
     if (recommended) {
       const keys = blockKeys(src.tree);
       const unknown = Object.keys(recommended.value).filter(k => !keys.has(k));
@@ -178,36 +189,22 @@ export async function projectPick({
         return owner ? { ...it, state: 'blocked', reason: t('pick.nameTaken', { owner }) } : it;
       });
 
-    let result;
-    try {
-      const form = await client.createForm(payload);
-      if (form.formVersion === undefined) {
-        // 옛 서버는 스택 단위 폼을 모르고 파일마다 고르는 폼을 띄운다. 열어 둔 폼을 닫고 이 출처는 건너뛴다(고른 출처가 없으면 코드 1).
-        await client.cancelForm(form.url).catch(() => {});
-        failures.push(`${name}: ${t('pick.serverOld')}`);
-        continue;
-      }
-      err(targets.length > 1 ? t('pick.sourceForm', { name, url: form.url }) : t('pick.form', { url: form.url }));
-      if (browser) open(form.url);
-      do {
-        result = await client.formResult(form.id, pollWait, new URL(form.url).searchParams.get('k'));
-      } while (result.status === 'pending');
-    } catch (e) {
-      failures.push(`${name}: ${e.status === 404 ? t('pick.formGone') : explain(e, url)}`);
-      continue;
-    }
-    if (result.status !== 'submitted') {
-      err(t('pick.notSubmitted', { prefix: targets.length > 1 ? `${name}: ` : '', reason: result.status === 'cancelled' ? t('pick.cancelled') : t('pick.expired') }));
-      continue;
-    }
-    const sel = result.selection;
+    const round = await formRound({ client, payload, name, many: targets.length > 1, url, browser, open, err, pollWait });
+    if (round.failure) failures.push(round.failure);
+    if (!round.result) continue;
+    const sel = round.result.selection;
     if (sel.project) finalAgents = sel.project.agents;
     // 폼은 아직 파일마다 고른다. 매니페스트는 블록 키라, 남긴 파일·키를 그 블록(조상 스택 포함)으로 올린다 —
     // 같은 스택의 파일이 하나라도 남으면 그 스택을 받는다. 매니페스트에 있던 블록 중 막힌 파일이 있는 것도 그대로 둔다.
     const keep = sel.items.filter(i => i.kind !== 'orphan' && i.action !== 'remove').map(i => blockKey(i.id));
     const stillBlocked = v.view.items.filter(k => sel.blocked.some(b => blockKey(b.id) === k));
     const real = id => realOf(id, v.sources)?.id ?? id;
-    sources[name] = { ...sources[name], items: withAncestors([...keep, ...stillBlocked].filter(Boolean).map(real)) };
+    const items = withAncestors([...keep, ...stillBlocked].filter(Boolean).map(real));
+    // 필수: 폼 결과에 있으면 그것(실제 이름), 없으면(옛 서버·옛 화면) 지금 필수. 어느 쪽이든 남은 items 안의 것만 —
+    // 매니페스트는 필수가 items 안에 있어야 하고, 쓰는 길(manifestText)은 그것을 다시 검사하지 않는다.
+    const kept = new Set(items);
+    const required = (Array.isArray(sel.required) ? sel.required.map(real) : sources[name].required).filter(k => kept.has(k));
+    sources[name] = { ...sources[name], items, required: [...new Set(required)].sort() };
     // 지울 수 있는 고아는 이 폼에 올린 것뿐이다(제출을 믿지 않는다)
     const offered = new Set(payload.items.filter(i => i.kind === 'orphan').map(i => i.id));
     submitted.set(name, { sel, v, revision: sel.revision, overrides: payload.overrides, offered });
@@ -289,6 +286,37 @@ export async function projectPick({
 }
 
 const trim = s => s.replace(/\/+$/, '');
+
+/**
+ * 폼 하나를 만들고 브라우저를 열어 결과를 기다린다. needMode 를 주면 그 모드를 모르는 서버(응답 modes 에 없음)의 폼은 취소한다.
+ * @returns {Promise<{ result: object | null, failure?: string }>} 제출되지 않았으면 result 는 null(취소·만료는 failure 없이 알린다)
+ */
+async function formRound({ client, payload, name, many, url, browser, open, err, pollWait, needMode }) {
+  let result;
+  try {
+    const form = await client.createForm(payload);
+    // 옛 서버는 스택 단위 폼을 모르고 파일마다 고르는 폼을 띄운다(formVersion 없음). 개인 모드를 모르는 서버는 그 폼을 프로젝트 모드로
+    // 띄운다 — 제출하면 프로젝트 선택이 바뀐다. 열어 둔 폼을 닫고 이 출처는 건너뛴다(고른 출처가 없으면 코드 1).
+    const old = form.formVersion === undefined ? 'pick.serverOld'
+      : needMode && !(Array.isArray(form.modes) && form.modes.includes(needMode)) ? 'pick.serverOldPersonal' : null;
+    if (old) {
+      await client.cancelForm(form.url).catch(() => {});
+      return { result: null, failure: `${name}: ${t(old)}` };
+    }
+    err(many ? t('pick.sourceForm', { name, url: form.url }) : t('pick.form', { url: form.url }));
+    if (browser) open(form.url);
+    do {
+      result = await client.formResult(form.id, pollWait, new URL(form.url).searchParams.get('k'));
+    } while (result.status === 'pending');
+  } catch (e) {
+    return { result: null, failure: `${name}: ${e.status === 404 ? t('pick.formGone') : explain(e, url)}` };
+  }
+  if (result.status !== 'submitted') {
+    err(t('pick.notSubmitted', { prefix: many ? `${name}: ` : '', reason: result.status === 'cancelled' ? t('pick.cancelled') : t('pick.expired') }));
+    return { result: null };
+  }
+  return { result };
+}
 
 /**
  * 새 배치로 시작할 때의 .ruler/ruler.project.toml. 프로젝트가 둔 ruler.toml 이 있으면 그 설정을 옮긴다(처음 받는 프로젝트라 지침 서버가
@@ -401,9 +429,11 @@ async function readAllStdin() {
 
 /**
  * --recommend 의 JSON(블록 키 → 이유). 파일 경로나 `-`(표준 입력).
- * @returns {Promise<{ value: Record<string, string> } | { error: string }>}
+ * local(pick --local)이면 `{ "add": { 키: 이유 }, "remove": { 키: 이유 } }` 모양도 받고, 늘 { add, remove } 로 돌려준다
+ * (지금 모양 `{ 키: 이유 }` 는 add). 블록 키는 `/` 를 품으므로 `add`·`remove` 라는 최상위 키는 새 모양으로만 읽힌다.
+ * @returns {Promise<{ value: Record<string, string> | { add: Record<string, string>, remove: Record<string, string> } } | { error: string }>}
  */
-async function readRecommend(arg, { cwd, readStdin }) {
+async function readRecommend(arg, { cwd, readStdin, local }) {
   let text;
   try {
     text = arg === '-' ? await readStdin() : fs.readFileSync(path.resolve(cwd, expandPath(arg)), 'utf8');
@@ -416,8 +446,173 @@ async function readRecommend(arg, { cwd, readStdin }) {
   } catch {
     return { error: t('pick.badRecommend') };
   }
-  const ok = value && typeof value === 'object' && !Array.isArray(value) && Object.values(value).every(v => typeof v === 'string');
-  return ok ? { value } : { error: t('pick.badRecommend') };
+  const reasons = v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.values(v).every(x => typeof x === 'string');
+  if (local && value && typeof value === 'object' && !Array.isArray(value)) {
+    const keys = Object.keys(value);
+    if (keys.length && keys.every(k => k === 'add' || k === 'remove')) {
+      const add = value.add ?? {};
+      const remove = value.remove ?? {};
+      return reasons(add) && reasons(remove) ? { value: { add, remove } } : { error: t('pick.badRecommend') };
+    }
+  }
+  if (!reasons(value)) return { error: t('pick.badRecommend') };
+  return { value: local ? { add: value, remove: {} } : value };
+}
+
+/**
+ * guideline pick --local: 출처마다 개인 모드 폼으로 이 단위의 개인 선택(더함·뺌)을 고른다. 커밋되는 파일은 바꾸지 않는다 —
+ * 결과는 git 공용 디렉터리의 개인 저장소(local.json)에 쓰고, 개인 사본을 받아 개인 겹을 넣어 조합한다.
+ * 폼과 개인 사본은 프로젝트 잠금의 리비전 원본으로 만든다(프로젝트 사본과 리비전이 어긋나지 않게). 0 완료, 3 취소·만료, 1 오류, 2 사용법 오류.
+ * @returns {Promise<number>}
+ */
+async function pickLocal({
+  project, newTarget, server, source, browser, json, env, out, err, open, fetchImpl, git, home, cwd, pollWait, runRuler, recommend, readStdin,
+}) {
+  if (newTarget !== undefined) {
+    err(t('pick.localAndNew'));
+    return 2;
+  }
+  const dir = project !== undefined ? expandPath(project) : cwd;
+  if (!isDir(dir)) {
+    err(t('common.notDir', { dir }));
+    return 2;
+  }
+  const opened = openProject({ dir, server, source, err });
+  if (opened.code !== undefined) return opened.code;
+  const { manifest, lock } = opened;
+  // 옛 배치는 update 가 옮긴 뒤에 고른다(사본 자리가 다르다)
+  const layout = layoutOf(lock, dir);
+  if (layout === 'ruler') {
+    err(t('apply.needsUpdate'));
+    return 2;
+  }
+  if (layout === 'none') {
+    err(t('update.notYet'));
+    return 2;
+  }
+  const unit = unitInfo(dir, git);
+  const place = personalPlace({ dir, root: unit.root }, git);
+  if (!place) {
+    err(t('local.needsGit'));
+    return 2;
+  }
+  // 깨진 개인 선택·기본값 파일은 덮어쓰지 않는다(고치거나 지운 뒤 다시)
+  let local;
+  let defaults;
+  try {
+    local = readLocal(place.store);
+    defaults = readDefaults({ env, home });
+  } catch (e) {
+    if (!(e instanceof LocalError || e instanceof DefaultsError)) throw e;
+    err(e.message);
+    return 1;
+  }
+  const names = Object.keys(manifest.sources).sort();
+  const targets = source !== undefined ? [source] : names;
+  let recommended = null;
+  if (recommend !== undefined) {
+    if (targets.length > 1) {
+      err(t('pick.recommendOneSource'));
+      return 2;
+    }
+    recommended = await readRecommend(recommend, { cwd, readStdin, local: true });
+    if (recommended.error) {
+      err(recommended.error);
+      return 2;
+    }
+  }
+
+  const single = names.length === 1;
+  const fetched = await fetchSources({ manifest, lock, latest: new Set(), only: targets, single, env, home, fetchImpl });
+  const failures = fetched.failures.map(f => `${f.source}: ${f.message}`);
+  const status = projectStatus(dir, git, unit.root);
+  const next = { version: 1, sources: { ...local.sources } };
+  const trees = new Map();
+  const saved = new Map();
+  const todos = [];
+  for (const name of targets) {
+    const tree = fetched.trees.get(name);
+    if (!tree) continue;
+    const src = manifest.sources[name];
+    const aliases = src.aliases ?? {};
+    const keys = blockKeys(tree.tree);
+    const guarded = new Set(withAncestors(src.required ?? []));
+    // 미리 체크: 이 단위의 개인 선택, 없으면 그 서버의 머신 기본값. 원본에 없는 블록은 싣지 않는다(고를 수 없다).
+    const preset = local.sources[name] ? 'local' : defaults.servers[new URL(src.server).origin] ? 'defaults' : 'none';
+    const start = local.sources[name] ?? defaults.servers[new URL(src.server).origin] ?? { add: [], remove: [] };
+    let add = start.add.filter(k => keys.has(k));
+    let remove = start.remove.filter(k => keys.has(k));
+    let rec = null;
+    if (recommended) {
+      const { add: ra, remove: rr } = recommended.value;
+      const unknown = [...Object.keys(ra), ...Object.keys(rr)].filter(k => !keys.has(k));
+      if (unknown.length) {
+        err(t('pick.recommendUnknown', { keys: unknown.join(', ') }));
+        return 2;
+      }
+      const cannot = Object.keys(rr).filter(k => guarded.has(k));
+      if (cannot.length) {
+        err(t('pick.recommendRequired', { keys: cannot.join(', ') }));
+        return 2;
+      }
+      // 추천을 미리 체크에 얹는다(개인 모드 화면은 추천을 표시만 하고 체크하지 않는다)
+      add = [...new Set([...add.filter(k => !Object.hasOwn(rr, k)), ...Object.keys(ra)])];
+      remove = [...new Set([...remove.filter(k => !Object.hasOwn(ra, k)), ...Object.keys(rr)])];
+      rec = { ...rr, ...ra };
+    }
+    const only = { ...manifest, sources: { [name]: src } };
+    const v = virtualize({ manifest: only, lock: null, trees: new Map([[name, tree]]) });
+    const vk = k => toVirtual(k, aliases);
+    const personal = {
+      chosen: [...v.view.items],
+      required: withAncestors((src.required ?? []).map(vk)),
+      add: add.map(vk).sort(),
+      remove: remove.map(vk).sort(),
+      preset,
+    };
+    const payload = formPayload({
+      tree: v.tree, revision: tree.revision, projectPath: dir, isNew: false, agents: manifest.agents, status,
+      nested: unit.nested, rootStacks: unit.nested ? rootStacks(unit.root) : [], mode: 'personal', personal,
+    });
+    payload.catalog = withVirtualRequires(catalogView(v.tree), aliases);
+    if (rec) payload.recommend = Object.fromEntries(Object.entries(rec).map(([k, why]) => [vk(k), why]));
+
+    const round = await formRound({
+      client: tree.client, payload, name, many: targets.length > 1, url: tree.server, browser, open, err, pollWait, needMode: 'personal',
+    });
+    if (round.failure) failures.push(round.failure);
+    if (!round.result) continue;
+    const sel = round.result.selection ?? {};
+    const real = id => realOf(id, v.sources)?.id ?? id;
+    const list = x => (Array.isArray(x) ? x.filter(isBlockKey).map(real) : []);
+    const mine = { add: list(sel.add), remove: list(sel.remove) };
+    // 다른 출처의 같은 최종 이름을 프로젝트가 골랐으면 그 더함은 조합이 쓰지 않는다(personal-shadowed). 저장하지 않고 알린다.
+    const eff = effectiveItems(manifest, { version: 1, sources: { [name]: mine } });
+    const shadowed = shadowedAdds(manifest, eff).filter(x => x.source === name);
+    for (const x of shadowed) {
+      const item = names.length > 1 ? `${name}:${x.key}` : x.key;
+      todos.push({ kind: 'personal-shadowed', item, message: t('pick.localShadowed', { item, by: x.by, final: x.final }) });
+    }
+    const drop = new Set(shadowed.map(x => x.key));
+    next.sources[name] = { add: mine.add.filter(k => !drop.has(k)), remove: mine.remove };
+    // 기본값은 서버마다다(프로젝트와 상관없이) — 가림으로 거른 것도 그대로 둔다
+    if (sel.saveDefault === true) saved.set(new URL(src.server).origin, mine);
+    trees.set(name, tree);
+  }
+  for (const f of failures) err(f);
+  if (trees.size === 0) return failures.length ? 1 : 3;
+
+  writeLocal(place.store, next);
+  if (saved.size) {
+    writeDefaults({ version: 1, servers: { ...defaults.servers, ...Object.fromEntries(saved) } }, { env, home });
+  }
+  const revisions = Object.fromEntries([...trees].map(([n, x]) => [n, x.revision]));
+  const done = finishPersonal({
+    project: dir, root: unit.root, nested: unit.nested, manifest, sync: { trees, revisions }, todos, env, runRuler, err, git,
+  });
+  report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
+  if (done.code !== 0) return done.code;
+  return failures.length ? 1 : 0;
 }
 
 /** 폼에 싣는 목록의 requires(실제 이름)를 별칭을 입힌 이름으로. */

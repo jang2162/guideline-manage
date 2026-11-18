@@ -347,7 +347,8 @@ function renderSteps() {
   for (const b of document.querySelectorAll('[data-step]')) {
     const step = b.dataset.step;
     const n = step === 'confirm' ? chosen.size : [...chosen].filter(u => stepOf({ kind: '', id: u }) === step).length;
-    b.querySelector('small').textContent = step === 'confirm' ? '' : hasStep(step) ? t('web.client.stepCount', { n }) : t('web.client.stepNone');
+    const count = sel ? 'web.client.personal.stepCount' : 'web.client.stepCount';
+    b.querySelector('small').textContent = step === 'confirm' ? '' : hasStep(step) ? t(count, { n }) : t('web.client.stepNone');
     b.classList.toggle('on', step === state.step);
     b.classList.toggle('none', !hasStep(step));
     b.setAttribute('aria-current', step === state.step ? 'step' : 'false');

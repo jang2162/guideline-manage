@@ -40,6 +40,11 @@ function personalChoicesOf(body) {
   return Object.fromEntries(Object.entries(raw).filter(([k, v]) => isBlockKey(k) && PERSONAL_CHOICES.includes(v)));
 }
 
+/** 화면에 넘기는 개인 모드 재료. payload 에 다른 필드가 있어도 이것만(허용 목록). */
+function personalData(p) {
+  return { chosen: p.chosen, required: p.required, add: p.add, remove: p.remove, preset: p.preset };
+}
+
 function subtitle(f) {
   const p = f.payload.project;
   if (f.payload.mode === 'personal') return `${p.path} · ${t('web.form.personal')}`;
@@ -108,7 +113,7 @@ export function registerForms(router) {
       recommend: f.payload.recommend ?? {},
       // 'personal' 이면 개인 선택 폼(personal: 프로젝트 선택·필수·미리 체크한 더함·뺌). required 는 프로젝트 모드의 지금 필수.
       mode: f.payload.mode ?? 'project',
-      personal: f.payload.mode === 'personal' ? f.payload.personal : null,
+      personal: f.payload.mode === 'personal' ? personalData(f.payload.personal) : null,
       required: f.payload.required ?? [],
       // CLI 가 별칭을 입힌 원본의 목록을 실어 보내면 그것을 쓴다(여러 출처)
       catalog: f.payload.catalog ?? catalogView(dbTree(ctx.store, f.revision)),
@@ -144,8 +149,11 @@ export function registerForms(router) {
       throw new HttpError(400, t('web.form.needForce'));
     }
     const project = needsForm(p) ? chosenOf(body) : null;
-    // 필수: 화면이 보낸 것, 없으면(옛 화면) payload 의 지금 필수. 둘 다 없으면 싣지 않는다(CLI 는 그대로 둔다).
-    const required = Array.isArray(body?.required) ? body.required.filter(k => typeof k === 'string') : f.payload.required;
+    // 필수: CLI 가 payload 에 지금 필수를 실었을 때만 다룬다 — 화면이 보낸 것, 없으면(옛 화면) payload 의 것. payload 에 없으면(옛 CLI)
+    // 화면은 필수 없이 시작해 늘 [] 를 보내므로 그것을 믿지 않고 결과에 싣지 않는다(CLI 는 매니페스트의 필수를 그대로 둔다).
+    const required = Array.isArray(f.payload.required)
+      ? (Array.isArray(body?.required) ? body.required.filter(k => typeof k === 'string') : f.payload.required)
+      : undefined;
     const selection = buildSelection({ revision: f.revision, items: f.payload.items, choices: isObj(body?.choices) ? body.choices : {}, project, required });
     if (!ctx.forms.finish(f.id, 'submitted', selection)) throw new HttpError(409, t('web.form.closed'));
     sendJson(ctx.res, 200, { ok: true });
