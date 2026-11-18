@@ -298,7 +298,8 @@ function baselineGitignore({ root, plan, bin, runRuler }) {
  * ruler 를 돈 뒤: 이번 실행의 ruler 블록 중 프로젝트 기준(base, 없으면 지금 블록)에 없는 것을 info/exclude 의 이 워크트리 루트 단위
  * 블록에 적고(조합이 적은 줄은 그대로), 커밋되는 .gitignore 를 프로젝트 기준으로 되돌린다 — 그 순서라 개인 출력이 드러나는 틈이 없다.
  * 지난번에 블록에 적었던 ruler 개인 출력 중 이제 만들지 않는 것(개인 더함 되돌림)은 빈 폴더와 빈 claude·codex·opencode MCP 설정만
- * 지운다. 추적되는 것, 비지 않은 폴더, 서버나 다른 설정이 남은 MCP 설정, 다른 에이전트의 설정, .bak 은 두고 할 일로 알린다.
+ * 지우고, 그 설정의 .bak 도 정리 뒤 짝 설정이 없으면 지운다. 추적되는 것, 비지 않은 폴더, 서버나 다른 설정이 남은 MCP 설정, 다른
+ * 에이전트의 설정과 .bak, 손으로 둔 설정의 .bak 은 두고 할 일로 알린다.
  */
 function settleRulerOutputs({ root, place, base, git, todos }) {
   const giFile = path.join(root, '.gitignore');
@@ -322,19 +323,27 @@ function settleRulerOutputs({ root, place, base, git, todos }) {
     todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerIgnoreFailed', { reason: e.message }) });
     return;
   }
-  for (const line of before) {
+  // .bak 은 짝 설정 F 를 판정한 뒤에 본다 — F 가 이번에 지워졌는지가 .bak 판정의 근거다.
+  const isBak = l => l.endsWith('.bak');
+  for (const line of [...before.filter(l => !isBak(l)), ...before.filter(isBak)]) {
     if (extras.includes(line) || baseBlock.includes(line)) continue;
     const rel = line.slice(1);
     if (!rel || rel.split('/').some(s => s === '' || s === '.' || s === '..') || /[*?[\\]/.test(rel)) continue;
     const abs = path.join(root, ...rel.split('/'));
     if (!fs.existsSync(abs)) continue;
     // ruler 가 개인 더함 때문에 만든 것이 확실한 것만 지운다: 조합이 guideline 이름을 지운 뒤 빈 폴더(스킬·서브에이전트 자리), 서버도
-    // 다른 설정도 남지 않은 claude·codex·opencode 의 MCP 설정. 그 밖(다른 에이전트의 설정, ruler 의 .bak)은 ruler 가 사람이 둔 파일에
-    // merge 했거나 그 백업일 수 있어 두고 알린다. 추적되는 것도 둔다.
+    // 다른 설정도 남지 않은 claude·codex·opencode 의 MCP 설정, 그리고 그런 설정 F 의 F.bak 중 정리 뒤 F 가 없는 것. ruler 는 첫 백업만
+    // 남기므로(이미 있으면 그대로) 사람이 둔 F 가 있었다면 .bak 은 그 원본이고 F 에 사람 서버가 남아 F 가 지워지지 않는다 — F 가 없다는
+    // 것은 .bak 이 ruler 출력의 백업이라는 뜻이다. 그 밖(다른 에이전트의 설정과 .bak, 손으로 둔 설정의 .bak)은 두고 알린다. 추적되는 것도 둔다.
     const tracked = git(['ls-files', '--', rel], root);
     const isDir = fs.statSync(abs).isDirectory();
     const m = mcpFileOf(rel);
-    const made = isDir ? fs.readdirSync(abs).length === 0 : !!m && emptyMcpConfig(abs, m);
+    const pairOfBak = isBak(rel) && !isDir && mcpFileOf(rel.slice(0, -'.bak'.length));
+    const made = isDir
+      ? fs.readdirSync(abs).length === 0
+      : pairOfBak
+        ? !fs.existsSync(path.join(root, ...rel.slice(0, -'.bak'.length).split('/')))
+        : !!m && emptyMcpConfig(abs, m);
     if (tracked.status !== 0 || tracked.stdout.trim() || !made) {
       todos.push({ kind: 'ruler-leftover', item: null, message: t('todo.rulerLeftover', { path: rel }) });
       continue;

@@ -52,11 +52,11 @@ async function project(t, items, { projectToml = null } = {}) {
 }
 
 /** pick --local 의 마무리를 같은 원본으로: 지난 개인 선택을 읽고 local.json 을 쓰고 개인 사본을 받아 조합하고 진짜 ruler 를 돈다. */
-function pickLocal(p, add, remove) {
+function pickLocal(p, add, remove, files = FILES) {
   const store = personalStore({ dir: p, root: p });
   const prior = readLocal(store);
   writeLocal(store, { version: 1, sources: { default: { add, remove } } });
-  const trees = new Map([['default', { server: 'http://x', revision: 1, tree: memoryTree(FILES) }]]);
+  const trees = new Map([['default', { server: 'http://x', revision: 1, tree: memoryTree(files) }]]);
   const errs = [];
   const r = finishPersonal({
     project: p, manifest: readManifest(p), sync: { trees, revisions: { default: 1 } }, prior, env, runRuler, err: m => errs.push(m),
@@ -65,6 +65,7 @@ function pickLocal(p, add, remove) {
   return r;
 }
 
+const leftovers = r => r.todos.filter(x => x.kind === 'ruler-leftover').map(x => x.message).sort();
 const exclude = p => fs.readFileSync(path.join(p, '.git', 'info', 'exclude'), 'utf8');
 
 test('진짜 ruler: 프로젝트의 MCP·스킬을 개인으로 빼면 에이전트 설정에서 빠지고 .gitignore 는 그대로다', async t => {
@@ -115,14 +116,62 @@ test('진짜 ruler: 개인으로만 더한 스킬·MCP 는 info/exclude 로 가�
   assert.equal(exists(p, '.mcp.json.bak'), true);
   assert.equal(porcelain(p), '');
 
-  // 되돌리면 ruler 가 만든 것은 지운다. .bak 은 ruler 가 사람이 둔 설정을 바꿀 때도 남기는 백업이라 지우지 않고 알린다
+  // 되돌리면 ruler 가 만든 것은 지운다. .mcp.json 을 지웠으니 그 .bak 도 ruler 출력의 백업이라 함께 지운다
   const r = pickLocal(p, [], []);
   assert.equal(read(p, '.gitignore'), gitignore);
-  assert.equal(porcelain(p), '?? .mcp.json.bak\n');
+  assert.equal(porcelain(p), '');
   assert.equal(servers(p), null);
+  assert.equal(exists(p, '.mcp.json.bak'), false);
   assert.deepEqual(skills(p), []);
-  assert.deepEqual(r.todos.filter(x => x.kind === 'ruler-leftover').map(x => x.message), [tr('todo.rulerLeftover', { path: '.mcp.json.bak' })]);
+  assert.deepEqual(r.todos.filter(x => x.kind === 'ruler-leftover'), []);
   assert.doesNotMatch(exclude(p), /guideline personal files/);
+  // 다음 apply 도 깨끗하다
+  await apply(p);
+});
+
+test('진짜 ruler: 개인 MCP 정의가 원본에서 바뀐 뒤(update) 되돌려도 .mcp.json.bak 이 남지 않는다', async t => {
+  const p = await project(t, ['rules/base']);
+  pickLocal(p, ['mcp/c8'], []);
+  const changed = { ...FILES, 'mcp/c8/server.json': JSON.stringify({ type: 'stdio', command: 'npx', args: ['-y', 'c8@2'] }) };
+  pickLocal(p, ['mcp/c8'], [], changed);
+  assert.equal(exists(p, '.mcp.json.bak'), true);
+  assert.equal(porcelain(p), '');
+  const r = pickLocal(p, [], [], changed);
+  assert.equal(porcelain(p), '');
+  assert.equal(servers(p), null);
+  assert.equal(exists(p, '.mcp.json.bak'), false);
+  assert.deepEqual(r.todos.filter(x => x.kind === 'ruler-leftover'), []);
+});
+
+test('진짜 ruler: 정리가 빈 .mcp.json 을 지우는 실행에서 그 .bak 도 지운다(설정을 먼저, .bak 을 나중에 본다)', async t => {
+  const p = await project(t, ['rules/base']);
+  pickLocal(p, ['mcp/c7'], []);
+  pickLocal(p, ['mcp/c7', 'mcp/c8'], []);
+  assert.equal(exists(p, '.mcp.json.bak'), true);
+  // 서버를 손으로 다 지워 두면 조합은 뺄 서버가 없어 .mcp.json 을 그대로 두고, ruler 뒤 정리가 빈 설정으로 지운다
+  fs.writeFileSync(path.join(p, '.mcp.json'), '{\n  "mcpServers": {}\n}\n');
+  const r = pickLocal(p, [], []);
+  assert.equal(exists(p, '.mcp.json'), false);
+  assert.equal(exists(p, '.mcp.json.bak'), false);
+  assert.equal(porcelain(p), '');
+  assert.deepEqual(leftovers(r), []);
+});
+
+test('진짜 ruler: 손으로 둔 .mcp.json 에 개인 MCP 를 더했다 되돌리면 그 .mcp.json 과 .bak(사람 원본)은 두고 알린다', async t => {
+  const p = await project(t, ['rules/base']);
+  const mine = `${JSON.stringify({ mcpServers: { mine: { command: 'mine' } } }, null, 2)}\n`;
+  fs.writeFileSync(path.join(p, '.mcp.json'), mine);
+  pickLocal(p, ['mcp/c8'], []);
+  assert.deepEqual(servers(p), ['c8', 'mine']);
+  assert.equal(read(p, '.mcp.json.bak'), mine);
+
+  const r = pickLocal(p, [], []);
+  assert.deepEqual(servers(p), ['mine']);
+  assert.equal(read(p, '.mcp.json.bak'), mine);
+  assert.deepEqual(leftovers(r), [
+    tr('todo.rulerLeftover', { path: '.mcp.json' }),
+    tr('todo.rulerLeftover', { path: '.mcp.json.bak' }),
+  ].sort());
 });
 
 test('진짜 ruler: 개인 더함을 되돌릴 때 사람이 둔 스킬은 지우지 않고 할 일로 알린다', async t => {
@@ -151,7 +200,6 @@ test('진짜 ruler: 개인 선택이 없으면 프로젝트에서 뺀 MCP 를 �
 // ruler.project.toml 로 claude·codex·opencode 밖 에이전트(cursor)를 켠 프로젝트. guideline 은 cursor 의 MCP 자리를 모른다
 const WITH_CURSOR = 'default_agents = ["claude", "cursor"]\nnested = false\n\n[gitignore]\nenabled = true\n';
 const cursorServers = p => Object.keys(JSON.parse(read(p, '.cursor/mcp.json')).mcpServers ?? {}).sort();
-const leftovers = r => r.todos.filter(x => x.kind === 'ruler-leftover').map(x => x.message).sort();
 
 test('진짜 ruler: 개인 MCP 더함을 되돌릴 때 다른 에이전트의 설정(손으로 둔 것)과 그 .bak 은 지우지 않고 알린다', async t => {
   const p = await project(t, ['rules/base'], { projectToml: WITH_CURSOR });
