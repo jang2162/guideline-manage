@@ -7,13 +7,13 @@ import { tokenInfo } from '../remote.js';
 import { openProject, revisionLabel } from './project-update.js';
 import { composeUnit, composeInputs, mergeTodos } from './sync-common.js';
 import { excludeStale } from '../exclude.js';
-import { personalStatus } from '../personal-sync.js';
+import { personalStatus, personalRevisionTodos } from '../personal-sync.js';
 import { preparePackage } from '../migrate-layout.js';
 import { layoutOf } from '../layout.js';
 import { t } from '../i18n.js';
 
 /** status 가 조합에서 가져와 내는 할 일 종류. */
-const COMPOSE_KINDS = new Set(['mcp-conflict', 'no-copy', 'override-unchosen', 'blocked', 'personal-ignored']);
+const COMPOSE_KINDS = new Set(['mcp-conflict', 'no-copy', 'override-unchosen', 'blocked', 'personal-ignored', 'personal-shadowed', 'override-target']);
 
 /**
  * 반영한 지침이 서버 최신과 같은지, 프로젝트에서 고친 것이 있는지 본다. 출처마다 최신과 비교한다.
@@ -46,6 +46,8 @@ export async function projectStatus({
   const localTodos = [
     ...(Object.keys(composed.files).length || Object.keys(prep.files).length || excludeOld ? [{ kind: 'apply', item: null, message: t('todo.apply') }] : []),
     ...inputs.todos,
+    // 개인 사본과 프로젝트의 리비전이 출처별로 다르면(다른 워크트리의 update 가 개인 사본만 올림) 서버 없이도 알린다
+    ...(inputs.personal ? personalRevisionTodos({ store: inputs.personal.store, manifest, local: inputs.personal.local, lock }) : []),
     ...prep.todos.filter(x => x.kind !== 'prepare'),
     // 조합이 낼 할 일 중 프로젝트가 고칠 것(apply·update 를 돌리지 않아도 보이게)
     ...mergeTodos([], composed.todos.filter(x => COMPOSE_KINDS.has(x.kind))),
@@ -72,9 +74,11 @@ export async function projectStatus({
   const personal = inputs.personal
     ? personalStatus({ store: inputs.personal.store, manifest, local: inputs.personal.local, trees, nested: unit.nested })
     : null;
-  const todos = [
-    ...localTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many }), ...(personal?.todos ?? []),
-  ];
+  // 개인 잠금이 깨졌으면 리비전 비교와 개인 사본 상태가 같은 할 일을 낸다 — mergeTodos 로 한 번만
+  const todos = mergeTodos(
+    [...localTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })],
+    personal?.todos ?? [],
+  );
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   const head = revisionLabel(Object.fromEntries([...trees].map(([name, t]) => [name, t.revision])));
   const applied = revisionLabel(Object.fromEntries([...trees.keys()].map(name => [name, lock.revisions[name] ?? 0])));
@@ -89,7 +93,9 @@ export async function projectStatus({
       head,
       items: [...states].map(([id, state]) => ({ id: show(id), state })),
       outputs: outputs.map(o => ({ path: o.path, ...(o.key ? { key: o.key } : {}), state: o.state })),
-      personal: personal && { added: personal.added, removed: personal.removed, ignored: personal.ignored, items: personal.items },
+      personal: personal && {
+        added: personal.added, removed: personal.removed, ignored: personal.ignored, shadowed: personal.shadowed, items: personal.items,
+      },
       todos,
       token,
     }, null, 2));
@@ -109,7 +115,10 @@ export async function projectStatus({
   for (const o of outputs) if (o.items.length === 0 && o.state !== 'current') out(`  ${stateLabel(o.state)}  ${o.path}`);
   if (personal && (personal.added.length || personal.removed.length || personal.items.length)) {
     const list = keys => (keys.length ? keys.join(', ') : '-');
-    out(`  ${t('status.personalAdded', { count: personal.added.length, items: list(personal.added) })}`);
+    // 다른 출처의 같은 이름에 가려진 더함은 받지 않는다 — 더함 줄에서 그렇게 보인다
+    const hiddenBy = new Map(personal.shadowed.map(x => [x.id, x.by]));
+    const addedShown = personal.added.map(id => (hiddenBy.has(id) ? t('status.personalShadowed', { id, by: hiddenBy.get(id) }) : id));
+    out(`  ${t('status.personalAdded', { count: personal.added.length, items: list(addedShown) })}`);
     out(`  ${t('status.personalRemoved', { count: personal.removed.length, items: list(personal.removed) })}`);
     for (const { id, state } of personal.items) if (state !== 'current') out(`  ${t('status.personalCopy', { state: stateLabel(state), id })}`);
   }

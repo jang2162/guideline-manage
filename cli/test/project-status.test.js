@@ -251,6 +251,7 @@ test('status 는 개인 더함·뺌과 개인 사본 상태를 보인다', async
     added: ['rules/extra'],
     removed: ['skills/s'],
     ignored: ['rules/base'],
+    shadowed: [],
     items: [{ id: 'rules/extra/00-e.md', state: 'upstream' }],
   });
   const ignored = data.todos.filter(x => x.kind === 'personal-ignored');

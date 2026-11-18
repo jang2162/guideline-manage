@@ -7,6 +7,7 @@ import { unitInfo, rootNestedOn, nestedOffTodo } from '../unit.js';
 import { openProject, revisionLabel } from './project-update.js';
 import { composeWithStray, composeInputs, writeComposedOrFail, rulerStep, report, defaultRunRuler } from './sync-common.js';
 import { preparePackage } from '../migrate-layout.js';
+import { personalRevisionTodos } from '../personal-sync.js';
 import { t } from '../i18n.js';
 
 /**
@@ -43,7 +44,7 @@ export async function projectApply({
   const unit = unitInfo(dir, git);
   const inputs = composeInputs({ project: dir, unit, git });
   const { files, todos, exclude } = composeWithStray({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
-  todos.unshift(...inputs.todos);
+  todos.unshift(...inputs.todos, ...revisionTodos(inputs, manifest, lock));
   // prepare 가 아직 ruler apply 를 부르면 고친다(guideline-manage 를 설치한 뒤 처음 apply 에서 바뀐다)
   const prep = preparePackage({ project: dir, root: unit.root });
   todos.push(...prep.todos);
@@ -61,6 +62,11 @@ export async function projectApply({
   rulerStep({ root: unit.root, env, runRuler, todos });
   report({ result: { revision: revisionLabel(lock.revisions), written: w.written, deleted: w.deleted, todos }, json, out });
   return subs?.failed ? 1 : 0;
+}
+
+/** 개인 사본과 프로젝트 잠금의 리비전이 출처별로 다르면 알리는 할 일(개인 겹이 없으면 없음). */
+function revisionTodos(inputs, manifest, lock) {
+  return inputs.personal ? personalRevisionTodos({ store: inputs.personal.store, manifest, local: inputs.personal.local, lock }) : [];
 }
 
 /** git 루트 아래 git 이 추적하는 하위 단위(guideline-lock.json 이 있는 디렉터리, 루트 자신은 빼고). 루트 기준 상대 경로, 정렬. */
@@ -96,7 +102,7 @@ function composeSubUnits({ root, subs, err, git = runGit }) {
     }
     const inputs = composeInputs({ project: dir, unit: { root }, git });
     const { files, todos, exclude } = composeWithStray({ project: dir, nested: true, manifest: opened.manifest, personal: inputs.personal });
-    todos.unshift(...inputs.todos);
+    todos.unshift(...inputs.todos, ...revisionTodos(inputs, opened.manifest, opened.lock));
     const prep = preparePackage({ project: dir, root });
     todos.push(...prep.todos);
     const w = writeComposedOrFail(dir, { ...files, ...prep.files }, err, exclude);

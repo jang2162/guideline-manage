@@ -9,7 +9,8 @@ import { blockedReason } from './render/index.js';
 import { withAncestors, isWithin } from './blocks.js';
 import { unitOf, unitName, finalUnit } from './sources.js';
 import { readBlock, writeBlock } from './gitignore-block.js';
-import { effectiveItems } from './personal.js';
+import { effectiveItems, shadowedAdds } from './personal.js';
+import { readProjectOverrides, checkOverrides } from './project-overrides.js';
 import { excludeMarkers, excludePattern, unitPathOf, readExclude } from './exclude.js';
 import { t } from './i18n.js';
 
@@ -116,13 +117,20 @@ function personalLayer(manifest, local) {
   const sources = {};
   const note = { added: [], removed: [], ignored: [] };
   const todos = [];
+  // 다른 출처의 같은 최종 이름을 프로젝트가 고른 개인 더함은 조합이 프로젝트 사본을 쓴다 — 더한 것으로 보이지 않고 할 일로 알린다
+  const shadowed = shadowedAdds(manifest, eff);
+  for (const x of shadowed) {
+    const item = many ? `${x.source}:${x.key}` : x.key;
+    todos.push({ kind: 'personal-shadowed', item, message: t('todo.personalShadowed', { item, final: x.final, by: x.by }) });
+  }
   for (const name of names) {
     const src = manifest.sources[name];
     const e = eff.sources[name];
     const gone = new Set(e.removed);
     sources[name] = { ...src, items: [...src.items.filter(k => !gone.has(k)), ...e.added] };
     const show = k => ({ key: finalUnit(k, src.aliases ?? {}), source: many ? name : null });
-    note.added.push(...e.added.map(show));
+    const hidden = new Set(shadowed.filter(x => x.source === name).map(x => x.key));
+    note.added.push(...e.added.filter(k => !hidden.has(k)).map(show));
     note.removed.push(...e.removed.map(show));
     // 무시된 뺌만 보인다(무시된 더함은 결과가 같다 — 이미 고른 것이거나 뺌에 상쇄된 것)
     for (const k of e.ignored) {
@@ -178,6 +186,19 @@ function personalTree(guide, mine, added, projectKeys) {
 }
 
 const stacksOf = keys => new Set(keys.filter(k => k.startsWith('rules/')).map(k => k.slice('rules/'.length)));
+
+/**
+ * 조합에 들어가는 바꿈(고른 스택의 것) 중 대상 파일·절이 조합한 사본(개인 사본을 얹은 트리)에 없는 것을 할 일로 낸다.
+ * 개인·프로젝트 리비전이 어긋나 하위 스택과 부모 스택이 다른 리비전에서 오거나, 원본에서 절 제목이 바뀐 경우다.
+ * 첫 줄을 읽을 수 없거나 다른 스택을 가리키는 바꿈(형식 문제)은 inspect·list 가 다루므로 여기서는 보지 않는다.
+ */
+function overrideTargetTodos(project, tree, keys) {
+  const chosen = stacksOf(keys);
+  const mine = readProjectOverrides(project).filter(o => !o.reason && chosen.has(o.stack));
+  return checkOverrides(mine, tree).filter(o => !o.valid).map(o => ({
+    kind: 'override-target', item: null, message: t('todo.overrideTarget', { file: o.file, heading: o.heading, reason: o.reason }),
+  }));
+}
 
 /**
  * 고른 키로 바라는 생성물(경로 → 내용)과 할 일을 만든다. 디스크는 읽기만 한다.
@@ -271,7 +292,7 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
     ? build({ ...shared, tree: guide, manifest, keys: projectKeys, management: managementOf(guide, manifest) }).want
     : main.want;
   const want = main.want;
-  const todos = [...(layer?.todos ?? []), ...main.todos];
+  const todos = [...(layer?.todos ?? []), ...main.todos, ...overrideTargetTodos(project, tree, keys)];
 
   const generated = {
     project: [...projectWant.keys()].sort(byStr),

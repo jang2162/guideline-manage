@@ -3,6 +3,7 @@ import path from 'node:path';
 import { t } from './i18n.js';
 import { gitCommonDir, runGit } from './projects.js';
 import { isBlockKey, isWithin, withAncestors } from './blocks.js';
+import { finalUnit } from './sources.js';
 
 export class LocalError extends Error {}
 
@@ -154,4 +155,41 @@ export function effectiveItems(manifest, local) {
     if (!(name in manifest.sources)) orphans[name] = { add: [...s.add], remove: [...s.remove] };
   }
   return { sources, orphans };
+}
+
+/**
+ * 프로젝트 선택(조상 포함)의 최종 키(별칭을 입힌 것) → 그것을 고른 출처. 출처 이름 순으로 먼저 고른 출처가 주인이다.
+ * 개인 더함의 최종 키가 여기 있으면 조합은 그 키를 프로젝트 사본에서 읽는다(personalTree) — 개인 사본은 쓰이지 않는다.
+ * @param {import('./manifest.js').Manifest} manifest
+ * @returns {Map<string, string>}
+ */
+export function projectFinalOwners(manifest) {
+  const owners = new Map();
+  for (const name of Object.keys(manifest.sources).sort(byStr)) {
+    const s = manifest.sources[name];
+    for (const id of s.items) {
+      for (const k of withAncestors([finalUnit(id, s.aliases ?? {})])) if (!owners.has(k)) owners.set(k, name);
+    }
+  }
+  return owners;
+}
+
+/**
+ * 프로젝트 블록에 가려지는 개인 더함: 다른 출처(별칭 포함)의 같은 최종 이름을 프로젝트가 골랐다. 조합은 프로젝트 사본을 쓰므로
+ * 개인 사본은 받지 않고, 작업자가 받았다고 믿지 않게 할 일과 status 로 알린다.
+ * @param {import('./manifest.js').Manifest} manifest
+ * @param {ReturnType<typeof effectiveItems>} eff
+ * @returns {{ source: string, key: string, final: string, by: string }[]}
+ */
+export function shadowedAdds(manifest, eff) {
+  const owners = projectFinalOwners(manifest);
+  const out = [];
+  for (const name of Object.keys(eff.sources).sort(byStr)) {
+    const aliases = manifest.sources[name].aliases ?? {};
+    for (const key of eff.sources[name].added) {
+      const final = finalUnit(key, aliases);
+      if (owners.has(final)) out.push({ source: name, key, final, by: owners.get(final) });
+    }
+  }
+  return out;
 }

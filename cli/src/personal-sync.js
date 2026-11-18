@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { applyFiles, writeFileAtomic, ApplyError } from './apply.js';
-import { LOCK, readLock, lockText, ManifestError, qualify } from './manifest.js';
+import { LOCK, readLock, lockText, ManifestError, qualify, splitQualified } from './manifest.js';
 import { diskReader, itemStates } from './project-state.js';
 import { render } from './render/index.js';
 import { virtualize, toRealLock, showId } from './workspace.js';
-import { effectiveItems } from './personal.js';
+import { effectiveItems, projectFinalOwners, shadowedAdds } from './personal.js';
 import { withAncestors } from './blocks.js';
+import { finalUnit } from './sources.js';
 import { t } from './i18n.js';
 
 // 개인 사본: 개인이 더한 블록(프로젝트 선택에 없는 것)의 받은 파일을 개인 저장소(<store>/.guideline/)에 원본 모양으로 둔다.
@@ -15,7 +16,9 @@ import { t } from './i18n.js';
 const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * 출처마다 개인 사본으로 받을 블록(실제 이름): 실제로 적용되는 개인 더함과 그 조상 중 프로젝트 선택에 없는 것.
+ * 출처마다 개인 사본으로 받을 블록(실제 이름): 실제로 적용되는 개인 더함과 그 조상 중, 최종 이름(별칭을 입힌 것)을 프로젝트 선택이
+ * (어느 출처로든) 갖지 않은 것. 조합은 프로젝트 선택에 있는 최종 키를 늘 프로젝트 사본에서 읽으므로 그런 키는 받아도 쓰이지 않는다 —
+ * 다른 출처의 같은 이름에 가려진 개인 더함(shadowedAdds)도 그래서 받지 않는다.
  * 조상까지 받는 이유: 하위 스택만 개인으로 더하면 조합이 그 조상 스택도 고른 것으로 보는데, 프로젝트가 그 조상을 고르지 않았으면
  * 사본이 프로젝트 .guideline/ 에 없다.
  * @param {import('./manifest.js').Manifest} manifest
@@ -24,12 +27,33 @@ const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
  */
 export function personalTargets(manifest, local) {
   const eff = effectiveItems(manifest, local);
+  const owners = projectFinalOwners(manifest);
   const out = {};
   for (const [name, e] of Object.entries(eff.sources)) {
-    const chosen = new Set(manifest.sources[name].items);
-    out[name] = withAncestors(e.added).filter(k => !chosen.has(k));
+    const aliases = manifest.sources[name].aliases ?? {};
+    out[name] = withAncestors(e.added).filter(k => !owners.has(finalUnit(k, aliases)));
   }
   return out;
+}
+
+/** 개인 잠금을 읽을 수 없을 때의 할 일 — update 를 다시 돌려도 같은 파일에서 또 실패하므로 그 파일을 지우라고 한다. */
+function lockBadTodo(store, e) {
+  return { kind: 'personal-sync', item: null, message: t('todo.personalLockBad', { file: path.join(store, LOCK), reason: e.message }) };
+}
+
+/**
+ * 개인 사본 render 의 할 일에 개인임을 드러낸다(scope: 'personal'). 세팅과 원본에서 사라짐은 할 일 자체가 달라 문구를 바꾼다 —
+ * 개인 범위 스택의 세팅은 커밋되는 파일을 바꾸지 않는다(사용자 결정 A), 개인 더함은 pick --local 에서 해제한다.
+ * 나머지(막힘 등)는 「개인 사본 —」 을 앞에 붙인다. kind 는 세팅만 setup-personal 로 바꾼다(setup 을 아는 에이전트가 일반 세팅으로
+ * 처리하지 않게). item 은 그대로라 mergeTodos 의 no-copy 정리는 같이 된다.
+ */
+function personalRenderTodo(x) {
+  if (x.kind === 'setup') {
+    const stack = /^rules\/(.+)\/SETUP\.md$/.exec(x.item)?.[1] ?? x.item;
+    return { kind: 'setup-personal', item: x.item, scope: 'personal', message: t('todo.setupPersonal', { stack }) };
+  }
+  if (x.kind === 'removed-upstream') return { ...x, scope: 'personal', message: t('todo.removedUpstreamPersonal', { item: x.item }) };
+  return { ...x, scope: 'personal', message: t('todo.personalCopyTodo', { message: x.message }) };
 }
 
 /** 개인 사본 대상만 담은 매니페스트(출처는 프로젝트 매니페스트 그대로 — 받지 못한 출처를 가리고 빠진 출처를 정리하게). */
@@ -59,7 +83,7 @@ export function syncPersonal({ store, manifest, local, trees, revisions, nested 
   });
   const got = Object.fromEntries(Object.entries(revisions).filter(([n]) => trees.has(n)));
   const lock = toRealLock({ viewLock: rendered.lock, sources: v.sources, revisions: got, previous, keep: failed });
-  return { files: rendered.files, lock, todos: rendered.todos };
+  return { files: rendered.files, lock, todos: rendered.todos.map(personalRenderTodo) };
 }
 
 /**
@@ -75,8 +99,15 @@ export function writePersonal({ personal, manifest, trees, revisions, nested = f
   const wanted = Object.values(personalTargets(manifest, local)).some(list => list.length > 0);
   if (!wanted && !fs.existsSync(lockFile)) return [];
   try {
+    readLock(store);
+  } catch (e) {
+    if (!(e instanceof ManifestError)) throw e;
+    return [lockBadTodo(store, e)];
+  }
+  try {
     const r = syncPersonal({ store, manifest, local, trees, revisions, nested });
-    // applyFiles 는 store 를 realpath 하므로 먼저 만든다
+    // store 는 보통 writeLocal 이 이미 만들어 두었다. 그래도 local.json 을 손으로 지워 잠금만 남은 정리 실행 등에서 applyFiles 가
+    // (store 를 realpath 하므로) 실패하지 않게 먼저 만든다. 지금 테스트로는 가를 수 없는 방어 코드다.
     fs.mkdirSync(store, { recursive: true });
     applyFiles(store, r.files);
     writeFileAtomic(lockFile, lockText(r.lock));
@@ -105,19 +136,51 @@ export function personalStatus({ store, manifest, local, trees, nested = false }
     removed.push(...e.removed.map(k => show(name, k)));
     ignored.push(...e.ignored.filter(k => e.ignoredWhy[k] === 'required').map(k => show(name, k)));
   }
+  const shadowed = shadowedAdds(manifest, eff).map(x => ({ id: show(x.source, x.key), by: x.by }));
   const todos = [];
   let lock;
   try {
     lock = readLock(store);
   } catch (e) {
     if (!(e instanceof ManifestError)) throw e;
-    todos.push({ kind: 'personal-sync', item: null, message: t('todo.personalSyncFailed', { store, reason: e.message }) });
-    return { added, removed, ignored, items: [], todos };
+    todos.push(lockBadTodo(store, e));
+    return { added, removed, ignored, shadowed, items: [], todos };
   }
   const pm = personalManifest(manifest, local);
   const v = virtualize({ manifest: pm, lock, trees });
   const viewLock = v.viewLock ?? { version: 1, revision: 1, sources: {}, outputs: [] };
   const { states } = itemStates({ tree: v.tree, reader: diskReader(store), manifest: v.view, lock: viewLock, nested, management: {} });
   const items = [...states].map(([id, state]) => ({ id: showId(id, v.sources, many), state }));
-  return { added, removed, ignored, items, todos };
+  return { added, removed, ignored, shadowed, items, todos };
+}
+
+/**
+ * 개인 잠금과 프로젝트 잠금의 리비전이 출처별로 다르면 알린다(apply·status). 개인 사본은 git 공용 디렉터리에 하나뿐이라 브랜치가
+ * 다른 워크트리가 함께 쓴다 — 한 워크트리의 update 가 개인 사본만 올리면 다른 워크트리의 프로젝트 사본과 리비전이 어긋나고,
+ * 하위 스택(개인)·부모 스택(프로젝트)이 섞일 때 바꿈이 가리키는 절이 없을 수 있다. 지금 조합이 쓰는 개인 사본이 있는 출처만 본다.
+ * 개인 잠금을 읽을 수 없으면 그 할 일 하나.
+ * @param {{ store: string, manifest: import('./manifest.js').Manifest, local: import('./personal.js').Local, lock: import('./manifest.js').Lock }} opts
+ *   lock 은 프로젝트 잠금
+ * @returns {object[]}
+ */
+export function personalRevisionTodos({ store, manifest, local, lock }) {
+  let mine;
+  try {
+    mine = readLock(store);
+  } catch (e) {
+    if (!(e instanceof ManifestError)) throw e;
+    return [lockBadTodo(store, e)];
+  }
+  if (!mine) return [];
+  const targets = personalTargets(manifest, local);
+  const held = new Set(Object.keys(mine.sources).map(q => splitQualified(q).source));
+  const todos = [];
+  for (const name of Object.keys(targets).sort(byStr)) {
+    if (!targets[name].length || !held.has(name)) continue;
+    const personal = mine.revisions[name];
+    const project = lock?.revisions?.[name];
+    if (personal === undefined || project === undefined || personal === project) continue;
+    todos.push({ kind: 'personal-revision', item: null, message: t('todo.personalRevision', { source: name, personal, project }) });
+  }
+  return todos;
 }

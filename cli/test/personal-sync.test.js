@@ -9,11 +9,14 @@ import { syncedProject } from './synced.js';
 import { memoryTree } from '../src/tree.js';
 import { MANIFEST, LOCK, manifestText, readLock, readManifest, checkManifest } from '../src/manifest.js';
 import { runGit } from '../src/projects.js';
-import { personalStore, writeLocal } from '../src/personal.js';
+import { personalStore, writeLocal, readLocal } from '../src/personal.js';
 import { syncPersonal, personalTargets } from '../src/personal-sync.js';
 import { projectUpdate } from '../src/commands/project-update.js';
 import { projectPick } from '../src/commands/project-pick.js';
 import { propose } from '../src/commands/propose.js';
+import { projectApply } from '../src/commands/project-apply.js';
+import { projectStatus } from '../src/commands/project-status.js';
+import { saveToken } from '../src/credentials.js';
 
 // 개인 저장소는 임시 git 저장소의 공용 디렉터리에 둔다(이 저장소 자신의 .git 은 건드리지 않는다)
 
@@ -153,6 +156,8 @@ test('update 는 개인 사본 쓰기에 실패해도 프로젝트 반영을 마
   assert.equal(r.code, 0);
   assert.match(read(p, '.guideline/rules/base/00-a.md'), /새 본문/);
   assert.equal(JSON.parse(read(p, LOCK)).revisions.default, 2);
+  // 실패 뒤에도 조합까지 돈다(생성물이 새 원본을 따른다)
+  assert.match(read(p, '.ruler/base/00-a.md'), /새 본문/);
   const todo = r.todos.find(x => x.kind === 'personal-sync');
   assert.ok(todo, JSON.stringify(r.todos));
   assert.match(todo.message, /^개인 사본\(.+\)을 받지 못함: .+ — 프로젝트 반영은 끝남, guideline update 다시 실행$/);
@@ -213,4 +218,159 @@ test('propose 는 개인 사본을 보내지 않는다', async t => {
   const d = collect();
   assert.equal(await propose({ project: p, env, json: true, dryRun: true, out: d.out, err: () => {} }), 0);
   assert.deepEqual(JSON.parse(d.text()).changes.map(c => c.path), ['rules/base/00-a.md']);
+});
+
+test('개인 스택의 세팅 할 일은 커밋되는 파일을 바꾸지 말라는 개인 문구로 낸다', async t => {
+  const { s, p, store, env } = await setup(t);
+  s.store.commit({ ...META, changes: { 'rules/extra/SETUP.md': '# extra 세팅\n' } });
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  const r = await update(p, env);
+  assert.equal(r.code, 0);
+  const mine = r.todos.filter(x => x.item === 'rules/extra/SETUP.md');
+  assert.deepEqual(mine.map(x => [x.kind, x.scope]), [['setup-personal', 'personal']], JSON.stringify(r.todos));
+  assert.equal(mine[0].message,
+    'extra: 개인 범위로 받은 스택 — 세팅 문서를 따르되 커밋되는 파일은 바꾸지 않고, 바꿔야 하는 단계는 사용자에게 알리기 — docs/guideline/extra/SETUP.md');
+  // 일반 세팅 문구(프로젝트에 세팅하라는 지시)는 없다
+  assert.equal(r.todos.some(x => x.kind === 'setup' || /세팅 문서대로 세팅/.test(x.message)), false, JSON.stringify(r.todos));
+  // 세팅 문서는 개인 생성물이다 — 바뀐 커밋 파일은 원본 리비전이 오른 잠금뿐
+  assert.ok(exists(p, 'docs/guideline/extra/SETUP.md'));
+  assert.equal(porcelain(p), ' M guideline-lock.json\n');
+});
+
+test('개인 사본의 다른 render 할 일도 개인임이 드러난다', async t => {
+  const { s, p, store, env } = await setup(t);
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  await update(p, env);
+  // 개인으로 더한 스택이 원본에서 사라짐 — 해제는 개인 범위 폼에서
+  s.store.commit({ ...META, changes: { 'rules/extra/00-e.md': null, 'rules/extra/sub/00-s.md': null } });
+  const gone = await update(p, env);
+  const up = gone.todos.filter(x => x.kind === 'removed-upstream');
+  assert.ok(up.length > 0, JSON.stringify(gone.todos));
+  for (const x of up) {
+    assert.equal(x.scope, 'personal');
+    assert.match(x.message, /: 원본에서 사라짐\(개인으로 더한 블록\) — guideline pick --local 에서 해제$/);
+  }
+});
+
+test('개인 잠금이 깨졌으면 그 파일을 지우고 update 하라고 알린다', async t => {
+  const { p, store, env } = await setup(t);
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  write(store, LOCK, '{ broken');
+  const r = await update(p, env);
+  assert.equal(r.code, 0);
+  const todo = r.todos.find(x => x.kind === 'personal-sync');
+  assert.ok(todo, JSON.stringify(r.todos));
+  assert.match(todo.message, /^개인 잠금\(.+guideline-lock\.json\)을 읽을 수 없음: .+ — 그 파일을 지우고 guideline update$/);
+  assert.ok(todo.message.includes(path.join(store, LOCK)));
+  // status 도 같은 할 일을 한 번 낸다
+  const o = collect();
+  await projectStatus({ project: p, env, json: true, out: o.out, err: () => {} });
+  const st = JSON.parse(o.text()).todos.filter(x => x.kind === 'personal-sync');
+  assert.deepEqual(st.map(x => x.message), [todo.message]);
+});
+
+const OVERRIDE = '## 바꿈\n\n바꾸는 절: `extra/00-e.md` 「절 하나」\n\n바꾼 본문\n';
+const applyIn = async dir => {
+  const o = collect();
+  assert.equal(await projectApply({ project: dir, json: true, out: o.out, err: () => {}, env: { PATH: '' }, runRuler: () => 0 }), 0);
+  return JSON.parse(o.text());
+};
+const statusIn = async (dir, env) => {
+  const o = collect();
+  await projectStatus({ project: dir, env, json: true, out: o.out, err: () => {} });
+  return JSON.parse(o.text());
+};
+
+test('다른 워크트리의 update 가 개인 사본만 올리면 apply·status 가 리비전 차이와 사라진 바꿈 대상을 알린다', async t => {
+  const { s, p, store, env } = await setup(t);
+  s.store.commit({ ...META, changes: { 'rules/extra/00-e.md': `${ALWAYS}# 개인 더함\n\n## 절 하나\n\n본문\n` } });
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  // 프로젝트 바꿈이 개인으로 더한 스택의 절을 가리킨다
+  write(p, '.guideline/overrides/extra/override.md', OVERRIDE);
+  await update(p, env);
+  commitAll(p);
+  const kinds = r => r.todos.map(x => x.kind);
+  assert.equal(kinds(await applyIn(p)).includes('override-target'), false);
+  assert.equal(kinds(await applyIn(p)).includes('personal-revision'), false);
+  // 워크트리 B 는 지금 커밋(프로젝트 r2)에서 갈라진다
+  const b = `${p}-b`;
+  t.after(() => fs.rmSync(b, { recursive: true, force: true }));
+  assert.equal(runGit(['worktree', 'add', '-q', '-b', 'b', b], p).status, 0);
+  const projectRev = JSON.parse(read(b, LOCK)).revisions.default;
+  // 원본에서 절 제목이 바뀌고, 워크트리 A 의 update 가 개인 사본(공용 디렉터리)을 올린다
+  s.store.commit({ ...META, changes: { 'rules/extra/00-e.md': `${ALWAYS}# 개인 더함\n\n## 새 제목\n\n본문\n` } });
+  await update(p, env);
+  const personalRev = readLock(store).revisions.default;
+  assert.equal(personalRev, projectRev + 1);
+  // B: 서버 없이 apply 와 status 가 둘 다 알린다
+  const applied = await applyIn(b);
+  const rev = applied.todos.find(x => x.kind === 'personal-revision');
+  assert.ok(rev, JSON.stringify(applied.todos));
+  assert.equal(rev.message,
+    `default: 개인 사본은 r${personalRev}, 프로젝트는 r${projectRev} — 바꿈이 가리키는 절이 어긋날 수 있음, 맞추려면 guideline update`);
+  const target = applied.todos.find(x => x.kind === 'override-target');
+  assert.ok(target, JSON.stringify(applied.todos));
+  assert.equal(target.message,
+    '.guideline/overrides/extra/override.md 「바꿈」: 바꿈 대상이 조합한 사본에 없음(extra/00-e.md 에 「절 하나」 절이 없음) — 바꿈을 고치거나, 리비전이 어긋났으면 guideline update');
+  const st = await statusIn(b, env);
+  assert.ok(kinds(st).includes('personal-revision'), JSON.stringify(st.todos));
+  assert.ok(kinds(st).includes('override-target'), JSON.stringify(st.todos));
+  // 개인 더함을 거두면(아직 update 전이라 개인 잠금은 남음) 조합이 개인 사본을 쓰지 않으므로 리비전 차이는 알리지 않는다
+  writeLocal(store, { version: 1, sources: { default: { add: [], remove: [] } } });
+  assert.equal(kinds(await applyIn(b)).includes('personal-revision'), false);
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  // B 에서 update 하면 두 범위의 리비전이 같아져 리비전 차이는 사라진다(바꿈은 프로젝트가 고칠 것이라 남는다)
+  await update(b, env);
+  const after = await applyIn(b);
+  assert.equal(kinds(after).includes('personal-revision'), false, JSON.stringify(after.todos));
+  assert.ok(kinds(after).includes('override-target'));
+  // 바꿈을 새 제목으로 고치면 할 일이 없다
+  write(b, '.guideline/overrides/extra/override.md', OVERRIDE.replace('절 하나', '새 제목'));
+  assert.equal(kinds(await applyIn(b)).includes('override-target'), false);
+});
+
+test('다른 출처의 같은 이름을 프로젝트가 골라 가려진 개인 더함은 받지 않고 알린다', async t => {
+  const config = tmpDir('guideline-cfg-');
+  t.after(() => fs.rmSync(config, { recursive: true, force: true }));
+  const env = { XDG_CONFIG_HOME: config, PATH: '' };
+  const server = async body => {
+    const s = await startApp(t);
+    s.store.commit({ ...META, source: 'import', changes: { ...SOURCE, 'rules/base/00-a.md': `${ALWAYS}# 에이\n\n${body}\n` } });
+    saveToken(s.base, { token: s.tokens.issue({ name: 'cli-t', scope: 'read' }).token, name: 'cli-t' }, { env });
+    return s;
+  };
+  const a = await server('에이 본문');
+  const b = await server('비 본문');
+  const p = fs.realpathSync(tmpDir('guideline-personal-shadow-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  runGit(['init', '-q'], p);
+  write(p, '.ruler/ruler.toml', 'default_agents = ["claude"]\n');
+  // 별칭 없이 a 는 rules/base, b 는 skills/s 를 프로젝트로 고른다
+  write(p, MANIFEST, manifestText({ version: 3, form: 'ruler', agents: ['claude'], sources: {
+    a: { server: a.base, items: ['rules/base'] }, b: { server: b.base, items: ['skills/s'] },
+  } }));
+  assert.equal((await update(p, env)).code, 0);
+  const store = personalStore({ dir: p, root: p });
+  writeLocal(store, { version: 1, sources: { b: { add: ['rules/base'], remove: [] } } });
+  assert.deepEqual(personalTargets(readManifest(p), readLocal(store)), { a: [], b: [] });
+  const r = await update(p, env);
+  assert.equal(r.code, 0);
+  const todo = r.todos.find(x => x.kind === 'personal-shadowed');
+  assert.ok(todo, JSON.stringify(r.todos));
+  assert.equal(todo.item, 'b:rules/base');
+  assert.equal(todo.message, 'b:rules/base: 개인으로 더했지만 출처 a 의 같은 이름 블록(rules/base)을 프로젝트가 골라 가려짐 — 받지 않음, guideline pick --local 에서 정리');
+  // b 의 rules/base 는 받지 않고 조합은 a 의 것이다. 관리 지침도 더한 것으로 적지 않는다
+  assert.equal(exists(store, '.guideline/rules/base'), false);
+  assert.match(read(p, '.ruler/base/00-a.md'), /에이 본문/);
+  assert.doesNotMatch(read(p, '.ruler/guideline.md'), /더한 것/);
+  // apply(서버 없이)도 알린다
+  assert.ok((await applyIn(p)).todos.some(x => x.kind === 'personal-shadowed'));
+  // status: 더함 목록에 가려졌음이 보인다
+  const st = await statusIn(p, env);
+  assert.deepEqual(st.personal.added, ['b:rules/base']);
+  assert.deepEqual(st.personal.shadowed, [{ id: 'b:rules/base', by: 'a' }]);
+  assert.ok(st.todos.some(x => x.kind === 'personal-shadowed'));
+  const text = collect();
+  await projectStatus({ project: p, env, out: text.out, err: () => {} });
+  assert.match(text.text(), /^ {2}개인 범위 — 더함 1: b:rules\/base \(가려짐: a\)$/m);
 });
