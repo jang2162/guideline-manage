@@ -111,7 +111,7 @@
 | --- | --- |
 | `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` | 개인 선택: `{ "version": 1, "sources": { "<출처>": { "add": [블록 키], "remove": [블록 키] } } }`, 별칭 전 실제 이름. 단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것(`packages%2Fapi`)입니다 |
 | `<git 공용 디렉터리>/guideline/units/<단위 키>/.guideline/`, `guideline-lock.json` | 내가 더한 블록의 개인 사본과 그 잠금. `pick --local` 과 `update` 가 씁니다. 고치지 마세요 |
-| `<git 공용 디렉터리>/info/exclude` | 단위와 워크트리마다 한 블록(`# START guideline personal files <단위 경로> @<워크트리>` … `# END …`)에 개인 범위에서만 나온 생성물을 적습니다. `.` 은 git 루트 단위와 메인 워크트리입니다. git 이 더는 모르는 워크트리의 블록은 다음에 쓸 때 지웁니다 |
+| `<git 공용 디렉터리>/info/exclude` | 단위와 워크트리마다 한 블록(`# START guideline personal files <단위 경로> @<워크트리>` … `# END …`)에 개인 범위에서만 나온 생성물과 ruler 가 쓰는 에이전트 설정 파일(`.mcp.json` 등)을 적습니다. `.` 은 git 루트 단위와 메인 워크트리입니다. git 이 더는 모르는 워크트리의 블록은 다음에 쓸 때 지웁니다 |
 
 한 클론의 모든 워크트리가 git 공용 디렉터리를 함께 쓰므로, 개인 선택과 개인 사본도 함께 씁니다.
 `guideline.json`·`guideline-lock.json`·`.guideline/`·`.gitignore` 블록은 개인 범위가 없을 때와 같습니다.

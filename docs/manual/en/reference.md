@@ -110,7 +110,7 @@ Additions are limited to the sources in `guideline.json`.
 | --- | --- |
 | `<git common dir>/guideline/units/<unit key>/local.json` | Your personal selection: `{ "version": 1, "sources": { "<source>": { "add": [block keys], "remove": [block keys] } } }`, real names before aliases. The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path (`packages%2Fapi`) |
 | `<git common dir>/guideline/units/<unit key>/.guideline/`, `guideline-lock.json` | The personal copies of the blocks you added, and their lock. Written by `pick --local` and `update`; do not edit them |
-| `<git common dir>/info/exclude` | One block per unit and worktree, `# START guideline personal files <unit path> @<worktree>` … `# END …`, with the generated files that come only from the personal scope. `.` is the git root unit and the main worktree. A block of a worktree that git no longer knows is removed on the next write |
+| `<git common dir>/info/exclude` | One block per unit and worktree, `# START guideline personal files <unit path> @<worktree>` … `# END …`, with the generated files, and the agents' settings files ruler writes (such as `.mcp.json`), that come only from the personal scope. `.` is the git root unit and the main worktree. A block of a worktree that git no longer knows is removed on the next write |
 
 All worktrees of a clone share the git common directory, so they share the personal selection and copies.
 `guideline.json`, `guideline-lock.json`, `.guideline/` and the `.gitignore` block stay as they would be without a personal scope.

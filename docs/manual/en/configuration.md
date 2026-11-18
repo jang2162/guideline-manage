@@ -52,7 +52,7 @@ The personal scope (`guideline pick --local`) keeps its files outside the projec
 | --- | --- |
 | `<git common dir>/guideline/units/<unit key>/local.json` | Your personal selection for that unit: additions and removals per source |
 | `<git common dir>/guideline/units/<unit key>/.guideline/`, `guideline-lock.json` | Personal copies of the blocks you added, and their lock |
-| `<git common dir>/info/exclude` | A block per unit and worktree that lists the generated files that come only from the personal scope |
+| `<git common dir>/info/exclude` | A block per unit and worktree that lists the generated files, and the agents' settings files ruler writes (such as `.mcp.json`), that come only from the personal scope |
 
 The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path (`packages%2Fapi`). The places and formats are in [Personal scope](reference.md#personal-scope).
 

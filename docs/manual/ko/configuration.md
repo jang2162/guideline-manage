@@ -53,7 +53,7 @@ CLI 가 프로젝트(단위 디렉터리)에서 읽고 쓰는 파일입니다.
 | --- | --- |
 | `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` | 그 단위의 내 개인 선택: 출처마다 더함과 뺌 |
 | `<git 공용 디렉터리>/guideline/units/<단위 키>/.guideline/`, `guideline-lock.json` | 내가 더한 블록의 개인 사본과 그 잠금 |
-| `<git 공용 디렉터리>/info/exclude` | 단위와 워크트리마다 개인 범위에서만 나온 생성물을 적는 블록 |
+| `<git 공용 디렉터리>/info/exclude` | 단위와 워크트리마다 개인 범위에서만 나온 생성물과 ruler 가 쓰는 에이전트 설정 파일(`.mcp.json` 등)을 적는 블록 |
 
 단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것(`packages%2Fapi`)입니다. 자리와 형식은 [개인 범위](reference.md#개인-범위)에 있습니다.
 

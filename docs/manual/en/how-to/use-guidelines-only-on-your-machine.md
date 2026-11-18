@@ -49,7 +49,7 @@ To let an agent choose for you, see [Let an agent recommend](#let-an-agent-recom
 | --- | --- | --- |
 | Your personal selection | `<git common dir>/guideline/units/<unit key>/local.json` | No |
 | Copies of the blocks you added | `<git common dir>/guideline/units/<unit key>/.guideline/` and `guideline-lock.json` | No |
-| Generated files that only your selection adds | Listed in `<git common dir>/info/exclude`, in a block for this unit and worktree | No |
+| Generated files, and agents' settings files from ruler, that only your selection adds | Listed in `<git common dir>/info/exclude`, in a block for this unit and worktree | No |
 | `guideline.json`, `guideline-lock.json`, `.guideline/`, the `.gitignore` block | Unchanged | Yes, as before |
 
 `<git common dir>` is `.git/` in an ordinary clone.

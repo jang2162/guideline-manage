@@ -50,7 +50,7 @@
 | --- | --- | --- |
 | 내 개인 선택 | `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` | 안 함 |
 | 내가 더한 블록의 사본 | `<git 공용 디렉터리>/guideline/units/<단위 키>/.guideline/` 과 `guideline-lock.json` | 안 함 |
-| 내 선택에서만 나온 생성물 | `<git 공용 디렉터리>/info/exclude` 의 이 단위·워크트리 블록에 적힘 | 안 함 |
+| 내 선택에서만 나온 생성물과 ruler 의 에이전트 설정 파일 | `<git 공용 디렉터리>/info/exclude` 의 이 단위·워크트리 블록에 적힘 | 안 함 |
 | `guideline.json`, `guideline-lock.json`, `.guideline/`, `.gitignore` 블록 | 바뀌지 않음 | 지금처럼 커밋 |
 
 `<git 공용 디렉터리>` 는 보통의 클론에서 `.git/` 입니다.
