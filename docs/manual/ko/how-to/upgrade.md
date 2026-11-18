@@ -33,6 +33,7 @@ npm install -g guideline-manage
 - 서버는 0.12.0 보다 낮은 CLI 를 「CLI 버전이 낮음 — guideline-manage 업데이트 필요」 로 거부합니다.
 - 공개 서버에서 토큰 없이 받으려면 CLI 0.16 이상이어야 합니다. 0.15 CLI 는 토큰이 없으면 서버에 묻기 전에 멈춥니다.
 - 폼을 쓰려면 **CLI 와 서버를 함께 0.24 이상으로 올리세요.** 폼은 파일이 아니라 스택 단위로 고르고 `guideline.json` 을 버전 3 으로 씁니다. 0.24 서버는 옛 CLI 의 폼을 426 으로 거절하고(서버 언어에 따라 「guideline CLI 를 0.24.0 이상으로 업데이트 필요」 또는 「update the guideline CLI to 0.24.0 or newer」), 0.24 CLI 는 서버가 옛날인 출처를 건너뜁니다(「서버가 CLI 보다 옛날」, 종료 코드 1). 갱신·상태·제안은 서버를 올리지 않아도 됩니다.
+- `guideline pick --local`(개인 범위)과 고르기 폼의 **필수** 표시도 0.24 서버가 필요합니다. 옛 서버는 개인 폼을 몰라 `pick --local` 이 「이 서버는 개인 폼을 모름」 으로 그 폼을 취소합니다(종료 코드 1).
 - 새 CLI 로 처음 `pick` 이나 `update` 를 한 뒤 `guideline.json` 을 커밋하세요. 버전 3(블록 키)으로 다시 쓰이며, 옛 CLI 는 읽지 못합니다(CLI 언어에 따라 「version 이 1 이나 2 가 아님」 또는 「version is not 1 or 2」).
 - **서버도 CLI 와 함께 다시 배포하세요.** 고르기 폼의 스크립트(`/static/selection.js`)는 서버가 내주는데, 0.24 판은 `.guideline/` 에 남은 스킬·서브에이전트·MCP 서버를 맞는 단계에 보입니다. 옛 서버는 엉뚱한 단계에 보입니다.
 - 0.20 이상 CLI 는 옛 서버에서도 동작합니다. 옛 서버는 `whoami` 가 404 라서 `guideline propose` 는 예전처럼 제안으로 보내고, `status`·`login` 은 토큰 범위를 보이지 않습니다. 옛 CLI 는 0.20 서버에서 예전과 같습니다.
@@ -91,6 +92,7 @@ npm install -g guideline-manage
 > - 작성 규칙: 「하위 스택」 절, 「어디에 쓰는가」 표의 하위 스택 행, 「다른 스택을 바꿀 때」 의 `<스택 경로>/<파일>` 셀과 자손 경고. 또한 「어디에 쓰는가」·「세팅 문서」·「표시 이름」·「하위 스택」·「별칭」 에서 스택이 프로젝트에 놓이는 자리(`.guideline/rules/<스택>/`, 조합하면 `.ruler/<스택>/`·`docs/guideline/<스택>/`).
 > - `guideline-sync`: 「추천해서 받기」 1·2 단계의 하위 스택 문장, 「할 일 처리」 에서 `new-file`·`removed-upstream` 행의 `new-file` 삭제(그 할 일은 없어졌습니다)와 `leftover` 행 보강.
 > - `.guideline/` 배치를 위한 `guideline-sync`: 옛 배치 전제, 「무엇을 할지」 의 `guideline apply --json` 행, 「할 일 처리」 의 새 종류 `apply`·`root-apply`·`unit-update`·`unit-problem`·`root-ruler-toml`·`no-copy`·`override-unchosen`·`mcp-conflict`·`untracked`·`stray-ruler-output`·`migrated`·`manifest-v3`·`prepare`·`prepare-manual`·`dev-dependency`·`apply-hook`. `mcp-local` 은 지우고, `mcp-build`·`subagents-off`·`nested-off` 행은 `.ruler/ruler.project.toml` 을 가리키고, `alias` 행은 `.guideline/overrides/<새 이름>/` 을 가리키며, 「지킬 것」 은 `.guideline/` 사본과 생성물을 고치지 말라고 합니다.
+> - 개인 범위를 위한 `guideline-sync`: 모노레포 하위 디렉터리의 개인 폼에 관한 전제 문장, 「무엇을 할지」 의 개인 행 둘, 「개인 범위」 절(`pick --local`, 작업자 자신의 도구로 `{"add": …, "remove": …}` 추천, 필수 블록), 「할 일 처리」 아래의 `scope: "personal"` 문단, `setup-personal`·`personal-ignored`·`personal-shadowed`·`personal-revision`·`personal-sync`·`local-bad`·`override-target`·`unit-write-failed` 행, 이제 git 루트의 `update`·`pick`·`pick --local` 도 말하는 `unit-update`·`unit-problem` 행, `removed-upstream` 행의 개인 문장, 개인 사본을 고치지 않는다는 규칙. 가장 중요한 것은 `setup-personal` 행입니다: 없으면 에이전트가 개인 스택을 다른 스택처럼 세팅해 커밋되는 파일을 바꿀 수 있습니다.
 > - `guideline-export`: 1단계와 예시 표에서 받은 사본의 자리(`.guideline/…`), 바꿈의 자리(`.guideline/overrides/<스택 경로>/`), 프로젝트의 MCP 설정인 `.ruler/ruler.project.toml`.
 
 ## 다음 문서

@@ -13,9 +13,10 @@ Common options: `--project <path>` (default: current directory), `--server <URL>
 | Command | What it does |
 | --- | --- |
 | `guideline pick` | Opens the server form and applies the chosen items on submit. `--new <name\|path>` creates a new project (`git init`) and applies. `--no-browser` only prints the address. `--recommend <file\|->` opens the form with blocks an agent chose (JSON `{"block key": "reason"}`) already checked — one source at a time (add `--source` when there are several). Needs a 0.19+ server; an older server opens the form without the recommendations. Picking stacks needs a 0.24+ server (see [Exit codes](#exit-codes)) |
+| `guideline pick --local` | Opens the personal form and changes only what you receive in this unit: blocks added to or removed from the project's choice ([personal scope](#personal-scope)). Writes nothing that is committed. `--recommend <file\|->` takes `{"add": {"block key": "reason"}, "remove": {"block key": "reason"}}` (a plain `{"block key": "reason"}` is add). Needs a git repository with git 2.31 or later, and a server that knows the personal form. Cannot be combined with `--new` |
 | `guideline update` | Re-applies the chosen items from the latest server revision. Skips files edited in the project; `--force` overwrites them. The first `pick` or `update` with a 0.24 or later CLI moves a project received in the old layout (see [Upgrade the server and the CLI](how-to/upgrade.md#move-projects-to-the-guideline-layout)) |
-| `guideline apply` | Composes the generated files from `.guideline/` and `.ruler/ruler.project.toml` without contacting the server, rewrites the `.gitignore` block and runs `ruler apply` at the git root. Use it after a clone, in a new worktree and from `prepare`. `pick` and `update` compose the same way at their end (at the git root, the units below it too) but run ruler only when they wrote something; `apply` runs ruler even when nothing changed. Options: `--project <path>`, `--json`. Exit code 0 done, 1 could not write, 2 nothing received yet or the project is still in the old layout. Right after a clone it also deletes a `CLAUDE.md` that ruler wrote for every agent (see [Troubleshooting](troubleshooting.md#cli)). At the git root of a monorepo it also composes every unit below it that git tracks, then runs ruler once; this works when the root is not a guideline project too ([monorepos](how-to/use-in-a-monorepo.md)) |
-| `guideline status` | Shows whether the applied guidelines are current and what the project changed, plus the stored token's name and scope (`token` in `--json`; nothing when there is no token or the server is older than 0.20) |
+| `guideline apply` | Composes the generated files from `.guideline/` and `.ruler/ruler.project.toml` without contacting the server, rewrites the `.gitignore` block and runs `ruler apply` at the git root. Use it after a clone, in a new worktree and from `prepare`. `pick`, `pick --local` and `update` compose the same way at their end (at the git root, the units below it too) but run ruler only when they wrote something; `apply` runs ruler even when nothing changed. Options: `--project <path>`, `--json`. Exit code 0 done, 1 could not write, 2 nothing received yet or the project is still in the old layout. Right after a clone it also deletes a `CLAUDE.md` that ruler wrote for every agent (see [Troubleshooting](troubleshooting.md#cli)). At the git root of a monorepo it also composes every unit below it that git tracks, then runs ruler once; this works when the root is not a guideline project too ([monorepos](how-to/use-in-a-monorepo.md)) |
+| `guideline status` | Shows whether the applied guidelines are current and what the project changed, plus the stored token's name and scope (`token` in `--json`; nothing when there is no token or the server is older than 0.20). With a personal scope it adds "Personal scope — added …" and "Personal scope — removed …" lines and the personal copies that are not current (`personal` in `--json`, see [Personal scope](#personal-scope)) |
 | `guideline propose` | Turns edited copies back into source form and proposes them. With an `admin` scope token it applies them directly instead (no review); `--review` sends a proposal anyway, `--apply` applies explicitly (an error with a non-admin token). Passing both is a usage error (exit code 2). `--dry-run` (also says which of the two sending would do), `--title`, `--message`, `--only <item,…>`, `--from <folder>`. `--json` adds `mode`: `apply` or `proposal` (absent when there is nothing to send). The dry run is the authoritative way to see the mode: it asks with the same token and server the real send uses, while `status` may resolve a different token (several sources, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | Logs in to a server and stores a token, or deletes it. `--token-stdin` stores a token without a browser. After saving, `login` prints the token's scope (`read`, `propose` or `admin`) |
 
@@ -29,12 +30,13 @@ The `.guideline/` layout adds these kinds. `apply`, `pick` and `update` print th
 | --- | --- |
 | `apply` | The generated files are out of date (from `status`), or were not written after a move. Run `guideline apply`, before you commit |
 | `root-apply` | A monorepo unit's `apply` did not run ruler because the git root has no `.ruler/ruler.toml`. Run `guideline apply` at the git root first, or put `.ruler/ruler.toml` with `nested = true` there yourself |
-| `unit-update` | `guideline apply`, `update` or `pick` at the git root skipped a unit below it that is still in the old layout. Run `guideline update` in that unit |
-| `unit-problem` | `guideline apply`, `update` or `pick` at the git root could not open a unit below it; the reason follows |
-| `unit-write-failed` | `guideline apply`, `update` or `pick` at the git root could not write all the generated files of a unit below it (the error names the unit). ruler still ran, so do not trust that unit's `AGENTS.md` and other agent files. Fix the cause, then run `guideline apply` at the git root again. Exit code 1 |
+| `unit-update` | `guideline apply`, `update`, `pick` or `pick --local` at the git root skipped a unit below it that is still in the old layout. Run `guideline update` in that unit |
+| `unit-problem` | `guideline apply`, `update`, `pick` or `pick --local` at the git root could not open a unit below it; the reason follows |
+| `unit-write-failed` | `guideline apply`, `update`, `pick` or `pick --local` at the git root could not write all the generated files of a unit below it (the error names the unit). ruler still ran, so do not trust that unit's `AGENTS.md` and other agent files. Fix the cause, then run `guideline apply` at the git root again. Exit code 1 |
 | `root-ruler-toml` | The git root is not a guideline project and has no `.ruler/ruler.toml`, so `apply` composed the units but did not run ruler. Put a `.ruler/ruler.toml` with `nested = true` there and commit it |
 | `no-copy` | A chosen item has no copy in `.guideline/` (blocked, or an MCP entry to build), so it was not composed. `guideline update` shows why |
 | `override-unchosen` | An override in `.guideline/overrides/<stack>/` belongs to a stack that is not chosen. Pick the stack or delete the override |
+| `override-target` | An override points at a file or section that is not in the composed copies (the project's copies, plus the personal ones). Fix the override's first line, or run `guideline update` when the revisions differ. Any project can get it, with or without a personal scope |
 | `subagents-off` | A subagent copy exists but `.ruler/ruler.project.toml` lacks `[agents] enabled = true`, so it was not composed |
 | `mcp-conflict` | A received MCP table was not added to `.ruler/ruler.toml` because `ruler.project.toml` already has a table with that name (the project's own is kept) or the TOML shapes clash. A received MCP table you changed in the project stays in `ruler.project.toml`; `status` shows the MCP as current and repeats this to-do. To share the change, edit `.guideline/mcp/<name>/server.json` and send it with `guideline propose` |
 | `untracked` | A file that is now generated was removed from the git index (`git rm --cached`; the file stays), or the CLI gives you the command because it could not |
@@ -45,6 +47,19 @@ The `.guideline/` layout adds these kinds. `apply`, `pick` and `update` print th
 | `dev-dependency` | `guideline-manage` is not a dependency, so `prepare` was left alone. Until it is, `prepare` in a clone runs only ruler and writes an `AGENTS.md` without the guidelines. Add it with the command shown, then run `guideline apply` |
 | `prepare-manual` | `prepare` runs `ruler apply` with arguments, which `guideline apply` does not take, so it was left alone. Change it to `guideline apply` by hand and move the ruler settings to `.ruler/ruler.project.toml` |
 | `apply-hook` | There is no `package.json`: call `guideline apply` from your setup step (Orca: `scripts.setup` in `orca.yaml`) |
+
+The personal scope adds these kinds. `status` also prints `personal-ignored`, `personal-shadowed`, `override-target`, `personal-revision` and `local-bad`.
+
+| Kind | Meaning |
+| --- | --- |
+| `setup-personal` | A stack received only in the personal scope has a setup doc. Follow `docs/guideline/<stack>/SETUP.md` without changing committed files, and tell the user about a step that would. Agents get it instead of `setup` |
+| `personal-ignored` | The project marks a block **Required** that you removed personally, so the removal is ignored. Clean it up with `guideline pick --local` |
+| `personal-shadowed` | A personal addition has the same final name (after aliases) as a block the project picked from another source, so it is not received. `pick --local` does not save it; elsewhere, clean it up with `guideline pick --local` |
+| `personal-revision` | The personal copies and the project's copies are at different revisions of a source, for example after `update` in another worktree. Run `guideline update` (from `apply` and `status`) |
+| `personal-sync` | The personal copies could not be updated: a write error, or a personal lock that cannot be read (delete the file the message names). The project itself was applied. Run `guideline update` again |
+| `local-bad` | `local.json` cannot be read, so the files were composed from the project's choice only. Fix or delete the file |
+
+To-dos that come from the personal copies carry `scope: "personal"` in `--json`: `setup-personal`, `removed-upstream` (remove it with `guideline pick --local`) and the other kinds, whose message starts with "Personal copy —".
 
 Some kinds no longer exist: `mcp-local` (an MCP copy is proposed like any other copy, from `.guideline/mcp/<name>/server.json`), `moved` (a copy has one place) and `new-file`.
 A `blocked` to-do for a file that cannot be composed names its path in `.guideline/`.
@@ -69,6 +84,8 @@ Only `.guideline/` is compared. Files generated under `.ruler/` and `docs/guidel
 | `.ruler/ruler.project.toml` | The project's ruler settings and MCP servers it wrote itself | Commit |
 | `.ruler/<stack path>/NN-*.md`, `99-reference.md`, `.ruler/guideline.md`, `.ruler/skills/`, `.ruler/agents/`, `.ruler/ruler.toml`, `docs/guideline/` | Generated by `apply`, `pick` and `update` | Not committed: a block in `.gitignore` lists them |
 
+The [personal scope](#personal-scope) keeps its files outside the working tree, in git's common directory, so they are never committed.
+
 Edit the copies in `.guideline/` (or send them upstream with `guideline propose`); a change in a generated file is overwritten by the next `apply`.
 `propose` sends the `.guideline/` copies edited in the project as they are, because they already have the source's form.
 
@@ -77,6 +94,52 @@ Edit the copies in `.guideline/` (or send them upstream with `guideline propose`
 `items` of each source are **block keys**: `rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>` (`"version": 3`).
 A child stack is listed together with its ancestor stacks, for example `["rules/browser", "rules/browser/browseros-neo"]`.
 An older file (`"version": 1` or `2`, with file paths) is read as before and rewritten as version 3 the next time `pick` or `update` writes it (a `manifest-v3` to-do says so).
+`required` of a source lists the blocks marked **Required** in the pick form, for example `"required": ["rules/browser"]`. Each must be one of `items`. Nobody can remove them, or the stacks above them, in a personal selection. `pick` drops a required block you unchecked.
+
+## Personal scope
+
+`guideline pick --local` lets one worker add blocks to the project's choice, or remove blocks from it, without changing any committed file.
+How to use it: [Use guidelines only on your machine](how-to/use-guidelines-only-on-your-machine.md).
+
+What you receive is the project's choice, plus your additions and their ancestor stacks, minus your removals and the stacks below them.
+A **Required** block and the stacks above it cannot be removed; such a removal is ignored with a `personal-ignored` to-do.
+Additions are limited to the sources in `guideline.json`.
+
+| Place | Contents |
+| --- | --- |
+| `<git common dir>/guideline/units/<unit key>/local.json` | Your personal selection: `{ "version": 1, "sources": { "<source>": { "add": [block keys], "remove": [block keys] } } }`, real names before aliases. The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path (`packages%2Fapi`) |
+| `<git common dir>/guideline/units/<unit key>/.guideline/`, `guideline-lock.json` | The personal copies of the blocks you added, and their lock. Written by `pick --local` and `update`; do not edit them |
+| `<git common dir>/info/exclude` | One block per unit and worktree, `# START guideline personal files <unit path> @<worktree>` … `# END …`, with the generated files that come only from the personal scope. `.` is the git root unit and the main worktree. A block of a worktree that git no longer knows is removed on the next write |
+
+All worktrees of a clone share the git common directory, so they share the personal selection and copies.
+`guideline.json`, `guideline-lock.json`, `.guideline/` and the `.gitignore` block stay as they would be without a personal scope.
+The management guideline (`.ruler/guideline.md`) gets a "This worker's personal scope" section, and stacks received personally are marked "personal" in its setup table.
+
+- `pick --local` opens one personal form per source. It shows the source at the revision in the project's lock, and receives the personal copies at that revision. `guideline update` brings the project and the personal copies to the latest revision together.
+- `apply` composes the personal scope from the git common directory without the server, in any worktree.
+- `propose` never sends personal copies.
+- `--recommend` pre-checks the additions and removals in the form. A key not in the source, or a removal of a Required block or a stack that holds one, stops with exit code 2 before the form opens.
+- A personal addition hidden by a block with the same final name that the project picked from another source is not saved (`personal-shadowed`). The blocks below it are not saved either.
+- `local.json` or `defaults.json` that cannot be read stops `pick --local` with exit code 1; the file is not overwritten.
+
+`status --json` adds `personal`:
+
+| Field | Meaning |
+| --- | --- |
+| `added` | Blocks you added that are received (`<source>:<key>` with several sources) |
+| `removed` | Blocks of the project's choice you do not receive, the stacks below a removed one included |
+| `ignored` | Removals ignored because the block is Required |
+| `shadowed` | `[{ id, by }]`: additions hidden by a block of source `by` |
+| `items` | `[{ id, state }]`: the personal copies and their states, as for the project's copies |
+
+`personal` is `null` when the unit is not in a git repository, or `local.json` cannot be read (a `local-bad` to-do says so).
+
+### Machine defaults
+
+"Save this selection as my default" on the personal form stores your additions and removals in `defaults.json` in the CLI's configuration folder ([Configuration](configuration.md#cli-files)), per server address (origin).
+They pre-check the personal form only in a project where you have no personal selection for that source yet; blocks the source does not have are left out.
+`update` and `apply` never read them.
+The last run that saves defaults sets that server's defaults. Within one run, several sources on the same server are merged; when they chose a block differently, the later source by name wins and the CLI warns.
 
 ## Source commands
 
@@ -114,6 +177,9 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 | 2 | Usage error, not a ruler project, name clash. Also `apply`, `status` and `propose` in a project still in the old layout, and `apply` before anything was received |
 | 3 | `pick`: not submitted (cancelled, tab closed, never opened). Nothing was written |
 
+`pick --local` exits with 2 when the folder is not in a git repository (or git is older than 2.31), nothing was received yet, the project is still in the old layout, or it is combined with `--new`.
+It exits with 1 when `local.json` or `defaults.json` cannot be read, or when the server does not know the personal form ("This server does not know the personal form").
+
 A server older than 0.24 cannot take stack choices.
 `pick` then cancels that source's form, says "This server is older than the CLI" and leaves the source as it was.
 The other sources are still picked, and the exit code is 1 because a source failed; with no source picked it is also 1.
@@ -147,7 +213,19 @@ A 0.24 server refuses a CLI that does not send the stack form's `formVersion` wi
 - Items recommended with `--recommend` carry **Agent pick** and a reason.
 - With uncommitted changes in the working tree you get a warning, and must check **Proceed anyway** to submit. Commit first, so you can review the result with `git diff`.
 - Items with a source warning show as "blocked" and cannot be checked; the reason is shown.
+- A chosen stack row, and a chosen MCP server, subagent or skill row, has a **Required** checkbox. A Required block cannot be removed in anyone's personal selection. Unchecking the block turns its Required box off. **Review** lists the Required blocks.
 - A form expires if it is not opened within 10 minutes, or after 90 seconds without page signals once opened.
+
+### The personal form
+
+`guideline pick --local` opens the same form in personal mode. Its subtitle ends with "my personal selection".
+
+- Each block shows whether the project gets it, and three choices: **As project**, **Add** and **Remove**. Add is off for a block the project already gets; Remove is off for one it does not.
+- A Required block shows "Required — cannot remove"; a stack above one shows "Holds a required block — cannot remove".
+- Adding a child stack adds its ancestors the project does not get. Removing a stack removes the stacks below it. Turning a choice back to **As project** resets the stacks below that had the same choice.
+- A line at the top says what is pre-checked: "my selection for this project" or "my defaults".
+- **Review** lists what you add and remove, and has **Save this selection as my default**. There is no uncommitted-changes warning, because nothing committed is written.
+- In a monorepo subdirectory the personal form does not block skills, subagents and MCP servers, which are received only at the git root. Add them in the git root's personal selection.
 
 ## Token scopes
 
@@ -210,7 +288,7 @@ Accepting is one revision (source `proposal`, author = token name, message "prop
 ### CLI login and forms
 
 - **CLI login**: `guideline login` opens `/cli/login`. Selecting **Issue** in an admin session sends a single-use, two-minute code to the CLI's `127.0.0.1` callback. The CLI exchanges it at `POST /api/v1/cli/token` for a read token named `cli-<host>-<6 chars>`. `DELETE /api/v1/tokens/self` revokes the sent token (`guideline logout`).
-- **Forms**: `POST /api/v1/forms` (2 MB body) creates a form and returns `/forms/<id>?k=<link token>`. A private server needs a read token; a public server lets anyone create a form. The link covers only that form and turns into a cookie (and leaves the address) when first opened. `GET /api/v1/forms/<id>/result?wait=` waits for the result. The request body carries `formVersion: 2` (stack choices); a body without it is refused with 426. A form created with a token returns its result only to that token; a form created without a token, only to the admin or to a request with the link token in the `X-Form-Link` header. Forms finished more than a day ago are deleted when a new form is created.
+- **Forms**: `POST /api/v1/forms` (2 MB body) creates a form and returns `/forms/<id>?k=<link token>`. A private server needs a read token; a public server lets anyone create a form. The link covers only that form and turns into a cookie (and leaves the address) when first opened. `GET /api/v1/forms/<id>/result?wait=` waits for the result. The request body carries `formVersion: 2` (stack choices); a body without it is refused with 426. The response lists `modes: ["project", "personal"]`; a body with `mode: "personal"` opens the personal form, and its result is `{ mode: "personal", add, remove, saveDefault, rejected: [] }` (block keys with aliases applied). A removal of a Required block is refused with 400. A form created with a token returns its result only to that token; a form created without a token, only to the admin or to a request with the link token in the `X-Form-Link` header. Forms finished more than a day ago are deleted when a new form is created.
 - **`/llms.txt`**: the usage and setup guide for agents. It opens without login. It is the language pack's `templates/llms.txt`, with `{{SERVER}}` filled from `PUBLIC_URL`, rebuilt per request.
 
 ## Markers in guidelines

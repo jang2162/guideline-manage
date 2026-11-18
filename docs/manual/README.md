@@ -20,6 +20,7 @@ Choose a language. 언어를 고르세요.
 | [Hand guidelines to an agent](en/how-to/hand-off-to-an-agent.md) | [에이전트에게 맡기기](ko/how-to/hand-off-to-an-agent.md) |
 | [Stay up to date](en/how-to/stay-up-to-date.md) | [최신으로 유지하기](ko/how-to/stay-up-to-date.md) |
 | [Override a guideline in one project](en/how-to/override-guidelines.md) | [이 프로젝트에만 다르게 하기](ko/how-to/override-guidelines.md) |
+| [Use guidelines only on your machine](en/how-to/use-guidelines-only-on-your-machine.md) | [내 머신에서만 지침 쓰기](ko/how-to/use-guidelines-only-on-your-machine.md) |
 | [Propose changes to the source](en/how-to/propose-changes.md) | [원본에 변경 제안하기](ko/how-to/propose-changes.md) |
 | [Review proposals](en/how-to/review-proposals.md) | [제안 검토하기](ko/how-to/review-proposals.md) |
 | [Add a language pack](en/how-to/add-a-language-pack.md) | [언어팩 더하기](ko/how-to/add-a-language-pack.md) |

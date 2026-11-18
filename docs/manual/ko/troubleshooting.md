@@ -31,6 +31,12 @@
 | 직접 만든 `.claude/skills/<이름>` 이나 `.mcp.json` 항목이 첫 `pick` 뒤에 사라졌습니다 | 같은 이름의 받은 스킬·MCP 서버가 `.ruler/` 로 조합되고, ruler 가 그것으로 덮어씁니다. 폼은 이제 `.claude/skills` 와 `.mcp.json` 을 비교하지 않아 경고하지 않습니다 | `pick` 하기 전에 이름을 바꾸거나 `guideline-export` 스킬로 원본에 올리세요 |
 | `CLAUDE.md 형은 더 이상 지원하지 않음` | 0.12 의 CLAUDE.md 형으로 받은 프로젝트입니다 | ruler 로 옮기고 `guideline pick` 을 다시 실행하세요 |
 | `제안 권한이 없는 토큰` | 읽기 토큰입니다 | 관리자에게 범위 `propose` 토큰을 받아 `--token-stdin` 으로 넣으세요 |
+| `개인 범위는 git 저장소 안에서, git 2.31 이상(git rev-parse --path-format)으로만 씀`(종료 코드 2) | `pick --local` 을 git 저장소 밖에서 실행했거나 git 이 2.31 보다 옛날입니다 | git 저장소에서 실행하거나 git 을 올리세요. git 밖의 폴더에는 개인 범위가 없습니다 |
+| `이 서버는 개인 폼을 모름` | 서버가 CLI 의 개인 폼보다 옛날입니다 | 서버 운영자에게 서버를 올려 달라고 하세요([서버와 CLI 올리기](how-to/upgrade.md)) |
+| `…/local.json 을(를) 읽을 수 없다 — 올바른 개인 선택 파일이 아니다`(`local-bad` 할 일) | git 공용 디렉터리의 내 개인 선택이 깨졌습니다. 고칠 때까지 `apply` 는 프로젝트 선택만으로 조합하고, `pick --local` 은 덮어쓰지 않고 멈춥니다 | 파일을 고치거나, 지워서 개인 선택을 버린 뒤 `guideline apply` 를 실행하세요 |
+| `…/defaults.json 을(를) 읽을 수 없다 — 올바른 머신 기본값 파일이 아니다` | 머신 기본값이 깨져 `pick --local` 이 덮어쓰지 않고 멈춥니다 | 파일을 고치거나 지우세요 |
+| `개인 생성물을 git 의 info/exclude 에 쓰지 못함` | CLI 가 `<git 공용 디렉터리>/info/exclude` 를 쓰지 못했습니다. 그 블록을 생성물보다 먼저 쓰므로, 생성물을 쓰지 않고 멈췄습니다(종료 코드 1). 추적 안 된 파일로 보이지 않습니다 | 파일 권한을 확인하고 `guideline apply` 를 실행하세요 |
+| 다른 클론에 내 개인 더함이 없습니다 | 개인 선택은 그 클론의 git 공용 디렉터리에 있습니다. 한 클론의 워크트리끼리는 함께 쓰지만 다른 클론과는 아닙니다 | 그 클론에서 `guideline pick --local` 을 실행하세요. [머신 기본값](how-to/use-guidelines-only-on-your-machine.md#머신-기본값)이 있으면 폼이 미리 체크된 채로 열립니다 |
 
 ## 관리자 웹
 

@@ -180,3 +180,14 @@ test('guideline-sync 는 고친 사본을 올리기 전에 dry-run 의 mode 를 
   assert.match(text, /dry-run 이 알린다\(`--json` 이면 `mode`\)/);
   assert.match(text, /`apply`\(「보내면 바로 반영됨」\)면 보내기 전에 사용자에게 검토 없이 바로 반영된다고 알리고/);
 });
+
+test('guideline-sync 는 개인 범위 절을 두고, 개인 사본을 고치지 말라고 하며, 필수 블록을 다룬다', () => {
+  const text = skillText('skills', 'guideline-sync');
+  assert.match(text, /^## 개인 범위$/m);
+  assert.match(text, /guideline pick --local --recommend <파일> --json/);
+  assert.match(text, /`sources\.<이름>\.required`/);
+  assert.match(text, /개인 사본[^\n]*고치지 않는다/);
+  for (const kind of ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'override-target', 'unit-write-failed']) {
+    assert.ok(text.includes(`| \`${kind}\` |`), `할 일 ${kind} 행이 없다`);
+  }
+});

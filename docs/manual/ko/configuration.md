@@ -22,6 +22,9 @@
 | --- | --- |
 | `~/.config/guideline/config.json` | CLI 설정. `GUIDELINE_LANG` 이 없을 때 `{ "lang": "ko" }` 로 언어를 정합니다 |
 | `~/.config/guideline/credentials.json` | 서버마다 저장한 토큰(권한 600) |
+| `~/.config/guideline/defaults.json` | 개인 폼의 머신 기본값, 서버 주소(origin)마다: `{ "version": 1, "servers": { "<origin>": { "add": [블록 키], "remove": [블록 키] } } }`(권한 600). `guideline pick --local` 에서 **이 선택을 내 기본값으로** 를 체크하면 쓰고, 그 폼을 미리 체크하는 데만 읽습니다([머신 기본값](reference.md#머신-기본값)) |
+
+`XDG_CONFIG_HOME` 이 있으면 이 파일들은 `$XDG_CONFIG_HOME/guideline/` 에 있습니다.
 
 ## 프로젝트 파일
 
@@ -40,6 +43,16 @@ CLI 가 프로젝트(단위 디렉터리)에서 읽고 쓰는 파일입니다.
 | `.gitignore` | CLI 가 관리하는 블록 `# START guideline generated files` … `# END guideline generated files` 가 있음 | 커밋 |
 
 생성물은 고치지 마세요. 다음 `guideline apply` 가 덮어씁니다.
+
+개인 범위(`guideline pick --local`)는 파일을 프로젝트 밖, git 공용 디렉터리에 두어 커밋되지 않습니다.
+
+| 파일 | 내용 |
+| --- | --- |
+| `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` | 그 단위의 내 개인 선택: 출처마다 더함과 뺌 |
+| `<git 공용 디렉터리>/guideline/units/<단위 키>/.guideline/`, `guideline-lock.json` | 내가 더한 블록의 개인 사본과 그 잠금 |
+| `<git 공용 디렉터리>/info/exclude` | 단위와 워크트리마다 개인 범위에서만 나온 생성물을 적는 블록 |
+
+단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것(`packages%2Fapi`)입니다. 자리와 형식은 [개인 범위](reference.md#개인-범위)에 있습니다.
 `.ruler/ruler.toml` 은 `ruler.project.toml` 에 받은 MCP 서버를 더해 만듭니다.
 `ruler.project.toml` 에 직접 쓴 표가 받은 표와 이름이 같으면 직접 쓴 표가 이기고, CLI 가 `mcp-conflict` 할 일을 남깁니다.
 

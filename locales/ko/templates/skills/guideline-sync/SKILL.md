@@ -15,7 +15,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 2. 서버 주소: 이 프로젝트의 `guideline.json` 의 `server`, 없으면 환경 변수 `GUIDELINE_SERVER`. 둘 다 없으면 사용자에게 묻고 명령마다 `--server <URL>` 을 붙인다.
 3. 「로그인 필요」 가 나오면 사용자에게 `! guideline login --server <URL>` 을 실행하게 한다. 브라우저에서 「발급」 을 누르면 토큰이 저장된다.
 4. 이 디렉터리에 `.ruler/` 가 없으면 명령이 「ruler 프로젝트가 아님」 로 멈춘다. 그대로 알리고 멈춘다 — 기존 지침을 ruler 로 옮기는 일은 사용자가 한다.
-5. 모노레포의 하위 디렉터리(자기 `.ruler/` 가 있는 곳)에서 실행하면 그 디렉터리만 다룬다. 스킬·서브에이전트·MCP 는 git 루트에서 받는다(하위에서는 「반영 불가」 로 보인다).
+5. 모노레포의 하위 디렉터리(자기 `.ruler/` 가 있는 곳)에서 실행하면 그 디렉터리만 다룬다. 스킬·서브에이전트·MCP 는 git 루트에서 받는다(하위에서는 「반영 불가」 로 보인다). `pick --local` 의 개인 폼은 하위 디렉터리에서도 그것들을 막지 않는다. 대신 git 루트의 개인 선택에서 더한다.
 6. **출처가 여럿일 수 있다.** `guideline.json` 의 `sources` 에 출처(지침 서버)마다 `server`·`items`·`aliases` 가 있다. 명령은 모든 출처를 다루고, 한 출처만 다룰 때는 `--source <이름>` 을 붙인다. 새 출처는 `guideline pick --source <이름> --server <URL>` 로 추가한다.
 7. **프로젝트가 옛 배치(사본이 `.ruler/<스택>/`)로 받은 것이면** `status`·`propose`·`apply` 가 「이 프로젝트는 아직 옛 배치」 라며 코드 2 로 멈춘다. `guideline update --json` 을 한 번 돌린다: 프로젝트를 `.guideline/` 로 옮긴다(서버가 필요하고, 디렉터리 안의 추적 파일에 커밋 안 된 변경이 있으면 「먼저 커밋하거나 stash 하라」 며 멈추니 사용자에게 먼저 커밋하게 한다). 그 뒤 사용자가 `git status` 를 확인하고 커밋한다.
 8. **「이름 충돌」 로 멈추면**(코드 2) 두 출처가 같은 이름의 스택·스킬·서브에이전트·MCP 를 준 것이다. 내용은 서로 다르다. 안내에 나온 별칭(예: `"rules/base": "company-base"`)을 사용자에게 보여 주고, 고른 이름을 `guideline.json` 의 `sources.<출처>.aliases` 에 써서 다시 `guideline pick --source <출처>` 를 한다.
@@ -30,6 +30,8 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | 프로젝트에 맞는 지침을 골라 달라("맞는 지침 받아와", "알아서 골라") | 아래 「추천해서 받기」 |
 | 고른 그대로 최신으로("지침 최신으로") | `guideline update --json` |
 | 새로 클론한 뒤나 새 워크트리, 또는 `status` 가 생성물이 낡았다고 할 때 | `guideline apply --json`(서버가 필요 없다). 그 전에 `ruler apply` 만 돌리지 않는다 |
+| 이 작업자가 받는 것만 바꾸기("나만", "프로젝트는 그대로 두고") | `guideline pick --local --json` — 아래 「개인 범위」 |
+| 이 작업자가 쓰는 도구에 맞게 골라 달라("내 작업 방식에 맞는 것 더해") | 아래 「개인 범위」 3 |
 | 새 프로젝트("새 프로젝트에 지침") | `guideline pick --new <이름 또는 경로> --json` |
 | 고친 사본을 원본에 올리기("이 수정 공용으로") | `guideline propose --dry-run` 으로 보여 주고, 맞으면 `guideline propose --title "<제목>"`. 보내면 어떻게 되는지는 dry-run 이 알린다(`--json` 이면 `mode`). `apply`(「보내면 바로 반영됨」)면 보내기 전에 사용자에게 검토 없이 바로 반영된다고 알리고, 사용자가 검토를 원하면 `--review` 를 붙인다 |
 
@@ -47,9 +49,18 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 4. `guideline pick --recommend <파일> --json` 을 「pick」 절처럼 백그라운드로 돌린다. 폼은 추천이 미리 체크된 채로 열린다. 사용자에게 폼에서 훑어보고 제출하라고 알린다 — **폼 제출이 확인이다.** 폼에 「에이전트 추천」 표시가 없으면 서버가 0.19 보다 옛 버전이다 — 사용자에게 알리고 폼에서 직접 고르게 한다.
 5. 출처가 여럿이면 `--source <이름>` 을 붙여 출처마다 한다(코드 2 로 멈추면 이것이다). 원본에 없는 키면 코드 2 로 멈추고 그 키를 알린다 — 목록을 다시 읽고 고친다.
 
+## 개인 범위
+
+1. `guideline pick --local` 은 이 단위에서 이 작업자가 받는 것만 바꾼다: 프로젝트 선택에 더하거나 뺄 블록이다. 개인 선택은 git 공용 디렉터리(`<git 공용 디렉터리>/guideline/units/<단위 키>/local.json`)에 저장되고, 그 클론의 모든 워크트리가 함께 쓰며, 커밋되지 않는다. `guideline.json`·`guideline-lock.json`·`.guideline/`·`.gitignore` 는 그대로다. 개인 범위에서만 나온 생성물은 git 의 `info/exclude` 에 적힌다. git 저장소가 필요하고(아니면 코드 2), 개인 폼을 아는 서버가 필요하다(아니면 「이 서버는 개인 폼을 모름」, 코드 1).
+2. `guideline pick --local --json` 을 「pick」 절처럼 백그라운드로 돌린다. **폼 제출이 사용자의 확인이다.** 코드 3 이면 취소된 것이고 아무것도 쓰지 않았다.
+3. 추천할 때는 「추천해서 받기」 처럼 `guideline list --json` 을 읽되, 프로젝트 파일이 아니라 이 작업자의 작업과 도구로 판단한다. `when` 이 도구를 말하는 스택(「<도구>를 쓰는 작업」)은 그 도구를 쓰는 작업자에게 맞는다. 무엇을 쓰는지 보이지 않으면 사용자에게 묻는다. 추천은 `{"add": {"<블록 키>": "<이유>"}, "remove": {"<블록 키>": "<이유>"}}` 로 쓰고(그냥 `{"<블록 키>": "<이유>"}` 는 더함이다), `guideline pick --local --recommend <파일> --json` 을 돌린다. 폼은 추천이 체크되고 표시된 채로 열린다. 원본에 없는 키, 필수 블록이나 그것을 품은 스택의 뺌은 폼을 열기 전에 코드 2 로 멈춘다.
+4. **필수** 블록(`guideline.json` 의 `sources.<이름>.required`, 프로젝트 pick 폼에서 표시)과 그 위의 스택은 개인 선택으로 뺄 수 없다.
+5. `pick --local` 은 개인 사본을 프로젝트 잠금의 리비전으로 받는다. `guideline update` 가 프로젝트와 개인 사본을 함께 최신으로 맞춘다.
+
 ## 할 일 처리
 
 `pick`·`update`·`status`·`apply` 의 JSON 에 있는 `todos` 를 하나씩 처리한다.
+`scope: "personal"` 이 붙은 할 일은 개인 사본에서 나온 것이다: `setup-personal`, `removed-upstream`, 그리고 문구가 「개인 사본 —」 으로 시작하는 다른 종류. 같은 종류처럼 처리하되 그것 때문에 커밋되는 파일을 바꾸지 않는다. 바꿔야 하는 단계는 사용자에게 알린다.
 
 | kind | 처리 |
 | --- | --- |
@@ -63,10 +74,18 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `ruler-apply` | 안내한 명령을 실행해도 되는지 묻는다 |
 | `apply` | 에이전트 파일(생성물)이 낡았다(`status` 에서, 또는 쓰지 못한 채 끝난 이전 뒤). `guideline apply` 를 돌린다. 커밋하기 전에 돌린다. 안 그러면 `git add -A` 가 옛 사본을 다시 넣는다 |
 | `root-apply` | git 루트에 아직 `.ruler/ruler.toml` 이 없어 모노레포 단위의 `apply` 가 ruler 를 돌지 않았다. git 루트에서 `guideline apply` 를 먼저 돌리고(또는 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두고) 단위에서 다시 돌린다 |
-| `unit-update` | git 루트의 `guideline apply` 가 아래의 단위 하나가 아직 옛 배치라 조합하지 않았다. 그 단위에서 `guideline update` 를 돌린다(서버 필요) |
-| `unit-problem` | git 루트의 `guideline apply` 가 아래의 단위 하나를 열지 못했다(이유가 뒤따른다). 고치거나, 그 단위에서 `guideline apply` 를 돌려 오류를 본다 |
+| `unit-update` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local`(모두 아래 단위도 조합한다)이 아래의 단위 하나가 아직 옛 배치라 조합하지 않았다. 그 단위에서 `guideline update` 를 돌린다(서버 필요) |
+| `unit-problem` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아래의 단위 하나를 열지 못했다(이유가 뒤따른다). 고치거나, 그 단위에서 `guideline apply` 를 돌려 오류를 본다 |
+| `unit-write-failed` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아래 단위 하나의 생성물을 다 쓰지 못했다(오류에 단위가 나온다). ruler 는 그래도 돌았으니 그 단위의 `AGENTS.md` 등 에이전트 파일을 믿지 않는다. 문구의 원인을 고친 뒤 git 루트에서 `guideline apply` 를 다시 돌린다 |
 | `root-ruler-toml` | git 루트가 guideline 프로젝트가 아니고 `.ruler/ruler.toml` 도 없어 `apply` 가 단위만 조합하고 ruler 는 돌지 않았다. 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 두고 커밋하게 한 뒤 `guideline apply` 를 다시 돌린다 |
-| `removed-upstream` | 알리고, 지우려면 `guideline pick` 을 하자고 한다 |
+| `removed-upstream` | 알리고, 지우려면 `guideline pick` 을 하자고 한다. `scope: "personal"` 이면 개인으로 더한 블록이다: `guideline pick --local` 을 하자고 한다 |
+| `setup-personal` | 개인 범위로만 받은 스택에 세팅 문서가 있다. `docs/guideline/<스택>/SETUP.md` 를 읽고 `setup` 처럼 진행하되, **커밋되는 파일(`package.json`, 커밋되는 설정 파일, `.gitignore`, `.ruler/ruler.project.toml` 등)은 바꾸지 않는다**: 개인 범위는 프로젝트를 그대로 두어야 한다. 그 밖에서 끝나는 단계(작업자의 머신, 추적되지 않는 파일)는 한다. 커밋되는 파일을 바꿔야 하는 단계는 하지 않고, 조용히 건너뛰지도 않는다: 무엇을 바꾸게 되는지 사용자에게 알린다 |
+| `personal-ignored` | 이 작업자가 개인으로 뺀 블록을 프로젝트가 필수로 정해 그 뺌을 무시하고 블록을 받았다. 사용자에게 알린다. 뺌은 `guideline pick --local` 에서 정리할 수 있다 |
+| `personal-shadowed` | 개인으로 더한 블록이 프로젝트가 다른 출처에서 고른 블록과 최종 이름이 같아, 프로젝트 사본을 쓰고 개인 사본은 받지 않는다. `pick --local` 에서 나왔으면 저장하지 않은 것이다. 다른 명령에서 나왔으면 `guideline pick --local` 에서 정리하자고 한다 |
+| `personal-revision` | 개인 사본과 프로젝트 사본이 한 출처의 다른 리비전이다(예: 다른 워크트리에서 `update`). 바꿈이 가리키는 절이 어긋날 수 있다. `guideline update` 로 맞춘다 |
+| `personal-sync` | 개인 사본을 받지 못했다: 쓰기 오류, 또는 읽을 수 없는 개인 잠금(문구에 나온 파일을 지운다). 프로젝트 반영은 끝났다. 고친 뒤 `guideline update` 를 다시 돌린다 |
+| `local-bad` | 개인 선택(`local.json`)을 읽을 수 없어 프로젝트 선택만으로 조합했다. 문구를 보여 주고, 사용자가 그 파일을 고치거나 지운 뒤(지우면 개인 선택이 사라진다) `guideline apply` 를 돌린다 |
+| `override-target` | 바꿈이 조합한 사본(프로젝트 사본 위에 개인 사본을 얹은 것)에 없는 파일·절을 가리킨다. 바꿈의 첫 줄을 고치거나, 리비전이 어긋났으면(`personal-revision`) `guideline update` 를 돌린다. 개인 범위가 없는 프로젝트에서도 나온다 |
 | `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`, 원본 키)을 받지 않았다. 빠진 블록을 알리고, 그 블록을 담은 추천 파일(`{"<빠진 블록>": "<item> 이 필요로 함"}`)을 써서 `guideline pick --recommend <파일> --json` 을 「추천해서 받기」 처럼 띄운다 — 폼 제출이 확인이다. 출처가 여럿이면(`item` 이 `<출처>:` 로 시작) `--source <출처>` 를 붙인다 |
 | `blocked` | 원본 경고로 반영하지 못했거나, `.guideline/` 의 파일을 조합하지 못했다(문구에 그 경로가 있다). 사본은 그대로 있다. 원본(또는 그 파일)을 고치자고 보고한다 |
 | `no-copy` | 고른 항목인데 `.guideline/` 에 사본이 없어(막힘, 또는 만들어야 하는 MCP 항목) 조합하지 않았다. `guideline update` 로 이유를 본다 |
@@ -93,4 +112,5 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 
 - **`.guideline/` 의 사본(`overrides/` 만 빼고 모두)은 직접 고치지 않고, 생성물(`.ruler/<스택>/`, `.ruler/guideline.md`, `docs/guideline/`, `.ruler/ruler.toml`)도 고치지 않는다.** CLI 가 쓰고, 생성물은 다음 `guideline apply` 가 덮어쓴다. ruler 설정은 `.ruler/ruler.project.toml` 에 둔다.
 - 이 프로젝트에만 다르게 할 것은 바꿈에 쓴다(관리 지침이 자리와 형식을 말한다). 받은 스택 폴더(`.guideline/rules/<스택>/`, 하위 폴더 포함) 안에 프로젝트 파일을 두지 않는다. 「원본에서 사라짐」 으로 보인다.
+- **git 공용 디렉터리의 개인 사본(`<git 공용 디렉터리>/guideline/units/<단위 키>/.guideline/`)은 고치지 않는다.** `guideline update` 가 덮어쓰고 `guideline propose` 는 보내지 않는다. 이 작업자가 받는 것을 바꾸려면 `guideline pick --local` 을 쓴다.
 - **비밀값을 프로젝트 파일에 쓰지 않는다.** 사용자가 값을 알려 줘도 환경 변수로 두라고 안내한다.

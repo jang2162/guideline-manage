@@ -21,6 +21,9 @@ It is for CLI users and server operators looking up a value.
 | --- | --- |
 | `~/.config/guideline/config.json` | CLI settings. `{ "lang": "ko" }` sets the language when `GUIDELINE_LANG` is not set |
 | `~/.config/guideline/credentials.json` | Stored tokens, one per server (mode 600) |
+| `~/.config/guideline/defaults.json` | Machine defaults of the personal form, per server address (origin): `{ "version": 1, "servers": { "<origin>": { "add": [block keys], "remove": [block keys] } } }` (mode 600). Written when you check **Save this selection as my default** in `guideline pick --local`; read only to pre-check that form ([Machine defaults](reference.md#machine-defaults)) |
+
+These files live in `$XDG_CONFIG_HOME/guideline/` when `XDG_CONFIG_HOME` is set.
 
 ## Project files
 
@@ -39,6 +42,16 @@ Files the CLI reads and writes in a project (a unit directory).
 | `.gitignore` | Holds a block `# START guideline generated files` … `# END guideline generated files` that the CLI keeps up to date | Commit |
 
 Do not edit the generated files; the next `guideline apply` overwrites them.
+
+The personal scope (`guideline pick --local`) keeps its files outside the project, in git's common directory, so they are never committed:
+
+| File | Contents |
+| --- | --- |
+| `<git common dir>/guideline/units/<unit key>/local.json` | Your personal selection for that unit: additions and removals per source |
+| `<git common dir>/guideline/units/<unit key>/.guideline/`, `guideline-lock.json` | Personal copies of the blocks you added, and their lock |
+| `<git common dir>/info/exclude` | A block per unit and worktree that lists the generated files that come only from the personal scope |
+
+The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path (`packages%2Fapi`). The places and formats are in [Personal scope](reference.md#personal-scope).
 `.ruler/ruler.toml` is built from `ruler.project.toml` plus the received MCP servers.
 A table you wrote in `ruler.project.toml` wins over a received table with the same name, and the CLI leaves an `mcp-conflict` to-do.
 

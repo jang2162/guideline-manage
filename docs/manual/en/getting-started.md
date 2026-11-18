@@ -134,6 +134,8 @@ The terminal waits until you submit the form.
 > Unchecking an item that the project already has means "remove". The item turns red and the submit button says "includes N removal(s)".
 
 Every item state and form control is described in [The pick form](reference.md#the-pick-form).
+A chosen block can be marked **Required**, so that nobody removes it for themselves.
+To change only what you receive, without changing the project, use `guideline pick --local` ([Use guidelines only on your machine](how-to/use-guidelines-only-on-your-machine.md)).
 
 ## 5. Check the result and commit
 
@@ -180,6 +182,7 @@ The CLI does not commit.
 The generated files are not in git, so a fresh clone or a new worktree has no `.ruler/<stack>/` yet.
 Run `guideline apply` there.
 It reads `.guideline/` and `.ruler/ruler.project.toml`, writes the generated files and runs ruler, without contacting the server.
+In a new worktree it also composes your [personal selection](how-to/use-guidelines-only-on-your-machine.md), which every worktree of the clone shares.
 
 ```bash
 guideline apply
@@ -212,5 +215,6 @@ Without a `package.json` the CLI leaves an `apply-hook` to-do: call `guideline a
 
 - [Stay up to date](how-to/stay-up-to-date.md)
 - [Override a guideline in one project](how-to/override-guidelines.md)
+- [Use guidelines only on your machine](how-to/use-guidelines-only-on-your-machine.md)
 - [Deploy a guideline server for a team](how-to/deploy-a-server.md)
 - [All documents](../README.md)
