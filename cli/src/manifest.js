@@ -23,7 +23,8 @@ function readJsonFile(file) {
 }
 
 /**
- * @typedef {{ server: string, items: string[], aliases: Record<string, string> }} Source
+ * @typedef {{ server: string, items: string[], aliases: Record<string, string>, required: string[] }} Source
+ *   required: 개인 선택으로 뺄 수 없는 블록 키(items 의 부분집합)
  * @typedef {{ version: 3, form: 'ruler' | 'instructions', agents: string[], sources: Record<string, Source> }} Manifest
  *   Source.items 는 블록 키(rules/<스택>, skills/<이름>, agents/<이름>.md, mcp/<이름>)이고 하위 스택의 조상 스택을 함께 담는다
  * @typedef {{ path: string, key?: string, items: string[], hash: string, adopted?: true }} LockOutput  adopted: 잠금 없이 받을 때 이미 원본과 달랐던 사본
@@ -89,7 +90,11 @@ export function checkManifest(m) {
       if (!ALIAS_KEY.test(k)) bad(t('manifest.badAliasKey', { name, key: k }));
       if (typeof v !== 'string' || !NAME.test(v)) bad(t('manifest.badAliasValue', { name, key: k, value: v }));
     }
-    sources[name] = { server: s.server, items, aliases: { ...aliases } };
+    const required = s.required ?? [];
+    if (!isStrArr(required) || !required.every(isBlockKey)) bad(t('manifest.sourceBadRequired', { name }));
+    const notChosen = required.find(k => !items.includes(k));
+    if (notChosen !== undefined) bad(t('manifest.requiredNotChosen', { name, item: notChosen }));
+    sources[name] = { server: s.server, items, aliases: { ...aliases }, required: [...new Set(required)].sort(byStr) };
   }
   return { version: 3, form: m.form, agents: [...m.agents], sources };
 }
@@ -160,7 +165,12 @@ export function manifestText(m) {
     const items = withAncestors(s.items);
     if (items.length === 0) continue;
     const aliases = s.aliases ?? {};
-    sources[name] = { server: s.server, items, ...(Object.keys(aliases).length ? { aliases: sortKeys(aliases) } : {}) };
+    const required = [...new Set(s.required ?? [])].sort(byStr);
+    sources[name] = {
+      server: s.server, items,
+      ...(Object.keys(aliases).length ? { aliases: sortKeys(aliases) } : {}),
+      ...(required.length ? { required } : {}),
+    };
   }
   const out = { version: 3, form: m.form, agents: [...new Set(m.agents)].sort(byStr), sources };
   return `${JSON.stringify(out, null, 2)}\n`;

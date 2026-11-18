@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { configDir } from './config-dir.js';
 
 // 프로세스 하나에 언어 하나. CLI 와 서버가 함께 쓴다.
 // 문구는 「사용자 L → 패키지 L → 사용자 en → 패키지 en」 순서로 찾고, 패키지 en 이 정본이다.
@@ -26,8 +27,7 @@ export function normalizeLang(value) {
 export function userLocaleDirs({ env = process.env, home, dataDir } = {}) {
   if (env.GUIDELINE_LOCALES_DIR) return [env.GUIDELINE_LOCALES_DIR];
   if (dataDir) return [path.join(dataDir, 'locales')];
-  if (env.XDG_CONFIG_HOME) return [path.join(env.XDG_CONFIG_HOME, 'guideline', 'locales')];
-  return [path.join(home ?? os.homedir(), '.config', 'guideline', 'locales')];
+  return [path.join(configDir({ env, home }), 'locales')];
 }
 
 const stripBom = s => (s.charCodeAt(0) === 0xfeff ? s.slice(1) : s);
@@ -113,8 +113,7 @@ export function messageKeys(prefix = '', { packageDir = LOCALES_DIR } = {}) {
 
 /** CLI 사용자 설정 파일. 로그인 정보와 같은 폴더다. */
 export function configPath({ env = process.env, home = os.homedir() } = {}) {
-  const base = env.XDG_CONFIG_HOME || path.join(home, '.config');
-  return path.join(base, 'guideline', 'config.json');
+  return path.join(configDir({ env, home }), 'config.json');
 }
 
 /**

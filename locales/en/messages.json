@@ -683,5 +683,9 @@
   "web.client.step.skills": "Skills",
   "migrate.dirty": "Commit or stash your changes first — moving to the new layout rewrites tracked files",
   "migrate.done": "Moved this project to the new layout: copies are in .guideline/, generated files are listed in .gitignore. Review with git status and commit",
-  "migrate.manifestV3": "guideline.json now lists whole stacks (version 3) — the rest of each chosen stack's files were added"
+  "migrate.manifestV3": "guideline.json now lists whole stacks (version 3) — the rest of each chosen stack's files were added",
+  "manifest.sourceBadRequired": "sources.{name}.required: must be a list of block keys",
+  "manifest.requiredNotChosen": "sources.{name}.required: {item} is not in items — a required block has to be one of the chosen blocks",
+  "local.badFile": "Cannot read {file} — it is not a valid personal selection. Fix or delete it",
+  "defaults.badFile": "Cannot read {file} — it is not a valid machine defaults file. Fix or delete it"
 }

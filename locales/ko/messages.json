@@ -683,5 +683,9 @@
   "web.client.step.skills": "스킬",
   "migrate.dirty": "먼저 변경을 커밋하거나 치우기 — 새 배치로 옮기면 추적 중인 파일을 다시 씀",
   "migrate.done": "이 프로젝트를 새 배치로 옮김: 사본은 .guideline/ 에, 생성물은 .gitignore 에 적힘. git status 로 확인하고 커밋",
-  "migrate.manifestV3": "guideline.json 을 버전 3(스택 단위)으로 바꿈 — 고른 스택의 나머지 파일도 받음"
+  "migrate.manifestV3": "guideline.json 을 버전 3(스택 단위)으로 바꿈 — 고른 스택의 나머지 파일도 받음",
+  "manifest.sourceBadRequired": "sources.{name}.required: 블록 키 목록이어야 한다",
+  "manifest.requiredNotChosen": "sources.{name}.required: {item} 이(가) items 에 없다 — 필수 블록은 고른 블록이어야 한다",
+  "local.badFile": "{file} 을(를) 읽을 수 없다 — 올바른 개인 선택 파일이 아니다. 고치거나 지워라",
+  "defaults.badFile": "{file} 을(를) 읽을 수 없다 — 올바른 머신 기본값 파일이 아니다. 고치거나 지워라"
 }

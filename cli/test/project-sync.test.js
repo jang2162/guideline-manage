@@ -62,7 +62,7 @@ test('ruler 프로젝트: 고른 것을 쓰고 매니페스트·잠금을 남긴
   assert.ok(exists(p, '.ruler/skills/s/img/a.png'));
   assert.deepEqual(readManifest(p), {
     version: 3, form: 'ruler', agents: ['claude'],
-    sources: { default: { server: s.base, items: ['rules/base', 'skills/s'], aliases: {} } },
+    sources: { default: { server: s.base, items: ['rules/base', 'skills/s'], aliases: {}, required: [] } },
   });
   assert.equal(readLock(p).revisions.default, 1);
   // 매니페스트가 없던 첫 pick 은 새 배치: 사본은 .guideline/, 프로젝트의 ruler.toml 설정은 ruler.project.toml 로 옮긴다

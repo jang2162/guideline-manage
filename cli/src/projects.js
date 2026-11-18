@@ -116,6 +116,16 @@ export function gitRoot(dir, git = runGit) {
 }
 
 /**
+ * git 공용 디렉터리(워크트리끼리 나눠 쓰는 .git). git 저장소가 아니면 null.
+ * @param {string} dir
+ * @param {GitRunner} [git]
+ */
+export function gitCommonDir(dir, git = runGit) {
+  const r = git(['rev-parse', '--path-format=absolute', '--git-common-dir'], dir);
+  return r.status === 0 && r.stdout.trim() ? fs.realpathSync(r.stdout.trim()) : null;
+}
+
+/**
  * 기존 프로젝트의 상태. .git 이 있을 때만 git status --porcelain 으로 더러운지 본다.
  * @param {string} dir
  * @param {GitRunner} [git]
