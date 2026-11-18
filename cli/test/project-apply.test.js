@@ -9,13 +9,13 @@ import { render } from '../src/render/index.js';
 import { applyFiles } from '../src/apply.js';
 import { diskReader } from '../src/project-state.js';
 import { virtualize, toRealLock } from '../src/workspace.js';
-import { MANIFEST, LOCK, manifestText, lockText, checkManifest } from '../src/manifest.js';
+import { MANIFEST, LOCK, manifestText, lockText, checkManifest, readManifest, readLock } from '../src/manifest.js';
 import { RULER_TOML_BASE } from '../src/render/outputs.js';
 import { PROJECT_TOML, RULER_TOML } from '../src/layout.js';
 import { readBlock } from '../src/gitignore-block.js';
 import { runGit } from '../src/projects.js';
 import { projectApply } from '../src/commands/project-apply.js';
-import { mergeTodos, writeComposedOrFail } from '../src/commands/sync-common.js';
+import { mergeTodos, writeComposedOrFail, finishApply, finishPersonal } from '../src/commands/sync-common.js';
 import { projectStatus } from '../src/commands/project-status.js';
 import { writeExclude, readExclude } from '../src/exclude.js';
 import { personalStore, writeLocal, worktreeId, MAIN_WORKTREE } from '../src/personal.js';
@@ -451,6 +451,30 @@ test('N3 하위 단위 쓰기 실패는 단위 경로와 할 일을 낸다', asy
   assert.match(failed[0].message, /^apps\/web: 생성물을 다 쓰지 못함 — 이번 ruler 결과에서 이 단위의 AGENTS\.md 등을 믿지 말고/);
   // 다른 단위는 그대로 조합한다
   assert.ok(exists(c, 'apps/ok/.ruler/base/00-a.md'));
+});
+
+test('N3 루트의 update·pick(finishApply)과 pick --local(finishPersonal)도 하위 단위 쓰기 실패면 코드 1 이다', async t => {
+  const root = gitDir(t, {});
+  syncNew(root, { items: ['rules/base'], toml: NESTED_ROOT_TOML });
+  syncNew(path.join(root, 'apps/web'), { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  commitAll(root);
+  const c = cloneOf(t, root);
+  write(c, 'apps/web/.ruler/base', '막음\n');
+  const manifest = readManifest(c);
+  const lock = readLock(c);
+  const quiet = { env: { PATH: '' }, runRuler: () => 0, err: () => {} };
+  // update·pick 의 마무리: 루트 단위는 다 썼고(매니페스트·잠금·생성물), 하위 단위만 실패했다
+  const applied = finishApply({ project: c, result: { files: {}, todos: [], lock }, manifest, lock, ...quiet });
+  assert.equal(applied.code, 1);
+  assert.equal(applied.unitsFailed, true);
+  assert.deepEqual(applied.todos.filter(x => x.kind === 'unit-write-failed').map(x => x.unit), ['apps/web']);
+  assert.ok(exists(c, '.ruler/base/00-a.md'));
+  // pick --local 의 마무리
+  writeLocal(personalStore({ dir: c, root: c }), { version: 1, sources: { default: { add: [], remove: [] } } });
+  const trees = new Map([['default', { server: 'http://x', revision: 4, tree: memoryTree(SOURCE) }]]);
+  const personal = finishPersonal({ project: c, manifest, sync: { trees, revisions: { default: 4 } }, ...quiet });
+  assert.equal(personal.code, 1);
+  assert.deepEqual(personal.todos.filter(x => x.kind === 'unit-write-failed').map(x => x.unit), ['apps/web']);
 });
 
 // ── 개인 겹 (실제 git 저장소: 이 저장소 자신의 .git 은 건드리지 않는다) ──
