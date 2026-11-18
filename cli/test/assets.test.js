@@ -113,7 +113,7 @@ const skillText = (dir, name) => fs.readFileSync(path.join(assetsDir, dir, name,
 test('가져오기 스킬 두 벌은 프로젝트 바꿈과 관리 지침을 후보로 올리지 않고 바꿈을 표로 보인다', () => {
   for (const text of [skillText('skills', 'guideline-export')]) {
     assert.match(text, /^### 프로젝트 바꿈$/m);
-    assert.match(text, /\.ruler\/<스택>\/override\.d\/\*\.md/);
+    assert.match(text, /\.guideline\/overrides\/<스택 경로>\/override\.d\/\*\.md/);
     assert.match(text, /관리 지침\(`\.ruler\/guideline\.md`, 지침 파일의 `## 공용 지침 관리` 절\)/);
     assert.match(text, /\*\*스택 사이 바꿈으로 올림\*\*/);
   }
@@ -122,9 +122,13 @@ test('가져오기 스킬 두 벌은 프로젝트 바꿈과 관리 지침을 후
 
 test('프로젝트 쪽 guideline-sync 는 CLI 를 부르고 할 일 종류를 모두 다룬다', () => {
   const text = skillText('skills', 'guideline-sync');
-  for (const kind of ['mcp-build', 'env', 'setup', 'conflict', 'skipped', 'override', 'subagents-off', 'ruler-apply', 'removed-upstream', 'blocked', 'leftover', 'nested-off', 'mcp-local', 'adopted']) {
+  for (const kind of ['mcp-build', 'env', 'setup', 'conflict', 'skipped', 'override', 'subagents-off', 'ruler-apply', 'removed-upstream', 'blocked', 'leftover', 'nested-off', 'adopted', 'alias', 'apply', 'root-apply', 'untracked', 'stray-ruler-output', 'override-unchosen', 'no-copy', 'mcp-conflict', 'dev-dependency', 'apply-hook', 'migrated', 'manifest-v3', 'prepare']) {
     assert.ok(text.includes(`\`${kind}\``), `할 일 ${kind} 이 없다`);
   }
+  // 사라진 할 일 종류와 옛 자리는 안내하지 않는다
+  assert.doesNotMatch(text, /`mcp-local`|`moved`|`new-file`/);
+  assert.match(text, /guideline apply --json/);
+  assert.match(text, /\.guideline\/overrides\/<새 이름>\//);
   assert.match(text, /guideline status --json/);
   assert.match(text, /guideline update --json/);
   assert.match(text, /guideline pick --new/);

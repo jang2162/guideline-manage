@@ -11,7 +11,8 @@ Product names, commands, file names, setting keys and code stay untranslated.
 | source (guideline content) | 원본 | The guidelines held on a server. `guideline source`, `propose --from` |
 | source (a server entry) | 출처 | A named server in `guideline.json`, chosen with `--source <name>` |
 | source (of a revision) | 생성 경로 | How a revision was made: `import`, `web`, `revert`, `proposal`, `seed` |
-| copy | 사본 | A source file written into a project |
+| copy | 사본 | A source file written into a project, in `.guideline/` |
+| generated files | 생성물 | What `guideline apply` composes from `.guideline/` for ruler (`.ruler/<stack>/`, `docs/guideline/` …). Git-ignored |
 | stack | 스택 | A group of rule files under `rules/<stack>/` |
 | domain stack | 도메인 스택 | A stack named `<tool>__<domain>` |
 | block | 블록 | One stack, skill, subagent or MCP server |
@@ -24,14 +25,14 @@ Product names, commands, file names, setting keys and code stay untranslated.
 | MCP server | MCP 서버 | |
 | always-on guideline | 상시 지침 | |
 | reference guideline | 참조 지침 | |
-| index | 색인 | `.ruler/<stack>/99-reference.md` |
+| index | 색인 | `.ruler/<stack>/99-reference.md` (generated) |
 | management guideline | 관리 지침 | `.ruler/guideline.md` |
-| setup doc | 세팅 문서 | `docs/guideline/<stack>/SETUP.md` |
+| setup doc | 세팅 문서 | `.guideline/rules/<stack>/SETUP.md`, generated into `docs/guideline/<stack>/SETUP.md` |
 | authoring rules | 작성 규칙 | `docs/authoring.md` on the server |
 | seed | 씨앗 | What an empty server gets as revision 1 |
 | revision | 리비전 | |
 | proposal | 제안 | |
-| override | 바꿈 | `.ruler/<stack>/override.md`, `override.d/*.md` |
+| override | 바꿈 | `.guideline/overrides/<stack path>/override.md`, `override.d/*.md` |
 | to-do | 할 일 | |
 | form (pick form) | 폼 | |
 | display name | 표시 이름 | `label` |

@@ -4,11 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { startApp, META } from '../../server/test/helpers.js';
 import { tmpDir, write, read, exists, collect, ALWAYS } from './helpers.js';
-import { SOURCE, manifestOf } from './render-fixture.js';
-import { memoryTree } from '../src/tree.js';
-import { render } from '../src/render/index.js';
-import { applyFiles } from '../src/apply.js';
-import { diskReader } from '../src/project-state.js';
+import { SOURCE } from './render-fixture.js';
+import { writeOldLayout } from './old-layout.js';
 import { saveToken } from '../src/credentials.js';
 import { readManifest, readLock, manifestText } from '../src/manifest.js';
 import { projectUpdate } from '../src/commands/project-update.js';
@@ -63,21 +60,20 @@ function snapshot(p) {
   return out;
 }
 
-test('update: 0.13(v1) 프로젝트는 파일이 바이트까지 같고 매니페스트는 v3(블록 키)·잠금은 v2 가 된다', async t => {
+test('update: 0.13(v1) 옛 배치 프로젝트는 새 배치로 옮겨도 생성물이 바이트까지 같고, 매니페스트는 v3(블록 키)·잠금은 v3 가 된다', async t => {
   const { a, env } = await servers(t);
   const p = project(t);
-  const items = ['rules/base/00-a.md', 'rules/base/01-b.md', 'rules/base/SETUP.md', 'skills/s', 'mcp/c7'];
-  const v1 = manifestOf('ruler', items, { server: a.base, agents: ['claude'] });
-  const r = render({ tree: memoryTree(SOURCE), revision: 1, manifest: v1, lock: null, project: diskReader(p) });
-  applyFiles(p, r.files);
-  write(p, 'guideline.json', JSON.stringify(v1));
-  write(p, 'guideline-lock.json', JSON.stringify(r.lock));
+  writeOldLayout(p, { server: a.base, v1: true, toml: read(p, '.ruler/ruler.toml') });
   const before = snapshot(p);
   assert.equal(await projectUpdate({ project: p, env, ...quiet, out: () => {} }), 0);
-  assert.deepEqual(snapshot(p), before);
+  // 옛 배치가 커밋하던 파일은 이제 조합한 생성물이고, 내용은 바이트까지 같다
+  const after = snapshot(p);
+  for (const [k, v] of Object.entries(before)) assert.equal(after[k], v, k);
+  assert.ok(Object.keys(before).length > 8, Object.keys(before).join(', '));
   assert.deepEqual(Object.keys(readManifest(p).sources), ['default']);
   assert.match(read(p, 'guideline.json'), /"version": 3/);
   assert.deepEqual(readManifest(p).sources.default.items, ['mcp/c7', 'rules/base', 'skills/s']);
+  assert.equal(readLock(p).version, 3);
   assert.match(read(p, 'guideline-lock.json'), /"default:rules\/base\/00-a\.md"/);
 });
 
@@ -120,14 +116,16 @@ test('update: 별칭을 바꾸면 예전 자리 사본을 지우고 새 자리�
   const { a, b, env } = await servers(t);
   const p = project(t, { 'guideline.json': twoSources(a, b) });
   await projectUpdate({ project: p, env, ...quiet, out: () => {} });
-  write(p, '.ruler/b-base/override.md', '# 바꿈\n');
+  write(p, '.guideline/overrides/b-base/override.md', '# 바꿈\n');
   write(p, 'guideline.json', twoSources(a, b, 'bb'));
   const o = collect();
   assert.equal(await projectUpdate({ project: p, env, ...quiet, json: true, out: o.out }), 0);
+  assert.equal(exists(p, '.guideline/rules/b-base/00-a.md'), false);
   assert.equal(exists(p, '.ruler/b-base/00-a.md'), false);
+  assert.match(read(p, '.guideline/rules/bb/00-a.md'), /본문 A/);
   assert.match(read(p, '.ruler/bb/00-a.md'), /본문 A/);
-  assert.ok(exists(p, '.ruler/b-base/override.md'));
-  assert.ok(JSON.parse(o.text()).todos.some(x => x.kind === 'alias' && x.message.includes('.ruler/b-base/override.md')));
+  assert.ok(exists(p, '.guideline/overrides/b-base/override.md'));
+  assert.ok(JSON.parse(o.text()).todos.some(x => x.kind === 'alias' && x.message.includes('.guideline/overrides/b-base/override.md')));
 });
 
 test('status: 출처가 둘이면 항목을 <출처>:<id> 로 보인다', async t => {
@@ -250,8 +248,8 @@ test('propose 는 출처마다 제안 하나를 그 서버에 올리고, 별칭�
   const { a, b, env } = await servers(t);
   const p = project(t, { 'guideline.json': twoSources(a, b) });
   await projectUpdate({ project: p, env, ...quiet, out: () => {} });
-  write(p, '.ruler/base/00-a.md', `${read(p, '.ruler/base/00-a.md')}에이 고침\n`);
-  write(p, '.ruler/b-base/00-a.md', `${read(p, '.ruler/b-base/00-a.md')}비 고침\n`);
+  write(p, '.guideline/rules/base/00-a.md', `${read(p, '.guideline/rules/base/00-a.md')}에이 고침\n`);
+  write(p, '.guideline/rules/b-base/00-a.md', `${read(p, '.guideline/rules/b-base/00-a.md')}비 고침\n`);
   const o = collect();
   assert.equal(await propose({ project: p, title: '다듬기', env, out: o.out, err: () => {} }), 0);
   assert.deepEqual(a.proposals.get(1).changes.map(c => c.path), ['rules/base/00-a.md']);
@@ -267,8 +265,8 @@ test('propose: 출처마다 범위를 따로 본다 — admin 토큰 출처는 �
   saveToken(a.base, { token: a.tokens.issue({ name: 'boss', scope: 'admin' }).token, name: 'boss' }, { env });
   const p = project(t, { 'guideline.json': twoSources(a, b) });
   await projectUpdate({ project: p, env, ...quiet, out: () => {} });
-  write(p, '.ruler/base/00-a.md', `${read(p, '.ruler/base/00-a.md')}에이 고침\n`);
-  write(p, '.ruler/b-base/00-a.md', `${read(p, '.ruler/b-base/00-a.md')}비 고침\n`);
+  write(p, '.guideline/rules/base/00-a.md', `${read(p, '.guideline/rules/base/00-a.md')}에이 고침\n`);
+  write(p, '.guideline/rules/b-base/00-a.md', `${read(p, '.guideline/rules/b-base/00-a.md')}비 고침\n`);
   const o = collect();
   assert.equal(await propose({ project: p, title: '섞임', env, out: o.out, err: () => {} }), 0);
   assert.equal(a.store.headRevision(), 2);
@@ -285,8 +283,8 @@ test('propose --source 는 그 출처만, 한 출처가 권한이 없으면 나�
   const { a, b, env } = await servers(t);
   const p = project(t, { 'guideline.json': twoSources(a, b) });
   await projectUpdate({ project: p, env, ...quiet, out: () => {} });
-  write(p, '.ruler/base/00-a.md', `${read(p, '.ruler/base/00-a.md')}에이 고침\n`);
-  write(p, '.ruler/b-base/00-a.md', `${read(p, '.ruler/b-base/00-a.md')}비 고침\n`);
+  write(p, '.guideline/rules/base/00-a.md', `${read(p, '.guideline/rules/base/00-a.md')}에이 고침\n`);
+  write(p, '.guideline/rules/b-base/00-a.md', `${read(p, '.guideline/rules/b-base/00-a.md')}비 고침\n`);
   assert.equal(await propose({ project: p, source: 'b', title: 'b 만', env, out: () => {}, err: () => {} }), 0);
   assert.equal(a.proposals.list({}).length, 0);
   assert.equal(b.proposals.list({}).length, 1);
@@ -334,7 +332,7 @@ test('한 출처의 폼에서 막힌 항목의 결정이 같은 이름의 다른
   assert.ok(exists(p, '.ruler/skills/s/SKILL.md'));
 });
 
-test('update: 닿지 못한 출처의 색인과 관리 지침은 건드리지 않는다', async t => {
+test('update: 닿지 못한 출처의 사본과 관리 지침 사본은 건드리지 않아 색인·관리 지침이 그대로 조합된다', async t => {
   const { a, b, env } = await servers(t);
   b.store.commit({ ...META, changes: { 'docs/management.md': '## 보안\n\n검토\n' } });
   const p = project(t, { 'guideline.json': manifestText({ version: 2, form: 'ruler', agents: ['claude'], sources: {
@@ -344,6 +342,7 @@ test('update: 닿지 못한 출처의 색인과 관리 지침은 건드리지 �
   assert.equal(await projectUpdate({ project: p, env, ...quiet, out: () => {} }), 0);
   const index = read(p, '.ruler/b-base/99-reference.md');
   const management = read(p, '.ruler/guideline.md');
+  const copy = read(p, '.guideline/management/b.md');
   assert.match(management, /## b 추가 지침/);
   changed(a, '에이 새');
   const m = JSON.parse(read(p, 'guideline.json'));
@@ -354,7 +353,8 @@ test('update: 닿지 못한 출처의 색인과 관리 지침은 건드리지 �
   assert.match(read(p, '.ruler/base/00-a.md'), /에이 새/);
   assert.equal(read(p, '.ruler/b-base/99-reference.md'), index);
   assert.equal(read(p, '.ruler/guideline.md'), management);
-  assert.ok(readLock(p).outputs.some(o => o.path === '.ruler/b-base/99-reference.md'));
+  assert.equal(read(p, '.guideline/management/b.md'), copy);
+  for (const x of ['.guideline/management/b.md', '.guideline/rules/b-base/01-b.md']) assert.ok(readLock(p).outputs.some(o => o.path === x), x);
 });
 
 // 최종 검토에서 나온 회귀들.
@@ -434,14 +434,14 @@ test('별칭을 바꿔도 프로젝트에서 고친 예전 자리 사본은 지�
   const { a, b, env } = await servers(t);
   const p = project(t, { 'guideline.json': twoSources(a, b) });
   await projectUpdate({ project: p, env, ...quiet, out: () => {} });
-  write(p, '.ruler/b-base/00-a.md', `${read(p, '.ruler/b-base/00-a.md')}\n내 수정\n`);
+  write(p, '.guideline/rules/b-base/00-a.md', `${read(p, '.guideline/rules/b-base/00-a.md')}\n내 수정\n`);
   write(p, 'guideline.json', twoSources(a, b, 'bb'));
   const o = collect();
   assert.equal(await projectUpdate({ project: p, env, ...quiet, json: true, out: o.out }), 0);
-  assert.match(read(p, '.ruler/b-base/00-a.md'), /내 수정/);
-  assert.match(read(p, '.ruler/bb/00-a.md'), /본문 A/);
-  assert.ok(JSON.parse(o.text()).todos.some(x => x.kind === 'leftover' && x.message.includes('.ruler/b-base/00-a.md')));
-  assert.ok(!readLock(p).outputs.some(x => x.path === '.ruler/b-base/00-a.md'));
+  assert.match(read(p, '.guideline/rules/b-base/00-a.md'), /내 수정/);
+  assert.match(read(p, '.guideline/rules/bb/00-a.md'), /본문 A/);
+  assert.ok(JSON.parse(o.text()).todos.some(x => x.kind === 'leftover' && x.message.includes('.guideline/rules/b-base/00-a.md')));
+  assert.ok(!readLock(p).outputs.some(x => x.path === '.guideline/rules/b-base/00-a.md'));
 });
 
 const SUB = { 'rules/base/sub/00-s.md': `${ALWAYS}# 에스\n\n본문 S\n` };
@@ -469,4 +469,23 @@ test('출처 폼: 다른 출처가 쓰는 스택의 하위 스택도 blocked 다
   const item = seen[0].data.items.find(i => i.id === 'rules/base/sub/00-s.md');
   assert.equal(item.state, 'blocked');
   assert.match(item.reason, /다른 출처\(personal\)가 이미 쓰는 이름/);
+});
+
+test('출처 폼(새 배치): 다른 출처의 .guideline 사본(잠금에 없는 지침 파일, 스킬 디렉터리)은 고아로 나오지 않는다', async t => {
+  const { a, b, env } = await servers(t);
+  // a 에만 있는 스킬: b 의 폼에서는 원본에 없는 .guideline/skills/only-a/ 로 보인다
+  a.store.commit({ ...META, changes: { 'skills/only-a/SKILL.md': '---\nname: only-a\ndescription: 에이만\n---\n\n본문\n' } });
+  const p = project(t);
+  await projectPick({ project: p, source: 'personal', server: a.base, env, ...pickQuiet,
+    open: driverMany([a, b], (s, d) => ({ choices: checkOnly(i => i.id.startsWith('rules/base/') || i.id === 'skills/only-a')(d.items) })) });
+  assert.equal(readLock(p).version, 3);
+  assert.ok(exists(p, '.guideline/skills/only-a/SKILL.md'));
+  // personal 의 스택 자리에 프로젝트가 둔 파일(잠금에 없음)
+  write(p, '.guideline/rules/base/09-extra.md', `${ALWAYS}# 덧\n`);
+  const m = JSON.parse(read(p, 'guideline.json'));
+  m.sources.company = { server: b.base, items: [], aliases: { 'rules/base': 'company-base' } };
+  write(p, 'guideline.json', JSON.stringify(m));
+  const seen = [];
+  await projectPick({ project: p, source: 'company', env, ...pickQuiet, open: driverMany([a, b], () => ({ cancel: true }), seen) });
+  assert.deepEqual(seen[0].data.items.filter(i => i.kind === 'orphan').map(i => i.id), []);
 });

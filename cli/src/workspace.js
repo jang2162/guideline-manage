@@ -6,6 +6,7 @@ import { qualify, splitQualified, readManifest } from './manifest.js';
 import { sourceView, mergeViews, toVirtual, realOf, aliasProblems, unitOf, finalUnit, unitName, collisions, collisionMessage } from './sources.js';
 import { readText } from './tree.js';
 import { blockKeys, elementRequires } from './catalog.js';
+import { managementCopy, GUIDE_DIR } from './layout.js';
 import { t } from './i18n.js';
 
 // 여러 출처의 원본을 받아 하나의 가상 원본으로 합치고(렌더링·상태 코드가 그대로 쓰게), 결과 잠금을 출처 붙은 id 로 되돌린다.
@@ -74,38 +75,21 @@ export async function fetchSources({
   return { trees, failures };
 }
 
-const NOT_STACK = new Set(['skills', 'agents']);
-/**
- * 생성물이 놓인 `.ruler/` 아래 디렉터리 경로(`browser/neo`). 사본·색인은 자기 스택 폴더 바로 안에 놓이므로 이것이 그 스택이다 —
- * 부모 스택과 하위 스택의 주인이 달라도 하위 스택 폴더의 것은 하위 스택 몫이다(최장 일치). 스킬·서브에이전트 자리는 null.
- */
-const stackDir = p => {
-  const d = /^\.ruler\/(.+)\/[^/]+$/.exec(p)?.[1] ?? null;
-  return d && !NOT_STACK.has(d.split('/')[0]) ? d : null;
-};
+/** 지침 사본(.guideline/rules/<스택 경로>/<파일>)의 스택 경로. 아니면 null. */
+const copyStackDir = p => /^\.guideline\/rules\/(.+)\/[^/]+$/.exec(p)?.[1] ?? null;
 
 /**
- * 닿지 못한 출처가 있을 때 건드리지 않을 생성물 경로: 그 출처 최종 스택의 색인, 관리 지침, docs/guideline/README.md.
- * 그 출처의 원본 없이 다시 만들면 내용이 빠지기 때문이다. 이 경로들은 렌더링에서 빼고 잠금의 이전 것을 옮긴다.
+ * 닿지 못한 출처가 있을 때 건드리지 않을 경로: 그 출처의 관리 지침 사본(.guideline/management/<출처>.md).
+ * 그 출처의 원본에서만 다시 만들 수 있기 때문이다. 이 경로들은 렌더링에서 빼고 잠금의 이전 것을 옮긴다.
+ * 그 출처 항목의 사본은 virtualize 가 잠금에서 빼고 toRealLock 이 옮기므로 따로 지키지 않는다.
  * @param {{ manifest: object, lock: object | null, failed: string[] }} opts
  * @returns {Set<string>}
  */
-export function protectedPaths({ manifest, lock, failed }) {
+export function protectedPaths({ lock, failed }) {
   const out = new Set();
   if (!failed.length || !lock) return out;
-  const stacks = new Set();
-  for (const name of failed) {
-    const s = manifest.sources[name];
-    for (const id of s?.items ?? []) {
-      const u = unitOf(id);
-      if (u?.startsWith('rules/')) stacks.add(unitName(finalUnit(u, s.aliases ?? {})));
-    }
-  }
-  for (const o of lock.outputs) {
-    if (o.items.length) continue;
-    const d = stackDir(o.path);
-    if (o.path === '.ruler/guideline.md' || o.path === 'docs/guideline/README.md' || (d && stacks.has(d))) out.add(o.path);
-  }
+  const mine = new Set(failed.map(managementCopy));
+  for (const o of lock.outputs) if (!o.items.length && mine.has(o.path)) out.add(o.path);
   return out;
 }
 
@@ -184,7 +168,8 @@ export function toRealLock({ viewLock, sources, revisions, previous = null, keep
     const r = realOf(id, sources);
     return r ? qualify(r.source, r.id) : null;
   };
-  const out = { version: 2, revisions: { ...revisions }, sources: {}, outputs: [] };
+  // 실제 잠금은 늘 v3(새 배치). 옛 잠금 v1·v2 는 이전(migrate-layout)의 입력으로만 읽는다
+  const out = { version: 3, revisions: { ...revisions }, sources: {}, outputs: [] };
   for (const [id, h] of Object.entries(viewLock.sources)) {
     const q = real(id);
     if (q) out.sources[q] = h;
@@ -208,14 +193,16 @@ export function toRealLock({ viewLock, sources, revisions, previous = null, keep
  */
 export function aliasMoveTodos({ previous, next, project }) {
   if (!previous) return [];
-  const dirs = lock => new Set(lock.outputs.map(o => stackDir(o.path)).filter(Boolean));
+  // 스택 자리는 .guideline/rules/<스택 경로>/ 사본, 바꿈은 .guideline/overrides/<스택 경로>/ 에 있다
+  const dirs = lock => new Set(lock.outputs.map(o => copyStackDir(o.path)).filter(Boolean));
   const now = dirs(next);
+  const home = d => `${GUIDE_DIR}/overrides/${d}`;
   const out = [];
   for (const d of [...dirs(previous)].sort(byStr)) {
     if (now.has(d)) continue;
-    const base = path.join(project, '.ruler', d);
+    const base = path.join(project, ...home(d).split('/'));
     const which = fs.existsSync(path.join(base, 'override.md')) ? 'override.md' : fs.existsSync(path.join(base, 'override.d')) ? 'override.d/' : null;
-    if (which) out.push({ kind: 'alias', item: null, message: t('todo.aliasMoved', { dir: d, file: which }) });
+    if (which) out.push({ kind: 'alias', item: null, message: t('todo.aliasMoved', { path: `${home(d)}/${which}` }) });
   }
   return out;
 }

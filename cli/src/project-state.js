@@ -2,12 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { inspect, itemDiff } from './inspect.js';
 import { currentPart, blockedReason } from './render/index.js';
-import { desiredOutputs, desiredPart, isRootOnly, ROOT_ONLY_REASON } from './render/outputs.js';
+import { desiredPart, isRootOnly, ROOT_ONLY_REASON } from './render/outputs.js';
+import { desiredCopies } from './render/copies.js';
 import { sha256, itemHash, treeHashes } from './hashes.js';
 import { expandBlocks } from './catalog.js';
 import { blockKey, isBlockKey } from './blocks.js';
 import { itemKey } from './selection.js';
 import { AGENTS } from './manifest.js';
+import { rulerTomlText } from './layout.js';
 import { t } from './i18n.js';
 
 const RULE = /^rules\/(.+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
@@ -29,12 +31,12 @@ export function stateLabel(state) {
   return STATE_LABELS[state]?.() ?? state;
 }
 
-/** .ruler/ruler.toml 의 [agents] 표에 enabled = true 가 있는가. */
+/** ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)의 [agents] 표에 enabled = true 가 있는가. */
 export function rulerAgentsEnabled(project) {
-  const file = path.join(project, '.ruler', 'ruler.toml');
-  if (!fs.existsSync(file)) return false;
+  const text = rulerTomlText(project);
+  if (text === null) return false;
   let inAgents = false;
-  for (const l of fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').split('\n')) {
+  for (const l of text.replace(/\r\n/g, '\n').split('\n')) {
     const h = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/.exec(l);
     if (h) {
       inAgents = h[1].trim() === 'agents';
@@ -61,10 +63,10 @@ export function diskReader(project) {
   };
 }
 
-/** 매니페스트가 없는 기존 프로젝트의 에이전트: .ruler/ruler.toml 의 default_agents. */
+/** 매니페스트가 없는 기존 프로젝트의 에이전트: ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)의 default_agents. */
 export function inferAgents(project) {
-  const file = path.join(project, '.ruler', 'ruler.toml');
-  const m = fs.existsSync(file) ? /^\s*default_agents\s*=\s*\[([^\]]*)\]/m.exec(fs.readFileSync(file, 'utf8')) : null;
+  const text = rulerTomlText(project);
+  const m = text === null ? null : /^\s*default_agents\s*=\s*\[([^\]]*)\]/m.exec(text);
   const list = m ? [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1]).filter(a => AGENTS.includes(a)) : [];
   return list.length ? [...new Set(list)] : ['claude', 'codex'];
 }
@@ -85,13 +87,14 @@ const stackOf = id => RULE.exec(id)?.[1] ?? SETUP.exec(id)?.[1]
  * 매니페스트 항목마다 잠금 기준 상태와, 잠금 출력마다 디스크 상태.
  * 디스크 사본이 최신 원본으로 만든 것과 같으면(제안이 수락된 뒤) 그 출력은 current 로 본다.
  * 매니페스트의 스택 키는 입구에서 그 스택의 파일로 펼친다. 상태는 파일 id 마다 낸다(원본에 없는 스택 키는 그대로 removed).
+ * 잠금 출력은 .guideline/ 사본이고, 최신 원본으로 만든 것도 사본(원본 바이트)이다.
  * @returns {{ states: Map<string, string>, outputs: object[] }}
  */
 export function itemStates({ tree, reader, manifest, lock, nested = false, management = {} }) {
   const hashes = treeHashes(tree);
   const items = expandBlocks(tree, manifest.items);
   const live = items.filter(id => itemHash(hashes, id) !== null && !blockedReason(tree, id, nested));
-  const want = new Map(desiredOutputs({ tree, manifest, items: live, rulerAgentsEnabled: reader.rulerAgentsEnabled, management }).outputs
+  const want = new Map(desiredCopies({ tree, manifest, items: live, management }).outputs
     .map(d => [keyOf(d), desiredPart(d)]));
   const outputs = lock.outputs.map(o => {
     const cur = currentPart(reader, o);
@@ -145,7 +148,7 @@ export function statusTodos(states, show = id => id) {
 
 /**
  * 폼에 올릴 항목. 잠금에 있는 항목은 잠금 상태(lockState)로, 나머지는 0.10 비교로 판정한다.
- * 중첩 단위면 루트 전용 항목은 막는다.
+ * 중첩 단위면 루트 전용 항목은 막는다. .guideline/ 사본과 원본을 비교한다.
  * @param {{ tree: object, project: string | null, manifest: object | null, lock: object | null, reader: object | null, nested?: boolean }} opts
  */
 export function formItems({ tree, project, manifest, lock, reader, nested = false, management = {} }) {
@@ -155,9 +158,10 @@ export function formItems({ tree, project, manifest, lock, reader, nested = fals
     : items);
   if (!manifest || !lock) return { ...ins, items: block(ins.items) };
   const { states } = itemStates({ tree, reader, manifest, lock, nested, management });
-  const lockPaths = new Set(lock.outputs.map(o => o.path));
+  // 잠금이 아는 사본은 고아가 아니다(원본에서 사라진 항목으로 올라간다). 새 배치의 스킬·MCP 고아는 디렉터리라 그 아래 출력을 본다.
+  const inLock = id => lock.outputs.some(o => o.path === id || o.path.startsWith(`${id}/`));
   const items = ins.items
-    .filter(i => i.kind !== 'orphan' || !lockPaths.has(i.id))
+    .filter(i => i.kind !== 'orphan' || !inLock(i.id))
     .map(i => {
       const ls = states.get(i.id);
       if (!ls || ls === 'unsynced' || i.state === 'blocked') return i;
@@ -174,14 +178,16 @@ export function formItems({ tree, project, manifest, lock, reader, nested = fals
 /**
  * 서버 폼에 올리는 본문. MCP 는 inspect·itemDiff 가 키 경로만 내므로 값이 실리지 않는다.
  */
-export function formPayload({ tree, revision, projectPath, isNew, agents, status, manifest, lock, nested = false, rootStacks = [], management = {} }) {
+export function formPayload({
+  tree, revision, projectPath, isNew, agents, status, manifest, lock, nested = false, rootStacks = [], management = {},
+}) {
   const project = isNew ? null : projectPath;
   const { items, overrides } = formItems({ tree, project, manifest, lock, reader: project ? diskReader(project) : null, nested, management });
   const diffs = {};
   let total = 0;
   if (project) {
     for (const it of items) {
-      if (!['different', 'moved'].includes(it.state) || !it.where) continue;
+      if (it.state !== 'different' || !it.where) continue;
       let d;
       try {
         d = itemDiff(tree, project, it);

@@ -18,17 +18,17 @@ description: 이 프로젝트의 지침 중 다른 프로젝트에서도 쓸 만
    - 올릴 때 「제안 권한이 없는 토큰」 가 나오면 관리자에게 범위 `propose` 토큰을 받아 `guideline login --server <URL> --token-stdin` 으로 넣으라고 안내하고 멈춘다.
 3. `<원본 폴더>/docs/authoring.md` 에 `## 서브에이전트`, `## MCP 서버` 절이 없으면 서브에이전트나 MCP 를 올리기 전에 멈추고, 지침 관리자에게 그 절을 원본에 추가해 달라고 알린다. README 로 만드는 MCP 서버를 올릴 때는 `### 반영할 때 항목을 만드는 서버` 절도 본다.
 4. `<원본 폴더>/docs/authoring.md` 에 `## 칸 — 상시와 참조` 절이 없으면 지침 파일을 올리기 전에 같은 방법으로 멈춘다. 칸을 정하는 기준이 그 절에 있다. `다른 스택을 바꿈` 을 올릴 때는 `## 다른 스택을 바꿀 때` 절도 본다.
-5. **받은 사본을 고친 것은 이 스킬이 아니다.** `guideline status` 에 「프로젝트에서 고침」 으로 나오는 사본은 `guideline propose` 로 올린다(사본을 원본 모양으로 되돌려 준다). 이 스킬은 프로젝트 고유 지침을 새로 올린다. `propose` 는 처음 받을 때부터 원본과 달랐던 사본(할 일 `adopted`)을 빼는데, 옛 판을 올리면 원본 변경을 되돌리기 때문이다.
+5. **받은 사본을 고친 것은 이 스킬이 아니다.** `guideline status` 에 「프로젝트에서 고침」 으로 나오는 사본은 `guideline propose` 로 올린다(`.guideline/` 의 사본은 이미 원본 모양이라 그대로 올라간다). 이 스킬은 프로젝트 고유 지침을 새로 올린다. `propose` 는 처음 받을 때부터 원본과 달랐던 사본(할 일 `adopted`)을 빼는데, 옛 판을 올리면 원본 변경을 되돌리기 때문이다.
 
 ## 절차
 
 1. **이 프로젝트의 지침을 모은다.** 형태를 가리지 않는다.
-   - `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.ruler/`, `.claude/rules/`, `.cursor/rules/`, `.github/copilot-instructions.md`, 하위 디렉터리의 지침 파일, 프로젝트 스킬(`.claude/skills/`, `.agents/skills/`, `.ruler/skills/`)
+   - `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.ruler/`, `.claude/rules/`, `.cursor/rules/`, `.github/copilot-instructions.md`, 하위 디렉터리의 지침 파일, 프로젝트 스킬(`.claude/skills/`, `.agents/skills/`, `.ruler/skills/`). `.ruler/` 에는 생성물과 함께 프로젝트 자체의 `.ruler/*.md`·`ruler.project.toml` 이 있다
    - 서브에이전트: `.claude/agents/`, `.codex/agents/`, `.cursor/agents/`, `.github/agents/`, `.ruler/agents/`
-   - MCP 설정: `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.ruler/ruler.toml` 의 `[mcp_servers]`·`[agents.<에이전트>.mcp_servers]`, `.ruler/mcp.json`
-   - `sync-guideline`·`guideline-sync` 가 쓴 사본은 원본의 사본이므로 스택 후보로 다시 올리지 않는다: `.ruler/<스택>/`(원본 스택과 같은 이름), `docs/guideline/`, 색인(`.ruler/<스택>/99-reference.md`, 지침 파일의 `## <스택> 참조 지침` 절), 관리 지침(`.ruler/guideline.md`, 지침 파일의 `## 공용 지침 관리` 절), 지침 파일의 `guideline:begin`~`guideline:end` 블록과 `guideline.json`·`guideline-lock.json`. 세팅 문서 사본(`docs/guideline/<스택>/SETUP.md`)도 `docs/guideline/` 에 든다. frontmatter 를 뗀 원본과 다르면 그 차이를 `이미 있음 / 충돌` 표에 보고한다.
-   - 프로젝트 바꿈(`.ruler/<스택>/override.md`, `.ruler/<스택>/override.d/*.md`, 지침 파일의 `## <스택> 프로젝트 바꿈` 절)은 그 프로젝트가 원본을 의도적으로 바꾼 것이다. 스택 후보로 올리지 않고 4번의 「프로젝트 바꿈」 표에 보인다.
-   - 생성물과 원본이 함께 있으면(ruler 를 쓰는 프로젝트의 `CLAUDE.md`, `.claude/agents/`, `.mcp.json`) 원본(`.ruler/`)만 읽는다. 두 파일이 서로 사본이면 하나만 읽는다.
+   - MCP 설정: `.mcp.json`, `.codex/config.toml`, `.cursor/mcp.json`, `.ruler/ruler.project.toml`(프로젝트 것, `.ruler/ruler.toml` 은 생성물이다)의 `[mcp_servers]`·`[agents.<에이전트>.mcp_servers]`, `.ruler/mcp.json`
+   - `sync-guideline`·`guideline-sync` 가 쓴 사본은 원본의 사본이므로 스택 후보로 다시 올리지 않는다: `.guideline/` 의 `overrides/` 를 뺀 모든 것(사본과 `.guideline/management/` 의 관리 지침 더함), 그 사본으로 만든 생성물(원본 스택과 같은 이름의 `.ruler/<스택>/`, `docs/guideline/`, 색인 `.ruler/<스택>/99-reference.md`, 관리 지침(`.ruler/guideline.md`, 지침 파일의 `## 공용 지침 관리` 절), `.ruler/ruler.toml`), 지침 파일의 `guideline:begin`~`guideline:end` 블록과 `guideline.json`·`guideline-lock.json`. 세팅 문서 사본(`.guideline/rules/<스택>/SETUP.md`, 생성물은 `docs/guideline/<스택>/SETUP.md`)도 여기에 든다. 사본이 원본과 다르면 그 차이를 `이미 있음 / 충돌` 표에 보고한다.
+   - 프로젝트 바꿈(`.guideline/overrides/<스택 경로>/override.md`, `.guideline/overrides/<스택 경로>/override.d/*.md`, 지침 파일의 `## <스택> 프로젝트 바꿈` 절)은 그 프로젝트가 원본을 의도적으로 바꾼 것이다. 스택 후보로 올리지 않고 4번의 「프로젝트 바꿈」 표에 보인다.
+   - 생성물과 원본이 함께 있으면(ruler 를 쓰는 프로젝트의 `CLAUDE.md`, `.claude/agents/`, `.mcp.json`) 원본(`.guideline/`, `.ruler/ruler.project.toml`, 프로젝트 자체의 `.ruler/*.md`)만 읽는다. 두 파일이 서로 사본이면 하나만 읽는다.
 
 2. **원본의 구성을 파악한다.** `guideline list <원본 폴더>` 를 돌려 스택(지침 파일과 칸)·스킬·서브에이전트·MCP 를 보고, 관련 있는 파일과 `docs/authoring.md` 를 읽는다.
 
@@ -65,7 +65,7 @@ description: 이 프로젝트의 지침 중 다른 프로젝트에서도 쓸 만
 ### 프로젝트 바꿈
 | 바꿈 | 바꾸는 절 | 제안 |
 | --- | --- | --- |
-| .ruler/base/override.md 「워크트리는 ~/worktrees 에 만든다」 | base/06-worktree-setup.md 「워크트리는 저장소 안에 만들고, 하나의 작업이 하나를 갖는다」 | 프로젝트에 둠 |
+| .guideline/overrides/base/override.md 「워크트리는 ~/worktrees 에 만든다」 | base/06-worktree-setup.md 「워크트리는 저장소 안에 만들고, 하나의 작업이 하나를 갖는다」 | 프로젝트에 둠 |
 
 프로젝트 고유 절: N개
 ```

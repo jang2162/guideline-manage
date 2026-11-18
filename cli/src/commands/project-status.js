@@ -5,7 +5,13 @@ import { printTodos } from '../todos.js';
 import { fetchSources, virtualize, showId, protectedPaths, missingRequiresTodos } from '../workspace.js';
 import { tokenInfo } from '../remote.js';
 import { openProject, revisionLabel } from './project-update.js';
+import { composeUnit, mergeTodos } from './sync-common.js';
+import { preparePackage } from '../migrate-layout.js';
+import { layoutOf } from '../layout.js';
 import { t } from '../i18n.js';
+
+/** status 가 조합에서 가져와 내는 할 일 종류. */
+const COMPOSE_KINDS = new Set(['mcp-conflict', 'no-copy', 'override-unchosen', 'blocked']);
 
 /**
  * 반영한 지침이 서버 최신과 같은지, 프로젝트에서 고친 것이 있는지 본다. 출처마다 최신과 비교한다.
@@ -22,18 +28,41 @@ export async function projectStatus({
     out(t('status.notYet'));
     return 0;
   }
+  // 옛 배치는 update 가 옮긴 뒤에 본다(사본 자리가 다르다)
+  if (layoutOf(lock, dir) === 'ruler') {
+    err(t('apply.needsUpdate'));
+    return 2;
+  }
+  // 생성물이 .guideline/ 에서 조합한 것과 같은지 본다. 서버 없이 하는 판정이라 받기에 실패해도 낸다.
+  // apply 가 고칠 prepare 도 낡은 것으로 보고, 고칠 수 없는 prepare(guideline CLI 가 의존성에 없음 등)는 해결될 때까지 알린다.
+  const unit = unitInfo(dir, git);
+  const composed = composeUnit({ project: dir, nested: unit.nested, manifest });
+  const prep = preparePackage({ project: dir, root: unit.root });
+  const localTodos = [
+    ...(Object.keys(composed.files).length || Object.keys(prep.files).length ? [{ kind: 'apply', item: null, message: t('todo.apply') }] : []),
+    ...prep.todos.filter(x => x.kind !== 'prepare'),
+    // 조합이 낼 할 일 중 프로젝트가 고칠 것(apply·update 를 돌리지 않아도 보이게)
+    ...mergeTodos([], composed.todos.filter(x => COMPOSE_KINDS.has(x.kind))),
+  ];
   // --source 면 그 출처만 받는다. 나머지는 받지 못한 출처처럼 다뤄 그 잠금과 공유 생성물을 비교에서 뺀다.
   const only = source !== undefined ? [source] : undefined;
   const { trees, failures } = await fetchSources({ manifest, lock, latest: new Set(Object.keys(manifest.sources)), only, env, home, fetchImpl });
   for (const f of failures) err(`${f.source}: ${f.message}`);
-  if (trees.size === 0) return 1;
+  if (trees.size === 0) {
+    if (localTodos.length) {
+      if (json) out(JSON.stringify({ todos: localTodos }, null, 2));
+      else printTodos(localTodos, out);
+    }
+    return 1;
+  }
 
   const unfetched = Object.keys(manifest.sources).filter(n => !trees.has(n));
   const v = virtualize({ manifest, lock, trees, protect: protectedPaths({ manifest, lock, failed: unfetched }) });
-  const unit = unitInfo(dir, git);
-  const { states, outputs } = itemStates({ tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management });
+  const { states, outputs } = itemStates({
+    tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management,
+  });
   const show = id => showId(id, v.sources, v.many);
-  const todos = [...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];
+  const todos = [...localTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   const head = revisionLabel(Object.fromEntries([...trees].map(([name, t]) => [name, t.revision])));
   const applied = revisionLabel(Object.fromEntries([...trees.keys()].map(name => [name, lock.revisions[name] ?? 0])));

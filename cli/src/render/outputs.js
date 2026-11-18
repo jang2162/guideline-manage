@@ -56,17 +56,17 @@ export function desiredOutputs({ tree, manifest, items, rulerAgentsEnabled = fal
     if (m) {
       const src = readText(tree, id);
       const body = stripFrontmatter(src);
-      if (readTier(src).load === 'always') file(`.ruler/${m[1]}/${m[2]}`, body, [id], { adopt: true });
+      if (readTier(src).load === 'always') file(`.ruler/${m[1]}/${m[2]}`, body, [id]);
       else {
         const p = `docs/guideline/${m[1]}/${m[2]}`;
-        file(p, body, [id], { adopt: true });
+        file(p, body, [id]);
         stack(m[1]).refs.push({ when: readTier(src).when, path: p });
       }
       continue;
     }
     m = SETUP.exec(id);
     if (m) {
-      file(`docs/guideline/${m[1]}/SETUP.md`, lf(readText(tree, id)), [id], { adopt: true });
+      file(`docs/guideline/${m[1]}/SETUP.md`, lf(readText(tree, id)), [id]);
       stack(m[1]).setup = true;
       continue;
     }
@@ -81,7 +81,7 @@ export function desiredOutputs({ tree, manifest, items, rulerAgentsEnabled = fal
       else {
         todos.push({
           kind: 'subagents-off', item: id,
-          message: t('todo.agentsDisabled', { name }),
+          message: t('todo.agentsNotComposed', { name }),
         });
       }
       continue;

@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { toLines, headingLines, headings, sectionsAt } from './sections.js';
+import { headings, sectionsAt } from './sections.js';
 import { stackFiles } from './catalog.js';
 import { asTree, readText } from './tree.js';
+import { GUIDE_DIR } from './layout.js';
 import { t } from './i18n.js';
 
 /** 바꿈 절의 첫 줄. 1: 스택 경로, 2: 파일(마지막 조각), 3: 절 제목(없으면 파일 전체). */
@@ -10,7 +11,6 @@ export const OVERRIDE_LINES = [
   /^Overrides: `([^`/]+(?:\/[^`/]+)*)\/([^`/]+)`(?: "(.+)")?\s*$/,
   /^바꾸는 절: `([^`/]+(?:\/[^`/]+)*)\/([^`/]+)`(?: 「(.+)」)?\s*$/,
 ];
-const INSTRUCTION_SECTION = /^(.+) (?:프로젝트 바꿈|project overrides)$/;
 const FIRST_LINE_BAD = () => t('overrides.badFirstLine');
 
 /**
@@ -31,25 +31,24 @@ function parse(file, stack, section) {
 
 const byFile = (a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
 
-/** .ruler/ 아래 모든 깊이의 <스택 경로>/override.md 와 override.d/*.md 의 ## 절. 스택은 .ruler/ 기준 경로. */
-function rulerOverrides(project) {
-  const dir = path.join(project, '.ruler');
+/** root(.guideline/overrides) 아래 모든 깊이의 <스택 경로>/override.md 와 override.d/*.md 의 ## 절. 스택은 root 기준 경로. */
+function overridesUnder(project, root) {
+  const dir = path.join(project, ...root.split('/'));
   if (!fs.existsSync(dir)) return [];
   const result = [];
   const walk = (stack) => {
     const abs = path.join(dir, stack);
     const files = [];
-    if (stack && fs.existsSync(path.join(abs, 'override.md'))) files.push(`.ruler/${stack}/override.md`);
+    if (stack && fs.existsSync(path.join(abs, 'override.md'))) files.push(`${root}/${stack}/override.md`);
     const extra = path.join(abs, 'override.d');
     if (stack && fs.existsSync(extra)) {
-      for (const f of fs.readdirSync(extra).filter(f => f.endsWith('.md'))) files.push(`.ruler/${stack}/override.d/${f}`);
+      for (const f of fs.readdirSync(extra).filter(f => f.endsWith('.md'))) files.push(`${root}/${stack}/override.d/${f}`);
     }
     for (const rel of files) {
       for (const s of sectionsAt(fs.readFileSync(path.join(project, rel), 'utf8'), 2)) result.push(parse(rel, stack, s));
     }
     for (const d of fs.readdirSync(abs, { withFileTypes: true })) {
       if (!d.isDirectory() || d.name === 'override.d') continue;
-      if (!stack && (d.name === 'skills' || d.name === 'agents')) continue;
       walk(stack ? `${stack}/${d.name}` : d.name);
     }
   };
@@ -57,41 +56,13 @@ function rulerOverrides(project) {
   return result.sort(byFile);
 }
 
-/** 지침 파일의 `## <스택> 프로젝트 바꿈` 절 아래 ### 절. 두 파일이 사본이면 같은 바꿈은 하나로 친다. */
-function instructionOverrides(project, instructionFiles) {
-  const seen = new Set();
-  const result = [];
-  for (const rel of instructionFiles) {
-    const lines = toLines(fs.readFileSync(path.join(project, rel), 'utf8'));
-    const hs = headingLines(lines);
-    hs.forEach((h, i) => {
-      const m = h.level === 2 ? INSTRUCTION_SECTION.exec(h.title) : null;
-      if (!m) return;
-      const end = hs.slice(i + 1).find(x => x.level <= 2);
-      const text = lines.slice(h.index + 1, end ? end.index : lines.length).join('\n');
-      for (const s of sectionsAt(text, 3)) {
-        const o = parse(rel, m[1], s);
-        const key = JSON.stringify([o.stack, o.heading, o.target, o.title]);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        result.push(o);
-      }
-    });
-  }
-  return result;
-}
-
 /**
- * 프로젝트의 바꿈을 읽는다.
+ * 프로젝트의 바꿈을 읽는다. .guideline/overrides/<스택 경로>/ 가 바꿈의 자리다(.ruler/ 쪽은 조합이 복사한 생성물).
  * @param {string} project 프로젝트 절대경로
- * @param {'ruler' | 'instructions' | 'none'} form
- * @param {string[]} instructionFiles instructions 형태의 지침 파일(프로젝트 기준 경로)
  * @returns {ProjectOverride[]}
  */
-export function readProjectOverrides(project, form, instructionFiles) {
-  if (form === 'ruler') return rulerOverrides(project);
-  if (form === 'instructions') return instructionOverrides(project, instructionFiles);
-  return [];
+export function readProjectOverrides(project) {
+  return overridesUnder(project, `${GUIDE_DIR}/overrides`);
 }
 
 /**

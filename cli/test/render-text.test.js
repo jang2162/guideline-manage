@@ -16,8 +16,11 @@ const BAKKUM = '바꿈 절마다 제목 바로 아래 첫 줄에 ``바꾸는 절
 const HEAD = [
   '# 공용 지침 관리', '',
   '이 프로젝트의 지침 일부는 지침 서버에서 받은 사본이다.', '',
-  '- 사본은 직접 고치지 않는다: `.ruler/<스택>/NN-*.md`, `.ruler/<스택>/99-reference.md`, `docs/guideline/`, `guideline.json`·`guideline-lock.json`, 이 파일. 사본을 고쳐 원본에 올릴 것은 `guideline propose` 로, 새 지침은 `guideline-export` 스킬로 제안한다.',
-  `- 이 프로젝트에만 다르게 할 것은 바꿈에 쓴다. 자리는 \`.ruler/<스택>/override.md\`, 파일이 여럿이면 \`.ruler/<스택>/override.d/*.md\` 다. ${BAKKUM}`,
+  '- 받은 사본은 `.guideline/` 에 있다(`.guideline/rules/<스택>/NN-*.md` 등). 사본과 `guideline.json`·`guideline-lock.json`, 이 파일은 직접 고치지 않는다. 사본을 고쳐 원본에 올릴 것은 `guideline propose` 로, 새 지침은 `guideline-export` 스킬로 제안한다.',
+  '- `.ruler/` 의 지침 파일(`.ruler/<스택>/`, `.ruler/guideline.md`, `.ruler/skills/`)과 `docs/guideline/`, `.ruler/ruler.toml` 은 `guideline apply` 가 `.guideline/` 에서 만든 생성물이라 `.gitignore` 에 들어 있다. 거기서 고친 것은 다음 `guideline apply` 때 덮이므로 그 폴더에 프로젝트 파일을 두지 않는다. 프로젝트에만 쓰는 규칙은 `.ruler/*.md`(예: `.ruler/50-project.md`)나 바꿈에 둔다.',
+  `- 이 프로젝트에만 다르게 할 것은 바꿈에 쓴다. 자리는 \`.guideline/overrides/<스택 경로>/override.md\`(하위 스택은 \`.guideline/overrides/<부모>/<자식>/override.md\`), 파일이 여럿이면 \`.guideline/overrides/<스택 경로>/override.d/*.md\` 다. ${BAKKUM}`,
+  '- 이 프로젝트의 ruler 설정(에이전트, 출력 경로, 프로젝트가 직접 쓴 MCP 서버)은 `.ruler/ruler.project.toml` 에 둔다. `guideline apply` 가 그 파일과 받은 MCP 서버로 `.ruler/ruler.toml` 을 만든다.',
+  '- 새로 클론했거나 새 워크트리를 만든 직후에는 `guideline apply` 를 돌려(서버가 필요 없다) 생성물을 만든다.',
   '- 지침을 최신으로 맞출 때는 `guideline status` 로 보고 `guideline update` 를 쓴다(에이전트는 `guideline-sync` 스킬).',
 ];
 
@@ -35,8 +38,8 @@ test('managementText — 세팅 문서 없음', () => {
   assert.equal(managementText({ setupStacks: [] }), [...HEAD, ''].join('\n'));
 });
 
-test('docsReadme 는 한 문장이다', () => {
-  assert.equal(docsReadme(), '이 디렉터리는 `guideline` CLI 가 지침 서버에서 받은 사본이다. 직접 고치지 않는다 — 지침을 맞출 때는 `guideline update` 를 쓰고, 원본에 올릴 것은 `guideline propose` 로 제안한다.\n');
+test('docsReadme 는 생성물이라는 것과 고칠 자리(.guideline)를 말한다', () => {
+  assert.equal(docsReadme(), '이 디렉터리는 `guideline apply` 가 `.guideline/` 의 사본으로 만든 생성물이라 다음 apply 때 다시 쓰인다. 직접 고치지 않는다 — `.guideline/` 의 사본을 고치고(원본에 올릴 것은 `guideline propose` 로 제안), 지침을 맞출 때는 `guideline update` 를 쓴다.\n');
 });
 
 test('관리 지침: 출처가 하나면 지금과 같고, 출처 열은 stackSource 가 있을 때만', () => {

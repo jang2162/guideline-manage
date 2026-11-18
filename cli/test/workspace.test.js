@@ -31,7 +31,7 @@ test('virtualize: 두 출처를 별칭과 함께 합치고 잠금을 실제 id �
   const real = toRealLock({ viewLock: r.lock, sources: v.sources, revisions: { company: 7, personal: 3 } });
   assert.deepEqual(real.revisions, { company: 7, personal: 3 });
   assert.ok(real.sources['company:rules/base/00-a.md'] && real.sources['personal:rules/base/00-a.md']);
-  assert.ok(real.outputs.some(o => o.path === '.ruler/company-base/00-a.md' && o.items[0] === 'company:rules/base/00-a.md'));
+  assert.ok(real.outputs.some(o => o.path === '.guideline/rules/company-base/00-a.md' && o.items[0] === 'company:rules/base/00-a.md'));
   assert.equal(showId('rules/company-base/00-a.md', v.sources), 'company:rules/base/00-a.md');
 });
 
@@ -41,11 +41,11 @@ test('tokenFor: GUIDELINE_TOKEN 은 출처가 하나일 때만', t => {
   assert.equal(tokenFor('http://a', { env, single: false }), null);
 });
 
-test('aliasMoveTodos: 별칭이 바뀌어 빈 자리의 바꿈 파일을 알린다', t => {
+test('aliasMoveTodos: 별칭이 바뀌어 빈 자리의 바꿈 파일(override.d/ 만 있어도)을 알린다', t => {
   const p = dir(t);
-  write(p, '.ruler/base/override.md', '# 바꿈\n');
-  const prev = { version: 2, revisions: { c: 1 }, sources: {}, outputs: [{ path: '.ruler/base/00-a.md', items: ['c:rules/base/00-a.md'], hash: 'h' }] };
-  const next = { version: 2, revisions: { c: 2 }, sources: {}, outputs: [{ path: '.ruler/company-base/00-a.md', items: ['c:rules/base/00-a.md'], hash: 'h' }] };
+  write(p, '.guideline/overrides/base/override.d/01-x.md', '# 바꿈\n');
+  const prev = { version: 3, revisions: { c: 1 }, sources: {}, outputs: [{ path: '.guideline/rules/base/00-a.md', items: ['c:rules/base/00-a.md'], hash: 'h' }] };
+  const next = { version: 3, revisions: { c: 2 }, sources: {}, outputs: [{ path: '.guideline/rules/company-base/00-a.md', items: ['c:rules/base/00-a.md'], hash: 'h' }] };
   assert.deepEqual(aliasMoveTodos({ previous: prev, next, project: p }).map(x => x.kind), ['alias']);
 });
 
@@ -58,35 +58,32 @@ test('별칭 부모 아래 하위 스택', () => {
   } });
   const v = virtualize({ manifest, lock: null, trees });
   const r = render({ tree: v.tree, revision: 0, manifest: v.view, lock: null, project: memProject(), management: v.management });
-  assert.ok(r.files['.ruler/web/neo/00-x.md']);
-  assert.equal(r.files['.ruler/browser/neo/00-x.md'], undefined);
+  assert.ok(r.files['.guideline/rules/web/neo/00-x.md']);
+  assert.equal(r.files['.guideline/rules/browser/neo/00-x.md'], undefined);
   const real = toRealLock({ viewLock: r.lock, sources: v.sources, revisions: { default: 1 } });
   assert.ok(real.sources['default:rules/browser/neo/00-x.md']);
-  assert.ok(real.outputs.some(o => o.path === '.ruler/web/neo/00-x.md' && o.items[0] === 'default:rules/browser/neo/00-x.md'));
+  assert.ok(real.outputs.some(o => o.path === '.guideline/rules/web/neo/00-x.md' && o.items[0] === 'default:rules/browser/neo/00-x.md'));
   assert.equal(showId('rules/web/neo/00-x.md', v.sources, true), 'default:rules/browser/neo/00-x.md');
 });
 
-test('protectedPaths: 닿지 못한 출처의 하위 스택 색인도 지키고, 부모를 다른 출처가 가졌어도 자식 폴더는 자식 소유자의 것이다', () => {
+test('protectedPaths: 닿지 못한 출처의 관리 지침 사본만 지킨다(색인 같은 생성물은 잠금에 없다)', () => {
   const manifest = { sources: {
     a: { server: 'http://a', items: ['rules/base'], aliases: {} },
-    b: { server: 'http://b', items: ['rules/base/sub', 'rules/browser', 'rules/browser/neo'], aliases: {} },
+    b: { server: 'http://b', items: ['rules/base/sub'], aliases: {} },
   } };
-  const idx = p => ({ path: p, items: [], hash: 'h' });
-  const lock = { version: 2, revisions: {}, sources: {}, outputs: [
-    idx('.ruler/base/99-reference.md'), idx('.ruler/base/sub/99-reference.md'),
-    idx('.ruler/browser/99-reference.md'), idx('.ruler/browser/neo/99-reference.md'),
-  ] };
-  assert.deepEqual([...protectedPaths({ manifest, lock, failed: ['b'] })].sort(),
-    ['.ruler/base/sub/99-reference.md', '.ruler/browser/99-reference.md', '.ruler/browser/neo/99-reference.md']);
-  assert.deepEqual([...protectedPaths({ manifest, lock, failed: ['a'] })], ['.ruler/base/99-reference.md']);
+  const own = p => ({ path: p, items: [], hash: 'h' });
+  const lock = { version: 3, revisions: {}, sources: {}, outputs: [own('.guideline/management/a.md'), own('.guideline/management/b.md')] };
+  assert.deepEqual([...protectedPaths({ manifest, lock, failed: ['b'] })], ['.guideline/management/b.md']);
+  assert.deepEqual([...protectedPaths({ manifest, lock, failed: [] })], []);
+  assert.deepEqual([...protectedPaths({ manifest, lock: null, failed: ['a'] })], []);
 });
 
 test('aliasMoveTodos: 하위 스택 자리의 바꿈 파일도 그 하위 스택 경로로 알린다', t => {
   const p = dir(t);
-  write(p, '.ruler/web/neo/override.md', '# 바꿈\n');
+  write(p, '.guideline/overrides/web/neo/override.md', '# 바꿈\n');
   const out = path => ({ path, items: ['c:rules/browser/neo/00-x.md'], hash: 'h' });
-  const prev = { version: 2, revisions: { c: 1 }, sources: {}, outputs: [out('.ruler/web/neo/00-x.md')] };
-  const next = { version: 2, revisions: { c: 2 }, sources: {}, outputs: [out('.ruler/www/neo/00-x.md')] };
+  const prev = { version: 3, revisions: { c: 1 }, sources: {}, outputs: [out('.guideline/rules/web/neo/00-x.md')] };
+  const next = { version: 3, revisions: { c: 2 }, sources: {}, outputs: [out('.guideline/rules/www/neo/00-x.md')] };
   const todos = aliasMoveTodos({ previous: prev, next, project: p });
   assert.equal(todos.length, 1);
   assert.match(todos[0].message, /web\/neo/);
@@ -100,4 +97,44 @@ test('showId: 다중 출처에서 원본이 뺀 파일 id 도 출처를 붙여 �
   assert.equal(showId('rules/base/09-gone.md', sources), 'a:rules/base/09-gone.md');
   assert.equal(showId('rules/b-base/09-gone.md', sources), 'b:rules/base/09-gone.md');
   assert.equal(showId('rules/base/LICENSE', sources), 'a:rules/base/LICENSE');
+});
+
+test('toRealLock: 실제 잠금은 늘 v3 이고 출력 항목을 출처 붙은 id 로 되돌린다', () => {
+  const trees = new Map([['default', { server: 'http://d', revision: 1, tree: memoryTree(SOURCE) }]]);
+  const manifest = checkManifest({ version: 2, form: 'ruler', agents: ['claude'], sources: {
+    default: { server: 'http://d', items: ['rules/base/00-a.md'] },
+  } });
+  const v = virtualize({ manifest, lock: null, trees });
+  const guide = render({ tree: v.tree, revision: 1, manifest: v.view, lock: null, project: memProject(), management: v.management });
+  const real = toRealLock({ viewLock: guide.lock, sources: v.sources, revisions: { default: 1 } });
+  assert.equal(real.version, 3);
+  assert.ok(real.outputs.some(o => o.path === '.guideline/rules/base/00-a.md' && o.items[0] === 'default:rules/base/00-a.md'));
+});
+
+test('protectedPaths: 닿지 못한 출처의 관리 지침 사본도 지키고, 잠금이 그것을 옮긴다', () => {
+  const manifest = { sources: {
+    a: { server: 'http://a', items: ['rules/base'], aliases: {} },
+    b: { server: 'http://b', items: ['rules/web'], aliases: {} },
+  } };
+  const own = p => ({ path: p, items: [], hash: 'h' });
+  const lock = { version: 3, revisions: { a: 1, b: 2 }, sources: {}, outputs: [own('.guideline/management/a.md'), own('.guideline/management/b.md')] };
+  const protect = protectedPaths({ manifest, lock, failed: ['b'] });
+  assert.deepEqual([...protect], ['.guideline/management/b.md']);
+  // 받은 출처(a)만으로 다시 만든 잠금에도 b 의 사본 출력이 남는다(다음 동기화가 지우지 않게)
+  const real = toRealLock({ viewLock: { version: 3, sources: {}, outputs: [own('.guideline/management/a.md')] }, sources: [], revisions: { a: 3 }, previous: lock, keep: ['b'], protect });
+  assert.deepEqual(real.outputs.map(o => o.path).sort(), ['.guideline/management/a.md', '.guideline/management/b.md']);
+});
+
+test('aliasMoveTodos: .guideline/overrides/<옛 이름>/ 의 바꿈을 알린다', t => {
+  const p = dir(t);
+  write(p, '.guideline/overrides/base/override.md', '# 바꿈\n');
+  // 옛 자리(.ruler/)의 것은 조합이 복사한 생성물이라 보지 않는다
+  write(p, '.ruler/web/override.md', '# 생성물\n');
+  const out = (path, id) => ({ path, items: [id], hash: 'h' });
+  const prev = { version: 3, revisions: { c: 1 }, sources: {}, outputs: [out('.guideline/rules/base/00-a.md', 'c:rules/base/00-a.md'), out('.guideline/rules/web/00-w.md', 'c:rules/web/00-w.md')] };
+  const next = { version: 3, revisions: { c: 2 }, sources: {}, outputs: [out('.guideline/rules/company-base/00-a.md', 'c:rules/base/00-a.md'), out('.guideline/rules/www/00-w.md', 'c:rules/web/00-w.md')] };
+  const todos = aliasMoveTodos({ previous: prev, next, project: p });
+  assert.deepEqual(todos.map(x => [x.kind, x.message]), [['alias', '.guideline/overrides/base/override.md: 별칭 때문에 스택 자리가 바뀜 — 바꿈을 새 자리로 옮기기']]);
+  // 별칭이 그대로면 할 일이 없다
+  assert.deepEqual(aliasMoveTodos({ previous: prev, next: prev, project: p }), []);
 });

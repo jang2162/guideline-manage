@@ -34,7 +34,40 @@ npm install -g guideline-manage
 - 공개 서버에서 토큰 없이 받으려면 CLI 0.16 이상이어야 합니다. 0.15 CLI 는 토큰이 없으면 서버에 묻기 전에 멈춥니다.
 - 폼을 쓰려면 **CLI 와 서버를 함께 0.24 이상으로 올리세요.** 폼은 파일이 아니라 스택 단위로 고르고 `guideline.json` 을 버전 3 으로 씁니다. 0.24 서버는 옛 CLI 의 폼을 426 으로 거절하고(서버 언어에 따라 「guideline CLI 를 0.24.0 이상으로 업데이트 필요」 또는 「update the guideline CLI to 0.24.0 or newer」), 0.24 CLI 는 서버가 옛날인 출처를 건너뜁니다(「서버가 CLI 보다 옛날」, 종료 코드 1). 갱신·상태·제안은 서버를 올리지 않아도 됩니다.
 - 새 CLI 로 처음 `pick` 이나 `update` 를 한 뒤 `guideline.json` 을 커밋하세요. 버전 3(블록 키)으로 다시 쓰이며, 옛 CLI 는 읽지 못합니다(CLI 언어에 따라 「version 이 1 이나 2 가 아님」 또는 「version is not 1 or 2」).
+- **서버도 CLI 와 함께 다시 배포하세요.** 고르기 폼의 스크립트(`/static/selection.js`)는 서버가 내주는데, 0.24 판은 `.guideline/` 에 남은 스킬·서브에이전트·MCP 서버를 맞는 단계에 보입니다. 옛 서버는 엉뚱한 단계에 보입니다.
 - 0.20 이상 CLI 는 옛 서버에서도 동작합니다. 옛 서버는 `whoami` 가 404 라서 `guideline propose` 는 예전처럼 제안으로 보내고, `status`·`login` 은 토큰 범위를 보이지 않습니다. 옛 CLI 는 0.20 서버에서 예전과 같습니다.
+
+## `.guideline/` 배치로 프로젝트 옮기기
+
+0.24 부터 받은 지침은 `.guideline/` 의 사본이고, ruler 가 읽는 파일(`.ruler/<스택>/`, `.ruler/guideline.md`, `.ruler/ruler.toml`, `docs/guideline/`)은 `guideline apply` 가 만드는 생성물이라 git 이 무시합니다.
+0.24 이상 CLI 로 처음 `guideline update` 나 `guideline pick` 을 하면 옛 배치로 받은 프로젝트를 옮깁니다.
+그때까지 `status`·`propose`·`apply` 는 「이 프로젝트는 아직 옛 배치」 라며 멈춥니다(종료 코드 2).
+
+1. 프로젝트를 함께 쓰는 모든 사람의 CLI 와 서버를 올리세요(`npm install -g guideline-manage`).
+2. 작업을 커밋하세요. 옮기면 추적 파일을 다시 쓰므로, 그 디렉터리의 추적 파일에 커밋 안 된 변경이 있으면 「먼저 커밋하거나 stash 하라」 며 멈춥니다. 추적하지 않는 파일은 막지 않습니다.
+3. 프로젝트에서 `guideline update` 를 한 번 실행하세요. 서버가 필요합니다. 옮기는 일은 이렇습니다.
+   - 받은 사본을 `.guideline/` 에 쓰고, 프로젝트에서 고친 것은 그대로 살립니다(「프로젝트에서 고침」 으로 보입니다).
+   - 바꿈을 `.ruler/<스택 경로>/` 에서 `.guideline/overrides/<스택 경로>/` 로 옮깁니다.
+   - `.ruler/ruler.toml` 의 설정을 `.ruler/ruler.project.toml` 로 옮깁니다. 받은 그대로인 MCP 표는 뺍니다(고친 MCP 표는 남고 `mcp-conflict` 할 일이 나옵니다).
+   - 생성물을 조합하고, `.gitignore` 블록을 쓰고, 옛 사본·색인·관리 지침·`docs/guideline/README.md`·`ruler.toml`·옮긴 바꿈을 git 인덱스에서 뺍니다(`git rm --cached`, 파일은 남습니다). 스택 폴더에 직접 둔 프로젝트 파일은 그 자리에 추적된 채로 남습니다.
+   - `guideline.json` 을 버전 3 으로 다시 써서 고른 스택의 나머지 파일이 더해집니다(`manifest-v3` 할 일).
+   - `guideline-manage` 가 의존성에 있고 `ruler apply` 에 인자가 없으면 `package.json` 의 `prepare` 를 `ruler apply` 에서 `guideline apply` 로 바꿉니다(인자가 있으면 `prepare-manual` 할 일이 나오고 손으로 바꿉니다).
+4. `git status` 로 확인하고 한 번에 커밋하세요: `.guideline/`, `guideline.json`, `guideline-lock.json`, `.ruler/ruler.project.toml`, `.gitignore`, `package.json`, 인덱스에서 뺀 옛 사본.
+5. `package.json` 이 있으면 CLI 를 프로젝트에 넣어 클론한 뒤 `prepare` 가 생성물을 조합하게 하세요.
+
+   ```bash
+   pnpm add -D guideline-manage    # 또는: npm install -D, yarn add -D, bun add -d
+   guideline apply                 # prepare 를 ruler apply 에서 guideline apply 로 바꿉니다
+   ```
+
+   `guideline-manage` 가 의존성에 없으면 CLI 는 `prepare` 를 그대로 두고 명령을 담은 `dev-dependency` 할 일을 남기며, 추가할 때까지 `status`·`update` 가 다시 냅니다. 그 전까지 클론이나 새 워크트리의 `prepare` 는 ruler 만 돌아 지침 없는 `AGENTS.md` 를 만듭니다. `package.json` 이 없으면 `apply-hook` 할 일이 나옵니다. 세팅 단계에서 `guideline apply` 를 부르세요(Orca: `orca.yaml` 의 `scripts.setup`).
+6. 팀원은 pull 하고 CLI 를 올린 뒤 `guideline apply` 를 실행합니다(`prepare` 가 부르면 `pnpm install` 로 됩니다). 생성물은 git 에 없습니다.
+   - 옮긴 커밋을 pull 하면 git 이 더는 추적하지 않는 옛 생성물(`.ruler/<스택>/`, `.ruler/ruler.toml`, `docs/guideline/`)이 작업 트리에서 지워집니다. 바로 `guideline apply` 를 실행하세요. 그 전에 `ruler apply` 만 돌리지 마세요: `.ruler/ruler.toml` 이 없으면 ruler 가 nested 를 끈 채 모든 에이전트 몫을 씁니다.
+   - 옛 사본(`.ruler/<스택>/NN-*.md`, `docs/guideline/<스택>/…`)을 고친 미병합 브랜치는 옮긴 커밋을 병합할 때 modify/delete 충돌이 납니다. 그 수정을 `.guideline/<id>` 의 사본(예: 원본 frontmatter 를 담은 `.guideline/rules/<스택>/NN-*.md` — 그 아래 본문을 고칩니다)으로 옮기고, 옛 경로를 지워 충돌을 풉니다.
+   - 모노레포에서는 git 루트의 `guideline apply` 가 그 아래 커밋된 단위도 모두 조합합니다.
+
+> [!WARNING]
+> **원본의 `ruler` 스택을 고치세요.** 지침 원본에 ruler 를 가르치는 스택(예: `ruler`)이 있으면, `.ruler/` 가 소스이고 `ruler.toml` 이 설정이며 `prepare` 가 `ruler apply` 를 돈다고 적혀 있을 가능성이 큽니다. 그 글은 이 저장소가 아니라 서버에 있고, 새 배치에는 맞지 않습니다. `.guideline/` 에 받은 사본이 있고, `.ruler/<스택>/`·`.ruler/guideline.md`·`ruler.toml` 은 생성물이며, ruler 설정은 `.ruler/ruler.project.toml` 에 두고, `prepare` 는 `guideline apply` 를 돈다고 고치세요. 웹에서 고치거나 `guideline propose` 로 올리세요.
 
 ## 이미 돌고 있는 서버의 씨앗 고치기
 
@@ -55,8 +88,10 @@ npm install -g guideline-manage
 > [!WARNING]
 > **0.24 전에 띄운 서버:** 작성 규칙에 「하위 스택」 절이 없고, `guideline-sync` 스킬이 하위 스택을 `when` 으로 고르라고 하지 않습니다. 웹에서 언어팩 `templates/` 의 같은 파일에서 옮겨 오세요.
 >
-> - 작성 규칙: 「하위 스택」 절, 「어디에 쓰는가」 표의 하위 스택 행, 「다른 스택을 바꿀 때」 의 `<스택 경로>/<파일>` 셀과 자손 경고.
+> - 작성 규칙: 「하위 스택」 절, 「어디에 쓰는가」 표의 하위 스택 행, 「다른 스택을 바꿀 때」 의 `<스택 경로>/<파일>` 셀과 자손 경고. 또한 「어디에 쓰는가」·「세팅 문서」·「표시 이름」·「하위 스택」·「별칭」 에서 스택이 프로젝트에 놓이는 자리(`.guideline/rules/<스택>/`, 조합하면 `.ruler/<스택>/`·`docs/guideline/<스택>/`).
 > - `guideline-sync`: 「추천해서 받기」 1·2 단계의 하위 스택 문장, 「할 일 처리」 에서 `new-file`·`removed-upstream` 행의 `new-file` 삭제(그 할 일은 없어졌습니다)와 `leftover` 행 보강.
+> - `.guideline/` 배치를 위한 `guideline-sync`: 옛 배치 전제, 「무엇을 할지」 의 `guideline apply --json` 행, 「할 일 처리」 의 새 종류 `apply`·`root-apply`·`unit-update`·`unit-problem`·`root-ruler-toml`·`no-copy`·`override-unchosen`·`mcp-conflict`·`untracked`·`stray-ruler-output`·`migrated`·`manifest-v3`·`prepare`·`prepare-manual`·`dev-dependency`·`apply-hook`. `mcp-local` 은 지우고, `mcp-build`·`subagents-off`·`nested-off` 행은 `.ruler/ruler.project.toml` 을 가리키고, `alias` 행은 `.guideline/overrides/<새 이름>/` 을 가리키며, 「지킬 것」 은 `.guideline/` 사본과 생성물을 고치지 말라고 합니다.
+> - `guideline-export`: 1단계와 예시 표에서 받은 사본의 자리(`.guideline/…`), 바꿈의 자리(`.guideline/overrides/<스택 경로>/`), 프로젝트의 MCP 설정인 `.ruler/ruler.project.toml`.
 
 ## 다음 문서
 

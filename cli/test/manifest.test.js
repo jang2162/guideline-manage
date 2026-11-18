@@ -157,3 +157,7 @@ test('readLock 은 틀린 모양을 거부한다', t => {
   write(dir, LOCK, JSON.stringify({ version: 2, revisions: {}, sources: {}, outputs: [{ path: 'a', items: 'x', hash: 'h' }] }));
   assert.throws(() => readLock(dir), /outputs/);
 });
+
+test('잠금 version 이 모르는 값이면 더 새 CLI 가 썼을 수 있다고 CLI 를 올리라 한다', () => {
+  assert.throws(() => checkLock({ version: 4, revisions: { default: 1 }, sources: {}, outputs: [] }), /version 이 1, 2, 3 이 아님 — 더 새 guideline CLI 가 썼을 수 있음\. CLI 를 업데이트할 것/);
+});

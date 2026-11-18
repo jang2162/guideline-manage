@@ -7,13 +7,14 @@ It is for CLI users, agents and server operators who need exact behavior. Settin
 
 ## Project commands
 
-Run them in a unit directory, one with `.ruler/`.
+Run them in a unit directory, one with `.ruler/`. [Where files go](#where-files-go) lists what they read and write.
 Common options: `--project <path>` (default: current directory), `--server <URL>`, `--source <name>` (only that source when there are several), `--json`.
 
 | Command | What it does |
 | --- | --- |
 | `guideline pick` | Opens the server form and applies the chosen items on submit. `--new <name\|path>` creates a new project (`git init`) and applies. `--no-browser` only prints the address. `--recommend <file\|->` opens the form with blocks an agent chose (JSON `{"block key": "reason"}`) already checked — one source at a time (add `--source` when there are several). Needs a 0.19+ server; an older server opens the form without the recommendations. Picking stacks needs a 0.24+ server (see [Exit codes](#exit-codes)) |
-| `guideline update` | Re-applies the chosen items from the latest server revision. Skips files edited in the project; `--force` overwrites them |
+| `guideline update` | Re-applies the chosen items from the latest server revision. Skips files edited in the project; `--force` overwrites them. The first `pick` or `update` with a 0.24 or later CLI moves a project received in the old layout (see [Upgrade the server and the CLI](how-to/upgrade.md#move-projects-to-the-guideline-layout)) |
+| `guideline apply` | Composes the generated files from `.guideline/` and `.ruler/ruler.project.toml` without contacting the server, rewrites the `.gitignore` block and runs `ruler apply` at the git root. Use it after a clone, in a new worktree and from `prepare`; `pick` and `update` do the same at their end. It runs ruler even when nothing changed. Options: `--project <path>`, `--json`. Exit code 0 done, 1 could not write, 2 nothing received yet or the project is still in the old layout. Right after a clone it also deletes a `CLAUDE.md` that ruler wrote for every agent (see [Troubleshooting](troubleshooting.md#cli)). At the git root of a monorepo it also composes every unit below it that git tracks, then runs ruler once; this works when the root is not a guideline project too ([monorepos](how-to/use-in-a-monorepo.md)) |
 | `guideline status` | Shows whether the applied guidelines are current and what the project changed, plus the stored token's name and scope (`token` in `--json`; nothing when there is no token or the server is older than 0.20) |
 | `guideline propose` | Turns edited copies back into source form and proposes them. With an `admin` scope token it applies them directly instead (no review); `--review` sends a proposal anyway, `--apply` applies explicitly (an error with a non-admin token). Passing both is a usage error (exit code 2). `--dry-run` (also says which of the two sending would do), `--title`, `--message`, `--only <item,…>`, `--from <folder>`. `--json` adds `mode`: `apply` or `proposal` (absent when there is nothing to send). The dry run is the authoritative way to see the mode: it asks with the same token and server the real send uses, while `status` may resolve a different token (several sources, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | Logs in to a server and stores a token, or deletes it. `--token-stdin` stores a token without a browser. After saving, `login` prints the token's scope (`read`, `propose` or `admin`) |
@@ -22,6 +23,30 @@ Common options: `--project <path>` (default: current directory), `--server <URL>
 
 `pick` and `update` print the written files, deleted files and **to-dos**; `status` prints to-dos too.
 The kinds of to-dos are listed in the "What agents do" table of the server's `/llms.txt`.
+The `.guideline/` layout adds these kinds. `apply`, `pick` and `update` print them. `status` prints `apply`, `dev-dependency`, `prepare-manual`, `no-copy`, `override-unchosen`, `mcp-conflict` and `blocked`, so they stay visible until they are fixed.
+
+| Kind | Meaning |
+| --- | --- |
+| `apply` | The generated files are out of date (from `status`), or were not written after a move. Run `guideline apply`, before you commit |
+| `root-apply` | A monorepo unit's `apply` did not run ruler because the git root has no `.ruler/ruler.toml`. Run `guideline apply` at the git root first, or put `.ruler/ruler.toml` with `nested = true` there yourself |
+| `unit-update` | `guideline apply` at the git root skipped a unit below it that is still in the old layout. Run `guideline update` in that unit |
+| `unit-problem` | `guideline apply` at the git root could not open a unit below it; the reason follows |
+| `root-ruler-toml` | The git root is not a guideline project and has no `.ruler/ruler.toml`, so `apply` composed the units but did not run ruler. Put a `.ruler/ruler.toml` with `nested = true` there and commit it |
+| `no-copy` | A chosen item has no copy in `.guideline/` (blocked, or an MCP entry to build), so it was not composed. `guideline update` shows why |
+| `override-unchosen` | An override in `.guideline/overrides/<stack>/` belongs to a stack that is not chosen. Pick the stack or delete the override |
+| `subagents-off` | A subagent copy exists but `.ruler/ruler.project.toml` lacks `[agents] enabled = true`, so it was not composed |
+| `mcp-conflict` | A received MCP table was not added to `.ruler/ruler.toml` because `ruler.project.toml` already has a table with that name (the project's own is kept) or the TOML shapes clash. A received MCP table you changed in the project stays in `ruler.project.toml`; `status` shows the MCP as current and repeats this to-do. To share the change, edit `.guideline/mcp/<name>/server.json` and send it with `guideline propose` |
+| `untracked` | A file that is now generated was removed from the git index (`git rm --cached`; the file stays), or the CLI gives you the command because it could not |
+| `stray-ruler-output` | ruler ran without `.ruler/ruler.toml` and wrote files for every agent. `CLAUDE.md` with ruler's marker was deleted; one without was kept, and so was one the settings cannot judge (a `default_agents` list over several lines). Other agents' files are not checked |
+| `migrated` | The project moved to the `.guideline/` layout. Review `git status` and commit |
+| `manifest-v3` | `guideline.json` was rewritten as version 3 (whole stacks), so the rest of each chosen stack's files were added |
+| `prepare` | `prepare` in `package.json` now runs `guideline apply` instead of `ruler apply` |
+| `dev-dependency` | `guideline-manage` is not a dependency, so `prepare` was left alone. Until it is, `prepare` in a clone runs only ruler and writes an `AGENTS.md` without the guidelines. Add it with the command shown, then run `guideline apply` |
+| `prepare-manual` | `prepare` runs `ruler apply` with arguments, which `guideline apply` does not take, so it was left alone. Change it to `guideline apply` by hand and move the ruler settings to `.ruler/ruler.project.toml` |
+| `apply-hook` | There is no `package.json`: call `guideline apply` from your setup step (Orca: `scripts.setup` in `orca.yaml`) |
+
+Some kinds no longer exist: `mcp-local` (an MCP copy is proposed like any other copy, from `.guideline/mcp/<name>/server.json`), `moved` (a copy has one place) and `new-file`.
+A `blocked` to-do for a file that cannot be composed names its path in `.guideline/`.
 
 `update` and `status` report a `missing-requires` to-do for each received block that needs (`requires`) blocks the project has not received.
 This happens, for example, when the source gained a new `requires` after the project received the block.
@@ -30,13 +55,27 @@ With several sources, each source is judged by its own `requires` and its own bl
 
 When the source drops a file from a stack you chose, `status` shows it as `upstream` (`both` when the project also edited it) and `update` deletes it.
 An edited copy is not deleted: it stays and a `leftover` to-do asks you to check it and delete it or send it upstream.
-In the pick form, a guideline file (`NN-*.md`) in a sub-folder of `.ruler/<stack>/` that is not in the source shows as removed from source. Keep project-only rules in `override.md` or `override.d/` ([Override a guideline in one project](how-to/override-guidelines.md)).
+In the pick form, a file in `.guideline/` that is not in the source (a guideline file, a skill, subagent or MCP folder) shows as removed from source. Keep project-only rules in `.guideline/overrides/` ([Override a guideline in one project](how-to/override-guidelines.md)) or in `.ruler/*.md`.
+Only `.guideline/` is compared. Files generated under `.ruler/` and `docs/guideline/`, and hand-made `.claude/skills/<name>` or `.mcp.json` entries, are not.
+
+### Where files go
+
+| Place | Contents | Git |
+| --- | --- | --- |
+| `.guideline/rules/<stack path>/`, `.guideline/skills/<name>/`, `.guideline/agents/<name>.md`, `.guideline/mcp/<name>/` | Received copies, exactly as in the source | Commit |
+| `.guideline/overrides/<stack path>/override.md`, `override.d/*.md` | The project's overrides (`<parent>/<child>` for a child stack) | Commit |
+| `.guideline/management/<source>.md` | A source's management additions | Commit |
+| `.ruler/ruler.project.toml` | The project's ruler settings and MCP servers it wrote itself | Commit |
+| `.ruler/<stack path>/NN-*.md`, `99-reference.md`, `.ruler/guideline.md`, `.ruler/skills/`, `.ruler/agents/`, `.ruler/ruler.toml`, `docs/guideline/` | Generated by `apply`, `pick` and `update` | Not committed: a block in `.gitignore` lists them |
+
+Edit the copies in `.guideline/` (or send them upstream with `guideline propose`); a change in a generated file is overwritten by the next `apply`.
+`propose` sends the `.guideline/` copies edited in the project as they are, because they already have the source's form.
 
 ### `guideline.json`
 
 `items` of each source are **block keys**: `rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>` (`"version": 3`).
 A child stack is listed together with its ancestor stacks, for example `["rules/browser", "rules/browser/browseros-neo"]`.
-An older file (`"version": 1` or `2`, with file paths) is read as before and rewritten as version 3 the next time `pick` or `update` writes it.
+An older file (`"version": 1` or `2`, with file paths) is read as before and rewritten as version 3 the next time `pick` or `update` writes it (a `manifest-v3` to-do says so).
 
 ## Source commands
 
@@ -71,7 +110,7 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 | --- | --- |
 | 0 | Success |
 | 1 | Failure (server unreachable, no permission, write failure, language pack problems and so on). Also 1 when one source failed and the others were applied. A source whose server is older than 0.24 counts as a failed source (see below) |
-| 2 | Usage error, not a ruler project, name clash |
+| 2 | Usage error, not a ruler project, name clash. Also `apply`, `status` and `propose` in a project still in the old layout, and `apply` before anything was received |
 | 3 | `pick`: not submitted (cancelled, tab closed, never opened). Nothing was written |
 
 A server older than 0.24 cannot take stack choices.

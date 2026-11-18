@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gitRoot, runGit } from './projects.js';
 import { readManifest } from './manifest.js';
+import { rulerTomlText, PROJECT_TOML, RULER_TOML } from './layout.js';
 import { unitOf, unitName, finalUnit } from './sources.js';
 import { t } from './i18n.js';
 
@@ -26,15 +27,18 @@ export function unitProblem(dir, manifest) {
   return null;
 }
 
-/** git 루트의 .ruler/ruler.toml 에 nested = true 가 있는가. */
+/** git 루트의 ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)에 nested = true 가 있는가. */
 export function rootNestedOn(root) {
-  const f = path.join(root, '.ruler', 'ruler.toml');
-  return fs.existsSync(f) && /^\s*nested\s*=\s*true\s*(?:#.*)?$/m.test(fs.readFileSync(f, 'utf8'));
+  return /^\s*nested\s*=\s*true\s*(?:#.*)?$/m.test(rulerTomlText(root) ?? '');
 }
 
+/** nested = true 를 켤 자리: 루트에 ruler.toml 만 있으면(이전 전 배치) 그것, 아니면 ruler.project.toml. */
 export const nestedOffTodo = root => ({
   kind: 'nested-off', item: null,
-  message: t('todo.nestedOff', { root }),
+  message: t('todo.nestedOff', {
+    root,
+    file: !fs.existsSync(path.join(root, ...PROJECT_TOML.split('/'))) && fs.existsSync(path.join(root, ...RULER_TOML.split('/'))) ? RULER_TOML : PROJECT_TOML,
+  }),
 });
 
 /** git 루트 단위가 받은 스택(별칭을 입힌 경로, 하위 스택은 `web/neo`). 중첩 단위의 폼에서 「루트에 이미 있음」 을 보일 때 쓴다. */

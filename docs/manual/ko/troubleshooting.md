@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/troubleshooting.md @ v0.21.0 -->
+<!-- source: docs/manual/en/troubleshooting.md @ v0.23.0 -->
 [English](../en/troubleshooting.md) | **한국어**
 
 # 문제 해결
@@ -19,6 +19,16 @@
 | `서버에서 폼이 사라짐` | 기다리는 동안 서버 데이터가 바뀌었습니다 | `pick` 을 다시 실행하세요 |
 | 할 일 `conflict` | 같은 이름이 이미 있고 원본과 다릅니다 | `pick` 의 **차이 보기**로 보고 **갱신**을 켜거나 그대로 두세요 |
 | `ruler 프로젝트가 아님` | 그 디렉터리에 `.ruler/` 가 없습니다 | 기존 지침을 `.ruler/` 로 옮긴 뒤 다시 실행하세요 |
+| `이 프로젝트는 아직 옛 배치 — guideline update 를 한 번 실행 …`(종료 코드 2) | 0.24 전에 받은 프로젝트(사본이 `.ruler/<스택>/`)에서 `status`·`propose`·`apply` 를 실행했습니다 | `guideline update` 를 한 번 실행하세요. 서버가 필요합니다. [서버와 CLI 올리기](how-to/upgrade.md#guideline-배치로-프로젝트-옮기기)를 보세요 |
+| `먼저 커밋하거나 stash 하라` | `.guideline/` 배치로 옮기면 추적 파일을 다시 쓰는데, 그 디렉터리의 추적 파일에 커밋 안 된 변경이 있습니다 | 커밋하거나 stash 한 뒤 `update` 를 다시 실행하세요 |
+| `CLAUDE.md` 가 생겼거나 Claude Code 가 `AGENTS.md` 를 무시합니다(`stray-ruler-output` 할 일) | `.ruler/ruler.toml` 없이 `ruler apply` 가 돌았습니다. 보통 클론 직후이고, ruler 가 모든 에이전트 몫을 썼습니다 | `guideline apply` 를 실행하세요. ruler 표시가 있는 `CLAUDE.md` 는 지우고 알립니다. 표시가 없으면 두므로 확인하고 직접 지우세요. 검사는 `CLAUDE.md` 만 하니, ruler 가 쓴 다른 에이전트 파일은 `git status` 로 보고 쓰지 않는 것을 지우세요 |
+| 클론한 뒤나 새 워크트리에 지침이 없습니다: `.ruler/<스택>/` 이 없음 | 생성물은 git 에 없습니다 | `guideline apply` 를 실행하세요(서버가 필요 없습니다). 설치할 때 자동으로 하려면 [새로 클론하거나 새 워크트리를 만들었을 때](getting-started.md#6-새로-클론하거나-새-워크트리를-만들었을-때)를 보세요 |
+| `ruler apply` 만 돌렸더니 지침이 낡았습니다 | ruler 는 `.guideline/` 이 아니라 생성물을 읽습니다. `.guideline/` 이나 `ruler.project.toml` 을 바꿔도 `guideline apply` 를 하기 전까지 생성물은 그대로입니다 | `guideline apply` 를 실행하세요. ruler 도 함께 돕니다. 생성물이 낡으면 `status` 가 `apply` 할 일을 냅니다 |
+| `.ruler/<스택>/01-git.md`(또는 `docs/guideline/…`)를 고쳤는데 사라졌습니다 | 생성물이라 `guideline apply` 때마다 다시 쓰입니다 | `.guideline/` 의 사본을 고쳐 `guideline propose` 로 원본에 올리거나 [바꿈](how-to/override-guidelines.md)을 쓰세요 |
+| `ruler 를 돌지 않음: git 루트 … 에 아직 .ruler/ruler.toml 이 없음`(`root-apply` 할 일) | 모노레포에서 git 루트에 `.ruler/ruler.toml` 이 없으면 단위의 `apply` 가 ruler 를 돌기 전에 멈춥니다 | git 루트에서 `guideline apply` 를 먼저 실행하거나, 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두고 단위에서 다시 실행하세요 |
+| `git status` 에 옛 사본이 삭제로 보이거나, `untracked` 할 일이 `git rm --cached` 명령을 알려 줍니다 | 이제 생성물인 파일을 CLI 가 git 인덱스에서 뺐거나(`git rm --cached`, 파일은 남음), 못 해서 명령을 알려 줍니다 | 명령이 있으면 실행하고 `git status` 를 확인해 커밋하세요. `git add -A` 전에 `guideline apply` 를 하세요. 안 하면 옛 사본이 다시 들어갑니다 |
+| `[<표>] 을 .ruler/ruler.toml 에 넣지 않음`(`mcp-conflict` 할 일) | `ruler.project.toml` 에 같은 이름의 표가 이미 있거나 TOML 모양이 겹칩니다. 프로젝트 것을 둡니다 | 표를 확인하세요. 받은 MCP 표를 이 프로젝트에서 고쳤다면 `.guideline/mcp/<이름>/server.json` 을 고쳐 `guideline propose` 로 올리세요. 고친 표는 `ruler.project.toml` 에 남고 `status` 에는 MCP 가 current 로 보입니다 |
+| 직접 만든 `.claude/skills/<이름>` 이나 `.mcp.json` 항목이 첫 `pick` 뒤에 사라졌습니다 | 같은 이름의 받은 스킬·MCP 서버가 `.ruler/` 로 조합되고, ruler 가 그것으로 덮어씁니다. 폼은 이제 `.claude/skills` 와 `.mcp.json` 을 비교하지 않아 경고하지 않습니다 | `pick` 하기 전에 이름을 바꾸거나 `guideline-export` 스킬로 원본에 올리세요 |
 | `CLAUDE.md 형은 더 이상 지원하지 않음` | 0.12 의 CLAUDE.md 형으로 받은 프로젝트입니다 | ruler 로 옮기고 `guideline pick` 을 다시 실행하세요 |
 | `제안 권한이 없는 토큰` | 읽기 토큰입니다 | 관리자에게 범위 `propose` 토큰을 받아 `--token-stdin` 으로 넣으세요 |
 

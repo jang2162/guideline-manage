@@ -6,6 +6,7 @@ import { getToken } from '../credentials.js';
 import { fetchSources, virtualize, showId } from '../workspace.js';
 import { realOf } from '../sources.js';
 import { openProject } from './project-update.js';
+import { layoutOf } from '../layout.js';
 import { localChanges, toApiChange, toRealChanges } from '../propose.js';
 import { unifiedDiff } from '../diff.js';
 import { printTodos } from '../todos.js';
@@ -140,6 +141,11 @@ export async function propose({
   const { manifest, lock } = opened;
   if (!manifest || !lock) {
     err(t('propose.notYet'));
+    return 2;
+  }
+  // 옛 배치의 사본은 update 가 .guideline/ 으로 옮긴 뒤에 제안한다
+  if (layoutOf(lock, dir) === 'ruler') {
+    err(t('apply.needsUpdate'));
     return 2;
   }
   // 기준은 잠금의 리비전이다. 출처가 하나라도 받지 못하면 그 출처의 변경은 올리지 않는다.

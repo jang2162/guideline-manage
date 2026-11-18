@@ -12,9 +12,13 @@ test('/llms.txt 는 로그인 없이 열리고, 이 서버의 주소로 사용·
   assert.match(text, /guideline login --server http:\/\/guideline\.test\n/);
   assert.doesNotMatch(text, /\{\{/);
   for (const cmd of ['guideline pick', 'guideline status', 'guideline update', 'guideline pick --new', 'guideline propose', 'guideline source']) assert.ok(text.includes(cmd), cmd);
-  for (const kind of ['mcp-build', 'env', 'setup', 'conflict', 'skipped', 'override', 'subagents-off', 'ruler-apply', 'removed-upstream', 'blocked', 'leftover', 'nested-off', 'mcp-local', 'adopted', 'alias']) {
+  for (const kind of ['mcp-build', 'env', 'setup', 'conflict', 'skipped', 'override', 'subagents-off', 'ruler-apply', 'removed-upstream', 'blocked', 'leftover', 'nested-off', 'adopted', 'alias', 'apply', 'root-apply', 'untracked', 'stray-ruler-output', 'override-unchosen', 'no-copy', 'mcp-conflict', 'dev-dependency', 'apply-hook', 'migrated', 'manifest-v3', 'prepare']) {
     assert.ok(text.includes(`\`${kind}\``), `할 일 ${kind}`);
   }
+  assert.doesNotMatch(text, /`mcp-local`|`moved`|`new-file`/);
+  // 새 배치: 사본은 .guideline/, 생성물은 gitignore, 클론 직후에는 guideline apply
+  for (const want of ['guideline apply', '.guideline/rules/<스택>/NN-*.md', '.ruler/ruler.project.toml', '# START guideline generated files', '.guideline/overrides/<스택 경로>/override.md']) assert.ok(text.includes(want), want);
+  assert.doesNotMatch(text, /`\.ruler\/<스택>\/override\.md`|사본 자리: /);
   assert.doesNotMatch(text, /old-section|guideline:begin|CLAUDE\.md·AGENTS\.md 형/);
   assert.match(text, /POST http:\/\/guideline\.test\/api\/v1\/proposals/);
   assert.match(text, /guideline pick --source/);

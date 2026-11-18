@@ -1,4 +1,4 @@
-<!-- source: README.md @ v0.21.0 -->
+<!-- source: README.md @ v0.23.0 -->
 [English](README.md) | **한국어**
 
 # guideline-manage
@@ -16,6 +16,7 @@
 코딩 에이전트를 쓰는 팀은 스택별 규칙, 스킬, 서브에이전트, MCP 설정 같은 지침을 프로젝트마다 복사해 둡니다.
 사본은 점점 서로 달라지고, 어느 프로젝트가 최신 규칙을 쓰는지 아무도 모르게 됩니다.
 guideline-manage 는 원본 하나를 **지침 서버**에 두고, 프로젝트마다 `guideline` CLI 로 필요한 부분만 골라 받게 합니다.
+받은 지침은 `.guideline/` 에 사본으로 두고, ruler 가 읽는 파일은 `guideline apply` 가 그 사본으로 조합합니다.
 프로젝트마다 받은 것을 기록하므로 CLI 가 원본과 프로젝트 중 어디가 바뀌었는지 알려 주고, 고친 내용은 검토를 거치는 제안으로 원본에 돌아갑니다.
 [ruler](https://github.com/intellectronica/ruler)(`.ruler/`)로 CLAUDE.md, AGENTS.md 같은 에이전트 파일을 만드는 팀을 위한 도구입니다.
 
@@ -24,6 +25,7 @@ guideline-manage 는 원본 하나를 **지침 서버**에 두고, 프로젝트�
 - 무엇이 같고 다르고 없는지 웹 폼에서 먼저 보고, 프로젝트마다 지침을 고릅니다.
 - 프로젝트에서 고친 내용을 잃지 않고 `guideline update` 로 모든 프로젝트를 최신으로 맞춥니다.
 - 받은 사본은 원본과 맞춰 둔 채, 한 프로젝트에서만 공용 규칙을 바꿉니다.
+- 새로 클론하거나 새 워크트리를 만들면 `guideline apply` 한 번으로 준비됩니다. 커밋한 `.guideline/` 사본에서 git 이 무시하는 에이전트 파일을 서버 없이 조합합니다.
 - 프로젝트에서 고친 내용을 제안으로 올리고, 관리자는 차이와 3-way merge 결과를 보고 검토합니다.
 - 여러 서버의 지침을 한 프로젝트에 함께 받고, 겹치는 이름은 별칭으로 나눕니다.
 - 에이전트에게 맡깁니다. 서버의 `/llms.txt` 와 `guideline-sync` 스킬이 지침 받기와 할 일 처리 방법을 알려 줍니다.
@@ -76,7 +78,12 @@ guideline help
 3. 터미널에 쓴 것과 남은 할 일이 나옵니다. 예를 들어 파일 세 개짜리 `base` 스택을 고르면 다음과 같습니다.
 
    ```text
-   반영 완료(r2) — 쓴 파일 6, 지운 파일 0
+   반영 완료(r2) — 쓴 파일 11, 지운 파일 0
+     쓰기  .guideline/rules/base/00-agent.md
+     쓰기  .guideline/rules/base/01-git.md
+     쓰기  .guideline/rules/base/02-docs.md
+     쓰기  .ruler/ruler.project.toml
+     쓰기  .gitignore
      쓰기  .ruler/base/00-agent.md
      쓰기  .ruler/base/01-git.md
      쓰기  .ruler/base/99-reference.md
@@ -85,7 +92,8 @@ guideline help
      쓰기  docs/guideline/base/02-docs.md
    ```
 
-   바뀐 파일을 `guideline.json`·`guideline-lock.json` 과 함께 커밋하세요.
+   `.guideline/`, `.ruler/ruler.project.toml`, `.gitignore`, `guideline.json`, `guideline-lock.json` 을 커밋하세요.
+   `.ruler/<스택>/`, `.ruler/guideline.md`, `docs/guideline/` 아래 파일은 생성물이라 `.gitignore` 에 적힙니다. 새로 클론했거나 새 워크트리에서는 `guideline apply` 로 만드세요.
 
 아직 서버가 없다면 [시작하기](docs/manual/ko/getting-started.md)에서 내 컴퓨터에 먼저 띄웁니다.
 

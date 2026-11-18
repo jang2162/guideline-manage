@@ -40,6 +40,13 @@ test('stepOf 는 항목 종류로 단계를 정하고, 원본에서 사라진 �
   assert.equal(stepOf({ kind: 'orphan', id: 'docs/x' }), 'rules');
 });
 
+test('stepOf: 새 배치의 고아(.guideline/<조각>/…)는 그 다음 조각으로 단계를 정한다', () => {
+  assert.equal(stepOf({ kind: 'orphan', id: '.guideline/skills/old' }), 'skills');
+  assert.equal(stepOf({ kind: 'orphan', id: '.guideline/mcp/old' }), 'mcp');
+  assert.equal(stepOf({ kind: 'orphan', id: '.guideline/agents/old.md' }), 'agents');
+  assert.equal(stepOf({ kind: 'orphan', id: '.guideline/rules/base/07-gone.md' }), 'rules');
+});
+
 test('requiredClosure 는 의존의 의존까지 따라가고 자신·중복·순환을 뺀다', () => {
   assert.deepEqual(requiredClosure(['mcp/p'], { 'mcp/p': ['rules/b'], 'rules/b': ['rules/c'] }), ['rules/b', 'rules/c']);
   assert.deepEqual(requiredClosure(['a'], { a: ['b'], b: ['a'] }), ['b']);

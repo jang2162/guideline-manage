@@ -14,7 +14,9 @@ import { revisionLabel } from './project-update.js';
 import { inferAgents, formPayload, diskReader } from '../project-state.js';
 import { unitInfo, unitProblem, rootStacks } from '../unit.js';
 import { render } from '../render/index.js';
-import { finishApply, report } from './sync-common.js';
+import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../render/outputs.js';
+import { rulerTomlText, PROJECT_TOML, RULER_TOML } from '../layout.js';
+import { finishApply, report, migrateIfOld, manifestV3Todos, finishMigrationOnly } from './sync-common.js';
 import { t } from '../i18n.js';
 
 const isDir = p => {
@@ -114,9 +116,19 @@ export async function projectPick({
   const single = Object.keys(sources).length === 1;
 
   const unit = isNew ? { dir, root: dir, nested: false } : unitInfo(dir, git);
+  const v3 = isNew ? [] : manifestV3Todos(dir);
+  // 옛 배치면 폼을 만들기 전에 새 배치로 옮긴다 — 폼이 .guideline/ 사본과 원본을 비교하고 반영도 새 배치로 쓴다
+  let migrated = { todos: [], migration: null };
+  if (manifest) {
+    const servers = Object.fromEntries(Object.entries(manifest.sources).map(([n, s]) => [n, { ...s, server: sources[n]?.server ?? s.server }]));
+    const moved = await migrateIfOld({ dir, unit, manifest: { ...manifest, sources: servers }, lock, env, home, fetchImpl, git, err });
+    if (moved.code !== undefined) return moved.code;
+    lock = moved.lock;
+    migrated = moved;
+  }
   const status = isNew ? { gitRepo: false, dirty: false } : projectStatus(dir, git, unit.root);
   // 중첩 단위에 ruler.toml 이 아직 없으면 git 루트의 에이전트를 따른다
-  const agentsFrom = unit.nested && !fs.existsSync(path.join(dir, '.ruler', 'ruler.toml')) ? unit.root : dir;
+  const agentsFrom = unit.nested && rulerTomlText(dir) === null ? unit.root : dir;
   const agents = manifest?.agents ?? (isNew ? null : inferAgents(agentsFrom));
   if (agents) working.agents = agents;
 
@@ -196,10 +208,16 @@ export async function projectPick({
     const stillBlocked = v.view.items.filter(k => sel.blocked.some(b => blockKey(b.id) === k));
     const real = id => realOf(id, v.sources)?.id ?? id;
     sources[name] = { ...sources[name], items: withAncestors([...keep, ...stillBlocked].filter(Boolean).map(real)) };
-    submitted.set(name, { sel, v, revision: sel.revision, overrides: payload.overrides });
+    // 지울 수 있는 고아는 이 폼에 올린 것뿐이다(제출을 믿지 않는다)
+    const offered = new Set(payload.items.filter(i => i.kind === 'orphan').map(i => i.id));
+    submitted.set(name, { sel, v, revision: sel.revision, overrides: payload.overrides, offered });
   }
   for (const f of failures) err(f);
-  if (submitted.size === 0) return failures.length ? 1 : 3;
+  if (submitted.size === 0) {
+    // 옮긴 것은 이미 썼다 — 고르지 않았어도 그 할 일(커밋하라)은 알리고, 옮겼으면 ruler 를 돌아 AGENTS.md 를 맞춘다
+    finishMigrationOnly({ moved: migrated, root: unit.root, env, runRuler, err });
+    return failures.length ? 1 : 3;
+  }
 
   // 제출하지 않은 새 출처는 매니페스트에 남기지 않는다
   for (const name of targets) if (!submitted.has(name) && !Object.hasOwn(base.sources, name)) delete sources[name];
@@ -232,12 +250,14 @@ export async function projectPick({
   // 렌더링의 결정은 폼에서 사용자가 바꾼 것(받기·지우기·덮어쓰기·막힘)만 싣는다. 고른 스택의 파일은 매니페스트의 블록 키로 렌더링이 펼친다.
   const decisions = {};
   const orphans = [];
-  for (const [name, { sel }] of submitted) {
+  for (const [name, { sel, offered }] of submitted) {
     // 같은 가상 id 를 다른 출처가 가질 수 있다(다른 출처가 쓰는 이름이라 이 폼에서 막힌 항목). 그 결정은 이 출처의 항목에만 준다.
     const own = id => realOf(id, v.sources)?.source === name;
-    for (const i of sel.items) if (i.kind === 'orphan' || own(i.id)) decisions[i.id] = { action: i.action, overwrite: i.overwrite === true, state: i.state };
+    // 폼에 올리지 않은 고아 id 는 조작된 제출이다. 지울 범위가 디렉터리 트리라 할 일·경고 없이 버린다.
+    const items = sel.items.filter(i => i.kind !== 'orphan' || offered.has(i.id));
+    for (const i of items) if (i.kind === 'orphan' || own(i.id)) decisions[i.id] = { action: i.action, overwrite: i.overwrite === true, state: i.state };
     for (const b of sel.blocked) if (own(b.id)) decisions[b.id] = { state: 'blocked', reason: b.reason };
-    orphans.push(...sel.items.filter(i => i.kind === 'orphan' && i.action === 'remove').map(i => i.id));
+    orphans.push(...items.filter(i => i.kind === 'orphan' && i.action === 'remove').flatMap(i => orphanFiles(dir, i.id)));
   }
   const rendered = render({
     tree: v.tree, revision: 0, manifest: v.view, lock: v.viewLock, project: diskReader(dir), decisions, orphans, nested: unit.nested, management: v.management,
@@ -246,12 +266,22 @@ export async function projectPick({
   const revisions = Object.fromEntries([...trees].map(([n, t]) => [n, submitted.get(n)?.revision ?? t.revision]));
   const realLock = toRealLock({ viewLock: rendered.lock, sources: v.sources, revisions, previous: lock, keep: failed, protect });
   rendered.todos.push(...v.problems, ...aliasMoveTodos({ previous: lock, next: realLock, project: dir }));
+  rendered.todos.unshift(...migrated.todos, ...v3);
   for (const { overrides } of submitted.values()) {
     for (const o of overrides.filter(x => !x.valid)) {
       rendered.todos.push({ kind: 'override', item: o.target, message: `${o.file} 「${o.heading}」: ${o.reason}` });
     }
   }
-  const done = finishApply({ project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, env, runRuler, err });
+  let moved = false;
+  if (!fs.existsSync(path.join(dir, ...PROJECT_TOML.split('/')))) {
+    const first = projectTomlFirst(dir, unit.nested, nextManifest.agents);
+    rendered.files[PROJECT_TOML] = first.content;
+    moved = first.moved;
+  }
+  const done = finishApply({
+    project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, env, runRuler, err, migration: migrated.migration,
+  });
+  if (done.code === 0 && moved) done.todos.push(...untrackMoved(dir, git));
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;
   return failures.length || others.failures.length ? 1 : 0;
@@ -259,11 +289,55 @@ export async function projectPick({
 
 const trim = s => s.replace(/\/+$/, '');
 
+/**
+ * 새 배치로 시작할 때의 .ruler/ruler.project.toml. 프로젝트가 둔 ruler.toml 이 있으면 그 설정을 옮긴다(처음 받는 프로젝트라 지침 서버가
+ * 넣은 MCP 표가 없다). 없으면 기본 설정 — 조합이 이것에 고른 MCP 를 얹어 ruler.toml 을 만든다.
+ */
+function projectTomlFirst(dir, nested, agents) {
+  try {
+    return { content: fs.readFileSync(path.join(dir, ...RULER_TOML.split('/'))), moved: true };
+  } catch {
+    return { content: Buffer.from((nested ? NESTED_TOML_BASE : RULER_TOML_BASE)(agents)), moved: false };
+  }
+}
+
+/**
+ * 옮긴 뒤의 ruler.toml 은 조합이 만드는 생성물(.gitignore 블록)이다. git 이 추적 중이면 인덱스에서만 뺀다(파일은 조합 결과로 남는다) —
+ * 그대로 두면 조합할 때마다 고친 파일로 보이고, 커밋하면 클론에 낡은 설정이 따라간다. 이전(update·pick 의 배치 옮기기)과 같은 방식이다.
+ * 뺐으면 커밋하라고, 못 뺐으면 명령을 할 일로 낸다.
+ */
+function untrackMoved(dir, git) {
+  if (git(['ls-files', '--error-unmatch', '--', RULER_TOML], dir).status !== 0) return [];
+  if (git(['rm', '--cached', '--quiet', '--', RULER_TOML], dir).status === 0) {
+    return [{ kind: 'untracked', item: null, message: t('todo.untracked', { path: RULER_TOML, to: PROJECT_TOML }) }];
+  }
+  return [{ kind: 'untracked', item: null, message: t('todo.untrackFailed', { path: RULER_TOML, dir }) }];
+}
+
 /** 잠금에서 출처 하나의 것만. 폼이 그 출처의 사본 상태만 보게 한다. */
+/**
+ * 지울 고아의 파일들. 새 배치의 스킬·MCP 고아는 디렉터리 하나라 그 안의 파일을 모두 지운다 — 숨은 파일(.DS_Store)까지 지워야
+ * 폴더가 비어 정리되고 다음 폼에 같은 고아가 다시 뜨지 않는다. 심볼릭 링크는 따라가지 않고 링크 자체를 지운다.
+ */
+function orphanFiles(dir, id) {
+  const abs = path.join(dir, ...id.split('/'));
+  if (!fs.existsSync(abs) || !fs.lstatSync(abs).isDirectory()) return [id];
+  const out = [];
+  const walk = rel => {
+    for (const d of fs.readdirSync(path.join(abs, rel), { withFileTypes: true })) {
+      const r = rel ? `${rel}/${d.name}` : d.name;
+      if (d.isDirectory()) walk(r);
+      else out.push(`${id}/${r}`);
+    }
+  };
+  walk('');
+  return out.sort();
+}
+
 function lockOf(lock, name) {
   const mine = q => splitQualified(q).source === name;
   return {
-    version: 2,
+    version: lock.version,
     revisions: lock.revisions[name] ? { [name]: lock.revisions[name] } : {},
     sources: Object.fromEntries(Object.entries(lock.sources).filter(([q]) => mine(q))),
     outputs: lock.outputs.filter(o => o.items.length > 0 && o.items.every(mine)),
@@ -288,8 +362,7 @@ function takenUnits(sources, name) {
 }
 
 /**
- * 다른 출처의 사본인가. 다른 출처의 잠금 출력이거나, 그 경로를 품는 가장 깊은 최종 스택 자리(.ruler/<스택 경로>/,
- * docs/guideline/<스택 경로>/)를 다른 출처가 쓴다 — 부모 스택을 다른 출처가 가졌어도 자식 폴더는 자식 소유자의 것이다.
+ * 다른 출처의 사본인가. 다른 출처의 잠금 출력이거나, 그 경로를 품는 가장 깊은 최종 스택 자리(.guideline/rules/<스택 경로>/)를 다른 출처가 쓴다 — 부모 스택을 다른 출처가 가졌어도 자식 폴더는 자식 소유자의 것이다.
  * 출처 하나의 폼이 다른 출처의 사본을 「원본에서 사라짐」 으로 보이지 않게 한다.
  */
 function otherOwned(sources, lock, name) {
@@ -304,14 +377,15 @@ function otherOwned(sources, lock, name) {
     }
   }
   const ownerOf = p => {
-    const m = /^(?:\.ruler|docs\/guideline)\/(.+)\/[^/]+$/.exec(p);
+    const m = /^\.guideline\/rules\/(.+)\/[^/]+$/.exec(p);
     for (let d = m?.[1] ?? ''; d; d = d.includes('/') ? d.slice(0, d.lastIndexOf('/')) : '') {
       if (stacks.has(d)) return stacks.get(d);
     }
     return null;
   };
   return p => {
-    if (paths.has(p)) return true;
+    // 새 배치의 스킬·MCP 고아는 디렉터리라, 그 아래의 다른 출처 출력으로 가린다
+    if (paths.has(p) || [...paths].some(x => x.startsWith(`${p}/`))) return true;
     const owner = ownerOf(p);
     return owner !== null && owner !== name;
   };

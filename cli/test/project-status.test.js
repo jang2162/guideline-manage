@@ -4,25 +4,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { startApp, testConfig, META } from '../../server/test/helpers.js';
 import { tmpDir, write, collect, ALWAYS } from './helpers.js';
-import { SOURCE, manifestOf } from './render-fixture.js';
-import { render } from '../src/render/index.js';
-import { applyFiles } from '../src/apply.js';
-import { diskReader } from '../src/project-state.js';
-import { MANIFEST, LOCK, manifestText, lockText } from '../src/manifest.js';
+import { SOURCE } from './render-fixture.js';
+import { syncedProject } from './synced.js';
+import { MANIFEST } from '../src/manifest.js';
 import { projectStatus } from '../src/commands/project-status.js';
-import { memoryTree } from '../src/tree.js';
 
 async function setup(t, opts) {
   const s = await startApp(t, opts);
   s.store.commit({ ...META, source: 'import', changes: SOURCE });
   const token = s.tokens.issue({ name: 'cli-t', scope: 'read' }).token;
-  const p = tmpDir('guideline-status-');
+  const p = fs.realpathSync(tmpDir('guideline-status-'));
   t.after(() => fs.rmSync(p, { recursive: true, force: true }));
-  const manifest = manifestOf('ruler', ['rules/base', 'skills/s'], { server: s.base });
-  const r = render({ tree: memoryTree(SOURCE), revision: 1, manifest, lock: null, project: diskReader(p) });
-  applyFiles(p, r.files);
-  write(p, MANIFEST, manifestText(manifest));
-  write(p, LOCK, lockText(r.lock));
+  syncedProject(p, { server: s.base, items: ['rules/base', 'skills/s'] });
   return { s, p, env: { GUIDELINE_TOKEN: token } };
 }
 
@@ -38,7 +31,7 @@ test('매니페스트가 없으면 안내하고 0', async t => {
 test('status --json 은 원본 새로 나옴·프로젝트에서 고침을 내고, 고른 스택에 새로 생긴 파일은 원본 새로 나옴이다', async t => {
   const { s, p, env } = await setup(t);
   s.store.commit({ ...META, changes: { 'rules/base/00-a.md': `${ALWAYS}# 에이\n\n새\n`, 'rules/base/02-new.md': `${ALWAYS}# 새\n` } });
-  write(p, 'docs/guideline/base/01-b.md', '# 고침\n');
+  write(p, '.guideline/rules/base/01-b.md', '# 고침\n');
   const o = collect();
   assert.equal(await projectStatus({ project: p, json: true, env, out: o.out }), 0);
   const data = JSON.parse(o.text());
@@ -52,7 +45,9 @@ test('status --json 은 원본 새로 나옴·프로젝트에서 고침을 내�
     { id: 'skills/s', state: 'current' },
   ]);
   assert.equal('newFiles' in data, false);
-  assert.deepEqual(data.todos, []);
+  // 사본을 고치고 조합하지 않았으니 생성물이 낡았다. 고친 사본은 frontmatter 가 없어 조합에서 막힌다 — 조합 할 일도 status 에 나온다
+  assert.deepEqual(data.todos.map(x => x.kind), ['apply', 'blocked']);
+  assert.equal(data.todos[1].item, 'rules/base/01-b.md');
 });
 
 test('status 는 새 파일 줄을 내지 않는다', async t => {
@@ -76,7 +71,7 @@ test('고른 스택에서 원본이 뺀 파일은 status 가 원본 새로 나�
 
 test('status 글 출력', async t => {
   const { p, env } = await setup(t);
-  write(p, 'docs/guideline/base/01-b.md', '# 고침\n');
+  write(p, '.guideline/rules/base/01-b.md', '# 고침\n');
   const o = collect();
   await projectStatus({ project: p, env, out: o.out });
   assert.match(o.text(), new RegExp(`^지침 상태 — ${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(반영 r1, 서버 최신 r1\\)$`, 'm'));
@@ -131,4 +126,76 @@ test('status 는 whoami 가 없는 옛 서버(404)에서도 실패하지 않고 
   const text = collect();
   assert.equal(await projectStatus({ project: p, env, out: text.out, fetchImpl: old }), 0);
   assert.doesNotMatch(text.text(), /토큰:/);
+});
+
+/** 받은 프로젝트(git 루트, 항목은 rules/base 하나). */
+async function setupNew(t) {
+  const s = await startApp(t);
+  s.store.commit({ ...META, source: 'import', changes: SOURCE });
+  const token = s.tokens.issue({ name: 'cli-t', scope: 'read' }).token;
+  const p = fs.realpathSync(tmpDir('guideline-status-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  syncedProject(p, { server: s.base });
+  return { s, p, env: { GUIDELINE_TOKEN: token } };
+}
+
+test('status 는 생성물이 낡았으면 apply 할 일을 낸다', async t => {
+  const { p, env } = await setupNew(t);
+  const fresh = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: fresh.out, err: () => {} }), 0);
+  assert.equal(JSON.parse(fresh.text()).todos.some(x => x.kind === 'apply'), false);
+
+  // 사본을 고쳤는데 조합하지 않았다
+  write(p, '.guideline/rules/base/00-a.md', `${ALWAYS}# 에이\n\n고침\n`);
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o.out, err: () => {} }), 0);
+  const todo = JSON.parse(o.text()).todos.find(x => x.kind === 'apply');
+  assert.equal(todo.message, '생성물이 낡음 — guideline apply 실행');
+
+  // 서버 없이도 이 판정은 한다
+  const m = JSON.parse(fs.readFileSync(path.join(p, MANIFEST), 'utf8'));
+  m.sources.default.server = 'http://127.0.0.1:9';
+  write(p, MANIFEST, `${JSON.stringify(m, null, 2)}\n`);
+  const off = collect();
+  assert.equal(await projectStatus({ project: p, env, out: off.out, err: () => {} }), 1);
+  assert.match(off.text(), /할 일\n {2}- 생성물이 낡음 — guideline apply 실행/);
+});
+
+test('사본이 최신 원본과 같으면(제안이 수락된 뒤) status 는 둘 다 바뀜이 아니라 원본 새로 나옴이다', async t => {
+  const { s, p, env } = await setupNew(t);
+  const accepted = `${ALWAYS}# 에이\n\n수락된 본문\n`;
+  s.store.commit({ ...META, changes: { 'rules/base/00-a.md': accepted } });
+  // 새 배치의 사본은 원본 바이트 그대로라 수락된 원본과 같다
+  write(p, '.guideline/rules/base/00-a.md', accepted);
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, json: true, env, out: o.out, err: () => {} }), 0);
+  assert.equal(JSON.parse(o.text()).items.find(x => x.id === 'rules/base/00-a.md').state, 'upstream');
+});
+
+test('status 는 prepare 가 ruler apply 만 부르는 동안 dev-dependency 할 일을 계속 내고, 고칠 수 있는 prepare 는 apply 할 일로 본다', async t => {
+  const { p, env } = await setupNew(t);
+  const pkg = deps => `{\n  "scripts": {\n    "prepare": "ruler apply"\n  }${deps ? ',\n  "devDependencies": { "guideline-manage": "1" }' : ''}\n}\n`;
+  write(p, 'package.json', pkg(false));
+  write(p, 'pnpm-lock.yaml', '');
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o.out, err: () => {} }), 0);
+  const todos = JSON.parse(o.text()).todos;
+  assert.deepEqual(todos.map(x => x.kind), ['dev-dependency']);
+  assert.match(todos[0].message, /pnpm add -D guideline-manage .* 그 전까지 클론의 prepare 는 ruler 만 돌아 지침 없는 AGENTS\.md 를 만듦$/);
+  // 의존성이 생기면 apply 가 prepare 를 고칠 수 있다 — 낡은 것으로 본다(status 는 쓰지 않는다)
+  write(p, 'package.json', pkg(true));
+  const o2 = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o2.out, err: () => {} }), 0);
+  assert.deepEqual(JSON.parse(o2.text()).todos.map(x => x.kind), ['apply']);
+  assert.equal(fs.readFileSync(path.join(p, 'package.json'), 'utf8'), pkg(true));
+});
+
+test('status 는 조합 할 일(고르지 않은 스택의 바꿈 등)을 apply·update 없이도 낸다', async t => {
+  const { p, env } = await setupNew(t);
+  write(p, '.guideline/overrides/gone/override.md', '## 바꿈\n');
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env, json: true, out: o.out, err: () => {} }), 0);
+  const todos = JSON.parse(o.text()).todos;
+  assert.deepEqual(todos.map(x => x.kind), ['override-unchosen']);
+  assert.match(todos[0].message, /^\.guideline\/overrides\/gone\/: 고르지 않은 스택이라 바꿈을 조합하지 않음/);
 });
