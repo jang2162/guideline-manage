@@ -7,12 +7,13 @@ import { tokenInfo } from '../remote.js';
 import { openProject, revisionLabel } from './project-update.js';
 import { composeUnit, composeInputs, mergeTodos } from './sync-common.js';
 import { excludeStale } from '../exclude.js';
+import { personalStatus } from '../personal-sync.js';
 import { preparePackage } from '../migrate-layout.js';
 import { layoutOf } from '../layout.js';
 import { t } from '../i18n.js';
 
 /** status 가 조합에서 가져와 내는 할 일 종류. */
-const COMPOSE_KINDS = new Set(['mcp-conflict', 'no-copy', 'override-unchosen', 'blocked']);
+const COMPOSE_KINDS = new Set(['mcp-conflict', 'no-copy', 'override-unchosen', 'blocked', 'personal-ignored']);
 
 /**
  * 반영한 지침이 서버 최신과 같은지, 프로젝트에서 고친 것이 있는지 본다. 출처마다 최신과 비교한다.
@@ -67,7 +68,13 @@ export async function projectStatus({
     tree: v.tree, reader: diskReader(dir), manifest: v.view, lock: v.viewLock, nested: unit.nested, management: v.management,
   });
   const show = id => showId(id, v.sources, v.many);
-  const todos = [...localTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many })];
+  // 개인 범위(git 저장소가 아니거나 개인 선택이 깨졌으면 null): 개인 더함·뺌과, 받은 원본 기준 개인 사본 상태
+  const personal = inputs.personal
+    ? personalStatus({ store: inputs.personal.store, manifest, local: inputs.personal.local, trees, nested: unit.nested })
+    : null;
+  const todos = [
+    ...localTodos, ...statusTodos(states, show), ...v.problems, ...missingRequiresTodos({ manifest, trees, many: v.many }), ...(personal?.todos ?? []),
+  ];
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   const head = revisionLabel(Object.fromEntries([...trees].map(([name, t]) => [name, t.revision])));
   const applied = revisionLabel(Object.fromEntries([...trees.keys()].map(name => [name, lock.revisions[name] ?? 0])));
@@ -82,6 +89,7 @@ export async function projectStatus({
       head,
       items: [...states].map(([id, state]) => ({ id: show(id), state })),
       outputs: outputs.map(o => ({ path: o.path, ...(o.key ? { key: o.key } : {}), state: o.state })),
+      personal: personal && { added: personal.added, removed: personal.removed, ignored: personal.ignored, items: personal.items },
       todos,
       token,
     }, null, 2));
@@ -99,6 +107,12 @@ export async function projectStatus({
   out(`  ${STATE_ORDER.filter(k => counts[k]).map(k => `${stateLabel(k)} ${counts[k]}`).join(' · ')}`);
   for (const [id, s] of states) if (s !== 'current') out(`  ${stateLabel(s)}  ${show(id)}`);
   for (const o of outputs) if (o.items.length === 0 && o.state !== 'current') out(`  ${stateLabel(o.state)}  ${o.path}`);
+  if (personal && (personal.added.length || personal.removed.length || personal.items.length)) {
+    const list = keys => (keys.length ? keys.join(', ') : '-');
+    out(`  ${t('status.personalAdded', { count: personal.added.length, items: list(personal.added) })}`);
+    out(`  ${t('status.personalRemoved', { count: personal.removed.length, items: list(personal.removed) })}`);
+    for (const { id, state } of personal.items) if (state !== 'current') out(`  ${t('status.personalCopy', { state: stateLabel(state), id })}`);
+  }
   printTodos(todos, out);
   return code;
 }

@@ -13,6 +13,7 @@ import { fetchSources } from '../workspace.js';
 import { migrateLayout, preparePackage, readOnlyPrepareTodos } from '../migrate-layout.js';
 import { personalPlace, readLocal, LocalError } from '../personal.js';
 import { writeExclude, readExclude } from '../exclude.js';
+import { writePersonal } from '../personal-sync.js';
 import { runGit } from '../projects.js';
 import { t } from '../i18n.js';
 
@@ -158,11 +159,12 @@ export function rulerStep({ root, env, runRuler, todos, rootIsUnit = true }) {
  * git 루트에서 ruler apply 를 돈다 — 조합이 .ruler/ruler.toml 을 쓴 뒤에만 ruler 를 돌아야 모든 에이전트 몫(CLAUDE.md 등)이 생기지 않는다.
  * migration 은 이번 실행에서 먼저 한 이전(migrateIfOld)의 결과다. 이전이 있었으면 이 단계에서 쓴 것이 없어도 ruler 를 돈다 —
  * 이전이 바꾼 관리 지침이 AGENTS.md 에 들어가야 한다. 쓴/지운 목록에도 합친다.
+ * sync({ trees, revisions }) 를 주면(update·pick) 프로젝트를 쓴 뒤 같은 원본으로 개인 사본도 받아 개인 저장소에 쓰고 그다음 조합한다.
  * @returns {{ code: number, written: string[], deleted: string[], todos: object[] }}
  */
 export function finishApply({
   project, root = project, nested = false, result, manifest, lock = result.lock, env = process.env, runRuler = defaultRunRuler, err = console.error,
-  migration = null, git = runGit,
+  migration = null, git = runGit, sync = null,
 }) {
   let todos = [...result.todos];
   const pre = migration ?? { written: [], deleted: [] };
@@ -180,6 +182,7 @@ export function finishApply({
   writeFileAtomic(path.join(project, MANIFEST), manifestText(manifest));
   writeFileAtomic(path.join(project, LOCK), lockText(lock));
   const inputs = composeInputs({ project, unit: { root }, git });
+  if (sync && inputs.personal) todos = mergeTodos(todos, writePersonal({ personal: inputs.personal, manifest, nested, ...sync }));
   const composed = composeWithStray({ project, nested, manifest, personal: inputs.personal });
   todos = mergeTodos(todos, [...inputs.todos, ...composed.todos]);
   const w = writeComposedOrFail(project, composed.files, err, composed.exclude);

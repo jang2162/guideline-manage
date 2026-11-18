@@ -280,6 +280,7 @@ export async function projectPick({
   }
   const done = finishApply({
     project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest: nextManifest, lock: realLock, env, runRuler, err, git, migration: migrated.migration,
+    sync: { trees, revisions },
   });
   if (done.code === 0 && moved) done.todos.push(...untrackMoved(dir, git));
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });

@@ -610,3 +610,39 @@ test('exclude 블록이 줄 때는 파일 쓰기가 성공한 뒤에 줄인다',
   assert.ok(writeComposedOrFail(p, { '../bad': 'x' }, m => errs.push(m), { ...ex, paths: ['/.ruler/a.md', '/.ruler/c.md'] }).failed);
   assert.deepEqual(readExclude(ex), ['/.ruler/a.md', '/.ruler/c.md']);
 });
+
+test('새 워크트리의 apply 에도 개인 범위가 들어간다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  await apply(p);
+  commitAll(p);
+  // 개인 선택·사본은 git 공용 디렉터리에 있다(앞서 update 가 받아 둔 것)
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  const wt = addWorktree(t, p, 'fresh');
+  assert.equal(exists(wt, '.ruler/extra/00-e.md'), false);
+  const r = await apply(wt);
+  assert.ok(r.written.includes('.ruler/extra/00-e.md'));
+  assert.equal(read(wt, '.ruler/extra/00-e.md'), '# 개인 더함\n');
+  assert.match(read(wt, '.ruler/guideline.md'), /더한 것: `rules\/extra`/);
+  assert.equal(porcelain(wt), '');
+});
+
+test('필수가 된 블록의 개인 뺌은 무시하고 알린다', async t => {
+  const p = gitDir(t);
+  const { manifest } = syncNew(p, { items: ['rules/base', 'skills/s'] });
+  await apply(p);
+  commitAll(p);
+  setPersonal(p, p, { default: { add: [], remove: ['rules/base'] } });
+  const removed = await apply(p);
+  assert.ok(removed.deleted.includes('.ruler/base/00-a.md'));
+  assert.equal(removed.todos.some(x => x.kind === 'personal-ignored'), false);
+  // 프로젝트가 rules/base 를 필수로 바꾼다 → 다음 apply 에서 돌아오고 개인 뺌은 무시된다는 할 일
+  write(p, MANIFEST, manifestText({ ...manifest, sources: { default: { ...manifest.sources.default, required: ['rules/base'] } } }));
+  const back = await apply(p);
+  assert.ok(back.written.includes('.ruler/base/00-a.md'));
+  const todo = back.todos.find(x => x.kind === 'personal-ignored');
+  assert.equal(todo.item, 'rules/base');
+  assert.equal(todo.message, 'rules/base: 필수가 된 블록이라 개인 뺌을 무시함 — guideline pick --local 에서 정리');
+  // status 도 같은 할 일을 낸다(서버 없이)
+  assert.ok((await statusKinds(p)).includes('personal-ignored'));
+});

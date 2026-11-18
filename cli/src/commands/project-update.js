@@ -97,6 +97,7 @@ export async function projectUpdate({
   rendered.todos.unshift(...moved.todos, ...v3);
   const done = finishApply({
     project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err, git, migration: moved.migration,
+    sync: { trees, revisions },
   });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   return failures.length && done.code === 0 ? 1 : done.code;

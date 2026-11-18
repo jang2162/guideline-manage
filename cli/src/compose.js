@@ -115,6 +115,7 @@ function personalLayer(manifest, local) {
   const many = names.length > 1;
   const sources = {};
   const note = { added: [], removed: [], ignored: [] };
+  const todos = [];
   for (const name of names) {
     const src = manifest.sources[name];
     const e = eff.sources[name];
@@ -127,10 +128,17 @@ function personalLayer(manifest, local) {
     for (const k of e.ignored) {
       const why = e.ignoredWhy[k];
       if (why === 'required' || why === 'no-effect') note.ignored.push({ ...show(k), why });
+      // 필수가 된 블록의 개인 뺌은 pick --local 에서 정리할 때까지 할 일로도 알린다(관리 지침만으로는 작업자가 놓친다)
+      if (why === 'required') {
+        const item = many ? `${name}:${k}` : k;
+        todos.push({ kind: 'personal-ignored', item, message: t('todo.personalIgnored', { item }) });
+      }
     }
   }
   const changed = note.added.length > 0 || note.removed.length > 0;
-  return { manifest: { ...manifest, sources }, changed, added: note.added.map(x => x.key), note: changed || note.ignored.length ? note : null };
+  return {
+    manifest: { ...manifest, sources }, changed, added: note.added.map(x => x.key), note: changed || note.ignored.length ? note : null, todos,
+  };
 }
 
 /**
@@ -249,8 +257,9 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   const layer = personal ? personalLayer(manifest, personal.local) : null;
   const chosen = layer ? layer.manifest : manifest;
   const keys = layer ? fit(virtualKeys(chosen)) : projectKeys;
-  // 개인 사본은 개인으로 더한 키 아래에서만 읽는다(personalTree)
-  const added = layer ? fit(layer.added) : [];
+  // 개인 사본은 개인으로 더한 키 아래에서만 읽는다(personalTree). 개인으로 더한 하위 스택의 조상 중 프로젝트가 고르지 않은 것도
+  // 개인 사본(syncPersonal 이 함께 받는다)이다 — 그 조상의 사본은 프로젝트 .guideline/ 에 없다.
+  const added = layer ? fit(withAncestors(layer.added)).filter(k => !projectKeys.includes(k)) : [];
   const tree = added.length ? personalTree(guide, diskTree(path.join(personal.store, GUIDE_DIR)), added, projectKeys) : guide;
   const projectStacks = stacksOf(projectKeys);
   const management = managementOf(guide, chosen);
@@ -262,7 +271,7 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
     ? build({ ...shared, tree: guide, manifest, keys: projectKeys, management: managementOf(guide, manifest) }).want
     : main.want;
   const want = main.want;
-  const todos = main.todos;
+  const todos = [...(layer?.todos ?? []), ...main.todos];
 
   const generated = {
     project: [...projectWant.keys()].sort(byStr),
