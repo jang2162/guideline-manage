@@ -15,7 +15,7 @@ import { strayRulerOutput } from '../stray.js';
 import { fetchSources, manifestClashes } from '../workspace.js';
 import { migrateLayout, preparePackage, readOnlyPrepareTodos } from '../migrate-layout.js';
 import { personalPlace, readLocal, LocalError } from '../personal.js';
-import { writeExclude, readExclude } from '../exclude.js';
+import { writeExclude, readExclude, KEEP_BAK_MARK } from '../exclude.js';
 import { writePersonal, personalRevisionTodos } from '../personal-sync.js';
 import { runGit } from '../projects.js';
 import { t } from '../i18n.js';
@@ -298,8 +298,8 @@ function baselineGitignore({ root, plan, bin, runRuler }) {
  * ruler 를 돈 뒤: 이번 실행의 ruler 블록 중 프로젝트 기준(base, 없으면 지금 블록)에 없는 것을 info/exclude 의 이 워크트리 루트 단위
  * 블록에 적고(조합이 적은 줄은 그대로), 커밋되는 .gitignore 를 프로젝트 기준으로 되돌린다 — 그 순서라 개인 출력이 드러나는 틈이 없다.
  * 지난번에 블록에 적었던 ruler 개인 출력 중 이제 만들지 않는 것(개인 더함 되돌림)은 빈 폴더와 빈 claude·codex·opencode MCP 설정만
- * 지우고, 그 설정의 .bak 도 정리 뒤 짝 설정이 없으면 지운다. 추적되는 것, 비지 않은 폴더, 서버나 다른 설정이 남은 MCP 설정, 다른
- * 에이전트의 설정과 .bak, 손으로 둔 설정의 .bak 은 두고 할 일로 알린다.
+ * 지우고, 그 설정의 .bak 도 정리 뒤 짝 설정이 없으면 지운다 — 처음 나타날 때 사람 원본으로 표시한 .bak 은 빼고. 추적되는 것, 비지 않은
+ * 폴더, 서버나 다른 설정이 남은 MCP 설정, 다른 에이전트의 설정과 .bak, 손으로 둔 설정의 .bak 은 두고 할 일로 알린다.
  */
 function settleRulerOutputs({ root, place, base, git, todos }) {
   const giFile = path.join(root, '.gitignore');
@@ -314,17 +314,29 @@ function settleRulerOutputs({ root, place, base, git, todos }) {
   const extras = now.filter(p => !baseBlock.includes(p));
   const block = readExclude(place);
   const composedLine = l => composedPath(l.slice(1));
-  const before = block.filter(l => !composedLine(l));
+  const isMark = l => l.startsWith(KEEP_BAK_MARK);
+  const isBak = l => l.endsWith('.bak');
+  const pairOf = l => l.slice(0, -'.bak'.length);
+  const before = block.filter(l => !composedLine(l) && !isMark(l));
+  // .bak 의 주인은 그것이 디스크에 처음 나타난 실행에서 정한다. ruler 는 없던 설정 F 를 만들 때 .bak 을 남기지 않으므로(블록에는 F 와
+  // 함께 미리 적는다), 지금 디스크에 있는 F.bak 의 F 가 지난 개인 출력이 아니었으면 F 는 이번 실행 전부터 있던 사람 파일이고 .bak 은 그
+  // 원본이다 — 표시해 두고 끝까지 지우지 않는다. F 가 지난 개인 출력이면 .bak 은 그 출력의 백업이다(표시 없음).
+  // 표시는 그 .bak 이 개인 출력으로 블록에 있는 동안 유지하고, 블록에서 빠지는 실행(되돌림)에서 판정에 쓰인 뒤 사라진다.
+  const kept = new Set(block.filter(isMark).map(l => l.slice(KEEP_BAK_MARK.length)));
+  for (const l of extras) {
+    const rel = l.slice(1);
+    if (isBak(rel) && !before.includes(pairOf(l)) && mcpFileOf(pairOf(rel)) && fs.existsSync(path.join(root, ...rel.split('/')))) kept.add(l);
+  }
+  const marks = [...kept].filter(l => extras.includes(l)).map(l => `${KEEP_BAK_MARK}${l}`);
   try {
-    writeExclude({ ...place, paths: [...block.filter(composedLine), ...extras] });
+    writeExclude({ ...place, paths: [...block.filter(composedLine), ...extras, ...marks] });
     if (base !== null && (real ?? '') !== base) writeFileAtomic(giFile, base);
   } catch (e) {
     if (!e?.code) throw e;
     todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerIgnoreFailed', { reason: e.message }) });
     return;
   }
-  // .bak 은 짝 설정 F 를 판정한 뒤에 본다 — F 가 이번에 지워졌는지가 .bak 판정의 근거다.
-  const isBak = l => l.endsWith('.bak');
+  // .bak 은 짝 설정 F 를 판정한 뒤에 본다 — F 가 이번에 지워졌는지가 (표시 없는) .bak 판정의 근거다.
   for (const line of [...before.filter(l => !isBak(l)), ...before.filter(isBak)]) {
     if (extras.includes(line) || baseBlock.includes(line)) continue;
     const rel = line.slice(1);
@@ -332,17 +344,17 @@ function settleRulerOutputs({ root, place, base, git, todos }) {
     const abs = path.join(root, ...rel.split('/'));
     if (!fs.existsSync(abs)) continue;
     // ruler 가 개인 더함 때문에 만든 것이 확실한 것만 지운다: 조합이 guideline 이름을 지운 뒤 빈 폴더(스킬·서브에이전트 자리), 서버도
-    // 다른 설정도 남지 않은 claude·codex·opencode 의 MCP 설정, 그리고 그런 설정 F 의 F.bak 중 정리 뒤 F 가 없는 것. ruler 는 첫 백업만
-    // 남기므로(이미 있으면 그대로) 사람이 둔 F 가 있었다면 .bak 은 그 원본이고 F 에 사람 서버가 남아 F 가 지워지지 않는다 — F 가 없다는
-    // 것은 .bak 이 ruler 출력의 백업이라는 뜻이다. 그 밖(다른 에이전트의 설정과 .bak, 손으로 둔 설정의 .bak)은 두고 알린다. 추적되는 것도 둔다.
+    // 다른 설정도 남지 않은 claude·codex·opencode 의 MCP 설정, 그리고 그런 설정 F 의 F.bak 중 사람 원본 표시가 없고 정리 뒤 F 가 없는 것
+    // (F 가 개인 출력으로 먼저 생긴 뒤 다음 실행이 남긴 .bak 이라 ruler 출력의 백업이다). 사람 서버가 남아 F 가 지워지지 않으면 .bak 도 둔다.
+    // 그 밖(다른 에이전트의 설정과 .bak, 손으로 둔 설정의 .bak)은 두고 알린다. 추적되는 것도 둔다.
     const tracked = git(['ls-files', '--', rel], root);
     const isDir = fs.statSync(abs).isDirectory();
     const m = mcpFileOf(rel);
-    const pairOfBak = isBak(rel) && !isDir && mcpFileOf(rel.slice(0, -'.bak'.length));
+    const pairOfBak = isBak(rel) && !isDir && mcpFileOf(pairOf(rel));
     const made = isDir
       ? fs.readdirSync(abs).length === 0
       : pairOfBak
-        ? !fs.existsSync(path.join(root, ...rel.slice(0, -'.bak'.length).split('/')))
+        ? !kept.has(line) && !fs.existsSync(path.join(root, ...pairOf(rel).split('/')))
         : !!m && emptyMcpConfig(abs, m);
     if (tracked.status !== 0 || tracked.stdout.trim() || !made) {
       todos.push({ kind: 'ruler-leftover', item: null, message: t('todo.rulerLeftover', { path: rel }) });

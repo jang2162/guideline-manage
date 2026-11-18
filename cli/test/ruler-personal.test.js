@@ -115,6 +115,7 @@ test('진짜 ruler: 개인으로만 더한 스킬·MCP 는 info/exclude 로 가�
   assert.deepEqual(servers(p), ['c7', 'c8']);
   assert.equal(exists(p, '.mcp.json.bak'), true);
   assert.equal(porcelain(p), '');
+  assert.doesNotMatch(exclude(p), /keeps human backup/, '.mcp.json 이 지난 개인 출력이었으니 .bak 은 그 백업이다');
 
   // 되돌리면 ruler 가 만든 것은 지운다. .mcp.json 을 지웠으니 그 .bak 도 ruler 출력의 백업이라 함께 지운다
   const r = pickLocal(p, [], []);
@@ -172,6 +173,30 @@ test('진짜 ruler: 손으로 둔 .mcp.json 에 개인 MCP 를 더했다 되돌�
     tr('todo.rulerLeftover', { path: '.mcp.json' }),
     tr('todo.rulerLeftover', { path: '.mcp.json.bak' }),
   ].sort());
+});
+
+test('진짜 ruler: 손으로 둔 .mcp.json 의 서버가 개인 MCP 와 같은 이름뿐이어도 되돌릴 때 .bak(사람 원본)은 두고 알린다', async t => {
+  const p = await project(t, ['rules/base']);
+  // 사람 정의(키가 든 args 등)가 같은 이름의 개인 MCP 정의로 덮여 .bak 에만 남는다
+  const mine = `${JSON.stringify({ mcpServers: { c8: { command: 'mine', args: ['--key', 'secret'] } } }, null, 2)}\n`;
+  fs.writeFileSync(path.join(p, '.mcp.json'), mine);
+  pickLocal(p, ['mcp/c8'], []);
+  assert.deepEqual(servers(p), ['c8']);
+  assert.equal(read(p, '.mcp.json.bak'), mine);
+  assert.equal(porcelain(p), '');
+  const mark = /^# guideline keeps human backup \/\.mcp\.json\.bak$/m;
+  assert.match(exclude(p), mark);
+  // 같은 선택으로 다시 돌아도 사람 원본이라는 표시는 남는다
+  await apply(p);
+  assert.match(exclude(p), mark);
+
+  // 조합이 이름 c8 을 지워 .mcp.json 은 사라지지만, .bak 은 이 .mcp.json 이 개인 출력이 되기 전부터 있던 사람 파일의 원본이다
+  const r = pickLocal(p, [], []);
+  assert.equal(servers(p), null);
+  assert.equal(read(p, '.mcp.json.bak'), mine);
+  assert.deepEqual(leftovers(r), [tr('todo.rulerLeftover', { path: '.mcp.json.bak' })]);
+  assert.equal(porcelain(p), '?? .mcp.json.bak\n');
+  assert.doesNotMatch(exclude(p), /guideline personal files/);
 });
 
 test('진짜 ruler: 개인 더함을 되돌릴 때 사람이 둔 스킬은 지우지 않고 할 일로 알린다', async t => {

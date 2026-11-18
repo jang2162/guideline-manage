@@ -37,6 +37,12 @@ export function unitPathOf(unitRel, pattern) {
   return pattern.startsWith(prefix) && pattern.length > prefix.length ? pattern.slice(prefix.length) : null;
 }
 
+/**
+ * 개인 블록 안에서 「이 .bak 은 사람 원본이니 지우지 않는다」 는 표시 줄의 머리. `#` 로 시작해 git 은 주석으로 읽는다.
+ * 표시는 블록의 다른 줄처럼 조합이 그대로 넘기고(compose 의 rulerExtras), 블록과 함께 지워진다(없어진 워크트리 정리 등).
+ */
+export const KEEP_BAK_MARK = '# guideline keeps human backup ';
+
 const excludeFile = common => path.join(common, 'info', 'exclude');
 
 function readText(file) {
