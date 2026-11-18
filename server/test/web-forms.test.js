@@ -237,3 +237,49 @@ test('폼 페이지는 조상·자손 풀림 문구를 브라우저 문구 블�
   const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
   for (const key of ['web.client.ancestor', 'web.client.childrenReleased', 'web.client.when']) assert.ok(page.includes(`"${key}"`), key);
 });
+
+const PERSONAL = {
+  chosen: ['rules/base', 'rules/base/browser', 'rules/web'],
+  required: ['rules/base/browser'],
+  add: ['rules/tools'], remove: [], preset: 'local',
+};
+
+test('개인 모드 제출은 personalSelection 결과를 결과로 둔다', async t => {
+  // 더러운 작업 트리라도 개인 모드는 force 를 묻지 않는다(커밋되는 파일을 바꾸지 않는다).
+  const f = await setup(t, { dirty: true }, { mode: 'personal', personal: PERSONAL });
+  const cookie = await openForm(f);
+  const data = (await getAs(f.s, cookie, `/forms/${f.id}/data`)).json();
+  assert.equal(data.mode, 'personal');
+  assert.deepEqual(data.personal, PERSONAL);
+  const rejected = await postJson(f.s, `/forms/${f.id}/submit`, { personalChoices: { 'rules/base': 'remove' } }, { cookie });
+  assert.equal(rejected.status, 400);
+  assert.match(rejected.json().error, /필수/);
+  const ok = await postJson(f.s, `/forms/${f.id}/submit`, {
+    personalChoices: { 'rules/tools/deep': 'add', 'rules/web': 'remove', 'rules/base': 'add', 'skills/s': 'bogus' },
+    saveDefault: true,
+  }, { cookie });
+  assert.equal(ok.status, 200);
+  assert.deepEqual((await result(f)).selection, {
+    mode: 'personal', add: ['rules/tools', 'rules/tools/deep'], remove: ['rules/web'], saveDefault: true, rejected: [],
+  });
+});
+
+test('프로젝트 모드 제출은 필수를 싣고, 폼 data 는 mode·required 를 준다', async t => {
+  const f = await setup(t, {}, { required: ['rules/base'] });
+  const cookie = await openForm(f);
+  const data = (await getAs(f.s, cookie, `/forms/${f.id}/data`)).json();
+  assert.equal(data.mode, 'project');
+  assert.deepEqual(data.required, ['rules/base']);
+  assert.equal(data.personal, null);
+  assert.equal((await postJson(f.s, `/forms/${f.id}/submit`, { choices: {}, required: ['rules/base', 'rules/other'] }, { cookie })).status, 200);
+  assert.deepEqual((await result(f)).selection.required, ['rules/base']);
+});
+
+test('폼 페이지는 개인 모드·필수 문구를 브라우저 문구 블록에 싣는다', async t => {
+  const f = await setup(t, {}, { mode: 'personal', personal: PERSONAL });
+  const cookie = await openForm(f);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
+  for (const key of ['web.client.required', 'web.client.personal.keep', 'web.client.personal.add', 'web.client.personal.remove', 'web.client.personal.inProject', 'web.client.personal.notInProject', 'web.client.personal.locked', 'web.client.personal.preset.local', 'web.client.personal.preset.defaults', 'web.client.personal.saveDefault']) {
+    assert.ok(page.includes(`"${key}"`), key);
+  }
+});

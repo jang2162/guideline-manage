@@ -1,6 +1,6 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors } from './selection.js';
+import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis } from './selection.js';
 import { ancestorKeys, isWithin } from './blocks.js';
 
 const $ = sel => document.querySelector(sel);
@@ -33,6 +33,10 @@ const ACTION_LABEL = { add: t('web.client.add'), update: t('web.client.update'),
 const state = {
   data: null, choices: {}, initial: {}, open: new Set(), finished: false, auto: new Set(), touched: new Set(), notes: [], step: 'rules', cat: null,
   marked: new Set(), ancestor: new Set(),
+  // 프로젝트 모드의 필수 블록(골라진 블록에서만 켤 수 있다).
+  required: new Set(), initialRequired: new Set(),
+  // 개인 모드: 블록 키 → 'add' | 'remove'(없으면 그대로), 처음 상태, 기본값으로 저장할지.
+  pc: {}, pInitial: {}, saveDefault: false,
 };
 const STEPS = ['rules', 'mcp', 'agents', 'skills', 'confirm'];
 
@@ -50,13 +54,14 @@ function showError(message) {
 
 function finish(message) {
   state.finished = true;
-  for (const sel of ['#checklist', '#bar', '#choose', '#dirty']) $(sel).hidden = true;
+  for (const sel of ['#checklist', '#bar', '#choose', '#dirty', '#personal']) $(sel).hidden = true;
   showError('');
   $('#finished').hidden = false;
   $('#finished-text').textContent = message;
 }
 
 const project = () => state.data.project;
+const isPersonal = () => state.data?.mode === 'personal';
 const needsForm = () => project().isNew === true;
 const isRemoved = i => i.lockState === 'removed';
 const isChecked = key => state.choices[key]?.checked ?? false;
@@ -272,8 +277,20 @@ function missingNotes(unit) {
     .map(m => t('web.client.missingRequire', { needs: unitName(m.needs), by: unitName(unit) }));
 }
 
+/** 「필수」 칸. 골라진 블록에서만 켤 수 있고, 풀린 블록의 필수는 꺼진 것으로 보인다(제출에서도 빠진다). */
+function requiredToggle(unit) {
+  if (!unit) return '';
+  const chosen = chosenUnits().has(unit);
+  const on = chosen && state.required.has(unit);
+  return `<label class="req${on ? ' on' : ''}" title="${esc(t('web.client.requiredHint'))}"><input type="checkbox" data-required="${esc(unit)}" ${on ? 'checked' : ''} ${chosen ? '' : 'disabled'}> ${esc(t('web.client.required'))}</label>`;
+}
+const requiredNow = () => {
+  const chosen = chosenUnits();
+  return [...state.required].filter(u => chosen.has(u)).sort();
+};
+
 // select: false 면 선택 칸 없이 보인다(지침 단계의 파일은 스택 행의 칸 하나로 함께 고른다). 갱신·덮어쓰기 칸은 남는다.
-function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, tags = '', warns = [], select = true } = {}) {
+function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, tags = '', warns = [], select = true, after = '' } = {}) {
   const key = itemKey(item);
   const choice = state.choices[key];
   const action = actionOf(item, choice);
@@ -291,6 +308,7 @@ function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, t
   if (['different', 'moved'].includes(item.state)) extra.push(`<button type="button" class="link" data-diff="${esc(key)}">${esc(t('web.client.showDiff'))}</button>`);
   for (const b of badges) extra.push(`<span class="badge">${esc(b)}</span>`);
   if (ACTION_LABEL[action]) extra.push(`<span class="act act-${action}">${esc(ACTION_LABEL[action])}</span>`);
+  if (after) extra.push(after);
   return `<div class="row${action === 'remove' ? ' remove' : ''}${blocked ? ' blocked' : ''}">`
     + (select ? `<label class="main"><input type="checkbox" data-key="${esc(key)}" ${choice.checked ? 'checked' : ''} ${blocked ? 'disabled' : ''}>` : '<span class="main file">')
     + `<span class="name">${nameHtml ?? esc(label)}</span>${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}${tags}${select ? '</label>' : '</span>'}`
@@ -303,6 +321,12 @@ function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, t
 }
 
 function renderSummary() {
+  if (isPersonal()) {
+    const sel = pResult();
+    $('#summary').textContent = t('web.client.personal.summary', { add: sel.add.length, remove: sel.remove.length });
+    $('#submit').textContent = t('web.client.personal.submit');
+    return;
+  }
   const c = summarize(state.data.items, state.choices);
   $('#summary').textContent = t('web.client.summary', { add: c.add, update: c.update, remove: c.remove });
   $('#submit').textContent = c.remove > 0 ? t('web.client.submitWithRemove', { n: c.remove }) : t('web.client.submit');
@@ -314,10 +338,12 @@ const visible = item => !state.cat || itemCategories(item).includes(state.cat);
 /** 단계의 항목(원본에서 사라진 것 포함). */
 const stepItems = step => state.data.items.filter(i => stepOf(i) === step);
 /** 단계에 고를 것이 있는가. 확인 단계는 늘 있다. */
-const hasStep = step => step === 'confirm' || stepItems(step).length > 0;
+const hasStep = step => step === 'confirm' || (isPersonal() ? personalUnits(step).length > 0 : stepItems(step).length > 0);
 
 function renderSteps() {
-  const chosen = chosenUnits();
+  // 개인 모드는 단계마다 개인 변경(더함·뺌) 수를 센다.
+  const sel = isPersonal() ? pResult() : null;
+  const chosen = sel ? new Set([...sel.add, ...sel.remove]) : chosenUnits();
   for (const b of document.querySelectorAll('[data-step]')) {
     const step = b.dataset.step;
     const n = step === 'confirm' ? chosen.size : [...chosen].filter(u => stepOf({ kind: '', id: u }) === step).length;
@@ -334,6 +360,12 @@ function renderSteps() {
 }
 
 function renderList() {
+  if (isPersonal()) {
+    $('#list').innerHTML = state.notes.map(n => `<div class="note dep-note">${esc(n)}</div>`).join('') + personalListHtml(state.step);
+    renderSteps();
+    renderSummary();
+    return;
+  }
   const { items, catalog, overrides } = state.data;
   const out = [];
   let hidden = 0;
@@ -378,7 +410,7 @@ function renderList() {
       const short = s.parent ? s.name.slice(s.parent.length + 1) : s.name;
       out.push(`<details class="group stack-group${depth ? ' child' : ''}" data-group="${esc(id)}" data-depth="${Math.min(depth, 5)}" ${state.open.has(id) ? 'open' : ''}><summary>`
         + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${checked ? 'checked' : ''} ${!bundle && on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length || bundle ? '' : 'disabled'}>`
-        + `<b>${blockHtml(short, s.label, s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(unit)}`
+        + `<b>${blockHtml(short, s.label, s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(unit)}${requiredToggle(unit)}`
         + `${(project().rootStacks ?? []).includes(s.name) ? `<span class="cats">${esc(t('web.client.inRoot'))}</span>` : ''}`
         + `<span class="meta count">${on}/${live.length}</span>`
         + `${s.when ? `<span class="when">${esc(t('web.client.when', { when: s.when }))}</span>` : ''}</summary>${rows.join('')}</details>`);
@@ -394,6 +426,7 @@ function renderList() {
       + shown.map(i => rowHtml(i, label(i), meta(i), {
         cats: itemCategories(i), nameHtml: itemLabel(i) ? blockHtml(label(i), itemLabel(i)) : null,
         tags: i.kind === 'orphan' ? '' : unitTags(blockKey(i.id)), warns: i.kind === 'orphan' ? [] : missingNotes(blockKey(i.id)),
+        after: i.kind === 'orphan' || i.state === 'orphan' || isRemoved(i) ? '' : requiredToggle(blockKey(i.id)),
       })).join('') + '</details>');
   };
   const of = kind => items.filter(i => i.kind === kind && !isRemoved(i));
@@ -423,7 +456,10 @@ function confirmHtml() {
       + units.map(u => `<li>${esc(unitName(u))}${unitTags(u)}${missingNotes(u).map(w => `<div class="reason warn">${esc(w)}</div>`).join('')}</li>`).join('')
       + '</ul></section>';
   }).join('');
-  return (parts || `<p class="meta">${esc(t('web.client.confirmEmpty'))}</p>`) + changeList('remove') + changeList('update');
+  const req = requiredNow();
+  const reqHtml = req.length ? `<section class="confirm-step confirm-required"><h3>${esc(t('web.client.confirm.required', { n: req.length }))}</h3><ul>`
+    + req.map(u => `<li>${esc(unitName(u))}</li>`).join('') + '</ul></section>' : '';
+  return (parts || `<p class="meta">${esc(t('web.client.confirmEmpty'))}</p>`) + reqHtml + changeList('remove') + changeList('update');
 }
 
 /** 확인 단계: 제거·갱신할 항목. 단계마다 흩어진 변화를 제출 전에 한곳에서 보게 한다. */
@@ -434,8 +470,119 @@ function changeList(action) {
     + items.map(i => `<li><code>${esc(i.id)}</code></li>`).join('') + '</ul></section>';
 }
 
+// 개인 모드: 블록마다 프로젝트가 받는지와 그대로·더함·뺌. 판정(조상 더함·자손 뺌·필수 거절)은 selection.js personalSelection 이 하고,
+// 서버가 제출 때 같은 함수로 다시 계산한다. 갱신·덮어쓰기·더러운 작업 트리 칸은 없다(커밋되는 파일을 바꾸지 않는다).
+
+/** 개인 모드에서 단계의 블록: 키, 나무 깊이, 원본 목록의 항목. */
+function personalUnits(step) {
+  const c = state.data.catalog;
+  if (step === 'rules') return stackRows(c.stacks).map(({ stack, depth }) => ({ unit: `rules/${stack.name}`, depth, entry: stack }));
+  const list = { mcp: c.mcp, agents: c.subagents, skills: c.skills }[step] ?? [];
+  return list.map(x => ({ unit: step === 'agents' ? `agents/${x.name}.md` : `${step}/${x.name}`, depth: 0, entry: x }));
+}
+const pGet = unit => state.pc[unit] ?? 'keep';
+function pSet(unit, v) {
+  if (v === 'keep') delete state.pc[unit];
+  else state.pc[unit] = v;
+}
+const pBasis = () => personalBasis(state.data.personal);
+const pResult = () => personalSelection({ personal: state.data.personal, choices: state.pc });
+/** 개인 선택을 입힌 뒤 받는 블록. */
+function pReceived(sel) {
+  const out = new Set([...pBasis().inProject].filter(k => !sel.remove.includes(k)));
+  for (const k of sel.add) out.add(k);
+  return out;
+}
+/** 원본 목록과 프로젝트 선택의 스택 키. 자손을 찾을 때 쓴다. */
+const pStackKeys = () => [...new Set([...state.data.catalog.stacks.map(x => `rules/${x.name}`), ...pBasis().inProject])].filter(k => k.startsWith('rules/'));
+
+/**
+ * 사람이 블록 하나의 개인 선택을 바꾼다. 하위 스택을 더하면 프로젝트에 없는 조상을 더하고(뺀 조상은 되돌린다),
+ * 스택을 빼면 그 아래 프로젝트 블록을 빼고 더함을 되돌린다. 더함·뺌을 그대로로 되돌리면 같은 선택이던 자손도 되돌린다.
+ */
+function userPersonal(unit, v) {
+  const prev = pGet(unit);
+  if (prev === v) return;
+  const { inProject } = pBasis();
+  pSet(unit, v);
+  if (v === 'add') {
+    for (const a of ancestorKeys(unit)) {
+      if (!inProject.has(a) && pGet(a) !== 'add') {
+        pSet(a, 'add');
+        state.notes.push(t('web.client.personal.ancestorAdded', { by: unitName(unit), needs: unitName(a) }));
+      } else if (inProject.has(a) && pGet(a) === 'remove') {
+        pSet(a, 'keep');
+        state.notes.push(t('web.client.personal.ancestorKept', { by: unitName(unit), needs: unitName(a) }));
+      }
+    }
+  }
+  const kids = pStackKeys().filter(k => k !== unit && isWithin(k, unit));
+  let n = 0;
+  for (const k of kids) {
+    const want = v === 'remove' ? (inProject.has(k) ? 'remove' : 'keep') : v === 'keep' && pGet(k) === prev ? 'keep' : pGet(k);
+    if (pGet(k) !== want) {
+      pSet(k, want);
+      n++;
+    }
+  }
+  if (n) state.notes.push(t(v === 'remove' ? 'web.client.personal.childrenRemoved' : 'web.client.personal.childrenReset', { n }));
+}
+
+function personalRow({ unit, depth, entry }, sel, received) {
+  const { inProject, guarded } = pBasis();
+  const v = pGet(unit);
+  const here = inProject.has(unit);
+  const effect = sel.add.includes(unit) ? 'add' : sel.remove.includes(unit) ? 'remove' : null;
+  const short = unit.startsWith('rules/') && entry.parent ? entry.name.slice(entry.parent.length + 1) : entry.name;
+  const lock = guarded.has(unit)
+    ? `<span class="badge lock">${esc(t((state.data.personal.required ?? []).includes(unit) ? 'web.client.personal.locked' : 'web.client.personal.lockedAncestor'))}</span>` : '';
+  const rec = state.data.recommend ?? {};
+  const radio = (val, off) => `<label class="tri-opt${v === val ? ' on' : ''}${off ? ' off' : ''}">`
+    + `<input type="radio" name="p:${esc(unit)}" data-personal="${esc(unit)}" value="${val}" ${v === val ? 'checked' : ''} ${off ? 'disabled' : ''}>${esc(t(`web.client.personal.${val}`))}</label>`;
+  const warns = received.has(unit) ? missingRequires(received, requiresMap()).filter(m => m.unit === unit)
+    .map(m => t('web.client.missingRequire', { needs: unitName(m.needs), by: unitName(unit) })) : [];
+  const cats = entry.categories ?? [];
+  return `<div class="row prow${effect === 'remove' ? ' remove' : ''}${depth ? ' child' : ''}" data-depth="${Math.min(depth, 5)}" data-unit="${esc(unit)}">`
+    + `<span class="main"><span class="name">${blockHtml(short, entry.label, entry.name)}</span>`
+    + `${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}`
+    + `${Object.hasOwn(rec, unit) ? `<span class="badge rec">${esc(t('web.client.recommended'))}</span>` : ''}</span>`
+    + `<span class="state ${here ? 'p-in' : 'p-out'}">${esc(t(here ? 'web.client.personal.inProject' : 'web.client.personal.notInProject'))}</span>`
+    + `<span class="extra">${lock}${effect ? `<span class="act act-${effect}">${esc(t(`web.client.personal.${effect}`))}</span>` : ''}</span>`
+    + `<span class="tri" role="radiogroup" aria-label="${esc(unitName(unit))}">${radio('keep', false)}${radio('add', here)}${radio('remove', !here || guarded.has(unit))}</span>`
+    + (entry.when ? `<div class="reason">${esc(t('web.client.when', { when: entry.when }))}</div>` : '')
+    + warns.map(w => `<div class="reason warn">${esc(w)}</div>`).join('')
+    + '</div>';
+}
+
+/** 개인 모드 목록. 분류로 거를 때 지침 단계는 보일 스택의 조상도 보인다. */
+function personalListHtml(step) {
+  const sel = pResult();
+  if (step === 'confirm') return personalConfirmHtml(sel);
+  const received = pReceived(sel);
+  const units = personalUnits(step);
+  const own = x => !state.cat || (x.entry.categories ?? []).includes(state.cat);
+  const shown = new Set(units.filter(own).flatMap(x => [x.unit, ...ancestorKeys(x.unit)]));
+  const rows = units.filter(x => shown.has(x.unit)).map(x => personalRow(x, sel, received));
+  const hidden = units.length - rows.length;
+  return `<div class="group personal-list">${rows.join('')}</div>`
+    + (state.cat && hidden ? `<p class="meta hidden-count">${esc(t('web.client.hiddenByCategory', { cat: state.cat, n: hidden }))}</p>` : '');
+}
+
+/** 개인 모드 확인 단계: 더할·뺄 블록과 「이 선택을 내 기본값으로」. */
+function personalConfirmHtml(sel) {
+  const list = (key, cls, units) => (units.length
+    ? `<section class="confirm-step confirm-${cls}"><h3>${esc(t(key, { n: units.length }))}</h3><ul>`
+      + units.map(u => `<li>${esc(unitName(u))} <code>${esc(u)}</code></li>`).join('') + '</ul></section>'
+    : '');
+  const changes = list('web.client.personal.confirm.add', 'add', sel.add) + list('web.client.personal.confirm.remove', 'remove', sel.remove);
+  return (changes || `<p class="meta">${esc(t('web.client.personal.confirmEmpty'))}</p>`)
+    + `<section class="confirm-step save-default"><label><input type="checkbox" data-save-default ${state.saveDefault ? 'checked' : ''}> ${esc(t('web.client.personal.saveDefault'))}</label>`
+    + `<p class="meta">${esc(t('web.client.personal.saveDefaultHint'))}</p></section>`;
+}
+
 function renderChips() {
-  const chips = [...new Set(stepItems(state.step).flatMap(i => itemCategories(i)))].sort((a, b) => a.localeCompare(b, 'ko'));
+  const cats = isPersonal() ? personalUnits(state.step).flatMap(x => x.entry.categories ?? []) : stepItems(state.step).flatMap(i => itemCategories(i));
+  const chips = [...new Set(cats)].sort((a, b) => a.localeCompare(b, 'ko'));
   if (state.cat && !chips.includes(state.cat)) chips.unshift(state.cat);
   $('#chips').innerHTML = chips.length
     ? [`<button type="button" class="chip${state.cat ? '' : ' on'}" data-cat="">${esc(t('web.client.allCategories'))}</button>`,
@@ -491,7 +638,22 @@ async function showDiff(key) {
 
 $('#list').addEventListener('change', e => {
   const t = e.target;
+  if ('saveDefault' in t.dataset) {
+    state.saveDefault = t.checked;
+    return;
+  }
   state.notes = [];
+  if (t.dataset.personal) {
+    userPersonal(t.dataset.personal, t.value);
+    renderList();
+    return;
+  }
+  if (t.dataset.required) {
+    if (t.checked) state.required.add(t.dataset.required);
+    else state.required.delete(t.dataset.required);
+    renderList();
+    return;
+  }
   if (t.dataset.key) userCheck(state.data.items.find(i => itemKey(i) === t.dataset.key), t.checked);
   else if (t.dataset.update) state.choices[t.dataset.update].update = t.checked;
   else if (t.dataset.overwrite) state.choices[t.dataset.overwrite].overwrite = t.checked;
@@ -536,13 +698,18 @@ $('#reset').addEventListener('click', () => {
   state.marked = new Set(state.initialMarked);
   state.ancestor = new Set(state.initialAncestor);
   state.touched = new Set();
+  state.required = new Set(state.initialRequired);
+  state.pc = structuredClone(state.pInitial);
+  state.saveDefault = false;
   state.notes = [];
   renderList();
 });
 $('#submit').addEventListener('click', async () => {
   showError('');
-  const body = { choices: state.choices, force: $('#force').checked };
-  if (needsForm()) {
+  const body = isPersonal()
+    ? { personalChoices: state.pc, saveDefault: state.saveDefault }
+    : { choices: state.choices, force: $('#force').checked, required: requiredNow() };
+  if (!isPersonal() && needsForm()) {
     body.chosen = { agents: [...document.querySelectorAll('input[name=agent]:checked')].map(x => x.value) };
   }
   $('#submit').disabled = true;
@@ -576,7 +743,22 @@ if (app.dataset.status !== 'pending') {
   } catch (e) {
     showError(e.message);
   }
-  if (state.data) {
+  if (state.data && isPersonal()) {
+    // 미리 체크: 이 프로젝트의 내 개인 선택이나 내 기본값(preset). 의미 없는 것(프로젝트에 이미 있는 더함 등)은 버린다.
+    state.pc = personalChoices(state.data.personal);
+    state.pInitial = structuredClone(state.pc);
+    $('#choose').hidden = true;
+    $('#dirty').hidden = true;
+    $('#personal').hidden = false;
+    $('#personal-intro').textContent = t('web.client.personal.intro');
+    const preset = state.data.personal.preset;
+    $('#preset').hidden = preset !== 'local' && preset !== 'defaults';
+    if (!$('#preset').hidden) $('#preset').textContent = t(`web.client.personal.preset.${preset}`);
+  } else if (state.data) {
+    state.required = new Set(state.data.required ?? []);
+    state.initialRequired = new Set(state.required);
+  }
+  if (state.data && !isPersonal()) {
     for (const i of state.data.items) state.choices[itemKey(i)] = defaultChoice(i);
     // 스택은 통째로 받는다: 프로젝트에 파일이 하나라도 있는 스택은 모든 항목을 켠다(새로 생긴 파일도 함께 들어온다).
     for (const s of state.data.catalog.stacks) {
@@ -595,6 +777,8 @@ if (app.dataset.status !== 'pending') {
     $('#dirty').hidden = project().isNew === true || (project().gitRepo && !project().dirty);
     state.open = new Set(['gone:rules', 'gone:mcp', 'gone:agents', 'gone:skills', 'skills', 'subagents', 'mcp']);
     openCheckedStacks();
+  }
+  if (state.data) {
     state.step = STEPS.find(hasStep);
     renderChips();
     renderList();

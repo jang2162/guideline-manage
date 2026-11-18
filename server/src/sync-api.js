@@ -3,6 +3,7 @@ import { requireToken, requireRead, parseRev } from './api.js';
 import { tarGz } from './tar.js';
 import { TokenError } from './tokens.js';
 import { t } from '../../cli/src/i18n.js';
+import { isBlockKey } from '../../cli/src/blocks.js';
 
 export const FORM_BODY_LIMIT = 2 * 1024 * 1024;
 const MIN_CLIENT = [0, 12, 0];
@@ -13,6 +14,12 @@ const MIN_CLIENT = [0, 12, 0];
  */
 export const FORM_VERSION = 2;
 const POLL_MS = 250;
+/**
+ * 이 서버의 폼이 여는 모드. 'personal' 은 프로젝트 선택 위에 개인 더함·뺌을 고르는 폼이다(커밋되는 파일을 바꾸지 않는다).
+ * 폼 모양 판(FORM_VERSION)은 그대로 두고, CLI 는 응답의 modes 로 개인 모드를 아는 서버인지 본다.
+ */
+export const FORM_MODES = ['project', 'personal'];
+const PRESETS = ['local', 'defaults', 'none'];
 
 const isObj = v => typeof v === 'object' && v !== null && !Array.isArray(v);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -26,12 +33,19 @@ export function clientTooOld(req) {
   return false;
 }
 
+const keyList = v => Array.isArray(v) && v.every(k => typeof k === 'string' && isBlockKey(k));
+/** 개인 모드 payload: 키는 모두 블록 키(별칭을 입힌 가상 키), preset 은 미리 체크한 출처. */
+const okPersonal = p => isObj(p) && ['chosen', 'required', 'add', 'remove'].every(f => keyList(p[f])) && PRESETS.includes(p.preset);
+
 function checkFormBody(body, head) {
   const ok = isObj(body) && Number.isInteger(body.revision) && body.revision >= 1 && body.revision <= head
     && isObj(body.project) && typeof body.project.name === 'string'
     && Array.isArray(body.items) && Array.isArray(body.overrides)
     && (body.diffs === undefined || isObj(body.diffs))
-    && (body.recommend === undefined || (isObj(body.recommend) && Object.values(body.recommend).every(v => typeof v === 'string')));
+    && (body.recommend === undefined || (isObj(body.recommend) && Object.values(body.recommend).every(v => typeof v === 'string')))
+    && (body.mode === undefined || FORM_MODES.includes(body.mode))
+    && (body.required === undefined || keyList(body.required))
+    && (body.mode !== 'personal' || okPersonal(body.personal));
   if (!ok) throw new HttpError(400, t('sync.badFormBody'));
 }
 
@@ -79,7 +93,7 @@ export function registerSyncApi(router, { store, tokens, forms, cliLogins, limit
     const f = forms.create({ tokenId: ownerOf(ctx.auth), revision: body.revision, payload: body });
     const url = new URL(`/forms/${f.id}?k=${encodeURIComponent(f.link)}`, config.publicUrl).href;
     const expiresAt = new Date(Date.parse(f.createdAt) + forms.timers.notOpenedMs).toISOString();
-    sendJson(ctx.res, 201, { id: f.id, url, expiresAt, formVersion: FORM_VERSION });
+    sendJson(ctx.res, 201, { id: f.id, url, expiresAt, formVersion: FORM_VERSION, modes: FORM_MODES });
   });
 
   router.add('GET', '/api/v1/forms/:id/result', async ctx => {

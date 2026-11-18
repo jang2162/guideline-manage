@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { itemKey, defaultChoice, canUpdate, actionOf, selectionItems, summarize, buildResult, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors } from '../src/selection.js';
+import { itemKey, defaultChoice, canUpdate, actionOf, selectionItems, summarize, buildResult, buildSelection, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection } from '../src/selection.js';
 
 test('selection.js 는 브라우저에서도 돌도록 ./blocks.js 말고는 import 하지 않고, blocks.js 는 아무것도 import 하지 않는다', () => {
   const text = fs.readFileSync(new URL('../src/selection.js', import.meta.url), 'utf8');
@@ -139,4 +139,69 @@ test('releasableAncestors: 골라진 다른 자손이 있거나, 사람이 만�
   assert.deepEqual(R('rules/a/b/c', ['rules/a', 'rules/a/b'], { ancestor: ['rules/a', 'rules/a/b'], touched: ['rules/a/b'] }), []);
   assert.deepEqual(R('rules/a/b/c', ['rules/a', 'rules/a/b'], { ancestor: ['rules/a'] }), []);
   assert.deepEqual(R('rules/a/b', ['rules/a/b/c'], { ancestor: ['rules/a'] }), [], '골라지지 않은 조상');
+});
+
+// 개인 모드. 프로젝트는 base(필수)·base/browser·web 을 받고, tools·tools/deep·skills/s 는 받지 않는다.
+const PERSONAL = {
+  chosen: ['rules/base', 'rules/base/browser', 'rules/web', 'rules/web/react'],
+  required: ['rules/base/browser'],
+  add: [], remove: [], preset: 'none',
+};
+
+test('personalSelection 은 필수와 그 조상의 뺌을 거절한다', () => {
+  const r = personalSelection({ personal: PERSONAL, choices: { 'rules/base/browser': 'remove', 'rules/base': 'remove', 'rules/web': 'remove' }, saveDefault: false });
+  assert.deepEqual(r.rejected, ['rules/base', 'rules/base/browser']);
+  assert.deepEqual(r.remove, ['rules/web', 'rules/web/react']);
+  assert.equal(r.mode, 'personal');
+  assert.equal(r.saveDefault, false);
+});
+
+test('personalSelection 은 더한 하위 스택의 조상을 더하고 뺀 스택의 자손을 뺀다', () => {
+  const r = personalSelection({
+    personal: PERSONAL,
+    choices: { 'rules/tools/deep': 'add', 'rules/web': 'remove', 'rules/base/browser/x': 'add', 'skills/s': 'add' },
+    saveDefault: true,
+  });
+  assert.deepEqual(r.add, ['rules/base/browser/x', 'rules/tools', 'rules/tools/deep', 'skills/s'], '프로젝트에 있는 조상(base·base/browser)은 더하지 않는다');
+  assert.deepEqual(r.remove, ['rules/web', 'rules/web/react']);
+  assert.deepEqual(r.rejected, []);
+  assert.equal(r.saveDefault, true);
+});
+
+test('personalSelection 은 프로젝트에 있는 블록의 더함과 없는 블록의 뺌을 버리고, 뺀 스택 아래의 더함도 버린다', () => {
+  const r = personalSelection({
+    personal: PERSONAL,
+    choices: { 'rules/base': 'add', 'skills/none': 'remove', 'rules/web': 'remove', 'rules/web/extra': 'add', 'rules/tools': 'keep' },
+    saveDefault: false,
+  });
+  assert.deepEqual(r.add, []);
+  assert.deepEqual(r.remove, ['rules/web', 'rules/web/react']);
+  // 조상만으로 받는 스택(자손이 골라져 있음)도 프로젝트에 있는 것이라 뺄 수 있다.
+  const only = personalSelection({ personal: { ...PERSONAL, chosen: ['rules/a/b'], required: [] }, choices: { 'rules/a': 'remove' }, saveDefault: false });
+  assert.deepEqual(only.remove, ['rules/a', 'rules/a/b']);
+  // 없는 스택의 뺌은 버리므로 그 아래의 더함을 막지 않는다.
+  const absent = personalSelection({ personal: PERSONAL, choices: { 'rules/tools': 'remove', 'rules/tools/deep': 'add' }, saveDefault: false });
+  assert.deepEqual([absent.add, absent.remove], [['rules/tools', 'rules/tools/deep'], []]);
+});
+
+test('personalChoices 는 미리 체크한 add·remove 를 의미 있는 것만 초기 상태로 바꾼다', () => {
+  const c = personalChoices({ ...PERSONAL, add: ['rules/tools/deep', 'rules/base'], remove: ['rules/web', 'rules/base', 'skills/none'], preset: 'defaults' });
+  assert.deepEqual(c, { 'rules/tools': 'add', 'rules/tools/deep': 'add', 'rules/web': 'remove', 'rules/web/react': 'remove' });
+});
+
+test('buildSelection 은 프로젝트 모드에서 체크된 블록의 필수만 싣는다', () => {
+  const items = [
+    { kind: 'rule', id: 'rules/base/00-a.md', stack: 'base', state: 'same' },
+    { kind: 'rule', id: 'rules/web/00-a.md', stack: 'web', state: 'same' },
+    { kind: 'rule', id: 'rules/lib/x/00-a.md', stack: 'lib/x', state: 'missing' },
+    { kind: 'skill', id: 'skills/s/SKILL.md', state: 'missing' },
+  ];
+  const choices = {
+    'rule:rules/web/00-a.md': { checked: false },
+    'rule:rules/lib/x/00-a.md': { checked: true },
+    'skill:skills/s/SKILL.md': { checked: false },
+  };
+  const sel = buildSelection({ revision: 3, items, choices, project: null, required: ['rules/base', 'rules/web', 'skills/s', 'rules/lib', 'rules/lib/x', 'rules/zzz'] });
+  assert.deepEqual(sel.required, ['rules/base', 'rules/lib', 'rules/lib/x']);
+  assert.equal(Object.hasOwn(buildSelection({ revision: 3, items, choices, project: null }), 'required'), false, '필수를 주지 않으면 싣지 않는다');
 });

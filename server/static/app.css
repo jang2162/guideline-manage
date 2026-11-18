@@ -323,3 +323,37 @@ pre.diff-lines .dh { color: var(--muted); }
 .confirm-step h3 { margin: 14px 0 6px; font-size: 14px; }
 .confirm-step ul { margin: 0; padding-left: 18px; }
 .hidden-count { margin: 10px 2px; }
+/* 폼의 「필수」 칸(프로젝트 모드)과 개인 모드 */
+.req { display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid var(--line); border-radius: 4px; font-size: 11.5px; font-weight: 400; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.req.on { border-color: transparent; background: var(--error-bg); color: var(--error-fg); font-weight: 600; }
+.req:has(input:disabled) { opacity: .5; cursor: default; }
+.personal-head { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-text); font-size: 13px; }
+.personal-head p { margin: 0; }
+.personal-head #preset { margin-top: 4px; color: var(--accent-text); font-weight: 600; }
+.personal-list .row:first-child { border-top: 0; }
+.row.prow[data-depth="1"] { padding-left: 36px; }
+.row.prow[data-depth="2"] { padding-left: 60px; }
+.row.prow[data-depth="3"] { padding-left: 84px; }
+.row.prow[data-depth="4"] { padding-left: 108px; }
+.row.prow[data-depth="5"] { padding-left: 132px; }
+.row.prow.child { box-shadow: inset 3px 0 0 var(--accent-soft); }
+.row .state.p-in { background: var(--accent-soft); color: var(--accent-text); }
+.badge.lock { border-color: transparent; background: var(--error-bg); color: var(--error-fg); }
+.tri { display: inline-flex; margin-left: auto; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; font-size: 12px; }
+.tri-opt { position: relative; display: inline-flex; align-items: center; padding: 3px 10px; cursor: pointer; white-space: nowrap; }
+.tri-opt + .tri-opt { border-left: 1px solid var(--line); }
+.tri-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.tri-opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tri-opt.on { background: var(--accent); color: var(--accent-fg); }
+.tri-opt.on:has(input[value="remove"]) { background: var(--error-fg); color: var(--bg); }
+.tri-opt.off { opacity: .4; cursor: default; }
+.save-default { margin-top: 18px; }
+.save-default label { font-weight: 600; }
+@media (max-width: 760px) {
+  .row.prow[data-depth="1"] { padding-left: 24px; }
+  .row.prow[data-depth="2"] { padding-left: 36px; }
+  .row.prow[data-depth="3"] { padding-left: 48px; }
+  .row.prow[data-depth="4"] { padding-left: 60px; }
+  .row.prow[data-depth="5"] { padding-left: 72px; }
+  .tri { margin-left: 0; }
+}
