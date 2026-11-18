@@ -58,6 +58,7 @@ The personal scope adds these kinds. `status` also prints `personal-ignored`, `p
 | `personal-revision` | The personal copies and the project's copies are at different revisions of a source, for example after `update` in another worktree. Run `guideline update` (from `apply` and `status`) |
 | `personal-sync` | The personal copies could not be updated: a write error, or a personal lock that cannot be read (delete the file the message names). The project itself was applied. Run `guideline update` again |
 | `local-bad` | `local.json` cannot be read, so the files were composed from the project's choice only. Fix or delete the file |
+| `ruler-leftover` | A settings file or folder (`.mcp.json`, `.claude/skills` …) that ruler made only for a personal addition you dropped still holds something added by hand, or is tracked, so it was left alone. Check it and remove it yourself if you no longer need it |
 
 To-dos that come from the personal copies carry `scope: "personal"` in `--json`: `setup-personal`, `removed-upstream` (remove it with `guideline pick --local`) and the other kinds, whose message starts with "Personal copy —".
 

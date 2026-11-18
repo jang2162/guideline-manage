@@ -67,6 +67,17 @@ The management guideline (`.ruler/guideline.md`) gets a "This worker's personal 
 > [!NOTE]
 > Do not edit the personal copies in `<git common dir>/guideline/`. `guideline update` overwrites them, and `guideline propose` does not send them. To change a guideline for the team, edit the copy in `.guideline/` and propose it.
 
+## Skills, subagents and MCP servers
+
+ruler writes these into the agents' settings (`.mcp.json`, `.claude/skills/` and so on) and lists those files in its own block of `.gitignore`.
+When your selection changes which of them exist, the committed `.gitignore` still stays as the project's choice makes it:
+
+- Before ruler runs with your selection, the CLI runs ruler once more in a temporary folder with the project's choice alone, and puts that `.gitignore` back afterwards. Settings files that only your selection creates (for example `.mcp.json` when the project has no MCP server) go into this worktree's block in `info/exclude` instead.
+- ruler does not remove an MCP server, a skill or a subagent it no longer receives. The CLI removes the ones you removed, and the ones you added before and no longer do, from `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`, `.opencode/skills/`, `.claude/agents/` and `.codex/agents/`.
+- A settings file or folder that only your earlier addition created, but that still holds something you put there by hand, stays. A `ruler-leftover` to-do names it.
+
+Without a personal selection, this works as before: ruler alone decides, and it keeps servers and skills the project drops.
+
 ## Worktrees and clones
 
 - **Every worktree of a clone shares the personal selection**, because they share the git common directory. In a new worktree, `guideline apply` composes it without the server.

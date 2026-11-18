@@ -1,11 +1,14 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { applyFiles, writeFileAtomic, ApplyError } from '../apply.js';
 import { MANIFEST, LOCK, manifestText, lockText, manifestVersionOnDisk, readManifest, readLock, ManifestError } from '../manifest.js';
 import { printTodos } from '../todos.js';
 import { rootNestedOn, nestedOffTodo, unitProblem } from '../unit.js';
-import { compose } from '../compose.js';
+import { compose, composedPath } from '../compose.js';
+import { readBlock } from '../gitignore-block.js';
+import { RULER_BLOCK, mcpFileOf, hasServers } from '../ruler-outputs.js';
 import { rulerAgentsEnabled } from '../project-state.js';
 import { RULER_TOML, layoutOf } from '../layout.js';
 import { strayRulerOutput } from '../stray.js';
@@ -80,9 +83,9 @@ export function findRuler(project, env = process.env) {
   return null;
 }
 
-/** @returns {number} 종료 코드 */
-export function defaultRunRuler(bin, cwd) {
-  return spawnSync(bin, ['apply'], { cwd, stdio: 'inherit' }).status ?? 1;
+/** @returns {number} 종료 코드. quiet 면 ruler 의 출력을 보이지 않는다(프로젝트 기준 .gitignore 를 구하는 작업 트리 밖 실행). */
+export function defaultRunRuler(bin, cwd, { quiet = false } = {}) {
+  return spawnSync(bin, ['apply'], { cwd, stdio: quiet ? 'ignore' : 'inherit' }).status ?? 1;
 }
 
 /**
@@ -184,7 +187,7 @@ export function writeComposedOrFail(project, files, err, exclude = null) {
  * 모든 에이전트로 돌아 CLAUDE.md 등을 만들고 nested 도 꺼진 채로 돈다. 새 배치에서 그것은 커밋되지 않은 생성물이라, 클론 직후
  * 중첩 단위에서 부르면 루트에는 아직 없다.
  */
-export function rulerStep({ root, env, runRuler, todos, rootIsUnit = true }) {
+export function rulerStep({ root, env, runRuler, todos, rootIsUnit = true, git = runGit }) {
   if (!fs.existsSync(path.join(root, ...RULER_TOML.split('/')))) {
     // 루트가 guideline 프로젝트가 아니면 그 ruler.toml 은 프로젝트가 둘 것이다 — 「루트에서 apply」 는 답이 아니다
     todos.push(rootIsUnit
@@ -195,8 +198,147 @@ export function rulerStep({ root, env, runRuler, todos, rootIsUnit = true }) {
   const bin = findRuler(root, env);
   if (!bin) {
     todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerMissing', { root }) });
-  } else if (runRuler(bin, root) !== 0) {
-    todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerFailed', { bin }) });
+    return;
+  }
+  // 루트 단위의 개인 겹이 ruler 출력 종류를 바꾸면 ruler 가 커밋되는 .gitignore 의 자기 블록을 바꾼다 — 프로젝트 기준으로 한 번 더 돌려
+  // (작업 트리 밖) 그 블록을 구해 두었다가 되돌리고, 개인으로만 생긴 ruler 출력은 이 워크트리의 info/exclude 단위 블록에 적는다.
+  const plan = rootIsUnit ? rootRulerPlan(root, git) : null;
+  let base = null;
+  if (plan?.ruler) {
+    base = baselineGitignore({ root, plan: plan.ruler, bin, runRuler });
+    if (base === null) todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerBaselineFailed', { bin }) });
+  }
+  if (runRuler(bin, root) !== 0) todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerFailed', { bin }) });
+  if (plan) settleRulerOutputs({ root, place: plan.place, base, git, todos });
+}
+
+/**
+ * git 루트 단위의 개인 겹(composeInputs)과, 그것이 ruler 출력 종류를 바꾸면 프로젝트 기준 ruler 입력(compose 의 ruler). 디스크는 읽기만 한다.
+ * 루트가 새 배치 guideline 단위가 아니거나 개인 범위가 없으면(git 이 아님·local.json 깨짐) null.
+ */
+function rootRulerPlan(root, git) {
+  const opened = openProject({ dir: root, err: () => {}, needManifest: false });
+  if (opened.code !== undefined || !opened.manifest || layoutOf(opened.lock, root) !== 'guideline') return null;
+  const inputs = composeInputs({ project: root, unit: { root }, git });
+  if (!inputs.personal) return null;
+  const composed = composeUnit({ project: root, nested: false, manifest: opened.manifest, personal: inputs.personal });
+  return { place: inputs.personal, ruler: composed.ruler };
+}
+
+const RULER_SKIP = new Set(['__fixtures__', '__generated__', 'build', 'coverage', 'dist', 'fixtures', 'generated', 'node_modules', 'temp', 'tmp']);
+
+/** ruler 0.3.44 의 findAllRulerDirs 처럼 root 아래 .ruler 폴더들(root 기준 상대 경로). 점으로 시작하는 폴더·흔한 빌드 폴더·다른 git 저장소는 들어가지 않는다. */
+function rulerDirs(root) {
+  const out = [];
+  const walk = rel => {
+    let entries;
+    try {
+      entries = fs.readdirSync(path.join(root, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.name === '.ruler') out.push(r);
+      else if (!e.name.startsWith('.') && !RULER_SKIP.has(e.name) && !(rel && fs.statSync(path.join(root, r, '.git'), { throwIfNoEntry: false })?.isDirectory())) walk(r);
+    }
+  };
+  walk('');
+  return out;
+}
+
+/** dir 에서 위로 stop(그 자신은 빼고)까지 빈 폴더를 지운다. */
+function removeEmptyUp(dir, stop) {
+  let d = dir;
+  while (d.startsWith(`${stop}${path.sep}`)) {
+    try {
+      if (fs.readdirSync(d).length) return;
+      fs.rmdirSync(d);
+    } catch {
+      return;
+    }
+    d = path.dirname(d);
+  }
+}
+
+/**
+ * 프로젝트 선택만으로 ruler 를 돌렸을 때의 .gitignore 글자. 작업 트리 밖 임시 폴더에 .ruler 폴더들(루트 것은 ruler 출력 종류를 가르는
+ * 생성물을 프로젝트 기준으로 바꿔서)과 .gitignore 를 옮겨 ruler 를 돌린다 — ruler 블록은 출력 종류와 블록 밖 줄로만 정해진다. 실패하면 null.
+ */
+function baselineGitignore({ root, plan, bin, runRuler }) {
+  const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'guideline-ruler-')));
+  try {
+    for (const rel of rulerDirs(root)) fs.cpSync(path.join(root, rel), path.join(tmp, rel), { recursive: true, verbatimSymlinks: true });
+    const rulerRoot = path.join(tmp, '.ruler');
+    for (const p of plan.mine) {
+      if (plan.baseline.has(p)) continue;
+      const abs = path.join(tmp, ...p.split('/'));
+      fs.rmSync(abs, { force: true });
+      removeEmptyUp(path.dirname(abs), rulerRoot);
+    }
+    for (const [p, c] of plan.baseline) writeFileAtomic(path.join(tmp, ...p.split('/')), c);
+    const gi = path.join(root, '.gitignore');
+    if (fs.existsSync(gi)) fs.copyFileSync(gi, path.join(tmp, '.gitignore'));
+    if (runRuler(bin, tmp, { quiet: true }) !== 0) return null;
+    try {
+      return fs.readFileSync(path.join(tmp, '.gitignore'), 'utf8');
+    } catch {
+      return '';
+    }
+  } catch (e) {
+    if (!e?.code) throw e;
+    return null;
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/**
+ * ruler 를 돈 뒤: 이번 실행의 ruler 블록 중 프로젝트 기준(base, 없으면 지금 블록)에 없는 것을 info/exclude 의 이 워크트리 루트 단위
+ * 블록에 적고(조합이 적은 줄은 그대로), 커밋되는 .gitignore 를 프로젝트 기준으로 되돌린다 — 그 순서라 개인 출력이 드러나는 틈이 없다.
+ * 지난번에 블록에 적었던 ruler 개인 출력 중 이제 만들지 않는 것(개인 더함 되돌림)은 지운다: 추적되는 것, 비지 않은 폴더, 서버가 남은
+ * 에이전트 설정(사람이 둔 것)은 두고 할 일로 알린다.
+ */
+function settleRulerOutputs({ root, place, base, git, todos }) {
+  const giFile = path.join(root, '.gitignore');
+  let real = null;
+  try {
+    real = fs.readFileSync(giFile, 'utf8');
+  } catch {
+    real = null;
+  }
+  const now = readBlock(real, RULER_BLOCK);
+  const baseBlock = base === null ? now : readBlock(base, RULER_BLOCK);
+  const extras = now.filter(p => !baseBlock.includes(p));
+  const block = readExclude(place);
+  const composedLine = l => composedPath(l.slice(1));
+  const before = block.filter(l => !composedLine(l));
+  try {
+    writeExclude({ ...place, paths: [...block.filter(composedLine), ...extras] });
+    if (base !== null && (real ?? '') !== base) writeFileAtomic(giFile, base);
+  } catch (e) {
+    if (!e?.code) throw e;
+    todos.push({ kind: 'ruler-apply', item: null, message: t('todo.rulerIgnoreFailed', { reason: e.message }) });
+    return;
+  }
+  for (const line of before) {
+    if (extras.includes(line) || baseBlock.includes(line)) continue;
+    const rel = line.slice(1);
+    if (!rel || rel.split('/').some(s => s === '' || s === '.' || s === '..') || /[*?[\\]/.test(rel)) continue;
+    const abs = path.join(root, ...rel.split('/'));
+    if (!fs.existsSync(abs)) continue;
+    // 폴더(스킬·서브에이전트 자리)는 조합이 guideline 이름을 지운 뒤 비었을 때만, 에이전트 설정은 서버가 남지 않았을 때만 지운다 —
+    // 남은 것은 사람이 둔 것이다. 그 밖(ruler 의 .bak)은 지운다.
+    const tracked = git(['ls-files', '--', rel], root);
+    const isDir = fs.statSync(abs).isDirectory();
+    const m = mcpFileOf(rel);
+    if (tracked.status !== 0 || tracked.stdout.trim() || (isDir && fs.readdirSync(abs).length) || (m && hasServers(abs, m))) {
+      todos.push({ kind: 'ruler-leftover', item: null, message: t('todo.rulerLeftover', { path: rel }) });
+      continue;
+    }
+    if (isDir) fs.rmdirSync(abs);
+    else fs.rmSync(abs, { force: true });
   }
 }
 
@@ -245,7 +387,7 @@ export function finishApply({
     todos.push(...subs.todos);
     if (subs.composed.length && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
   }
-  if (migration || applied.written.length || applied.deleted.length) rulerStep({ root, env, runRuler, todos });
+  if (migration || applied.written.length || applied.deleted.length) rulerStep({ root, env, runRuler, todos, git });
   // prepare 가 아직 ruler apply 만 부르면 해결될 때까지 알린다(이전 때 한 번이면 놓친다). 바꾸는 것은 apply 의 몫이다.
   todos = mergeTodos(todos, readOnlyPrepareTodos({ project, root }));
   // 하위 단위 쓰기가 실패하면 1 — 이 단위의 매니페스트·잠금·생성물은 다 썼다(unitsFailed: 이 단위의 마무리는 이어 한다)
@@ -285,7 +427,7 @@ export function finishPersonal({
     todos.push(...subs.todos);
     if (subs.composed.length && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
   }
-  if (written.length || deleted.length) rulerStep({ root, env, runRuler, todos });
+  if (written.length || deleted.length) rulerStep({ root, env, runRuler, todos, git });
   todos = mergeTodos(todos, readOnlyPrepareTodos({ project, root }));
   return { code: subs?.failed ? 1 : 0, written, deleted, todos };
 }
@@ -405,9 +547,9 @@ export async function migrateIfOld({ dir, unit, manifest, lock, env, home, fetch
  * 이전한 뒤 반영까지 가지 못하고 끝날 때(받기 실패, 폼 취소): 이전이 쓴 관리 지침이 AGENTS.md 에 들어가게 ruler 를 돌고 할 일을 낸다.
  * @param {{ moved: { todos: object[], migration: object | null }, root: string, env?: object, runRuler?: Function, err: Function }} opts
  */
-export function finishMigrationOnly({ moved, root, env = process.env, runRuler = defaultRunRuler, err }) {
+export function finishMigrationOnly({ moved, root, env = process.env, runRuler = defaultRunRuler, err, git = runGit }) {
   const todos = [...moved.todos];
-  if (moved.migration) rulerStep({ root, env, runRuler, todos });
+  if (moved.migration) rulerStep({ root, env, runRuler, todos, git });
   printTodos(todos, err);
 }
 

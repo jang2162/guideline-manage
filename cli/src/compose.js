@@ -12,6 +12,8 @@ import { readBlock, writeBlock } from './gitignore-block.js';
 import { effectiveItems, shadowedAdds } from './personal.js';
 import { readProjectOverrides, checkOverrides } from './project-overrides.js';
 import { excludeMarkers, excludePattern, unitPathOf, readExclude } from './exclude.js';
+import { LOCAL_FILE } from './personal.js';
+import { isRulerInput, mcpNames, outputNames, pruneRulerOutputs } from './ruler-outputs.js';
 import { t } from './i18n.js';
 
 // 조합: 커밋된 .guideline/(원본 모양 사본)에서 에이전트가 읽는 생성물(.ruler/·docs/guideline/·ruler.toml)을 만든다.
@@ -31,8 +33,15 @@ function removable(p) {
   const segs = p.split('/');
   if (segs.some(s => s === '' || s === '.' || s === '..') || p.includes('\\')) return false;
   if (p === PROJECT_TOML) return false;
-  return p.startsWith('.ruler/') || p.startsWith('docs/guideline/');
+  return composedPath(p);
 }
+
+/** 조합이 만드는 자리(.ruler/·docs/guideline/)의 경로인가. info/exclude 의 단위 블록에서 그 밖의 줄은 ruler 가 개인 겹으로만 만든 출력이다. */
+export const composedPath = p => p.startsWith('.ruler/') || p.startsWith('docs/guideline/');
+
+const rulerInputs = want => new Map([...want].filter(([p]) => isRulerInput(p)));
+const sameInputs = (a, b) => a.size === b.size && [...a].every(([p, c]) => b.has(p) && b.get(p).equals(c));
+const minus = (a, b) => new Set([...a].filter(x => !b.has(x)));
 
 /** 매니페스트 출처마다 별칭을 입힌 가상 블록 키(조상 포함). */
 function virtualKeys(manifest) {
@@ -258,9 +267,12 @@ function build({ tree, guide, manifest, keys, nested, rulerAgentsEnabled, manage
  *   personal?: { local: import('./personal.js').Local, store: string, common: string, unitRel: string, worktree: string } | null }} opts
  *   project 는 단위 디렉터리(절대경로), manifest 는 v3(출처별 실제 id·별칭). personal 은 composeInputs 가 만든다(git 이 아니면 null)
  * @returns {{ files: Record<string, Buffer | null>, generated: { project: string[], personal: string[] }, todos: object[],
- *   exclude: { markers: { start: string, end: string }, paths: string[] } | null }}
+ *   exclude: { markers: { start: string, end: string }, paths: string[] } | null,
+ *   ruler: { baseline: Map<string, Buffer>, mine: string[] } | null }}
  *   generated.project 는 개인 겹 없이 조합했을 때의 경로(단위 기준, 정렬) — .gitignore 블록에 그대로 적힌다.
- *   generated.personal 은 이번 결과 중 그 밖의 경로. exclude.paths 는 그것을 워크트리 루트 기준 패턴으로 바꾼 것
+ *   generated.personal 은 이번 결과 중 그 밖의 경로. exclude.paths 는 그것을 워크트리 루트 기준 패턴으로 바꾼 것에 블록에 이미 있던
+ *   ruler 개인 출력 줄(조합 자리 밖)을 더한 것. ruler 는 git 루트 단위에서 ruler 출력 종류를 가르는 생성물(isRulerInput)이 개인 겹 때문에
+ *   프로젝트 기준과 다를 때만 — baseline 은 프로젝트 기준의 그것, mine 은 이번 조합의 그 경로들(rulerStep 이 프로젝트 기준 ruler 블록을 구한다)
  */
 export function compose({ project, manifest, nested = false, rulerAgentsEnabled = false, personal = null }) {
   const guide = diskTree(path.join(project, GUIDE_DIR));
@@ -310,10 +322,13 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   const gi = giRaw === null ? null : giRaw.toString('utf8');
   const before = [];
   for (const line of readBlock(gi)) if (line.startsWith('/')) before.push(line.slice(1));
+  // info/exclude 의 이 워크트리 단위 블록 중 조합 자리 밖의 줄(ruler 가 개인 겹으로만 만든 출력 — rulerStep 이 쓴다)은 그대로 둔다
+  const rulerExtras = [];
   if (personal) {
     for (const line of readExclude(personal)) {
       const p = unitPathOf(personal.unitRel, line);
-      if (p !== null) before.push(p);
+      if (p !== null && composedPath(p)) before.push(p);
+      else rulerExtras.push(line);
     }
   }
   for (const p of new Set(before)) {
@@ -327,10 +342,35 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
     if (isFile) files[p] = null;
   }
 
+  // 개인 선택이 있는 git 루트 단위: ruler 가 지우지 않는 MCP 서버·스킬·서브에이전트 중 지난 조합(ruler.toml·블록)이나 프로젝트 기준에
+  // 있었고 이번 조합에 없는 것을 에이전트 설정에서 지운다(개인으로 뺌·개인 더함 되돌림). 개인 선택이 없으면 지금처럼 둔다(ruler 몫).
+  const prunes = !nested && personal && fs.existsSync(path.join(personal.store, LOCAL_FILE));
+  if (prunes) {
+    const prevToml = readRel(RULER_TOML);
+    const was = outputNames(before);
+    const base = outputNames(projectWant.keys());
+    const now = outputNames(want.keys());
+    const gone = {
+      mcp: minus(new Set([...mcpNames(prevToml && prevToml.toString('utf8')), ...mcpNames(projectWant.get(RULER_TOML).toString('utf8'))]),
+        mcpNames(want.get(RULER_TOML).toString('utf8'))),
+      skills: minus(new Set([...was.skills, ...base.skills]), now.skills),
+      subagents: minus(new Set([...was.subagents, ...base.subagents]), now.subagents),
+    };
+    for (const [p, c] of Object.entries(pruneRulerOutputs({ project, agents: manifest.agents, gone, readRel }))) if (!want.has(p)) files[p] = c;
+  }
+
   const nextGi = writeBlock(gi, generated.project.map(p => `/${p}`));
   if (nextGi !== (gi ?? '')) files[GITIGNORE] = Buffer.from(nextGi);
   const exclude = personal
-    ? { markers: excludeMarkers(personal.unitRel, personal.worktree), paths: generated.personal.map(p => excludePattern(personal.unitRel, p)) }
+    ? {
+      markers: excludeMarkers(personal.unitRel, personal.worktree),
+      paths: [...generated.personal.map(p => excludePattern(personal.unitRel, p)), ...rulerExtras],
+    }
     : null;
-  return { files, generated, todos, exclude };
+  // ruler 출력 종류(MCP·스킬·서브에이전트)를 가르는 생성물이 프로젝트 기준과 다르면 rulerStep 이 프로젝트 기준으로 ruler 를 한 번 더
+  // (작업 트리 밖에서) 돌려 커밋되는 .gitignore 의 ruler 블록을 그것으로 맞춘다. baseline 은 그 생성물(프로젝트 기준), mine 은 이번 것의 경로.
+  const baseInputs = rulerInputs(projectWant);
+  const mineInputs = rulerInputs(want);
+  const ruler = !nested && !sameInputs(baseInputs, mineInputs) ? { baseline: baseInputs, mine: [...mineInputs.keys()] } : null;
+  return { files, generated, todos, exclude, ruler };
 }

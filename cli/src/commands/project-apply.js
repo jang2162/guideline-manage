@@ -60,7 +60,7 @@ export async function projectApply({
     if (subs.composed.length && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
   }
   // apply 는 ruler apply 를 대신하므로 바뀐 것이 없어도 ruler 를 돈다(에이전트 파일만 지워진 경우).
-  rulerStep({ root: unit.root, env, runRuler, todos });
+  rulerStep({ root: unit.root, env, runRuler, todos, git });
   report({ result: { revision: revisionLabel(lock.revisions), written: w.written, deleted: w.deleted, todos }, json, out });
   return subs?.failed ? 1 : 0;
 }
@@ -73,7 +73,7 @@ function applyUnitsOnly({ root, subs, json, env, out, err, runRuler, git }) {
   // 않고 root-ruler-toml 이 그것을 두라고 하므로 nested-off 는 내지 않는다
   const hasToml = fs.existsSync(path.join(root, ...RULER_TOML.split('/')));
   if (r.composed.length && hasToml && !rootNestedOn(root, RULER_TOML)) todos.push(nestedOffTodo(root, RULER_TOML));
-  if (r.composed.length) rulerStep({ root, env, runRuler, todos, rootIsUnit: false });
+  if (r.composed.length) rulerStep({ root, env, runRuler, todos, rootIsUnit: false, git });
   // 단위마다 리비전: 출처가 하나면 「단위 r1」, 여럿이면 「단위:출처 r1」
   const revision = {};
   for (const { rel, lock } of r.composed) {

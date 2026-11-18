@@ -127,7 +127,7 @@ test('CHANGELOG 와 README 가 새 배치를 깨지는 변경으로 적는다', 
 });
 
 // 개인 범위(pick --local)·필수 블록·머신 기본값을 문서가 실제 동작대로 적는다.
-const PERSONAL_KINDS = ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'override-target', 'unit-write-failed'];
+const PERSONAL_KINDS = ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed'];
 
 test('개인 범위: 참조·설정·how-to·모노레포·문제 해결·올리기 문서가 pick --local 과 그 자리·할 일을 적는다', () => {
   const how = 'how-to/use-guidelines-only-on-your-machine.md';

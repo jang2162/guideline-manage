@@ -68,6 +68,17 @@
 > [!NOTE]
 > `<git 공용 디렉터리>/guideline/` 의 개인 사본은 고치지 마세요. `guideline update` 가 덮어쓰고, `guideline propose` 는 보내지 않습니다. 팀의 지침을 고치려면 `.guideline/` 의 사본을 고쳐 제안하세요.
 
+## 스킬·서브에이전트·MCP 서버
+
+ruler 는 이것들을 에이전트 설정(`.mcp.json`, `.claude/skills/` 등)에 쓰고, 그 파일들을 `.gitignore` 의 자기 블록에 적습니다.
+개인 선택이 그중 무엇이 있는지를 바꿔도 커밋되는 `.gitignore` 는 프로젝트 선택대로입니다:
+
+- ruler 를 개인 선택으로 돌리기 전에, CLI 가 임시 폴더에서 프로젝트 선택만으로 ruler 를 한 번 더 돌리고 그 `.gitignore` 를 나중에 되돌려 둡니다. 개인 선택으로만 생기는 설정 파일(예: 프로젝트에 MCP 서버가 없을 때의 `.mcp.json`)은 대신 이 워크트리의 `info/exclude` 블록에 적힙니다.
+- ruler 는 더 받지 않는 MCP 서버·스킬·서브에이전트를 지우지 않습니다. 개인으로 뺀 것, 전에 더했다가 이제 더하지 않는 것은 CLI 가 `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`, `.opencode/skills/`, `.claude/agents/`, `.codex/agents/` 에서 지웁니다.
+- 전에 더한 것 때문에만 생긴 설정 파일·폴더라도 손으로 둔 것이 남아 있으면 그대로 둡니다. `ruler-leftover` 할 일이 그 자리를 알립니다.
+
+개인 선택이 없으면 전과 같습니다: ruler 혼자 정하고, 프로젝트가 뺀 서버·스킬은 남겨 둡니다.
+
 ## 워크트리와 클론
 
 - **한 클론의 모든 워크트리가 개인 선택을 함께 씁니다.** git 공용 디렉터리를 함께 쓰기 때문입니다. 새 워크트리에서는 `guideline apply` 가 서버 없이 그것을 조합합니다.

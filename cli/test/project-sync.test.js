@@ -498,7 +498,10 @@ test('루트 pick --local 도 ruler 전에 하위 단위를 조합한다', async
   };
   const o = collect();
   assert.equal(await projectPick({ project: c, local: true, env: withPath, ...quiet, runRuler, json: true, out: o.out, open: personalForm }), 0);
-  assert.deepEqual(seen, [{ cwd: c, sub: true }]);
+  // 개인 스킬이 ruler 출력 종류를 바꾸므로 먼저 작업 트리 밖에서 프로젝트 기준으로 한 번 돈다(커밋되는 .gitignore 의 ruler 블록)
+  assert.deepEqual(seen.filter(x => x.cwd === c), [{ cwd: c, sub: true }]);
+  assert.equal(seen.length, 2);
+  assert.ok(!seen[0].cwd.startsWith(c));
   const r = JSON.parse(o.text());
   assert.ok(r.written.includes('packages/api/.ruler/base/00-a.md'), r.written.join(', '));
   assert.equal(runGit(['status', '--porcelain', '--untracked-files=all'], c).stdout, '');
