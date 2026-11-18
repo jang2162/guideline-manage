@@ -54,7 +54,7 @@ The personal scope adds these kinds. `status` also prints `personal-ignored`, `p
 | --- | --- |
 | `setup-personal` | A stack received only in the personal scope has a setup doc. Follow `docs/guideline/<stack>/SETUP.md` without changing committed files, and tell the user about a step that would. Agents get it instead of `setup` |
 | `personal-ignored` | The project marks a block **Required** that you removed personally, so the removal is ignored. Clean it up with `guideline pick --local` |
-| `personal-shadowed` | A personal addition has the same final name (after aliases) as a block the project picked from another source, so it is not used. `pick --local` does not save it; elsewhere, clean it up with `guideline pick --local` |
+| `personal-shadowed` | A personal addition has the same final name (after aliases) as a block the project picked from another source, so it is not used, nor the blocks you added below it. `pick --local` does not save them; elsewhere, clean it up with `guideline pick --local` |
 | `personal-revision` | The personal copies and the project's copies are at different revisions of a source, for example after `update` in another worktree. Run `guideline update` (from `apply` and `status`) |
 | `personal-sync` | The personal copies could not be updated: a write error, or a personal lock that cannot be read (delete the file the message names). The project itself was applied. Run `guideline update` again |
 | `local-bad` | `local.json` cannot be read, so the files were composed from the project's choice only. Fix or delete the file |

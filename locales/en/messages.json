@@ -299,6 +299,7 @@
   "todo.personalLockBad": "Cannot read the personal lock {file}: {reason} \u2014 delete that file and run guideline update",
   "todo.personalRevision": "{source}: personal copies are at r{personal}, the project at r{project} \u2014 overrides may point at sections that differ; run guideline update to align them",
   "todo.personalShadowed": "{item}: added personally, but the project picked the same-named block ({final}) from source {by}, which hides it \u2014 your copy is not used; clean it up with guideline pick --local",
+  "todo.personalShadowedBelow": "{item}: added personally, but the project picked the same-named block ({final}) from source {by}, which hides it \u2014 your copies of it and of the blocks below it ({below}) are not used; clean it up with guideline pick --local",
   "todo.personalCopyTodo": "Personal copy \u2014 {message}",
   "todo.setupPersonal": "{stack}: a stack in your personal scope \u2014 follow the setup doc but do not change committed files; tell the user about any step that would \u2014 docs/guideline/{stack}/SETUP.md",
   "todo.removedUpstreamPersonal": "{item}: removed from the source (added personally) \u2014 remove it in guideline pick --local",

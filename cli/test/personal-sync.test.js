@@ -439,3 +439,46 @@ test('다른 출처의 같은 이름을 프로젝트가 골라 가려진 개인 
   await projectStatus({ project: p, env, out: text.out, err: () => {} });
   assert.match(text.text(), /^ {2}개인 범위 — 더함 1: b:rules\/base \(가려짐: a\)$/m);
 });
+
+test('가려진 개인 더함 아래의 하위 스택도 쓰지 않는다 — 다른 출처의 스택에 섞이지 않고 세팅 표 출처도 프로젝트 것이다', async t => {
+  const files = { ...SOURCE, ...EXTRA, 'rules/base/sub/00-bs.md': `${ALWAYS}# b 의 하위\n` };
+  const s = await startApp(t);
+  s.store.commit({ ...META, source: 'import', changes: files });
+  const config = tmpDir('guideline-cfg-');
+  const p = fs.realpathSync(tmpDir('guideline-personal-mix-'));
+  t.after(() => {
+    fs.rmSync(p, { recursive: true, force: true });
+    fs.rmSync(config, { recursive: true, force: true });
+  });
+  const env = { XDG_CONFIG_HOME: config, PATH: '' };
+  saveToken(s.base, { token: s.tokens.issue({ name: 'cli-t', scope: 'read' }).token, name: 'cli-t' }, { env });
+  runGit(['init', '-q'], p);
+  // 같은 서버의 두 출처: a 는 서브에이전트, b 는 스킬. b 에서 개인으로 rules/base·rules/base/sub(폼이 낸 모양)
+  syncedProject(p, { server: s.base, source: files, sources: { a: { items: ['agents/rev.md'] }, b: { items: ['skills/s'] } } });
+  commitAll(p);
+  const store = personalStore({ dir: p, root: p });
+  writeLocal(store, { version: 1, sources: { b: { add: ['rules/base', 'rules/base/sub'], remove: [] } } });
+  assert.equal((await update(p, env)).code, 0);
+  assert.match(read(p, '.ruler/base/sub/00-bs.md'), /# b 의 하위/);
+  // 팀이 a 의 rules/base 를 고른다
+  const m = readManifest(p);
+  m.sources.a.items = [...m.sources.a.items, 'rules/base'];
+  write(p, MANIFEST, manifestText(m));
+  const r = await update(p, env);
+  assert.equal(r.code, 0);
+  assert.deepEqual(r.todos.filter(x => x.kind === 'personal-shadowed').map(x => x.message),
+    ['b:rules/base: 개인으로 더했지만 출처 a 의 같은 이름 블록(rules/base)을 프로젝트가 골라 가려짐 — 그것과 아래의 rules/base/sub 도 쓰지 않음, guideline pick --local 에서 정리']);
+  // a 의 base 에 b 의 하위 스택이 섞이지 않는다. 관리 지침은 그것을 더한 것으로 적지 않고, 세팅 표의 base 출처는 a 다
+  assert.equal(exists(p, '.ruler/base/sub/00-bs.md'), false);
+  assert.doesNotMatch(excludeText(p), /base\/sub/);
+  const mgmt = read(p, '.ruler/guideline.md');
+  assert.doesNotMatch(mgmt, /base\/sub/);
+  assert.match(mgmt, /^\| base \| a \| `docs\/guideline\/base\/SETUP\.md` \|$/m);
+  // 팀의 바뀐 선택을 커밋한 뒤에도 개인 생성물이 드러나지 않는다
+  commitAll(p);
+  await applyIn(p);
+  assert.equal(porcelain(p), '');
+  // status 도 둘 다 가려졌다고 보인다
+  const st = await statusIn(p, env);
+  assert.deepEqual(st.personal.shadowed, [{ id: 'b:rules/base', by: 'a' }, { id: 'b:rules/base/sub', by: 'a' }]);
+});

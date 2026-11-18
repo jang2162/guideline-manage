@@ -129,19 +129,25 @@ function personalLayer(manifest, local) {
   const note = { added: [], removed: [], ignored: [] };
   const todos = [];
   // 다른 출처의 같은 최종 이름을 프로젝트가 고른 개인 더함은 조합이 프로젝트 사본을 쓴다 — 더한 것으로 보이지 않고 할 일로 알린다
+  // 가려진 키 아래의 개인 더함도 쓰지 않는다 — 쓰면 다른 출처의 스택 안에 이 출처의 하위 스택이 섞이고, 세팅 표가 그 스택의 출처를
+  // 이 출처로 적는다(managementOf 는 개인 겹을 입힌 매니페스트를 본다)
   const shadowed = shadowedAdds(manifest, eff);
   for (const x of shadowed) {
     const item = many ? `${x.source}:${x.key}` : x.key;
-    todos.push({ kind: 'personal-shadowed', item, message: t('todo.personalShadowed', { item, final: x.final, by: x.by }) });
+    const message = x.below.length
+      ? t('todo.personalShadowedBelow', { item, final: x.final, by: x.by, below: x.below.join(', ') })
+      : t('todo.personalShadowed', { item, final: x.final, by: x.by });
+    todos.push({ kind: 'personal-shadowed', item, message });
   }
   for (const name of names) {
     const src = manifest.sources[name];
     const e = eff.sources[name];
     const gone = new Set(e.removed);
-    sources[name] = { ...src, items: [...src.items.filter(k => !gone.has(k)), ...e.added] };
+    const hidden = new Set(shadowed.filter(x => x.source === name).flatMap(x => [x.key, ...x.below]));
+    const used = e.added.filter(k => !hidden.has(k));
+    sources[name] = { ...src, items: [...src.items.filter(k => !gone.has(k)), ...used] };
     const show = k => ({ key: finalUnit(k, src.aliases ?? {}), source: many ? name : null });
-    const hidden = new Set(shadowed.filter(x => x.source === name).map(x => x.key));
-    note.added.push(...e.added.filter(k => !hidden.has(k)).map(show));
+    note.added.push(...used.map(show));
     note.removed.push(...e.removed.map(show));
     // 무시된 뺌만 보인다(무시된 더함은 결과가 같다 — 이미 고른 것이거나 뺌에 상쇄된 것)
     for (const k of e.ignored) {

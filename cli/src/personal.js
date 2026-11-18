@@ -176,20 +176,27 @@ export function projectFinalOwners(manifest) {
 
 /**
  * 프로젝트 블록에 가려지는 개인 더함: 다른 출처(별칭 포함)의 같은 최종 이름을 프로젝트가 골랐다. 조합은 프로젝트 사본을 쓰므로
- * 개인 사본은 받지 않고, 작업자가 받았다고 믿지 않게 할 일과 status 로 알린다.
+ * 개인 사본은 쓰지 않고, 작업자가 받았다고 믿지 않게 할 일과 status 로 알린다. 가려진 키 아래의 개인 더함(below)도 함께 쓰지 않는다 —
+ * 쓰면 다른 출처의 스택 안에 이 출처의 하위 스택이 섞인다(pick --local 의 pick.localShadowedBelow 와 같은 원칙). below 의 키는 따로
+ * 내지 않는다.
  * @param {import('./manifest.js').Manifest} manifest
  * @param {ReturnType<typeof effectiveItems>} eff
- * @returns {{ source: string, key: string, final: string, by: string }[]}
+ * @returns {{ source: string, key: string, final: string, by: string, below: string[] }[]}
  */
 export function shadowedAdds(manifest, eff) {
   const owners = projectFinalOwners(manifest);
   const out = [];
   for (const name of Object.keys(eff.sources).sort(byStr)) {
     const aliases = manifest.sources[name].aliases ?? {};
-    for (const key of eff.sources[name].added) {
+    const added = eff.sources[name].added;
+    const mine = [];
+    for (const key of added) {
+      if (mine.some(x => isWithin(key, x.key))) continue;
       const final = finalUnit(key, aliases);
-      if (owners.has(final)) out.push({ source: name, key, final, by: owners.get(final) });
+      if (!owners.has(final)) continue;
+      mine.push({ source: name, key, final, by: owners.get(final), below: added.filter(k => k !== key && isWithin(k, key)) });
     }
+    out.push(...mine);
   }
   return out;
 }

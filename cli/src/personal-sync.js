@@ -39,10 +39,12 @@ export function personalTargets(manifest, local) {
 function usedTargets(manifest, local) {
   const eff = effectiveItems(manifest, local);
   const owners = projectFinalOwners(manifest);
+  const hidden = shadowedAdds(manifest, eff);
   const out = {};
   for (const [name, e] of Object.entries(eff.sources)) {
     const aliases = manifest.sources[name].aliases ?? {};
-    out[name] = withAncestors(e.added).filter(k => !owners.has(finalUnit(k, aliases)));
+    const off = new Set(hidden.filter(x => x.source === name).flatMap(x => x.below));
+    out[name] = withAncestors(e.added.filter(k => !off.has(k))).filter(k => !owners.has(finalUnit(k, aliases)));
   }
   return out;
 }
@@ -151,7 +153,7 @@ export function personalStatus({ store, manifest, local, trees, nested = false }
     removed.push(...e.removed.map(k => show(name, k)));
     ignored.push(...e.ignored.filter(k => e.ignoredWhy[k] === 'required').map(k => show(name, k)));
   }
-  const shadowed = shadowedAdds(manifest, eff).map(x => ({ id: show(x.source, x.key), by: x.by }));
+  const shadowed = shadowedAdds(manifest, eff).flatMap(x => [x.key, ...x.below].map(k => ({ id: show(x.source, k), by: x.by })));
   const todos = [];
   let lock;
   try {

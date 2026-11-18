@@ -142,7 +142,7 @@ A key that is not in the source, or a removal of a Required block, stops with ex
 
 - **Git only.** A unit outside a git repository has no personal scope.
 - **Sources of the project only.** You can add blocks only from the sources in `guideline.json`.
-- **Same names from another source.** If the project picked a block with the same final name from another source, your addition would never be used. `pick --local` does not save it, nor the blocks below it, and reports a `personal-shadowed` to-do.
+- **Same names from another source.** If the project picked a block with the same final name from another source, your addition would never be used. `pick --local` does not save it, nor the blocks below it, and reports a `personal-shadowed` to-do. If the project picks that block after you added it, your addition and the blocks you added below it are not used either, so they never mix into the other source's stack.
 - **Monorepo subdirectories.** Skills, subagents and MCP servers are received only at the git root, but the personal form in a subdirectory does not stop you from adding them. Add them in the git root's personal selection instead.
 - **Broken files.** If `local.json` cannot be read, `apply` composes from the project's choice only (`local-bad` to-do) and `pick --local` stops with exit code 1 without overwriting it. Fix or delete the file.
 
