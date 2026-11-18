@@ -622,7 +622,7 @@ async function pickLocal({
   }
   const revisions = Object.fromEntries([...trees].map(([n, x]) => [n, x.revision]));
   const done = finishPersonal({
-    project: dir, root: unit.root, nested: unit.nested, manifest, sync: { trees, revisions }, todos, env, runRuler, err, git,
+    project: dir, root: unit.root, nested: unit.nested, manifest, sync: { trees, revisions }, prior: local, todos, env, runRuler, err, git,
   });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;

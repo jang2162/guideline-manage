@@ -12,10 +12,9 @@ import { readBlock, writeBlock } from './gitignore-block.js';
 import { effectiveItems, shadowedAdds } from './personal.js';
 import { readProjectOverrides, checkOverrides } from './project-overrides.js';
 import { excludeMarkers, excludePattern, unitPathOf, readExclude } from './exclude.js';
-import { LOCAL_FILE } from './personal.js';
 import { readLock, splitQualified, ManifestError } from './manifest.js';
 import { toVirtual } from './sources.js';
-import { isRulerInput, mcpNames, outputNames, pruneRulerOutputs } from './ruler-outputs.js';
+import { isRulerInput, mcpNames, outputNames, pruneRulerOutputs, otherMcpAgents } from './ruler-outputs.js';
 import { t } from './i18n.js';
 
 // 조합: 커밋된 .guideline/(원본 모양 사본)에서 에이전트가 읽는 생성물(.ruler/·docs/guideline/·ruler.toml)을 만든다.
@@ -296,7 +295,8 @@ function build({ tree, guide, manifest, keys, nested, rulerAgentsEnabled, manage
  * (<store>/.guideline/)을 겹쳐 읽는다. 커밋되는 .gitignore 블록은 개인 겹 없이 조합했을 때의 경로로만 써서 작업자마다 같고,
  * 개인 겹에서만 나온 경로는 exclude(info/exclude 의 단위·워크트리 블록에 쓸 것)로 돌려준다. info/exclude 는 호출자가 쓴다(writeExclude).
  * @param {{ project: string, manifest: import('./manifest.js').Manifest, nested?: boolean, rulerAgentsEnabled?: boolean,
- *   personal?: { local: import('./personal.js').Local, store: string, common: string, unitRel: string, worktree: string } | null }} opts
+ *   personal?: { local: import('./personal.js').Local, prior?: import('./personal.js').Local, store: string, common: string, unitRel: string,
+ *     worktree: string } | null }} opts
  *   project 는 단위 디렉터리(절대경로), manifest 는 v3(출처별 실제 id·별칭). personal 은 composeInputs 가 만든다(git 이 아니면 null)
  * @returns {{ files: Record<string, Buffer | null>, generated: { project: string[], personal: string[] }, todos: object[],
  *   exclude: { markers: { start: string, end: string }, paths: string[] } | null,
@@ -363,8 +363,9 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   for (const line of readBlock(gi)) if (line.startsWith('/')) before.push(line.slice(1));
   // info/exclude 의 이 워크트리 단위 블록 중 조합 자리 밖의 줄(ruler 가 개인 겹으로만 만든 출력 — rulerStep 이 쓴다)은 그대로 둔다
   const rulerExtras = [];
+  const excluded = personal ? readExclude(personal) : [];
   if (personal) {
-    for (const line of readExclude(personal)) {
+    for (const line of excluded) {
       const p = unitPathOf(personal.unitRel, line);
       if (p !== null && composedPath(p)) before.push(p);
       else rulerExtras.push(line);
@@ -381,21 +382,33 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
     if (isFile) files[p] = null;
   }
 
-  // 개인 선택이 있는 git 루트 단위: ruler 가 지우지 않는 MCP 서버·스킬·서브에이전트 중 지난 조합(ruler.toml·블록)이나 프로젝트 기준에
-  // 있었고 이번 조합에 없는 것을 에이전트 설정에서 지운다(개인으로 뺌·개인 더함 되돌림). 개인 선택이 없으면 지금처럼 둔다(ruler 몫).
-  const prunes = !nested && personal && fs.existsSync(path.join(personal.store, LOCAL_FILE));
+  // 개인 겹이 있는 git 루트 단위: ruler 가 지우지 않는 MCP 서버·스킬·서브에이전트 중 지난 조합(ruler.toml·블록)이나 프로젝트 기준에
+  // 있었고 이번 조합에 없는 것을 에이전트 설정에서 지운다(개인으로 뺌·개인 더함 되돌림). 개인 겹은 이번 것, 지난 개인 선택(pick --local 이
+  // 넘기는 prior), 또는 이 워크트리 단위 블록(지난 조합의 개인 출력)이다 — 개인 선택을 비운 작업자도 그 되돌림 뒤에는 local.json 이 없는
+  // 팀원처럼 프로젝트가 뺀 서버·스킬을 남겨 둔다(ruler 몫).
+  const prunes = !nested && personal && (layer.changed || excluded.length > 0 || (!!personal.prior && personalLayer(manifest, personal.prior).changed));
   if (prunes) {
     const prevToml = readRel(RULER_TOML);
+    const prevMcp = mcpNames(prevToml && prevToml.toString('utf8'));
+    const nowToml = want.get(RULER_TOML).toString('utf8');
+    const nowMcp = mcpNames(nowToml);
     const was = outputNames(before);
     const base = outputNames(projectWant.keys());
     const now = outputNames(want.keys());
     const gone = {
-      mcp: minus(new Set([...mcpNames(prevToml && prevToml.toString('utf8')), ...mcpNames(projectWant.get(RULER_TOML).toString('utf8'))]),
-        mcpNames(want.get(RULER_TOML).toString('utf8'))),
+      mcp: minus(new Set([...prevMcp, ...mcpNames(projectWant.get(RULER_TOML).toString('utf8'))]), nowMcp),
       skills: minus(new Set([...was.skills, ...base.skills]), now.skills),
       subagents: minus(new Set([...was.subagents, ...base.subagents]), now.subagents),
     };
     for (const [p, c] of Object.entries(pruneRulerOutputs({ project, agents: manifest.agents, gone, readRel }))) if (!want.has(p)) files[p] = c;
+    // MCP 자리를 모르는 에이전트(ruler.project.toml 로 켠 cursor 등)의 설정에서는 지우지 않는다 — 손으로 둔 파일일 수 있다. 지난 ruler.toml
+    // 에 있어 ruler 가 거기 merge 했을 서버가 이번에 빠지면 한 번 알린다.
+    const left = [...minus(prevMcp, nowMcp)].sort(byStr);
+    const others = otherMcpAgents(nowToml);
+    if (left.length && (others.all || others.names.length)) {
+      const agents = others.all ? t('todo.rulerOtherAgents') : others.names.join(', ');
+      todos.push({ kind: 'ruler-leftover', item: null, message: t('todo.rulerMcpOther', { agents, servers: left.join(', ') }) });
+    }
   }
 
   const nextGi = writeBlock(gi, generated.project.map(p => `/${p}`));

@@ -321,3 +321,15 @@ test('폼 결과에 필수가 없으면(payload 에 필수가 없는 옛 흐름)
   assert.deepEqual(m.sources.default.items, ['rules/base', 'rules/base/sub']);
   assert.deepEqual(m.sources.default.required, []);
 });
+
+test('pick --local 으로 개인 선택을 비우면 지난 선택으로 더했던 MCP 서버를 에이전트 설정에서 지운다', async t => {
+  const { s, p, env, store } = await setup(t);
+  const pick = choices => projectPick({ project: p, local: true, env, ...quiet, err: () => {}, open: form(s, {}, { personalChoices: choices }) });
+  assert.equal(await pick({ 'mcp/c7': 'add' }), 0);
+  assert.match(read(p, '.ruler/ruler.toml'), /\[mcp_servers\.c7\]/);
+  // ruler 가 merge 해 쓴 것처럼(이 테스트의 runRuler 는 아무것도 하지 않는다)
+  write(p, '.mcp.json', `${JSON.stringify({ mcpServers: { c7: { command: 'npx' } } }, null, 2)}\n`);
+  assert.equal(await pick({}), 0);
+  assert.deepEqual(readLocal(store), { version: 1, sources: { default: { add: [], remove: [] } } });
+  assert.equal(exists(p, '.mcp.json'), false);
+});

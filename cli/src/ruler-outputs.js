@@ -7,7 +7,8 @@ import { RULER_TOML } from './layout.js';
 // - MCP: 기본 merge 라 ruler.toml 에서 빠진 서버가 에이전트 설정 파일에 남는다. 서버가 하나도 없으면 그 파일을 건드리지 않는다.
 // - 스킬·서브에이전트: .ruler/skills·.ruler/agents 에 하나라도 있으면 대상 폴더를 통째로 바꾸지만, 없으면 지난 것을 그대로 둔다.
 // 개인 겹이 그것들을 빼거나(프로젝트의 MCP·스킬을 개인으로 뺌), 개인으로 더했던 것을 되돌리면 ruler 만으로는 실제로 빠지지 않는다.
-// 그래서 조합이 지난 조합·프로젝트 기준에 있던 이름 중 이번에 없는 것을 지운다. guideline 이 고르는 에이전트(manifest.AGENTS)의 자리만 안다.
+// 그래서 조합이 지난 조합·프로젝트 기준에 있던 이름 중 이번에 없는 것을 지운다. guideline 이 고르는 에이전트(manifest.AGENTS)의 자리만 안다 —
+// ruler.project.toml 로 켠 그 밖의 에이전트(otherMcpAgents)의 설정은 손으로 둔 파일일 수 있어 건드리지 않고 할 일로 알린다.
 
 /** ruler 가 .gitignore 에 쓰는 자기 블록의 표시(GitignoreUtils). */
 export const RULER_BLOCK = Object.freeze({ start: '# START Ruler Generated Files', end: '# END Ruler Generated Files' });
@@ -152,24 +153,84 @@ export function pruneRulerOutputs({ project, agents, gone, readRel }) {
   return files;
 }
 
-/** 에이전트 설정 파일인가(지난 개인 출력을 정리할 때 서버가 남았으면 지우지 않는다). */
+/** claude·codex·opencode 의 MCP 설정 파일이면 그 자리, 아니면 null. */
 export function mcpFileOf(rel) {
   return Object.values(MCP_FILES).find(m => m.file === rel) ?? null;
 }
 
-/** 에이전트 설정 파일에 서버가 남았는가. 읽을 수 없으면 true(지우지 않는다). */
-export function hasServers(abs, m) {
+/**
+ * claude·codex·opencode 의 MCP 설정 파일이 비었는가 — 서버도, 그 밖의 설정(JSON 의 `$schema` 말고)도 없다. 그런 파일만 ruler 가 개인
+ * 더함 때문에 만든 것으로 보고 지운다. 읽을 수 없거나 해석할 수 없으면 false(지우지 않는다).
+ */
+export function emptyMcpConfig(abs, m) {
   let text;
   try {
     text = fs.readFileSync(abs, 'utf8');
   } catch {
     return false;
   }
-  if (m.toml) return mcpNames(text).size > 0;
-  try {
-    const v = JSON.parse(text)?.[m.json];
-    return !!v && typeof v === 'object' && Object.keys(v).length > 0;
-  } catch {
-    return true;
+  if (m.toml) {
+    return text.replace(/\r\n/g, '\n').split('\n').every(l => {
+      const s = l.replace(/^\s*#.*$/, '').trim();
+      return s === '' || s === `[${m.toml}]`;
+    });
   }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+  const servers = data[m.json];
+  if (servers !== undefined && (!servers || typeof servers !== 'object' || Object.keys(servers).length)) return false;
+  return Object.keys(data).every(k => k === m.json || k === '$schema');
+}
+
+/**
+ * 조합한 ruler.toml 로 ruler 가 MCP 서버를 쓰는 에이전트 중 MCP 자리를 모르는(claude·codex·opencode 밖) 것. ruler 0.3.44 의
+ * resolveSelectedAgents 를 따른다: default_agents 가 있으면 그것(`[agents.<id>] enabled` 가 덮어씀), 없거나 비면 enabled = false 가
+ * 아닌 모든 에이전트(all: true). `[agents.<id>.mcp] enabled = false` 인 에이전트는 MCP 를 쓰지 않는다.
+ * @returns {{ all: boolean, names: string[] }}
+ */
+export function otherMcpAgents(toml) {
+  const lines = toml.replace(/\r\n/g, '\n').split('\n');
+  const strip = l => l.replace(/^\s*#.*$/, '').replace(/\s+#.*$/, '');
+  let top = true;
+  let agent = null;
+  let mcpOf = null;
+  let defaults = null;
+  const enabled = new Map();
+  const noMcp = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    const l = strip(lines[i]);
+    const h = HEADER.exec(l) ?? ARRAY_HEADER.exec(l);
+    if (h) {
+      top = false;
+      const segs = parseKeyPath(h[1]);
+      agent = segs.length === 2 && segs[0] === 'agents' ? segs[1].toLowerCase() : null;
+      mcpOf = segs.length === 3 && segs[0] === 'agents' && segs[2] === 'mcp' ? segs[1].toLowerCase() : null;
+      continue;
+    }
+    const kv = /^\s*([A-Za-z0-9_-]+)\s*=\s*(.*)$/.exec(l);
+    if (!kv) continue;
+    const [, key, value] = kv;
+    if (top && key === 'default_agents') {
+      // 여러 줄 배열은 닫는 ] 까지 잇는다
+      let v = value;
+      while (v.trimStart().startsWith('[') && !v.includes(']') && i + 1 < lines.length) v += `\n${strip(lines[++i])}`;
+      defaults = [...v.matchAll(/"([^"]*)"|'([^']*)'/g)].map(x => (x[1] ?? x[2]).toLowerCase());
+    } else if (agent && key === 'enabled' && /^\s*(true|false)\b/.test(value)) {
+      enabled.set(agent, /^\s*true/.test(value));
+    } else if (mcpOf && key === 'enabled' && /^\s*false\b/.test(value)) {
+      noMcp.add(mcpOf);
+    }
+  }
+  if (!defaults || !defaults.length) return { all: true, names: [] };
+  const selected = new Set(defaults);
+  for (const [a, on] of enabled) {
+    if (on) selected.add(a);
+    else selected.delete(a);
+  }
+  return { all: false, names: [...selected].filter(a => !Object.hasOwn(MCP_FILES, a) && !noMcp.has(a)).sort() };
 }

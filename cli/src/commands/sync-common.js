@@ -8,7 +8,7 @@ import { printTodos } from '../todos.js';
 import { rootNestedOn, nestedOffTodo, unitProblem } from '../unit.js';
 import { compose, composedPath } from '../compose.js';
 import { readBlock } from '../gitignore-block.js';
-import { RULER_BLOCK, mcpFileOf, hasServers } from '../ruler-outputs.js';
+import { RULER_BLOCK, mcpFileOf, emptyMcpConfig } from '../ruler-outputs.js';
 import { rulerAgentsEnabled } from '../project-state.js';
 import { RULER_TOML, layoutOf } from '../layout.js';
 import { strayRulerOutput } from '../stray.js';
@@ -297,8 +297,8 @@ function baselineGitignore({ root, plan, bin, runRuler }) {
 /**
  * ruler 를 돈 뒤: 이번 실행의 ruler 블록 중 프로젝트 기준(base, 없으면 지금 블록)에 없는 것을 info/exclude 의 이 워크트리 루트 단위
  * 블록에 적고(조합이 적은 줄은 그대로), 커밋되는 .gitignore 를 프로젝트 기준으로 되돌린다 — 그 순서라 개인 출력이 드러나는 틈이 없다.
- * 지난번에 블록에 적었던 ruler 개인 출력 중 이제 만들지 않는 것(개인 더함 되돌림)은 지운다: 추적되는 것, 비지 않은 폴더, 서버가 남은
- * 에이전트 설정(사람이 둔 것)은 두고 할 일로 알린다.
+ * 지난번에 블록에 적었던 ruler 개인 출력 중 이제 만들지 않는 것(개인 더함 되돌림)은 빈 폴더와 빈 claude·codex·opencode MCP 설정만
+ * 지운다. 추적되는 것, 비지 않은 폴더, 서버나 다른 설정이 남은 MCP 설정, 다른 에이전트의 설정, .bak 은 두고 할 일로 알린다.
  */
 function settleRulerOutputs({ root, place, base, git, todos }) {
   const giFile = path.join(root, '.gitignore');
@@ -328,12 +328,14 @@ function settleRulerOutputs({ root, place, base, git, todos }) {
     if (!rel || rel.split('/').some(s => s === '' || s === '.' || s === '..') || /[*?[\\]/.test(rel)) continue;
     const abs = path.join(root, ...rel.split('/'));
     if (!fs.existsSync(abs)) continue;
-    // 폴더(스킬·서브에이전트 자리)는 조합이 guideline 이름을 지운 뒤 비었을 때만, 에이전트 설정은 서버가 남지 않았을 때만 지운다 —
-    // 남은 것은 사람이 둔 것이다. 그 밖(ruler 의 .bak)은 지운다.
+    // ruler 가 개인 더함 때문에 만든 것이 확실한 것만 지운다: 조합이 guideline 이름을 지운 뒤 빈 폴더(스킬·서브에이전트 자리), 서버도
+    // 다른 설정도 남지 않은 claude·codex·opencode 의 MCP 설정. 그 밖(다른 에이전트의 설정, ruler 의 .bak)은 ruler 가 사람이 둔 파일에
+    // merge 했거나 그 백업일 수 있어 두고 알린다. 추적되는 것도 둔다.
     const tracked = git(['ls-files', '--', rel], root);
     const isDir = fs.statSync(abs).isDirectory();
     const m = mcpFileOf(rel);
-    if (tracked.status !== 0 || tracked.stdout.trim() || (isDir && fs.readdirSync(abs).length) || (m && hasServers(abs, m))) {
+    const made = isDir ? fs.readdirSync(abs).length === 0 : !!m && emptyMcpConfig(abs, m);
+    if (tracked.status !== 0 || tracked.stdout.trim() || !made) {
       todos.push({ kind: 'ruler-leftover', item: null, message: t('todo.rulerLeftover', { path: rel }) });
       continue;
     }
@@ -398,18 +400,21 @@ export function finishApply({
 /**
  * pick --local 의 마무리: 커밋되는 파일(매니페스트·잠금·.guideline/ 사본)은 쓰지 않고, 받은 원본으로 개인 사본을 맞춘 뒤
  * 개인 겹을 넣어 생성물을 조합해 쓰고(git 루트면 그 아래 하위 단위도 apply 처럼 조합하고) ruler 를 돈다.
- * 개인 선택(local.json)은 이미 써 두었어야 한다 — 조합이 그것을 다시 읽는다. 하위 단위 쓰기만 실패해도 code 1.
+ * 개인 선택(local.json)은 이미 써 두었어야 한다 — 조합이 그것을 다시 읽는다. prior 는 그 전의 개인 선택(없으면 null). 하위 단위 쓰기만 실패해도 code 1.
  * @param {{ project: string, root?: string, nested?: boolean, manifest: object, sync: { trees: Map<string, object>, revisions: Record<string, number> },
- *   todos?: object[], env?: object, runRuler?: Function, err?: Function, git?: Function }} opts
+ *   prior?: object | null, todos?: object[], env?: object, runRuler?: Function, err?: Function, git?: Function }} opts
  * @returns {{ code: number, written: string[], deleted: string[], todos: object[] }}
  */
 export function finishPersonal({
-  project, root = project, nested = false, manifest, sync, todos: before = [], env = process.env, runRuler = defaultRunRuler, err = console.error, git = runGit,
+  project, root = project, nested = false, manifest, sync, prior = null, todos: before = [], env = process.env, runRuler = defaultRunRuler, err = console.error,
+  git = runGit,
 }) {
   const inputs = composeInputs({ project, unit: { root }, git });
   let todos = [...before, ...inputs.todos];
   if (inputs.personal) todos = mergeTodos(todos, writePersonal({ personal: inputs.personal, manifest, nested, ...sync }));
-  const composed = composeWithStray({ project, nested, manifest, personal: inputs.personal });
+  // 지난 개인 선택: 이번에 비웠어도 그 되돌림은 조합이 에이전트 설정에서 지운다
+  const personal = inputs.personal && prior ? { ...inputs.personal, prior } : inputs.personal;
+  const composed = composeWithStray({ project, nested, manifest, personal });
   todos = mergeTodos(todos, composed.todos);
   const w = writeComposedOrFail(project, composed.files, err, composed.exclude);
   if (w.failed) {
