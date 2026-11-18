@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { diskTree, joinPath } from './tree.js';
+import { diskTree, joinPath, unionTree } from './tree.js';
 import { GUIDE_DIR, PROJECT_TOML, RULER_TOML, copyPath } from './layout.js';
 import { desiredOutputs, RULER_TOML_BASE, NESTED_TOML_BASE, isRootOnly } from './render/outputs.js';
 import { setTable, tableSlice } from './toml-table.js';
@@ -9,6 +9,8 @@ import { blockedReason } from './render/index.js';
 import { withAncestors } from './blocks.js';
 import { unitOf, unitName, finalUnit } from './sources.js';
 import { readBlock, writeBlock } from './gitignore-block.js';
+import { effectiveItems } from './personal.js';
+import { excludeMarkers, excludePattern, unitPathOf, readExclude } from './exclude.js';
 import { t } from './i18n.js';
 
 // 조합: 커밋된 .guideline/(원본 모양 사본)에서 에이전트가 읽는 생성물(.ruler/·docs/guideline/·ruler.toml)을 만든다.
@@ -103,24 +105,42 @@ function overrideCopies(tree, chosen) {
 }
 
 /**
- * .guideline/ 에서 생성물을 조합한다. 디스크는 읽기만 하고, 쓸 것(바뀐 것만, null 은 지움)을 돌려준다. 잠금은 보지 않는다.
- * @param {{ project: string, manifest: import('./manifest.js').Manifest, nested?: boolean, rulerAgentsEnabled?: boolean }} opts
- *   project 는 단위 디렉터리(절대경로), manifest 는 v3(출처별 실제 id·별칭)
- * @returns {{ files: Record<string, Buffer | null>, generated: string[], todos: object[] }}
- *   generated 는 이번에 만든 경로 전부(단위 기준, 정렬). .gitignore 블록에 그대로 적힌다
+ * 매니페스트에 개인 선택을 입힌 것. 출처마다 items = 프로젝트 items − 개인으로 빠진 것 + 개인으로 더한 것(조상은 virtualKeys 가 채운다) —
+ * 개인 선택이 아무것도 바꾸지 않으면 items 가 매니페스트와 같아 조합 결과도 바이트 단위로 같다.
+ * note 는 관리 지침의 개인 절(별칭을 입힌 키). 보일 것이 없으면 null.
  */
-export function compose({ project, manifest, nested = false, rulerAgentsEnabled = false }) {
-  const tree = diskTree(path.join(project, GUIDE_DIR));
-  const readRel = rel => {
-    try {
-      return fs.readFileSync(path.join(project, ...rel.split('/')));
-    } catch {
-      return null;
+function personalLayer(manifest, local) {
+  const eff = effectiveItems(manifest, local);
+  const names = Object.keys(manifest.sources).sort(byStr);
+  const many = names.length > 1;
+  const sources = {};
+  const note = { added: [], removed: [], ignored: [] };
+  for (const name of names) {
+    const src = manifest.sources[name];
+    const e = eff.sources[name];
+    const gone = new Set(e.removed);
+    sources[name] = { ...src, items: [...src.items.filter(k => !gone.has(k)), ...e.added] };
+    const show = k => ({ key: finalUnit(k, src.aliases ?? {}), source: many ? name : null });
+    note.added.push(...e.added.map(show));
+    note.removed.push(...e.removed.map(show));
+    // 무시된 뺌만 보인다(무시된 더함은 결과가 같다 — 이미 고른 것이거나 뺌에 상쇄된 것)
+    for (const k of e.ignored) {
+      const why = e.ignoredWhy[k];
+      if (why === 'required' || why === 'no-effect') note.ignored.push({ ...show(k), why });
     }
-  };
+  }
+  const changed = note.added.length > 0 || note.removed.length > 0;
+  return { manifest: { ...manifest, sources }, changed, added: note.added.length > 0, note: changed || note.ignored.length ? note : null };
+}
 
-  // 사본이 있는 항목만 조합한다. 막혔거나 원본에서 사라진 항목은 동기화가 지난 사본을 남겨 두므로 그것을 쓴다.
-  const keys = virtualKeys(manifest).filter(k => !(nested && isRootOnly(k)));
+const stacksOf = keys => new Set(keys.filter(k => k.startsWith('rules/')).map(k => k.slice('rules/'.length)));
+
+/**
+ * 고른 키로 바라는 생성물(경로 → 내용)과 할 일을 만든다. 디스크는 읽기만 한다.
+ * tree 는 블록을 읽을 트리(개인 사본을 얹었을 수 있다), guide 는 프로젝트 사본(.guideline/) — 바꿈은 거기서만 읽는다.
+ * quiet 는 고르지 않았어도 override-unchosen 을 내지 않을 스택(개인으로 뺀 프로젝트 스택).
+ */
+function build({ tree, guide, manifest, keys, nested, rulerAgentsEnabled, management, readRel, quiet = new Set() }) {
   // 사본 폴더에는 프로젝트가 둔 파일이나 frontmatter 가 깨진 사본이 있을 수 있다. 원본처럼 막고(조합에서 빼고) 할 일로 알린다.
   const blocked = [];
   const items = expandBlocks(tree, keys).filter(id => tree.exists(id)).filter(id => {
@@ -129,7 +149,7 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
     return !reason;
   });
   const view = { version: 1, form: 'ruler', instructionFiles: [], agents: manifest.agents, items: keys };
-  const { outputs, todos: made } = desiredOutputs({ tree, manifest: view, items, rulerAgentsEnabled, management: managementOf(tree, manifest) });
+  const { outputs, todos: made } = desiredOutputs({ tree, manifest: view, items, rulerAgentsEnabled, management });
   const todos = [...blocked, ...made];
   // 고른 항목인데 사본이 없으면(막혔거나 MCP 를 만들어야 해서 동기화가 쓰지 않은 것) 조용히 빠지지 않게 알린다.
   for (const k of keys) {
@@ -155,26 +175,82 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   }
   want.set(RULER_TOML, Buffer.from(toml));
 
-  const chosen = new Set(keys.filter(k => k.startsWith('rules/')).map(k => k.slice('rules/'.length)));
-  const { copies, unchosen } = overrideCopies(tree, chosen);
+  const { copies, unchosen } = overrideCopies(guide, stacksOf(keys));
   for (const [p, c] of copies) want.set(p, c);
   for (const stack of unchosen) {
+    if (quiet.has(stack)) continue;
     todos.push({ kind: 'override-unchosen', item: null, message: t('todo.overrideUnchosen', { stack }) });
   }
+  return { want, todos };
+}
 
-  const generated = [...want.keys()].sort(byStr);
+/**
+ * .guideline/ 에서 생성물을 조합한다. 디스크는 읽기만 하고, 쓸 것(바뀐 것만, null 은 지움)을 돌려준다. 잠금은 보지 않는다.
+ * personal 을 주면 개인 겹을 얹는다: 고른 블록 = 프로젝트 선택 ∪ 개인 더함 − 개인 뺌, 블록은 프로젝트 사본 위에 개인 사본
+ * (<store>/.guideline/)을 겹쳐 읽는다. 커밋되는 .gitignore 블록은 개인 겹 없이 조합했을 때의 경로로만 써서 작업자마다 같고,
+ * 개인 겹에서만 나온 경로는 exclude(info/exclude 의 단위 블록에 쓸 것)로 돌려준다. info/exclude 는 호출자가 쓴다(writeExclude).
+ * @param {{ project: string, manifest: import('./manifest.js').Manifest, nested?: boolean, rulerAgentsEnabled?: boolean,
+ *   personal?: { local: import('./personal.js').Local, store: string, common: string, unitRel: string } | null }} opts
+ *   project 는 단위 디렉터리(절대경로), manifest 는 v3(출처별 실제 id·별칭). personal 은 composeInputs 가 만든다(git 이 아니면 null)
+ * @returns {{ files: Record<string, Buffer | null>, generated: { project: string[], personal: string[] }, todos: object[],
+ *   exclude: { markers: { start: string, end: string }, paths: string[] } | null }}
+ *   generated.project 는 개인 겹 없이 조합했을 때의 경로(단위 기준, 정렬) — .gitignore 블록에 그대로 적힌다.
+ *   generated.personal 은 이번 결과 중 그 밖의 경로. exclude.paths 는 그것을 워크트리 루트 기준 패턴으로 바꾼 것
+ */
+export function compose({ project, manifest, nested = false, rulerAgentsEnabled = false, personal = null }) {
+  const guide = diskTree(path.join(project, GUIDE_DIR));
+  const readRel = rel => {
+    try {
+      return fs.readFileSync(path.join(project, ...rel.split('/')));
+    } catch {
+      return null;
+    }
+  };
+
+  // 사본이 있는 항목만 조합한다. 막혔거나 원본에서 사라진 항목은 동기화가 지난 사본을 남겨 두므로 그것을 쓴다.
+  const fit = ks => ks.filter(k => !(nested && isRootOnly(k)));
+  const projectKeys = fit(virtualKeys(manifest));
+  const layer = personal ? personalLayer(manifest, personal.local) : null;
+  const chosen = layer ? layer.manifest : manifest;
+  const keys = layer ? fit(virtualKeys(chosen)) : projectKeys;
+  // 개인 사본은 개인이 더한 것이 있을 때만 읽는다 — 남은 사본이 프로젝트 스택에 섞이지 않게
+  const tree = layer?.added ? unionTree(guide, diskTree(path.join(personal.store, GUIDE_DIR))) : guide;
+  const projectStacks = stacksOf(projectKeys);
+  const management = managementOf(guide, chosen);
+  if (layer?.note) management.personal = { ...layer.note, stacks: [...stacksOf(keys)].filter(s => !projectStacks.has(s)).sort(byStr) };
+
+  const shared = { guide, nested, rulerAgentsEnabled, readRel };
+  const main = build({ ...shared, tree, manifest: chosen, keys, management, quiet: projectStacks });
+  const projectWant = layer?.changed
+    ? build({ ...shared, tree: guide, manifest, keys: projectKeys, management: managementOf(guide, manifest) }).want
+    : main.want;
+  const want = main.want;
+  const todos = main.todos;
+
+  const generated = {
+    project: [...projectWant.keys()].sort(byStr),
+    personal: [...want.keys()].filter(p => !projectWant.has(p)).sort(byStr),
+  };
   const files = {};
-  for (const p of generated) {
+  for (const p of [...want.keys()].sort(byStr)) {
     const cur = readRel(p);
     if (cur === null || !cur.equals(want.get(p))) files[p] = want.get(p);
   }
 
-  // 지난 조합이 블록에 적은 것 중 이번에 만들지 않는 것을 지운다. 블록에 없는 파일(프로젝트 자체 .ruler/*.md 등)은 모른다.
+  // 지난 조합이 블록(.gitignore, 개인이면 info/exclude 의 단위 블록)에 적은 것 중 이번에 만들지 않는 것을 지운다.
+  // 블록에 없는 파일(프로젝트 자체 .ruler/*.md 등)은 모른다.
   const giRaw = readRel(GITIGNORE);
   const gi = giRaw === null ? null : giRaw.toString('utf8');
-  for (const line of readBlock(gi)) {
-    const p = line.replace(/^\//, '');
-    if (line === p || want.has(p) || !removable(p)) continue;
+  const before = [];
+  for (const line of readBlock(gi)) if (line.startsWith('/')) before.push(line.slice(1));
+  if (personal) {
+    for (const line of readExclude(personal)) {
+      const p = unitPathOf(personal.unitRel, line);
+      if (p !== null) before.push(p);
+    }
+  }
+  for (const p of new Set(before)) {
+    if (want.has(p) || !removable(p)) continue;
     let isFile = false;
     try {
       isFile = fs.statSync(path.join(project, ...p.split('/'))).isFile();
@@ -184,7 +260,10 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
     if (isFile) files[p] = null;
   }
 
-  const nextGi = writeBlock(gi, generated.map(p => `/${p}`));
+  const nextGi = writeBlock(gi, generated.project.map(p => `/${p}`));
   if (nextGi !== (gi ?? '')) files[GITIGNORE] = Buffer.from(nextGi);
-  return { files, generated, todos };
+  const exclude = personal
+    ? { markers: excludeMarkers(personal.unitRel), paths: generated.personal.map(p => excludePattern(personal.unitRel, p)) }
+    : null;
+  return { files, generated, todos, exclude };
 }

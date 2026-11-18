@@ -16,6 +16,7 @@ import { readBlock } from '../src/gitignore-block.js';
 import { runGit } from '../src/projects.js';
 import { projectApply } from '../src/commands/project-apply.js';
 import { mergeTodos } from '../src/commands/sync-common.js';
+import { personalStore, writeLocal } from '../src/personal.js';
 
 const ITEMS = ['rules/base', 'skills/s', 'agents/rev.md', 'mcp/c7', 'mcp/gl', 'mcp/b'];
 
@@ -408,4 +409,125 @@ test('루트가 guideline 프로젝트가 아닌 모노레포에서도 루트 ap
   const e = collect();
   assert.equal(await projectApply({ dir: none, out: () => {}, err: e.out }), 2);
   assert.match(e.text(), /guideline pick 먼저/);
+});
+
+// ── 개인 겹 (실제 git 저장소: 이 저장소 자신의 .git 은 건드리지 않는다) ──
+
+const EXTRA_COPY = { 'rules/extra/00-e.md': `---\nload: always\n---\n# 개인 더함\n` };
+
+/** 단위의 개인 선택과 개인 사본(<store>/.guideline/)을 둔다. */
+function setPersonal(dir, root, sources, copies = EXTRA_COPY) {
+  const store = personalStore({ dir, root });
+  writeLocal(store, { version: 1, sources });
+  for (const [k, v] of Object.entries(copies)) write(store, `.guideline/${k}`, v);
+  return store;
+}
+const porcelain = p => runGit(['status', '--porcelain', '--untracked-files=all'], p).stdout;
+const excludeText = p => {
+  try {
+    return fs.readFileSync(path.join(p, '.git', 'info', 'exclude'), 'utf8');
+  } catch {
+    return '';
+  }
+};
+const apply = async p => {
+  const o = collect();
+  assert.equal(await projectApply({ dir: p, json: true, out: o.out, err: () => {}, env: { PATH: '' } }), 0);
+  return JSON.parse(o.text());
+};
+
+test('개인 더함은 .gitignore 를 바꾸지 않고 info/exclude 에 간다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  await apply(p);
+  commitAll(p);
+  const gi = read(p, '.gitignore');
+  assert.equal(porcelain(p), '');
+
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  const r = await apply(p);
+  assert.ok(r.written.includes('.ruler/extra/00-e.md'));
+  assert.equal(read(p, '.ruler/extra/00-e.md'), '# 개인 더함\n');
+  assert.equal(read(p, '.gitignore'), gi);
+  assert.ok(excludeText(p).includes('# START guideline personal files .\n/.ruler/extra/00-e.md\n# END guideline personal files .\n'), excludeText(p));
+  // 커밋되는 파일이 하나도 바뀌지 않고, 개인 생성물도 git 에 보이지 않는다
+  assert.equal(porcelain(p), '');
+  assert.match(read(p, '.ruler/guideline.md'), /더한 것: `rules\/extra`/);
+});
+
+test('개인 선택을 되돌리면 생성물과 exclude 블록이 따라온다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  write(p, '.git/info/exclude', '# 사용자 줄\n*.log\n');
+  await apply(p);
+  commitAll(p);
+  const gi = read(p, '.gitignore');
+
+  // 더했다가 되돌린다
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  await apply(p);
+  assert.ok(exists(p, '.ruler/extra/00-e.md'));
+  setPersonal(p, p, {});
+  const back = await apply(p);
+  assert.ok(back.deleted.includes('.ruler/extra/00-e.md'));
+  assert.equal(exists(p, '.ruler/extra/00-e.md'), false);
+  assert.equal(excludeText(p), '# 사용자 줄\n*.log\n');
+  assert.equal(read(p, '.gitignore'), gi);
+  assert.equal(porcelain(p), '');
+
+  // 뺐다가 되돌린다: 생성물은 지워졌다 돌아오고 .gitignore 는 내내 같다
+  setPersonal(p, p, { default: { add: [], remove: ['rules/base'] } });
+  const removed = await apply(p);
+  assert.ok(removed.deleted.includes('.ruler/base/00-a.md'));
+  assert.equal(exists(p, '.ruler/base/00-a.md'), false);
+  assert.equal(read(p, '.gitignore'), gi);
+  assert.equal(porcelain(p), '');
+  setPersonal(p, p, {});
+  await apply(p);
+  assert.equal(read(p, '.ruler/base/00-a.md'), '# 에이\n\n## 절 하나\n\n본문 A\n\n### 아래\n\n깊이\n');
+  assert.equal(excludeText(p), '# 사용자 줄\n*.log\n');
+  assert.equal(porcelain(p), '');
+});
+
+test('루트 apply 는 하위 단위의 개인 겹도 조합하고 exclude 패턴은 워크트리 루트 기준이다', async t => {
+  const root = gitDir(t);
+  syncNew(root, { items: ['rules/base'], toml: NESTED_ROOT_TOML });
+  const api = path.join(root, 'packages/api');
+  syncNew(api, { items: ['rules/base'], toml: 'default_agents = ["claude"]\n' });
+  // 루트 apply 는 git 이 추적하는 하위 단위만 찾는다
+  commitAll(root);
+  await apply(root);
+  commitAll(root);
+  assert.ok(exists(api, '.ruler/base/00-a.md'));
+  setPersonal(api, root, { default: { add: ['rules/extra'], remove: [] } });
+  const r = await apply(root);
+  assert.ok(r.written.includes('packages/api/.ruler/extra/00-e.md'));
+  assert.equal(exists(root, '.ruler/extra/00-e.md'), false);
+  assert.ok(excludeText(root).includes('# START guideline personal files packages/api\n/packages/api/.ruler/extra/00-e.md\n# END guideline personal files packages/api\n'));
+  assert.equal(porcelain(root), '');
+  // 단위에서 직접 apply 해도 같은 블록이다
+  const before = excludeText(root);
+  await apply(api);
+  assert.equal(excludeText(root), before);
+});
+
+test('git 저장소가 아니면 개인 겹 없이 조합하고 exclude 를 쓰지 않는다, 개인 선택이 깨졌으면 알린다', async t => {
+  const p = fs.realpathSync(tmpDir('guideline-apply-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  syncNew(p, { items: ['rules/base'] });
+  const r = await apply(p);
+  assert.ok(r.written.includes('.ruler/base/00-a.md'));
+  assert.equal(r.todos.some(x => x.kind === 'local-bad'), false);
+
+  const q = gitDir(t);
+  syncNew(q, { items: ['rules/base'] });
+  const store = setPersonal(q, q, { default: { add: ['rules/extra'], remove: [] } });
+  await apply(q);
+  write(store, 'local.json', '{ 깨짐');
+  const broken = await apply(q);
+  const bad = broken.todos.find(x => x.kind === 'local-bad');
+  assert.match(bad.message, /local\.json 을\(를\) 읽을 수 없다 .* 그동안 개인 선택 없이 프로젝트 선택만으로 조합함$/);
+  // 개인 생성물과 exclude 블록은 그대로 둔다
+  assert.ok(exists(q, '.ruler/extra/00-e.md'));
+  assert.match(excludeText(q), /\/\.ruler\/extra\/00-e\.md/);
 });

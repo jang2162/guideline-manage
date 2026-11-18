@@ -13,6 +13,7 @@ import { PROJECT_TOML, RULER_TOML } from '../src/layout.js';
 import { RULER_TOML_BASE } from '../src/render/outputs.js';
 import { writeOldLayout } from './old-layout.js';
 import { readBlock } from '../src/gitignore-block.js';
+import { personalStore, writeLocal } from '../src/personal.js';
 
 async function server(t) {
   const s = await startApp(t);
@@ -380,4 +381,22 @@ test('pick 은 폼에 올리지 않은 고아 id 를 제출해도 아무것도 �
   assert.equal(await projectPick({ project: p, env, ...quiet, out: () => {}, fetchImpl: forged, open: driver(s, { choose: pickBase }) }), 0);
   assert.equal(read(p, 'src/app.js'), 'app\n');
   assert.ok(exists(p, '.guideline/rules/base/00-a.md'));
+});
+
+test('update 는 개인 겹을 지키고 info/exclude 블록을 쓴다', async t => {
+  const { s, env } = await server(t);
+  const p = fs.realpathSync(gitProject(t, { '.ruler/ruler.toml': '' }));
+  await projectPick({ project: p, env, ...quiet, out: () => {}, open: driver(s, { choose: checkOnly(i => i.id.startsWith('rules/base/')) }) });
+  const gi = read(p, '.gitignore');
+  const store = personalStore({ dir: p, root: p });
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  write(store, '.guideline/rules/extra/00-e.md', `${ALWAYS}# 개인 더함\n`);
+  s.store.commit({ ...META, changes: { 'rules/base/02-new.md': `${ALWAYS}# 새\n` } });
+  assert.equal(await projectUpdate({ project: p, env, ...quiet, out: () => {} }), 0);
+  assert.equal(read(p, '.ruler/extra/00-e.md'), '# 개인 더함\n');
+  assert.equal(read(p, '.ruler/base/02-new.md'), '# 새\n');
+  // 프로젝트 블록에는 원본 새 파일만 더해지고 개인 경로는 info/exclude 에
+  assert.ok(readBlock(read(p, '.gitignore')).includes('/.ruler/base/02-new.md'));
+  assert.equal(read(p, '.gitignore').includes('extra'), false, gi);
+  assert.match(read(p, '.git/info/exclude'), /# START guideline personal files \.\n\/\.ruler\/extra\/00-e\.md\n/);
 });

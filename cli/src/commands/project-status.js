@@ -5,7 +5,8 @@ import { printTodos } from '../todos.js';
 import { fetchSources, virtualize, showId, protectedPaths, missingRequiresTodos } from '../workspace.js';
 import { tokenInfo } from '../remote.js';
 import { openProject, revisionLabel } from './project-update.js';
-import { composeUnit, mergeTodos } from './sync-common.js';
+import { composeUnit, composeInputs, mergeTodos } from './sync-common.js';
+import { excludeStale } from '../exclude.js';
 import { preparePackage } from '../migrate-layout.js';
 import { layoutOf } from '../layout.js';
 import { t } from '../i18n.js';
@@ -36,10 +37,14 @@ export async function projectStatus({
   // 생성물이 .guideline/ 에서 조합한 것과 같은지 본다. 서버 없이 하는 판정이라 받기에 실패해도 낸다.
   // apply 가 고칠 prepare 도 낡은 것으로 보고, 고칠 수 없는 prepare(guideline CLI 가 의존성에 없음 등)는 해결될 때까지 알린다.
   const unit = unitInfo(dir, git);
-  const composed = composeUnit({ project: dir, nested: unit.nested, manifest });
+  // apply 와 같은 개인 겹으로 조합해야 개인 생성물을 낡은 것으로 보지 않는다
+  const inputs = composeInputs({ project: dir, unit, git });
+  const composed = composeUnit({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
   const prep = preparePackage({ project: dir, root: unit.root });
+  const excludeOld = inputs.personal !== null && excludeStale({ ...inputs.personal, paths: composed.exclude.paths });
   const localTodos = [
-    ...(Object.keys(composed.files).length || Object.keys(prep.files).length ? [{ kind: 'apply', item: null, message: t('todo.apply') }] : []),
+    ...(Object.keys(composed.files).length || Object.keys(prep.files).length || excludeOld ? [{ kind: 'apply', item: null, message: t('todo.apply') }] : []),
+    ...inputs.todos,
     ...prep.todos.filter(x => x.kind !== 'prepare'),
     // 조합이 낼 할 일 중 프로젝트가 고칠 것(apply·update 를 돌리지 않아도 보이게)
     ...mergeTodos([], composed.todos.filter(x => COMPOSE_KINDS.has(x.kind))),

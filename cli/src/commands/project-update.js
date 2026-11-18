@@ -96,7 +96,7 @@ export async function projectUpdate({
   rendered.todos.push(...missingRequiresTodos({ manifest, trees, many: v.many }));
   rendered.todos.unshift(...moved.todos, ...v3);
   const done = finishApply({
-    project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err, migration: moved.migration,
+    project: dir, root: unit.root, nested: unit.nested, result: rendered, manifest, lock: realLock, env, runRuler, err, git, migration: moved.migration,
   });
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   return failures.length && done.code === 0 ? 1 : done.code;

@@ -5,7 +5,7 @@ import { MANIFEST, LOCK } from '../manifest.js';
 import { layoutOf } from '../layout.js';
 import { unitInfo, rootNestedOn, nestedOffTodo } from '../unit.js';
 import { openProject, revisionLabel } from './project-update.js';
-import { composeWithStray, writeComposedOrFail, rulerStep, report, defaultRunRuler } from './sync-common.js';
+import { composeWithStray, composeInputs, writeComposedOrFail, rulerStep, report, defaultRunRuler } from './sync-common.js';
 import { preparePackage } from '../migrate-layout.js';
 import { t } from '../i18n.js';
 
@@ -25,7 +25,7 @@ export async function projectApply({
   if (fs.existsSync(dir) && !fs.existsSync(path.join(dir, MANIFEST))) {
     const unit = unitInfo(dir, git);
     const subs = unit.nested ? [] : subUnits(unit.root, git);
-    if (subs.length) return applyUnitsOnly({ root: unit.root, subs, json, env, out, err, runRuler });
+    if (subs.length) return applyUnitsOnly({ root: unit.root, subs, json, env, out, err, runRuler, git });
   }
   const opened = openProject({ dir, err });
   if (opened.code !== undefined) return opened.code;
@@ -41,14 +41,16 @@ export async function projectApply({
   }
 
   const unit = unitInfo(dir, git);
-  const { files, todos } = composeWithStray({ project: dir, nested: unit.nested, manifest });
+  const inputs = composeInputs({ project: dir, unit, git });
+  const { files, todos, exclude } = composeWithStray({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
+  todos.unshift(...inputs.todos);
   // prepare 가 아직 ruler apply 를 부르면 고친다(guideline-manage 를 설치한 뒤 처음 apply 에서 바뀐다)
   const prep = preparePackage({ project: dir, root: unit.root });
   todos.push(...prep.todos);
-  const w = writeComposedOrFail(dir, { ...files, ...prep.files }, err);
+  const w = writeComposedOrFail(dir, { ...files, ...prep.files }, err, exclude);
   if (w.failed) return 1;
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
-  const subs = unit.nested ? null : composeSubUnits({ root: unit.root, subs: subUnits(unit.root, git), err });
+  const subs = unit.nested ? null : composeSubUnits({ root: unit.root, subs: subUnits(unit.root, git), err, git });
   if (subs) {
     w.written.push(...subs.written);
     w.deleted.push(...subs.deleted);
@@ -74,7 +76,7 @@ export function subUnits(root, git = runGit) {
  * 단위의 할 일·경로는 루트 기준으로 앞에 단위 경로를 붙인다.
  * @returns {{ written: string[], deleted: string[], todos: object[], composed: { rel: string, lock: object }[], failed: boolean }}
  */
-function composeSubUnits({ root, subs, err }) {
+function composeSubUnits({ root, subs, err, git = runGit }) {
   const res = { written: [], deleted: [], todos: [], composed: [], failed: false };
   for (const rel of subs) {
     const dir = path.join(root, ...rel.split('/'));
@@ -92,10 +94,12 @@ function composeSubUnits({ root, subs, err }) {
         : { kind: 'unit-problem', item: null, unit: rel, message: t('todo.unitProblem', { dir: rel, reason: t('update.notYet') }) });
       continue;
     }
-    const { files, todos } = composeWithStray({ project: dir, nested: true, manifest: opened.manifest });
+    const inputs = composeInputs({ project: dir, unit: { root }, git });
+    const { files, todos, exclude } = composeWithStray({ project: dir, nested: true, manifest: opened.manifest, personal: inputs.personal });
+    todos.unshift(...inputs.todos);
     const prep = preparePackage({ project: dir, root });
     todos.push(...prep.todos);
-    const w = writeComposedOrFail(dir, { ...files, ...prep.files }, err);
+    const w = writeComposedOrFail(dir, { ...files, ...prep.files }, err, exclude);
     const done = w.failed ?? w;
     res.written.push(...done.written.map(p => `${rel}/${p}`));
     res.deleted.push(...done.deleted.map(p => `${rel}/${p}`));
@@ -107,8 +111,8 @@ function composeSubUnits({ root, subs, err }) {
 }
 
 /** 루트가 guideline 프로젝트가 아닌 모노레포: 하위 단위만 조합하고 루트에서 ruler 를 돈다(루트의 ruler.toml 은 프로젝트가 둔 것). */
-function applyUnitsOnly({ root, subs, json, env, out, err, runRuler }) {
-  const r = composeSubUnits({ root, subs, err });
+function applyUnitsOnly({ root, subs, json, env, out, err, runRuler, git }) {
+  const r = composeSubUnits({ root, subs, err, git });
   const todos = [...r.todos];
   if (r.composed.length && !rootNestedOn(root)) todos.push(nestedOffTodo(root));
   if (r.composed.length) rulerStep({ root, env, runRuler, todos, rootIsUnit: false });

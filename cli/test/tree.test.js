@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { tmpDir, write } from './helpers.js';
-import { diskTree, memoryTree, overlayTree, pathsTree, asTree, readText, joinPath } from '../src/tree.js';
+import { diskTree, memoryTree, overlayTree, pathsTree, asTree, readText, joinPath, unionTree } from '../src/tree.js';
 
 test('diskTree 는 이름순 목록, 파일 읽기, 존재를 상대 경로로 답한다', t => {
   const root = tmpDir('guideline-tree-');
@@ -70,4 +70,18 @@ test('asTree 는 문자열을 diskTree 로 감싸고 트리는 그대로 둔다'
 test('joinPath 는 루트에서는 이름만 낸다', () => {
   assert.equal(joinPath('', 'a'), 'a');
   assert.equal(joinPath('rules', 'a'), 'rules/a');
+});
+
+test('unionTree 는 primary 를 먼저 읽고 없을 때만 secondary, 목록은 합친다', () => {
+  const a = memoryTree({ 'rules/base/00-a.md': 'A', 'rules/base/01-b.md': 'B' });
+  const b = memoryTree({ 'rules/base/00-a.md': '개인 A', 'rules/base/web/00-w.md': 'W', 'skills/x/SKILL.md': 'X' });
+  const u = unionTree(a, b);
+  assert.equal(readText(u, 'rules/base/00-a.md'), 'A');
+  assert.equal(readText(u, 'rules/base/web/00-w.md'), 'W');
+  assert.equal(u.read('rules/none.md'), null);
+  assert.deepEqual(u.list('rules/base'), [{ name: '00-a.md', dir: false }, { name: '01-b.md', dir: false }, { name: 'web', dir: true }]);
+  assert.deepEqual(u.list(''), [{ name: 'rules', dir: true }, { name: 'skills', dir: true }]);
+  assert.equal(u.exists('skills/x'), true);
+  assert.equal(u.exists('rules/base/01-b.md'), true);
+  assert.equal(u.exists('mcp'), false);
 });

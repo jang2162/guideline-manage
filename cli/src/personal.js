@@ -26,12 +26,24 @@ const uniqSorted = list => [...new Set(list)].sort(byStr);
  * @returns {string | null}
  */
 export function personalStore(unit, git = runGit) {
+  return personalPlace(unit, git)?.store ?? null;
+}
+
+/**
+ * personalStore 와 같은 판정으로, 저장소 폴더와 함께 git 공용 디렉터리와 단위 경로(git 루트 기준, `/` 구분, 루트 단위는 '')를 준다.
+ * 조합이 `<공용>/info/exclude` 의 단위 블록을 쓸 때 쓴다.
+ * @param {{ dir: string, root: string }} unit
+ * @param {import('./projects.js').GitRunner} [git]
+ * @returns {{ common: string, unitRel: string, store: string } | null}
+ */
+export function personalPlace(unit, git = runGit) {
   const common = gitCommonDir(unit.dir, git);
   if (!common) return null;
   const rel = path.relative(fs.realpathSync(unit.root), fs.realpathSync(unit.dir));
   if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;
-  const key = rel === '' ? '%root' : encodeURIComponent(rel.split(path.sep).join('/'));
-  return path.join(common, 'guideline', 'units', key);
+  const unitRel = rel.split(path.sep).join('/');
+  const key = unitRel === '' ? '%root' : encodeURIComponent(unitRel);
+  return { common, unitRel, store: path.join(common, 'guideline', 'units', key) };
 }
 
 /** @returns {Local} 파일이 없으면 빈 개인 선택 */

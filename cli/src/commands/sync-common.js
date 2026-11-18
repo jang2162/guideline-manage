@@ -11,6 +11,9 @@ import { RULER_TOML, layoutOf } from '../layout.js';
 import { strayRulerOutput } from '../stray.js';
 import { fetchSources } from '../workspace.js';
 import { migrateLayout, preparePackage, readOnlyPrepareTodos } from '../migrate-layout.js';
+import { personalPlace, readLocal, LocalError } from '../personal.js';
+import { writeExclude } from '../exclude.js';
+import { runGit } from '../projects.js';
 import { t } from '../i18n.js';
 
 /** 프로젝트의 node_modules/.bin/ruler 나 PATH 의 ruler. 없으면 null. 내려받아 실행하지 않는다. */
@@ -51,26 +54,58 @@ export function mergeTodos(syncTodos, composeTodos) {
   return out;
 }
 
-/** 이 단위의 생성물을 조합한다(디스크는 읽기만). ruler.toml 은 ruler.project.toml 에서 만든다. */
-export function composeUnit({ project, nested, manifest }) {
-  return compose({ project, manifest, nested, rulerAgentsEnabled: rulerAgentsEnabled(project) });
+/**
+ * 조합에 넘길 이 단위의 개인 겹. 모든 조합 호출자(update·pick·apply·하위 단위·status)가 이것으로 같은 personal 을 얻는다 —
+ * 하나라도 빠뜨리면 그 명령은 개인 겹 없이 조합해 개인 생성물을 지우고, status 는 apply 할 일을 영영 낸다.
+ * git 저장소가 아니면 personal 은 null(개인 범위를 지원하지 않는다). 개인 선택 파일이 깨졌으면 null 과 할 일 — 그 사이 info/exclude 와
+ * 개인 생성물은 건드리지 않는다(블록을 읽지 않으니 지우지도 않는다).
+ * @param {{ project: string, unit: { root: string }, git?: import('../projects.js').GitRunner }} opts project 는 단위 디렉터리
+ * @returns {{ personal: { local: object, store: string, common: string, unitRel: string } | null, todos: object[] }}
+ */
+export function composeInputs({ project, unit, git = runGit }) {
+  const place = personalPlace({ dir: project, root: unit.root }, git);
+  if (!place) return { personal: null, todos: [] };
+  try {
+    return { personal: { ...place, local: readLocal(place.store) }, todos: [] };
+  } catch (e) {
+    if (!(e instanceof LocalError)) throw e;
+    return { personal: null, todos: [{ kind: 'local-bad', item: null, message: t('todo.localBad', { reason: e.message }) }] };
+  }
+}
+
+/** 이 단위의 생성물을 조합한다(디스크는 읽기만). ruler.toml 은 ruler.project.toml 에서 만든다. personal 은 composeInputs 의 것. */
+export function composeUnit({ project, nested, manifest, personal = null }) {
+  return compose({ project, manifest, nested, rulerAgentsEnabled: rulerAgentsEnabled(project), personal });
 }
 
 /**
  * 조합하고, 조합 전에 .ruler/ruler.toml 이 없었으면(클론 직후 등) 그 사이 ruler 가 남긴 떠돌이 CLAUDE.md 도 다룬다.
- * @returns {{ files: Record<string, Buffer | null>, todos: object[] }}
+ * exclude 는 writeComposedOrFail 에 넘길 info/exclude 쓰기(개인 겹이 없으면 null).
+ * @returns {{ files: Record<string, Buffer | null>, todos: object[], exclude: { common: string, unitRel: string, paths: string[] } | null }}
  */
-export function composeWithStray({ project, nested, manifest }) {
+export function composeWithStray({ project, nested, manifest, personal = null }) {
   const hadToml = fs.existsSync(path.join(project, ...RULER_TOML.split('/')));
-  const composed = composeUnit({ project, nested, manifest });
+  const composed = composeUnit({ project, nested, manifest, personal });
   const files = { ...composed.files };
   const todos = [...composed.todos];
   if (!hadToml) strayRulerOutput(project, files, todos, String(files[RULER_TOML] ?? ''));
-  return { files, todos };
+  const exclude = personal && composed.exclude ? { common: personal.common, unitRel: personal.unitRel, paths: composed.exclude.paths } : null;
+  return { files, todos, exclude };
 }
 
-/** 조합한 것을 쓴다. 실패하면 오류를 내고 { failed: ApplyError }. */
-export function writeComposedOrFail(project, files, err) {
+/**
+ * 조합한 것을 쓴다. exclude 를 주면 먼저 info/exclude 의 단위 블록을 쓴다(작업 트리 밖이라 applyFiles 를 거치지 않는다) —
+ * 개인 생성물이 블록보다 먼저 생겨 git status 에 보이는 틈이 없게. 실패하면 오류를 내고 { failed: ApplyError }.
+ */
+export function writeComposedOrFail(project, files, err, exclude = null) {
+  if (exclude) {
+    try {
+      writeExclude(exclude);
+    } catch (e) {
+      err(t('apply.excludeFailed', { reason: e.message }));
+      return { failed: new ApplyError(e.message, { remaining: Object.keys(files) }) };
+    }
+  }
   try {
     return applyFiles(project, files);
   } catch (e) {
@@ -111,7 +146,7 @@ export function rulerStep({ root, env, runRuler, todos, rootIsUnit = true }) {
  */
 export function finishApply({
   project, root = project, nested = false, result, manifest, lock = result.lock, env = process.env, runRuler = defaultRunRuler, err = console.error,
-  migration = null,
+  migration = null, git = runGit,
 }) {
   let todos = [...result.todos];
   const pre = migration ?? { written: [], deleted: [] };
@@ -128,9 +163,10 @@ export function finishApply({
   }
   writeFileAtomic(path.join(project, MANIFEST), manifestText(manifest));
   writeFileAtomic(path.join(project, LOCK), lockText(lock));
-  const composed = composeWithStray({ project, nested, manifest });
-  todos = mergeTodos(todos, composed.todos);
-  const w = writeComposedOrFail(project, composed.files, err);
+  const inputs = composeInputs({ project, unit: { root }, git });
+  const composed = composeWithStray({ project, nested, manifest, personal: inputs.personal });
+  todos = mergeTodos(todos, [...inputs.todos, ...composed.todos]);
+  const w = writeComposedOrFail(project, composed.files, err, composed.exclude);
   if (w.failed) {
     err(t('apply.composeNotWritten'));
     return { code: 1, ...merged([...applied.written, ...w.failed.written], [...applied.deleted, ...w.failed.deleted]), todos };
@@ -181,8 +217,10 @@ export async function migrateIfOld({ dir, unit, manifest, lock, env, home, fetch
     }
   };
   // .gitignore 블록을 먼저 써야 추적에서 뺀 생성물이 다시 커밋되지 않는다
-  const composed = composeWithStray({ project: dir, nested: unit.nested, manifest });
-  const c = writeComposedOrFail(dir, composed.files, err);
+  const inputs = composeInputs({ project: dir, unit, git });
+  const composed = composeWithStray({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
+  todos.push(...inputs.todos);
+  const c = writeComposedOrFail(dir, composed.files, err, composed.exclude);
   if (c.failed) {
     err(t('apply.composeNotWritten'));
     // 잠금은 이미 v3 라 다음 update 는 이전을 건너뛴다 — 지금 추적에서 빼지 않으면 옛 사본이 영영 추적에 남는다.

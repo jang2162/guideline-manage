@@ -8,6 +8,9 @@ import { SOURCE } from './render-fixture.js';
 import { syncedProject } from './synced.js';
 import { MANIFEST } from '../src/manifest.js';
 import { projectStatus } from '../src/commands/project-status.js';
+import { projectApply } from '../src/commands/project-apply.js';
+import { personalStore, writeLocal } from '../src/personal.js';
+import { runGit } from '../src/projects.js';
 
 async function setup(t, opts) {
   const s = await startApp(t, opts);
@@ -198,4 +201,26 @@ test('status 는 조합 할 일(고르지 않은 스택의 바꿈 등)을 apply�
   const todos = JSON.parse(o.text()).todos;
   assert.deepEqual(todos.map(x => x.kind), ['override-unchosen']);
   assert.match(todos[0].message, /^\.guideline\/overrides\/gone\/: 고르지 않은 스택이라 바꿈을 조합하지 않음/);
+});
+
+test('status 는 개인 겹이 있어도 apply 할 일을 거짓으로 내지 않는다', async t => {
+  const { p, env } = await setup(t);
+  runGit(['init', '-q'], p);
+  // 개인으로 하나 더하고(skills/s 는 프로젝트가 고른 것) 하나 뺀다
+  const store = personalStore({ dir: p, root: p });
+  writeLocal(store, { version: 1, sources: { default: { add: ['rules/extra'], remove: ['skills/s'] } } });
+  write(store, '.guideline/rules/extra/00-e.md', `${ALWAYS}# 개인 더함\n`);
+  const kinds = async () => {
+    const o = collect();
+    assert.equal(await projectStatus({ project: p, json: true, env, out: o.out }), 0);
+    return JSON.parse(o.text()).todos.map(x => x.kind);
+  };
+  // 개인 선택을 아직 조합하지 않았으면 apply 할 일
+  assert.ok((await kinds()).includes('apply'));
+  assert.equal(await projectApply({ dir: p, json: true, out: () => {}, err: () => {}, env: { PATH: '' } }), 0);
+  assert.ok(fs.existsSync(path.join(p, '.ruler/extra/00-e.md')));
+  assert.equal((await kinds()).includes('apply'), false);
+  // info/exclude 의 단위 블록이 지워졌으면 다시 apply 할 일
+  fs.writeFileSync(path.join(p, '.git/info/exclude'), '');
+  assert.ok((await kinds()).includes('apply'));
 });
