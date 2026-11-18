@@ -39,6 +39,10 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 - **Breaking: no `new-file` to-do.** Picking stacks takes every file of a stack, so `guideline update` and `guideline status` no longer report new files in a chosen stack, and `status` no longer prints "New files in chosen stacks". A file the source removes from a chosen stack shows as `upstream` in `status` (`both` when the project also edited it) and `update` deletes it; an edited copy is kept with a `leftover` to-do.
 - In the pick form, a guideline file (`NN-*.md`) in a sub-folder of `.ruler/<stack>/` that is not in the source now shows as removed from source. Keep project-only rules in `override.md` or `override.d/`, not inside a stack folder.
 
+### Fixed
+
+- **`--json` output is valid JSON again when ruler runs.** ruler's own output now goes to stderr, so `pick`, `update` and `apply` with `--json` print only the JSON result on stdout.
+
 ## 0.23.0
 
 - **Proposal contents in the API:** `GET /api/v1/proposals/<number>?diff=1` adds `diff` to each change, a unified diff from the base content to the proposed content (labels `base` and `proposal`; `null` when either side is not text), the same diff the web proposal page shows. `?content=1` adds the content in the upload format (`text`, `base64` or `delete: true`). Both can be combined; without them the response is unchanged. Who can see a proposal is unchanged: issued tokens see their own, the admin token and `admin` scope tokens see all.

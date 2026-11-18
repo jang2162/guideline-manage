@@ -83,9 +83,12 @@ export function findRuler(project, env = process.env) {
   return null;
 }
 
-/** @returns {number} 종료 코드. quiet 면 ruler 의 출력을 보이지 않는다(프로젝트 기준 .gitignore 를 구하는 작업 트리 밖 실행). */
+/**
+ * ruler 의 stdout 은 우리 stderr(fd 2)로 돌린다 — `--json` 의 stdout 을 그대로 JSON.parse 하는 에이전트·스크립트가 있다.
+ * @returns {number} 종료 코드. quiet 면 ruler 의 출력을 보이지 않는다(프로젝트 기준 .gitignore 를 구하는 작업 트리 밖 실행).
+ */
 export function defaultRunRuler(bin, cwd, { quiet = false } = {}) {
-  return spawnSync(bin, ['apply'], { cwd, stdio: quiet ? 'ignore' : 'inherit' }).status ?? 1;
+  return spawnSync(bin, ['apply'], { cwd, stdio: quiet ? 'ignore' : ['inherit', 2, 'inherit'] }).status ?? 1;
 }
 
 /**
