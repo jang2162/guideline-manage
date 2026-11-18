@@ -568,7 +568,7 @@ test('git 저장소가 아니면 개인 겹 없이 조합하고 exclude 를 쓰�
   write(store, 'local.json', '{ 깨짐');
   const broken = await apply(q);
   const bad = broken.todos.find(x => x.kind === 'local-bad');
-  assert.match(bad.message, /local\.json 을\(를\) 읽을 수 없다 .* 그동안 개인 선택 없이 프로젝트 선택만으로 조합함$/);
+  assert.match(bad.message, /local\.json 을\(를\) 읽을 수 없음 .* 그동안 개인 선택 없이 프로젝트 선택만으로 조합함$/);
   // 개인 생성물과 exclude 블록은 그대로 둔다
   assert.ok(exists(q, '.ruler/extra/00-e.md'));
   assert.match(excludeText(q), /\/\.ruler\/extra\/00-e\.md/);
