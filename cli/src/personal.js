@@ -29,12 +29,33 @@ export function personalStore(unit, git = runGit) {
   return personalPlace(unit, git)?.store ?? null;
 }
 
+/** 메인 워크트리의 id. 링크 워크트리의 이름(디렉터리 이름)은 `.` 일 수 없어 겹치지 않는다. */
+export const MAIN_WORKTREE = '.';
+
 /**
- * personalStore 와 같은 판정으로, 저장소 폴더와 함께 git 공용 디렉터리와 단위 경로(git 루트 기준, `/` 구분, 루트 단위는 '')를 준다.
- * 조합이 `<공용>/info/exclude` 의 단위 블록을 쓸 때 쓴다.
+ * dir 이 든 워크트리의 id: 링크 워크트리면 `<공용>/worktrees/<이름>` 의 이름을 encodeURIComponent 한 것(공백·`@` 가 없다),
+ * 메인 워크트리(git 디렉터리가 공용 디렉터리)면 MAIN_WORKTREE. info/exclude 의 개인 블록을 워크트리마다 나눌 때 쓴다.
+ */
+export function worktreeId(dir, common, git = runGit) {
+  const r = git(['rev-parse', '--path-format=absolute', '--git-dir'], dir);
+  const out = r.status === 0 ? r.stdout.trim() : '';
+  let own;
+  try {
+    own = fs.realpathSync(out);
+  } catch {
+    return MAIN_WORKTREE;
+  }
+  if (own === common) return MAIN_WORKTREE;
+  const rel = path.relative(path.join(common, 'worktrees'), own);
+  return encodeURIComponent(rel.split(path.sep).join('/'));
+}
+
+/**
+ * personalStore 와 같은 판정으로, 저장소 폴더와 함께 git 공용 디렉터리, 단위 경로(git 루트 기준, `/` 구분, 루트 단위는 ''),
+ * 워크트리 id 를 준다. 조합이 `<공용>/info/exclude` 의 단위·워크트리 블록을 쓸 때 쓴다.
  * @param {{ dir: string, root: string }} unit
  * @param {import('./projects.js').GitRunner} [git]
- * @returns {{ common: string, unitRel: string, store: string } | null}
+ * @returns {{ common: string, unitRel: string, store: string, worktree: string } | null}
  */
 export function personalPlace(unit, git = runGit) {
   const common = gitCommonDir(unit.dir, git);
@@ -43,7 +64,7 @@ export function personalPlace(unit, git = runGit) {
   if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;
   const unitRel = rel.split(path.sep).join('/');
   const key = unitRel === '' ? '%root' : encodeURIComponent(unitRel);
-  return { common, unitRel, store: path.join(common, 'guideline', 'units', key) };
+  return { common, unitRel, store: path.join(common, 'guideline', 'units', key), worktree: worktreeId(unit.dir, common, git) };
 }
 
 /** @returns {Local} 파일이 없으면 빈 개인 선택 */

@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { diskTree, joinPath, unionTree } from './tree.js';
+import { diskTree, joinPath } from './tree.js';
 import { GUIDE_DIR, PROJECT_TOML, RULER_TOML, copyPath } from './layout.js';
 import { desiredOutputs, RULER_TOML_BASE, NESTED_TOML_BASE, isRootOnly } from './render/outputs.js';
 import { setTable, tableSlice } from './toml-table.js';
 import { expandBlocks } from './catalog.js';
 import { blockedReason } from './render/index.js';
-import { withAncestors } from './blocks.js';
+import { withAncestors, isWithin } from './blocks.js';
 import { unitOf, unitName, finalUnit } from './sources.js';
 import { readBlock, writeBlock } from './gitignore-block.js';
 import { effectiveItems } from './personal.js';
@@ -130,7 +130,43 @@ function personalLayer(manifest, local) {
     }
   }
   const changed = note.added.length > 0 || note.removed.length > 0;
-  return { manifest: { ...manifest, sources }, changed, added: note.added.length > 0, note: changed || note.ignored.length ? note : null };
+  return { manifest: { ...manifest, sources }, changed, added: note.added.map(x => x.key), note: changed || note.ignored.length ? note : null };
+}
+
+/**
+ * 프로젝트 사본(guide) 위에 개인 사본(mine)을 키 단위로 얹은 트리. 경로마다 그것을 담는 가장 긴 키가 주인이다 — 개인으로 더한 키
+ * (added)면 개인 사본에서만, 프로젝트 키(같은 길이면 프로젝트가 이긴다)나 키 밖(관리 지침·바꿈 등)이면 프로젝트 사본에서만 읽는다.
+ * 그래서 개인 저장소에 남은 프로젝트 스택의 지난 사본이 프로젝트 스택에 섞이지 않고(원본에서 지워진 규칙이 되살아나지 않는다),
+ * 프로젝트 .guideline/ 에 남은 사본이 개인으로 더한 스택을 가리지 않는다. 키의 조상 디렉터리는 양쪽 목록에서 그 키로 가는 길만 보인다.
+ * @param {string[]} added 개인으로 더한 가상 키, projectKeys 프로젝트 선택의 가상 키(조상 포함)
+ */
+function personalTree(guide, mine, added, projectKeys) {
+  const ownerIsMine = p => {
+    let len = -1;
+    let isMine = false;
+    for (const k of added) if (isWithin(p, k) && k.length > len) [len, isMine] = [k.length, true];
+    for (const k of projectKeys) if (isWithin(p, k) && k.length >= len) [len, isMine] = [k.length, false];
+    return len === -1 ? null : isMine;
+  };
+  // 그 트리에서 p 가 보이는가: p 의 주인이 그 트리이거나, p 가 그 트리가 주인인 키의 조상(그 키로 가는 디렉터리)이다
+  const leadsTo = (p, keys, mineSide) => keys.some(k => k !== p && isWithin(k, p) && ownerIsMine(k) === mineSide);
+  const inMine = p => ownerIsMine(p) === true || leadsTo(p, added, true);
+  const inGuide = p => ownerIsMine(p) !== true || leadsTo(p, projectKeys, false);
+  return {
+    list(dir) {
+      const seen = new Map();
+      for (const e of guide.list(dir)) if (inGuide(joinPath(dir, e.name))) seen.set(e.name, e.dir);
+      for (const e of mine.list(dir)) if (inMine(joinPath(dir, e.name))) seen.set(e.name, seen.get(e.name) || e.dir);
+      return [...seen].map(([name, isDir]) => ({ name, dir: isDir })).sort((a, b) => byStr(a.name, b.name));
+    },
+    read(file) {
+      return ownerIsMine(file) === true ? mine.read(file) : guide.read(file);
+    },
+    exists(p) {
+      if (p === '') return true;
+      return (inGuide(p) && guide.exists(p)) || (inMine(p) && mine.exists(p));
+    },
+  };
 }
 
 const stacksOf = keys => new Set(keys.filter(k => k.startsWith('rules/')).map(k => k.slice('rules/'.length)));
@@ -188,9 +224,9 @@ function build({ tree, guide, manifest, keys, nested, rulerAgentsEnabled, manage
  * .guideline/ 에서 생성물을 조합한다. 디스크는 읽기만 하고, 쓸 것(바뀐 것만, null 은 지움)을 돌려준다. 잠금은 보지 않는다.
  * personal 을 주면 개인 겹을 얹는다: 고른 블록 = 프로젝트 선택 ∪ 개인 더함 − 개인 뺌, 블록은 프로젝트 사본 위에 개인 사본
  * (<store>/.guideline/)을 겹쳐 읽는다. 커밋되는 .gitignore 블록은 개인 겹 없이 조합했을 때의 경로로만 써서 작업자마다 같고,
- * 개인 겹에서만 나온 경로는 exclude(info/exclude 의 단위 블록에 쓸 것)로 돌려준다. info/exclude 는 호출자가 쓴다(writeExclude).
+ * 개인 겹에서만 나온 경로는 exclude(info/exclude 의 단위·워크트리 블록에 쓸 것)로 돌려준다. info/exclude 는 호출자가 쓴다(writeExclude).
  * @param {{ project: string, manifest: import('./manifest.js').Manifest, nested?: boolean, rulerAgentsEnabled?: boolean,
- *   personal?: { local: import('./personal.js').Local, store: string, common: string, unitRel: string } | null }} opts
+ *   personal?: { local: import('./personal.js').Local, store: string, common: string, unitRel: string, worktree: string } | null }} opts
  *   project 는 단위 디렉터리(절대경로), manifest 는 v3(출처별 실제 id·별칭). personal 은 composeInputs 가 만든다(git 이 아니면 null)
  * @returns {{ files: Record<string, Buffer | null>, generated: { project: string[], personal: string[] }, todos: object[],
  *   exclude: { markers: { start: string, end: string }, paths: string[] } | null }}
@@ -213,8 +249,9 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   const layer = personal ? personalLayer(manifest, personal.local) : null;
   const chosen = layer ? layer.manifest : manifest;
   const keys = layer ? fit(virtualKeys(chosen)) : projectKeys;
-  // 개인 사본은 개인이 더한 것이 있을 때만 읽는다 — 남은 사본이 프로젝트 스택에 섞이지 않게
-  const tree = layer?.added ? unionTree(guide, diskTree(path.join(personal.store, GUIDE_DIR))) : guide;
+  // 개인 사본은 개인으로 더한 키 아래에서만 읽는다(personalTree)
+  const added = layer ? fit(layer.added) : [];
+  const tree = added.length ? personalTree(guide, diskTree(path.join(personal.store, GUIDE_DIR)), added, projectKeys) : guide;
   const projectStacks = stacksOf(projectKeys);
   const management = managementOf(guide, chosen);
   if (layer?.note) management.personal = { ...layer.note, stacks: [...stacksOf(keys)].filter(s => !projectStacks.has(s)).sort(byStr) };
@@ -237,7 +274,7 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
     if (cur === null || !cur.equals(want.get(p))) files[p] = want.get(p);
   }
 
-  // 지난 조합이 블록(.gitignore, 개인이면 info/exclude 의 단위 블록)에 적은 것 중 이번에 만들지 않는 것을 지운다.
+  // 지난 조합이 블록(.gitignore, 개인이면 info/exclude 의 이 워크트리 단위 블록)에 적은 것 중 이번에 만들지 않는 것을 지운다.
   // 블록에 없는 파일(프로젝트 자체 .ruler/*.md 등)은 모른다.
   const giRaw = readRel(GITIGNORE);
   const gi = giRaw === null ? null : giRaw.toString('utf8');
@@ -263,7 +300,7 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   const nextGi = writeBlock(gi, generated.project.map(p => `/${p}`));
   if (nextGi !== (gi ?? '')) files[GITIGNORE] = Buffer.from(nextGi);
   const exclude = personal
-    ? { markers: excludeMarkers(personal.unitRel), paths: generated.personal.map(p => excludePattern(personal.unitRel, p)) }
+    ? { markers: excludeMarkers(personal.unitRel, personal.worktree), paths: generated.personal.map(p => excludePattern(personal.unitRel, p)) }
     : null;
   return { files, generated, todos, exclude };
 }

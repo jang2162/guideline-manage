@@ -398,5 +398,5 @@ test('update 는 개인 겹을 지키고 info/exclude 블록을 쓴다', async t
   // 프로젝트 블록에는 원본 새 파일만 더해지고 개인 경로는 info/exclude 에
   assert.ok(readBlock(read(p, '.gitignore')).includes('/.ruler/base/02-new.md'));
   assert.equal(read(p, '.gitignore').includes('extra'), false, gi);
-  assert.match(read(p, '.git/info/exclude'), /# START guideline personal files \.\n\/\.ruler\/extra\/00-e\.md\n/);
+  assert.match(read(p, '.git/info/exclude'), /# START guideline personal files \. @\.\n\/\.ruler\/extra\/00-e\.md\n/);
 });

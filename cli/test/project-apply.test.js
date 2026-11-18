@@ -15,8 +15,10 @@ import { PROJECT_TOML, RULER_TOML } from '../src/layout.js';
 import { readBlock } from '../src/gitignore-block.js';
 import { runGit } from '../src/projects.js';
 import { projectApply } from '../src/commands/project-apply.js';
-import { mergeTodos } from '../src/commands/sync-common.js';
-import { personalStore, writeLocal } from '../src/personal.js';
+import { mergeTodos, writeComposedOrFail } from '../src/commands/sync-common.js';
+import { projectStatus } from '../src/commands/project-status.js';
+import { writeExclude, readExclude } from '../src/exclude.js';
+import { personalStore, writeLocal, worktreeId, MAIN_WORKTREE } from '../src/personal.js';
 
 const ITEMS = ['rules/base', 'skills/s', 'agents/rev.md', 'mcp/c7', 'mcp/gl', 'mcp/b'];
 
@@ -449,7 +451,7 @@ test('개인 더함은 .gitignore 를 바꾸지 않고 info/exclude 에 간다',
   assert.ok(r.written.includes('.ruler/extra/00-e.md'));
   assert.equal(read(p, '.ruler/extra/00-e.md'), '# 개인 더함\n');
   assert.equal(read(p, '.gitignore'), gi);
-  assert.ok(excludeText(p).includes('# START guideline personal files .\n/.ruler/extra/00-e.md\n# END guideline personal files .\n'), excludeText(p));
+  assert.ok(excludeText(p).includes('# START guideline personal files . @.\n/.ruler/extra/00-e.md\n# END guideline personal files . @.\n'), excludeText(p));
   // 커밋되는 파일이 하나도 바뀌지 않고, 개인 생성물도 git 에 보이지 않는다
   assert.equal(porcelain(p), '');
   assert.match(read(p, '.ruler/guideline.md'), /더한 것: `rules\/extra`/);
@@ -503,7 +505,7 @@ test('루트 apply 는 하위 단위의 개인 겹도 조합하고 exclude 패�
   const r = await apply(root);
   assert.ok(r.written.includes('packages/api/.ruler/extra/00-e.md'));
   assert.equal(exists(root, '.ruler/extra/00-e.md'), false);
-  assert.ok(excludeText(root).includes('# START guideline personal files packages/api\n/packages/api/.ruler/extra/00-e.md\n# END guideline personal files packages/api\n'));
+  assert.ok(excludeText(root).includes('# START guideline personal files packages/api @.\n/packages/api/.ruler/extra/00-e.md\n# END guideline personal files packages/api @.\n'));
   assert.equal(porcelain(root), '');
   // 단위에서 직접 apply 해도 같은 블록이다
   const before = excludeText(root);
@@ -530,4 +532,81 @@ test('git 저장소가 아니면 개인 겹 없이 조합하고 exclude 를 쓰�
   // 개인 생성물과 exclude 블록은 그대로 둔다
   assert.ok(exists(q, '.ruler/extra/00-e.md'));
   assert.match(excludeText(q), /\/\.ruler\/extra\/00-e\.md/);
+});
+
+/** 실제 git 워크트리를 하나 더 만든다(새 브랜치). */
+function addWorktree(t, p, name) {
+  const wt = `${p}-${name}`;
+  t.after(() => fs.rmSync(wt, { recursive: true, force: true }));
+  assert.equal(runGit(['worktree', 'add', '-q', '-b', name.replace(/ /g, '-'), wt], p).status, 0);
+  return wt;
+}
+/** status 의 할 일 종류. 서버에는 닿지 않게 해 조합에서 나오는 할 일만 본다. */
+const statusKinds = async p => {
+  const o = collect();
+  await projectStatus({ project: p, json: true, out: o.out, err: () => {}, env: {}, fetchImpl: () => Promise.reject(new Error('off')) });
+  return o.text() ? JSON.parse(o.text()).todos.map(x => x.kind) : [];
+};
+const EXTRA_SOURCE = { ...SOURCE, 'rules/extra/00-e.md': EXTRA_COPY['rules/extra/00-e.md'] };
+
+test('워크트리마다 info/exclude 블록이 따로라 한쪽의 apply 가 다른 쪽 개인 생성물을 드러내지 않는다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  await apply(p);
+  commitAll(p);
+  // 기능 브랜치 워크트리에서는 프로젝트가 extra 를 고른다(개인 스택을 팀으로 올리는 흐름)
+  const wt = addWorktree(t, p, 'feat');
+  syncNew(wt, { items: ['rules/base', 'rules/extra'], source: EXTRA_SOURCE });
+  await apply(wt);
+  commitAll(wt);
+  // 개인 선택은 같은 클론의 워크트리가 함께 쓴다: 메인에서는 개인 더함, 기능 브랜치에서는 이미 고른 것
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  for (const order of [[p, wt], [wt, p]]) {
+    for (const d of order) await apply(d);
+    assert.equal(porcelain(p), '', `메인: ${excludeText(p)}`);
+    assert.equal(porcelain(wt), '', `기능: ${excludeText(p)}`);
+    assert.equal((await statusKinds(p)).includes('apply'), false);
+    assert.equal((await statusKinds(wt)).includes('apply'), false);
+  }
+  assert.ok(exists(p, '.ruler/extra/00-e.md'));
+  assert.ok(excludeText(p).includes('# START guideline personal files . @.\n/.ruler/extra/00-e.md\n# END guideline personal files . @.\n'), excludeText(p));
+  // 기능 브랜치의 블록은 비어 있어 쓰지 않는다
+  assert.equal(excludeText(p).includes('@feat'), false, excludeText(p));
+});
+
+test('없어진 워크트리의 info/exclude 블록은 다음 쓰기에서 지운다', async t => {
+  const p = gitDir(t);
+  syncNew(p, { items: ['rules/base'] });
+  await apply(p);
+  commitAll(p);
+  const wt = addWorktree(t, p, 'gone wt');
+  setPersonal(p, p, { default: { add: ['rules/extra'], remove: [] } });
+  await apply(wt);
+  const id = worktreeId(wt, path.join(p, '.git'));
+  assert.notEqual(id, MAIN_WORKTREE);
+  assert.ok(excludeText(p).includes(`# START guideline personal files . @${id}\n/.ruler/extra/00-e.md\n`), excludeText(p));
+  assert.equal(runGit(['worktree', 'remove', '--force', wt], p).status, 0);
+  await apply(p);
+  assert.equal(excludeText(p).includes(`@${id}`), false, excludeText(p));
+  assert.ok(excludeText(p).includes('# START guideline personal files . @.\n'));
+});
+
+test('exclude 블록이 줄 때는 파일 쓰기가 성공한 뒤에 줄인다', t => {
+  const p = gitDir(t);
+  const ex = { common: path.join(p, '.git'), unitRel: '', worktree: '.' };
+  writeExclude({ ...ex, paths: ['/.ruler/a.md', '/.ruler/b.md'] });
+  write(p, '.ruler/b.md', 'b\n');
+  const errs = [];
+  // 쓰기가 실패하면(잘못된 경로로 주입) 지우지 못한 b 는 블록에 남는다
+  const failed = writeComposedOrFail(p, { '.ruler/b.md': null, '../bad': 'x' }, m => errs.push(m), { ...ex, paths: ['/.ruler/a.md'] });
+  assert.ok(failed.failed);
+  assert.ok(exists(p, '.ruler/b.md'));
+  assert.deepEqual(readExclude(ex), ['/.ruler/a.md', '/.ruler/b.md']);
+  // 성공하면 줄인다
+  const ok = writeComposedOrFail(p, { '.ruler/b.md': null }, m => errs.push(m), { ...ex, paths: ['/.ruler/a.md'] });
+  assert.deepEqual(ok.deleted, ['.ruler/b.md']);
+  assert.deepEqual(readExclude(ex), ['/.ruler/a.md']);
+  // 늘 때는 파일보다 먼저 쓴다(쓰기가 실패해도 새 경로가 블록에 있다)
+  assert.ok(writeComposedOrFail(p, { '../bad': 'x' }, m => errs.push(m), { ...ex, paths: ['/.ruler/a.md', '/.ruler/c.md'] }).failed);
+  assert.deepEqual(readExclude(ex), ['/.ruler/a.md', '/.ruler/c.md']);
 });

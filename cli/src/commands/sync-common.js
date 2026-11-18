@@ -12,7 +12,7 @@ import { strayRulerOutput } from '../stray.js';
 import { fetchSources } from '../workspace.js';
 import { migrateLayout, preparePackage, readOnlyPrepareTodos } from '../migrate-layout.js';
 import { personalPlace, readLocal, LocalError } from '../personal.js';
-import { writeExclude } from '../exclude.js';
+import { writeExclude, readExclude } from '../exclude.js';
 import { runGit } from '../projects.js';
 import { t } from '../i18n.js';
 
@@ -60,7 +60,7 @@ export function mergeTodos(syncTodos, composeTodos) {
  * git 저장소가 아니면 personal 은 null(개인 범위를 지원하지 않는다). 개인 선택 파일이 깨졌으면 null 과 할 일 — 그 사이 info/exclude 와
  * 개인 생성물은 건드리지 않는다(블록을 읽지 않으니 지우지도 않는다).
  * @param {{ project: string, unit: { root: string }, git?: import('../projects.js').GitRunner }} opts project 는 단위 디렉터리
- * @returns {{ personal: { local: object, store: string, common: string, unitRel: string } | null, todos: object[] }}
+ * @returns {{ personal: { local: object, store: string, common: string, unitRel: string, worktree: string } | null, todos: object[] }}
  */
 export function composeInputs({ project, unit, git = runGit }) {
   const place = personalPlace({ dir: project, root: unit.root }, git);
@@ -81,7 +81,7 @@ export function composeUnit({ project, nested, manifest, personal = null }) {
 /**
  * 조합하고, 조합 전에 .ruler/ruler.toml 이 없었으면(클론 직후 등) 그 사이 ruler 가 남긴 떠돌이 CLAUDE.md 도 다룬다.
  * exclude 는 writeComposedOrFail 에 넘길 info/exclude 쓰기(개인 겹이 없으면 null).
- * @returns {{ files: Record<string, Buffer | null>, todos: object[], exclude: { common: string, unitRel: string, paths: string[] } | null }}
+ * @returns {{ files: Record<string, Buffer | null>, todos: object[], exclude: { common: string, unitRel: string, worktree: string, paths: string[] } | null }}
  */
 export function composeWithStray({ project, nested, manifest, personal = null }) {
   const hadToml = fs.existsSync(path.join(project, ...RULER_TOML.split('/')));
@@ -89,31 +89,47 @@ export function composeWithStray({ project, nested, manifest, personal = null })
   const files = { ...composed.files };
   const todos = [...composed.todos];
   if (!hadToml) strayRulerOutput(project, files, todos, String(files[RULER_TOML] ?? ''));
-  const exclude = personal && composed.exclude ? { common: personal.common, unitRel: personal.unitRel, paths: composed.exclude.paths } : null;
+  const exclude = personal && composed.exclude
+    ? { common: personal.common, unitRel: personal.unitRel, worktree: personal.worktree, paths: composed.exclude.paths }
+    : null;
   return { files, todos, exclude };
 }
 
 /**
- * 조합한 것을 쓴다. exclude 를 주면 먼저 info/exclude 의 단위 블록을 쓴다(작업 트리 밖이라 applyFiles 를 거치지 않는다) —
- * 개인 생성물이 블록보다 먼저 생겨 git status 에 보이는 틈이 없게. 실패하면 오류를 내고 { failed: ApplyError }.
+ * 조합한 것을 쓴다. exclude 를 주면 info/exclude 의 이 워크트리 단위 블록도 쓴다(작업 트리 밖이라 applyFiles 를 거치지 않는다).
+ * 개인 생성물이 블록 밖에 있는 틈(git status 에 보이고 git add -A 로 커밋될 수 있다)이 없게: 블록이 늘기만 하면 파일보다 먼저 쓰고,
+ * 줄면 (이전 ∪ 이번) 을 먼저 쓴 뒤 파일 쓰기가 성공하면 이번 것으로 줄인다 — 지울 파일을 지우지 못해도 블록에 남는다.
+ * 실패하면 오류를 내고 { failed: ApplyError }.
  */
 export function writeComposedOrFail(project, files, err, exclude = null) {
-  if (exclude) {
+  let shrink = false;
+  const excluded = paths => {
     try {
-      writeExclude(exclude);
+      writeExclude({ ...exclude, paths });
+      return true;
     } catch (e) {
       err(t('apply.excludeFailed', { reason: e.message }));
-      return { failed: new ApplyError(e.message, { remaining: Object.keys(files) }) };
+      return false;
+    }
+  };
+  if (exclude) {
+    const before = readExclude(exclude);
+    shrink = before.some(p => !exclude.paths.includes(p));
+    if (!excluded(shrink ? [...before, ...exclude.paths] : exclude.paths)) {
+      return { failed: new ApplyError(t('apply.excludeFailed', { reason: '' }), { remaining: Object.keys(files) }) };
     }
   }
+  let w;
   try {
-    return applyFiles(project, files);
+    w = applyFiles(project, files);
   } catch (e) {
     if (!(e instanceof ApplyError)) throw e;
     err(t('apply.writeFailed', { reason: e.message }));
     if (e.written.length) err(t('apply.writtenSoFar', { files: e.written.join(', ') }));
     return { failed: e };
   }
+  if (shrink && !excluded(exclude.paths)) return { failed: new ApplyError(t('apply.excludeFailed', { reason: '' }), { written: w.written, deleted: w.deleted }) };
+  return w;
 }
 
 /**

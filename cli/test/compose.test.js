@@ -291,7 +291,7 @@ function personalOf(t, sources, { copies = EXTRA, unitRel = '' } = {}) {
   const store = path.join(common, 'guideline', 'units', '%root');
   for (const [k, v] of Object.entries(copies)) write(store, `.guideline/${k}`, v);
   const local = { version: 1, sources: Object.fromEntries(Object.entries(sources).map(([n, s]) => [n, { add: s.add ?? [], remove: s.remove ?? [] }])) };
-  return { local, store, common, unitRel };
+  return { local, store, common, unitRel, worktree: '.' };
 }
 
 /** 개인 겹 없이 조합해 쓴 프로젝트. */
@@ -315,7 +315,7 @@ test('개인 더함은 .gitignore 를 바꾸지 않고 exclude 로 낸다', t =>
   assert.deepEqual(r.generated.personal, ['.ruler/extra/00-e.md', 'docs/guideline/extra/SETUP.md']);
   assert.equal(r.files['.ruler/extra/00-e.md'].toString(), '# 개인 더함\n');
   assert.deepEqual(r.exclude, {
-    markers: { start: '# START guideline personal files .', end: '# END guideline personal files .' },
+    markers: { start: '# START guideline personal files . @.', end: '# END guideline personal files . @.' },
     paths: ['/.ruler/extra/00-e.md', '/docs/guideline/extra/SETUP.md'],
   });
   applyDisk(p, r.files);
@@ -323,7 +323,7 @@ test('개인 더함은 .gitignore 를 바꾸지 않고 exclude 로 낸다', t =>
   // 중첩 단위의 패턴은 워크트리 루트 기준
   const nested = run(p, { ...personal, unitRel: 'packages/a b' });
   assert.deepEqual(nested.exclude.paths, ['/packages/a b/.ruler/extra/00-e.md', '/packages/a b/docs/guideline/extra/SETUP.md']);
-  assert.equal(nested.exclude.markers.start, '# START guideline personal files packages/a b');
+  assert.equal(nested.exclude.markers.start, '# START guideline personal files packages/a b @.');
 });
 
 test('개인 뺌은 그 스택의 생성물을 지우지만 .gitignore 블록은 그대로다', t => {
@@ -422,4 +422,18 @@ test('관리 지침에 이 작업자의 더함·뺌과 세팅 규칙이 보인�
   // 필수는 빠지지 않는다
   assert.notEqual(r.files['.ruler/base/00-a.md'], null);
   assert.equal(r.files['.ruler/skills/team-s/SKILL.md'], null);
+});
+
+test('개인 사본은 개인으로 더한 키 아래에서만 읽는다', t => {
+  const { p } = composedProject(t);
+  // 개인 저장소에 프로젝트 스택 base 의 지난 사본(원본에서 지워진 규칙)이 남아 있어도 되살아나지 않는다
+  const copies = { ...EXTRA, 'rules/base/09-old.md': `${ALWAYS}# 지워진 규칙\n` };
+  // 프로젝트 .guideline/ 에 개인 스택 extra 의 남은 사본이 있어도 개인 사본을 가리지 않고 섞이지 않는다
+  write(p, '.guideline/rules/extra/00-e.md', `${ALWAYS}# 프로젝트에 남은 사본\n`);
+  write(p, '.guideline/rules/extra/07-left.md', `${ALWAYS}# 남은 파일\n`);
+  const r = run(p, personalOf(t, { company: { add: ['rules/extra'] } }, { copies }));
+  assert.ok(!Object.keys(r.files).some(k => k.includes('09-old')), Object.keys(r.files).join(', '));
+  assert.ok(!r.generated.personal.some(k => k.includes('09-old') || k.includes('07-left')), r.generated.personal.join(', '));
+  assert.equal(r.files['.ruler/extra/00-e.md'].toString(), '# 개인 더함\n');
+  assert.deepEqual(r.generated.personal, ['.ruler/extra/00-e.md', 'docs/guideline/extra/SETUP.md']);
 });
