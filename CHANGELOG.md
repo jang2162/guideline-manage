@@ -6,6 +6,8 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+## 0.24.0
+
 ### Added
 
 - **`guideline apply`:** composes the generated agent files from `.guideline/` and `.ruler/ruler.project.toml` without the server, updates the `.gitignore` block and runs `ruler apply` at the git root. Use it after a clone, in a new worktree and from `prepare`. `pick`, `pick --local` and `update` compose the same way at their end, and at the git root they compose the units below it too, before ruler runs. Exit code 2 when nothing was received yet or the project is still in the old layout. A `CLAUDE.md` that ruler wrote for every agent because `.ruler/ruler.toml` was missing is deleted and reported (kept and reported when a `default_agents` list over several lines makes it unclear). At the git root of a monorepo it also composes every unit below it that git tracks (a directory with a committed `guideline-lock.json`), then runs ruler once, so one `apply` (or the root's `prepare`) after a clone fills every unit; this works when the root is not a guideline project too. A unit still in the old layout is skipped with a `unit-update` to-do. A unit whose generated files cannot all be written names the unit in the error and gets a `unit-write-failed` to-do (exit code 1). At a git root that is not a guideline project, `nested` is read only from the root's `.ruler/ruler.toml`; without that file you get `root-ruler-toml`, not `nested-off`.
