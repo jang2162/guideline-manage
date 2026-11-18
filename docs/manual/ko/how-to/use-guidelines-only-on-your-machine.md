@@ -75,9 +75,13 @@ ruler 는 이것들을 에이전트 설정(`.mcp.json`, `.claude/skills/` 등)�
 
 - ruler 를 개인 선택으로 돌리기 전에, CLI 가 임시 폴더에서 프로젝트 선택만으로 ruler 를 한 번 더 돌리고 그 `.gitignore` 를 나중에 되돌려 둡니다. 개인 선택으로만 생기는 설정 파일(예: 프로젝트에 MCP 서버가 없을 때의 `.mcp.json`)은 대신 이 워크트리의 `info/exclude` 블록에 적힙니다.
 - ruler 는 더 받지 않는 MCP 서버·스킬·서브에이전트를 지우지 않습니다. 개인으로 뺀 것, 전에 더했다가 이제 더하지 않는 것은 CLI 가 `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`, `.opencode/skills/`, `.claude/agents/`, `.codex/agents/` 에서 지웁니다.
-- 전에 더한 것 때문에만 생긴 설정 파일·폴더라도 손으로 둔 것이 남아 있으면 그대로 둡니다. `ruler-leftover` 할 일이 그 자리를 알립니다.
+- 전에 더한 것 때문에만 생긴 설정 파일·폴더라도 손으로 둔 것이 남아 있으면 그대로 둡니다. ruler 가 남기는 `.bak` 백업도 그대로 둡니다. `ruler-leftover` 할 일이 그 자리를 알립니다.
+- CLI 는 이 에이전트들의 설정만 압니다. `.ruler/ruler.project.toml` 로 켠 그 밖의 에이전트(예: Cursor)의 설정은 건드리지 않고 `ruler-leftover` 할 일로 알립니다: 그 에이전트 설정에서 서버를 직접 지우세요.
 
-개인 선택이 없으면 전과 같습니다: ruler 혼자 정하고, 프로젝트가 뺀 서버·스킬은 남겨 둡니다.
+개인 선택이 없거나 비어 있으면 전과 같습니다: ruler 혼자 정하고, 프로젝트가 뺀 서버·스킬은 남겨 둡니다.
+
+> [!WARNING]
+> 나나 프로젝트가 스킬을 하나라도 고르면 ruler 는 돌 때마다 스킬 폴더(`.claude/skills/` 등)를 통째로 바꿉니다. 손으로 둔 스킬 폴더는 할 일 없이 사라집니다. 내 스킬은 다른 곳에 두세요.
 
 ## 워크트리와 클론
 

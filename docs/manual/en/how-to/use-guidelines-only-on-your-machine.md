@@ -74,9 +74,13 @@ When your selection changes which of them exist, the committed `.gitignore` stil
 
 - Before ruler runs with your selection, the CLI runs ruler once more in a temporary folder with the project's choice alone, and puts that `.gitignore` back afterwards. Settings files that only your selection creates (for example `.mcp.json` when the project has no MCP server) go into this worktree's block in `info/exclude` instead.
 - ruler does not remove an MCP server, a skill or a subagent it no longer receives. The CLI removes the ones you removed, and the ones you added before and no longer do, from `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`, `.opencode/skills/`, `.claude/agents/` and `.codex/agents/`.
-- A settings file or folder that only your earlier addition created, but that still holds something you put there by hand, stays. A `ruler-leftover` to-do names it.
+- A settings file or folder that only your earlier addition created, but that still holds something you put there by hand, stays. So do the `.bak` backups ruler leaves. A `ruler-leftover` to-do names it.
+- The CLI knows only those agents' settings. For any other agent you turn on in `.ruler/ruler.project.toml` (Cursor, for example), it touches nothing and gives a `ruler-leftover` to-do instead: remove the server from that agent's settings yourself.
 
-Without a personal selection, this works as before: ruler alone decides, and it keeps servers and skills the project drops.
+Without a personal selection, or with an empty one, this works as before: ruler alone decides, and it keeps servers and skills the project drops.
+
+> [!WARNING]
+> When you or the project choose at least one skill, ruler replaces the whole skills folder (`.claude/skills/` and so on) on every run. A skill folder you put there by hand disappears, with no to-do. Keep your own skills somewhere else.
 
 ## Worktrees and clones
 
