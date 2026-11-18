@@ -37,7 +37,7 @@ function loginPage(ctx, { status = 200, error = null, next = '/' } = {}) {
   const host = ctx.req.headers.host ?? '';
   const expected = ctx.config.publicUrl;
   const hint = host && host !== expected.host
-    ? html`<p class="warn">${t('web.hostMismatch', { host, expected: expected.origin })}</p>`
+    ? html`<p class="alert">${t('web.hostMismatch', { host, expected: expected.origin })}</p>`
     : '';
   sendPage(ctx.res, status, {
     title: t('web.login'),

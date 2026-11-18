@@ -108,3 +108,13 @@ for (const button of document.querySelectorAll('[data-copy]')) {
     setTimeout(() => { button.textContent = label; }, 1500);
   });
 }
+
+// 휴대폰 폭의 파일 줄(app.css 휴대폰 규칙의 「하위 폴더가 없는 트리는 가로로 넘기는 한 줄」)은 맨 왼쪽에서 시작해 지금 파일이 화면 밖에 있을 수 있다.
+// 줄이 실제로 가로 스크롤 중일 때만 그 줄의 scrollLeft 를 맞춰 지금 파일을 가운데로 옮긴다. scrollIntoView 는 페이지 세로 위치까지 움직일 수 있어 쓰지 않는다.
+const fileRow = document.querySelector('.files > .tree');
+const currentFile = fileRow?.querySelector(':scope > li > a.on');
+if (fileRow && currentFile && getComputedStyle(fileRow).overflowX !== 'visible' && fileRow.scrollWidth > fileRow.clientWidth) {
+  const row = fileRow.getBoundingClientRect();
+  const on = currentFile.getBoundingClientRect();
+  fileRow.scrollLeft += on.left - row.left - (row.width - on.width) / 2;
+}

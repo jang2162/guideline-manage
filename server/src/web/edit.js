@@ -37,9 +37,9 @@ const problemText = problems => problems.map(x => (x.path ? `${x.path}: ${x.mess
 function editBody(o) {
   const { problems = [], warnings = null, conflict = null } = o;
   return html`${problems.length ? html`<p class="error">${problemText(problems)}</p>` : ''}
-${conflict !== null ? html`<div class="warn"><p>${t('web.edit.conflict')}</p>${diffBlock(conflict)}</div>` : ''}
+${conflict !== null ? html`<div class="alert"><p>${t('web.edit.conflict')}</p>${diffBlock(conflict)}</div>` : ''}
 ${warnings ? (warnings.length
-    ? html`<div class="warn"><p>${t('web.edit.warnings')}</p><ul>${warnings.map(w => html`<li>${w.path} — ${w.message}</li>`)}</ul></div>`
+    ? html`<div class="alert"><p>${t('web.edit.warnings')}</p><ul>${warnings.map(w => html`<li>${w.path} — ${w.message}</li>`)}</ul></div>`
     : html`<p class="notice">${t('web.edit.noWarnings')}</p>`) : ''}
 <form method="post" action="${o.action}" class="stack wide">
 ${o.isNew ? html`<label>${t('web.path')} <input name="path" value="${o.path}" required></label>` : ''}

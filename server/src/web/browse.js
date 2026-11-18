@@ -217,7 +217,7 @@ function stackExtras(ctx, cat, name) {
   const short = p => (p.startsWith(`${dir}/`) ? p.slice(dir.length + 1) : p.replace(/^rules\//, ''));
   // 파일마다 분류를 단 스택에서만 분류 칸을 둔다(스택 분류는 위 칩에 있다).
   const fileCats = st.files.some(f => s.categories[f.path]?.length);
-  return html`${warns.length ? html`<div class="warn"><ul class="plain">${warns.map(w => {
+  return html`${warns.length ? html`<div class="alert"><ul class="plain">${warns.map(w => {
     const href = viewHref(w.path.replace(/\/$/, ''), s, q => head.has(q));
     return html`<li>${href ? html`<a href="${href}">${short(w.path) || name}</a>` : short(w.path) || name} — ${w.message}</li>`;
   })}</ul></div>` : ''}

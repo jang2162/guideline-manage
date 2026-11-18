@@ -1,6 +1,6 @@
 /* 문서형: 밝고 여백 넉넉, 초록 포인트. 다크 모드는 같은 구조에 색만 바꾼다. CSP 때문에 스타일은 이 파일의 클래스로만 준다. */
 :root {
-  --bg: #ffffff; --fg: #1f2328; --muted: #57606a; --faint: #8c959f; --line: #e3e6ea; --line-soft: #eef1f4;
+  --bg: #ffffff; --fg: #1f2328; --muted: #57606a; --faint: #6a737d; --line: #e3e6ea; --line-soft: #eef1f4;
   --side-bg: #f7f8fa; --input-line: #d0d7de;
   --accent: #1f6f43; --accent-fg: #ffffff; --accent-soft: #e3f3e8; --accent-text: #116329; --link: #1a7f37;
   --pill-bg: #eef1f4; --pill-fg: #424a53; --code-bg: #f0f2f4; --pre-bg: #f6f8fa;
@@ -14,7 +14,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --faint: #6e7681; --line: #30363d; --line-soft: #21262d;
+    --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --faint: #848d97; --line: #30363d; --line-soft: #21262d;
     --side-bg: #11161d; --input-line: #3d444d;
     --accent: #2ea043; --accent-fg: #ffffff; --accent-soft: #12301d; --accent-text: #6bd68a; --link: #6bd68a;
     --pill-bg: #21262d; --pill-fg: #c9d1d9; --code-bg: #262c36; --pre-bg: #151b23;
@@ -36,6 +36,8 @@ h1, h2, h3 { line-height: 1.3; overflow-wrap: anywhere; }
 h2 { font-size: 1.1rem; margin: 28px 0 10px; }
 h3 { font-size: 1rem; margin: 18px 0 8px; }
 code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
+/* 개수·버전·표의 숫자가 자릿수마다 같은 폭을 갖게 해 줄끼리 맞춘다. */
+table, .stats, .card-t .n, .ver { font-variant-numeric: tabular-nums; }
 
 /* ---------- 상단 ---------- */
 .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 4px; height: 45px; padding: 0 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
@@ -76,6 +78,8 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 .side-list li[data-depth="5"] { padding-left: 60px; }
 .child-list li { padding: 4px 0; }
 .side-list .blk.on { background: var(--accent-soft); color: var(--accent-text); }
+/* --faint 는 --accent-soft 바탕 위에서 4.5:1 이 안 된다(라이트 4.18, 다크 4.25). 선택된 항목의 아랫줄은 항목 글자색을 따른다. */
+.side-list .blk.on span:not(.nm):not(.domain):not(.real) { color: inherit; }
 .side-none { color: var(--faint); font-size: 12.5px; padding: 4px 8px; margin: 0; }
 .tree { list-style: none; margin: 0 0 14px; padding: 0; }
 .tree a { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; color: var(--fg); font-family: var(--mono); font-size: 12px; }
@@ -95,7 +99,8 @@ code, pre, textarea, kbd { font-family: var(--mono); font-size: 13px; }
 
 main { min-width: 0; padding: 20px 32px 56px; }
 main.solo { max-width: 1160px; margin: 0 auto; }
-main.bare { max-width: 440px; margin: 10vh auto 0; padding: 24px 16px; }
+/* 틀 없는 화면(로그인·CLI 로그인 확인·오류)은 가운데 패널로 묶는다. 내보내기 폼(main.bare.wide)은 패널이 아니다 — 아래 「내보내기 폼(/forms/<id>)」 절에서 되돌린다. */
+main.bare { max-width: 440px; margin: 12vh auto 0; padding: 28px 28px 24px; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
 
 .head { margin-bottom: 12px; }
 .crumbs { font-size: 12.5px; color: var(--muted); margin-bottom: 4px; overflow-wrap: anywhere; }
@@ -116,6 +121,10 @@ input, select { font: inherit; padding: 0 9px; background: var(--bg); color: var
 /* 버튼과 입력 칸이 한 줄에 나란히 놓여도 높이가 같게 한 값으로 맞춘다. 칩·단계·링크 버튼은 제 모양을 가진다. */
 button:not(.link):not(.chip):not(.step), .button, select, input:not([type=checkbox]):not([type=radio]):not([type=file]) { height: var(--control-h); }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+/* 키보드 포커스 링은 한 모양으로. 모서리는 요소마다 제 것을 쓴다(탭·카드·트리 모양을 바꾸지 않게). */
+a:focus-visible, button:focus-visible, .button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 탭은 상단 바 높이를 다 쓰므로 바깥 링이 화면 위에서 잘린다. 안쪽에 그린다. */
+.tab:focus-visible { outline-offset: -2px; }
 textarea { width: 100%; min-height: 60vh; padding: 12px; background: var(--pre-bg); color: var(--fg); border: 1px solid var(--input-line); border-radius: 6px; line-height: 1.55; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .stack { display: flex; flex-direction: column; gap: 10px; max-width: 640px; }
@@ -147,15 +156,17 @@ a.badge:hover { text-decoration: none; filter: brightness(.97); }
 .chip:hover { text-decoration: none; filter: brightness(.96); }
 .chip.on { background: var(--accent); color: var(--accent-fg); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px; }
-.card { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); background: var(--bg); }
-.card:hover { text-decoration: none; border-color: var(--accent); box-shadow: var(--shadow); }
+.card { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; color: var(--fg); background: var(--bg); transition: border-color .15s, box-shadow .15s, transform .15s; }
+.card:hover { text-decoration: none; border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { .card, .card:hover { transition: none; transform: none; } }
 .card.add { justify-content: center; align-items: center; border-style: dashed; color: var(--muted); background: transparent; }
 .card.add:hover { color: var(--accent-text); }
 .card-t { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .card-t b { font-size: 14.5px; overflow-wrap: anywhere; min-width: 0; }
 .card-t .n { margin-left: auto; color: var(--faint); font-size: 12px; white-space: nowrap; }
 .card-d { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.card-m { display: flex; flex-wrap: wrap; gap: 5px; margin-top: auto; }
+/* 배지가 줄 높이만큼 세로로 늘지 않게 가운데로 맞춘다. */
+.card-m { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: auto; }
 ul.plain { list-style: none; margin: 0; padding: 0; }
 ul.plain li { padding: 5px 0; border-bottom: 1px solid var(--line-soft); overflow-wrap: anywhere; }
 section h2 { font-size: 1rem; }
@@ -197,10 +208,11 @@ pre.diff .add { display: block; background: var(--add-bg); }
 pre.diff .del { display: block; background: var(--del-bg); }
 
 /* ---------- 알림·기타 ---------- */
-.warn { background: var(--warn-bg); color: var(--warn-fg); padding: 10px 14px; border-radius: 6px; margin: 0 0 14px; }
-.warn p { margin: 0 0 6px; }
-.warn ul.plain li { border-color: var(--warn-line); }
-.warn a { color: inherit; text-decoration: underline; }
+/* 페이지 알림 상자는 alert 다. warn 은 배지·칩·사유 줄(.badge.warn, .k.warn, .reason.warn, .note.warn)의 색 수식어로만 쓴다 — 단독 .warn 에 상자 모양을 주면 그 조합에 새어 배지가 상자처럼 커진다. */
+.alert { background: var(--warn-bg); color: var(--warn-fg); padding: 10px 14px; border-radius: 6px; margin: 0 0 14px; }
+.alert p { margin: 0 0 6px; }
+.alert ul.plain li { border-color: var(--warn-line); }
+.alert a { color: inherit; text-decoration: underline; }
 .error { background: var(--error-bg); color: var(--error-fg); padding: 10px 14px; border-radius: 6px; white-space: pre-wrap; }
 .notice { background: var(--add-bg); padding: 10px 14px; border-radius: 6px; }
 .token { padding: 10px; background: var(--code-bg); border-radius: 6px; overflow-wrap: anywhere; font-size: 1rem; }
@@ -223,17 +235,33 @@ details.manage form { margin-top: 12px; }
   .tab { flex: 1 1 auto; justify-content: center; height: 40px; padding: 0 4px; font-size: 13px; gap: 4px; }
   .detail { display: flex; flex-direction: column; min-height: 0; }
   .detail > aside { position: static; align-self: stretch; min-height: 0; max-height: none; border: 0; border-top: 1px solid var(--line); }
-  .detail > aside.files { order: 2; }
-  .detail > aside.blocks { order: 3; }
+  /* 파일 목록을 본문 위에 둔다. 본문 아래에 두면 다른 파일로 가려고 문서 끝까지 내려가야 한다. 스택 목록은 맨 아래. */
+  .detail > aside.files { order: 0; padding: 8px 12px 10px; border-top: 0; border-bottom: 1px solid var(--line); }
+  .detail > main { order: 1; }
+  .detail > aside.blocks { order: 2; }
+  .files h2 { display: none; }
+  /* 하위 폴더가 없는 트리는 가로로 넘기는 한 줄로 편다. 폴더가 있으면(스킬·MCP) 열린 폴더가 한 줄 안에서 펼쳐질 자리가 없으므로 세로 트리를 두고 높이만 묶는다 — 어느 쪽이든 모든 파일에 닿고 페이지는 가로로 넘치지 않는다. */
+  .files > .tree:not(:has(details)) { display: flex; gap: 6px; margin: 0; overflow-x: auto; scrollbar-width: thin; }
+  .files > .tree:not(:has(details)) > li { flex: none; }
+  .files > .tree:not(:has(details)) a { padding: 6px 10px; border: 1px solid var(--line); background: var(--bg); }
+  .files > .tree:not(:has(details)) a.on { border-color: transparent; background: var(--accent-soft); }
+  .files > .tree:has(details) { max-height: 40vh; overflow-y: auto; margin: 0; }
+  /* 두 트리 모두 스크롤 상자라 바깥에 그린 포커스 링이 상자 가장자리에서 잘린다. 안쪽에 그린다(여백을 두는 방법은 가장자리에 걸쳐 스크롤된 칩에서 여전히 잘린다). */
+  .files > .tree a:focus-visible, .files > .tree summary:focus-visible { outline-offset: -2px; }
+  .files .legend { margin: 6px 0 0; padding: 0 2px; }
+  .files .tools { flex-direction: row; padding: 0; margin-top: 8px; }
+  .head .actions .button { flex: 1 1 auto; justify-content: center; }
   main { padding: 14px 16px 40px; }
   main.solo { padding: 14px 16px 40px; }
+  /* 패널 테두리가 화면 가장자리에 붙지 않게 양옆 16px 을 남긴다. */
+  main.bare:not(.wide) { width: calc(100% - 32px); margin-top: 6vh; padding: 22px 18px 20px; }
   .head-row h1 { font-size: 1.2rem; }
   .actions { margin-left: 0; width: 100%; }
   th, td { padding: 6px 7px; }
 }
 
 /* 내보내기 폼(/forms/<id>) */
-main.bare.wide { max-width: 980px; margin: 24px auto 96px; }
+main.bare.wide { max-width: 980px; margin: 24px auto 96px; padding: 24px 16px; border: 0; border-radius: 0; box-shadow: none; }
 .choose { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0 0 16px; }
 .choose .field { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-weight: 600; }
 .choose label { font-weight: 400; }
@@ -318,6 +346,8 @@ pre.diff-lines .dh { color: var(--muted); }
 .steps .step { flex: 1 1 110px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); text-align: left; cursor: pointer; }
 .steps .step small { color: var(--faint); font-size: 11.5px; font-weight: 400; }
 .steps .step.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+/* 선택 바탕 위 --faint 대비 부족 — 위 .side-list .blk.on 과 같은 이유. */
+.steps .step.on small { color: inherit; }
 .steps .step.none { opacity: .5; cursor: default; }
 .chip.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 .confirm-step h3 { margin: 14px 0 6px; font-size: 14px; }

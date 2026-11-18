@@ -26,7 +26,7 @@ ${rows.map(r => html`<tr><td>${r.name}</td><td>${r.scope}</td><td>${day(r.create
 <form method="post" action="/tokens" class="stack">
 <label>${t('web.tokens.nameLabel')} <input name="name" required pattern="[A-Za-z0-9._\\-]{1,64}"></label>
 <label>${t('web.tokens.scope')} <select name="scope" data-scope-select><option value="propose">propose</option><option value="read">read</option><option value="admin">admin</option></select></label>
-<p class="warn" data-scope-warning hidden>${t('web.tokens.adminWarning')}</p>
+<p class="alert" data-scope-warning hidden>${t('web.tokens.adminWarning')}</p>
 <button>${t('web.issue')}</button>
 </form>`,
   });
@@ -53,7 +53,7 @@ export function registerTokens(router) {
     }
     view(ctx, 200, {
       title: t('web.tokens.issued'),
-      body: html`<p class="warn">${t('web.tokens.copyNow')}</p>
+      body: html`<p class="alert">${t('web.tokens.copyNow')}</p>
 <p class="token"><code>${issued.token}</code></p>
 <p><a href="/tokens">${t('web.tokens.back')}</a></p>`,
     });
