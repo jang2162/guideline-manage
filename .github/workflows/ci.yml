@@ -14,6 +14,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      # pnpm comes from packageManager in package.json. No install step: there are no runtime dependencies.
+      # pnpm comes from packageManager in package.json. The install brings ruler (devDependency), which some tests run for real.
       - run: corepack enable && corepack prepare --activate
+      - run: pnpm install --frozen-lockfile
       - run: pnpm test
