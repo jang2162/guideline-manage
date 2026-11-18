@@ -64,7 +64,7 @@ function formBody(f) {
 </div>
 </section>
 <section id="personal" class="personal-head" hidden><p id="personal-intro"></p><p class="meta" id="preset" hidden></p></section>
-<section id="dirty" class="warn" hidden>
+<section id="dirty" class="alert" hidden>
 <p>${p.gitRepo ? t('web.form.dirty') : t('web.form.notGit')} ${t('web.form.mayMix')}</p>
 <label><input type="checkbox" id="force"> ${t('web.form.force')}</label>
 </section>

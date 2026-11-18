@@ -42,6 +42,9 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 ### Fixed
 
 - **`--json` output is valid JSON again when ruler runs.** ruler's own output now goes to stderr, so `pick`, `update` and `apply` with `--json` print only the JSON result on stdout.
+- **Admin web: warning badges keep their size.** The warning count on home cards, the warning chip in the file view and the warning lines of the pick form no longer take the padding of the page warning box, so a card's badges stay one line high.
+- **Admin web on a phone:** on a block page the file list comes first, above the document, as one row you swipe sideways (a block with folders, such as a skill, keeps its folder tree in a short scrolling box), and the block list moves to the bottom. The page action buttons share the width.
+- **Admin web:** grey helper text has more contrast (4.5:1 or more in light and dark mode), links, buttons and folder toggles show one green focus ring when you move with the keyboard, numbers in tables, counts and the version line up, cards lift a little on hover (not with reduced motion), and the login, CLI sign-in and error screens are a framed panel.
 
 ## 0.23.0
 

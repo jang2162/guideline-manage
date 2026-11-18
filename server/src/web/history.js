@@ -141,7 +141,7 @@ async function postRevert(ctx) {
       : html`<p class="meta">${t('web.binaryChange', { from: size(current), to: size(target) })}</p>`;
     view(ctx, 200, {
       title: t('store.revertFile', { path: p, rev }),
-      body: html`${target === null ? html`<p class="warn">${t('web.revertDeletes', { rev })}</p>` : ''}${detail}
+      body: html`${target === null ? html`<p class="alert">${t('web.revertDeletes', { rev })}</p>` : ''}${detail}
 ${confirmForm({ kind, path: p, rev }, t('store.revertFile', { path: p, rev }))}`,
     });
     return;
@@ -157,7 +157,7 @@ ${confirmForm({ kind, path: p, rev }, t('store.revertFile', { path: p, rev }))}`
   view(ctx, 200, {
     title: t('store.revertRevision', { rev }),
     body: html`<ul>${Object.entries(plan.changes).map(([p, c]) => html`<li>${p} — ${c === null ? t('web.revertPlanDelete') : t('web.revertPlanTo', { rev: rev - 1 })}</li>`)}</ul>
-${plan.laterTouched.length ? html`<div class="warn"><p>${t('web.revertLater')}</p><ul>${plan.laterTouched.map(p => html`<li>${p}</li>`)}</ul></div>` : ''}
+${plan.laterTouched.length ? html`<div class="alert"><p>${t('web.revertLater')}</p><ul>${plan.laterTouched.map(p => html`<li>${p}</li>`)}</ul></div>` : ''}
 ${confirmForm({ kind, rev }, t('store.revertRevision', { rev }))}`,
   });
 }

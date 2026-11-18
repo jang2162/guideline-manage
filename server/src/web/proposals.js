@@ -62,12 +62,12 @@ function changeBlock(ctx, p, c, f) {
     const h = sha256(c.content);
     const was = ctx.store.lastRevisionWithHash(c.path, h);
     if (was !== null && ctx.store.headHashes().get(c.path) !== h) {
-      state = html`<p class="warn">${t('web.proposal.revertsOld', { rev: was })}</p>`;
+      state = html`<p class="alert">${t('web.proposal.revertsOld', { rev: was })}</p>`;
     }
   }
   if (f?.headChanged && f.result === 'merged') {
     const head = readableText(ctx.store.fileAt(c.path, ctx.store.headRevision()) ?? Buffer.alloc(0)) ?? '';
-    state = html`${state}<p class="warn">${t('web.proposal.merged')}</p>${diffBlock(unifiedDiff(head, f.content.toString('utf8'), { aLabel: t('web.proposal.currentSource'), bLabel: t('web.proposal.mergedLabel') }))}`;
+    state = html`${state}<p class="alert">${t('web.proposal.merged')}</p>${diffBlock(unifiedDiff(head, f.content.toString('utf8'), { aLabel: t('web.proposal.currentSource'), bLabel: t('web.proposal.mergedLabel') }))}`;
   } else if (f?.result === 'conflict') {
     state = html`${state}<p class="error">${t('web.proposal.conflict', { reason: f.reason })}</p>`;
   } else if (f?.result === 'same') {
@@ -106,7 +106,7 @@ function detailPage(ctx, p) {
     detail: { left: changeTree(groups, current, q => `/proposals/${p.id}?file=${encodeURIComponent(q)}`, counts, conflicts), right: null },
     body: html`<p class="meta">${STATUS_LABEL[p.status]} · ${p.author}${p.project ? ` · ${p.project}` : ''} · ${day(p.createdAt)}${p.revisionId ? html` · <a href="/r/${p.revisionId}">r${p.revisionId}</a>` : ''} · ${t('web.change.summary', { n: p.changes.length, add: total.add, del: total.del })}</p>
 ${p.description ? html`<p>${p.description}</p>` : ''}
-${p.status === 'rejected' && p.note ? html`<p class="warn">${t('web.proposal.rejectedNote', { note: p.note })}</p>` : ''}
+${p.status === 'rejected' && p.note ? html`<p class="alert">${t('web.proposal.rejectedNote', { note: p.note })}</p>` : ''}
 ${pl && pl.conflicts.length ? html`<p class="error">${t('web.proposal.outdated')}</p>` : ''}
 ${p.status === 'pending' ? html`<div class="actions">
 <form method="post" action="/proposals/${p.id}/accept"><button${blocked ? html` disabled` : ''}>${t('web.proposal.accept')}</button></form>

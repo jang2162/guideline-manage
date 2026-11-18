@@ -214,6 +214,17 @@ test('정적 파일: 블록 찾기와 / 키, 휴대폰 폭에서 한 단으로',
   assert.match(css, /prefers-color-scheme: dark/);
 });
 
+test('알림 상자는 alert 이고, warn 은 배지·칩의 색 수식어로만 남아 상자 모양이 새지 않는다', async t => {
+  const { s, cookie } = await seeded(t);
+  const css = (await s.req('/static/app.css')).text;
+  assert.match(css, /^\.alert \{/m);
+  // 줄 머리의 단독 .warn 규칙이 상자 모양(padding·margin)을 주면 .badge.warn·.k.warn 이 상자처럼 커진다.
+  assert.doesNotMatch(css, /^\.warn\b/m);
+  const page = (await getAs(s, cookie, '/tokens')).text;
+  assert.match(page, /<p class="alert" data-scope-warning hidden>/);
+  assert.ok(!page.includes('class="warn"'));
+});
+
 test('목록 카드는 도메인 스택을 도구 이름과 도메인 꼬리표로 나눠 보인다', async t => {
   const s = await startApp(t);
   s.store.commit({ ...META, changes: { 'rules/deploy-package__gitlab.develma.com/00-a.md': '---\nload: always\n---\n# a\n' } });
