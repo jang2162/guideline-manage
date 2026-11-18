@@ -718,7 +718,7 @@
   "migrate.manifestV3": "guideline.json 을 버전 3(스택 단위)으로 바꿈 — 고른 스택의 나머지 파일도 받음",
   "manifest.sourceBadRequired": "sources.{name}.required: 블록 키 목록이어야 한다",
   "manifest.requiredNotChosen": "sources.{name}.required: {item} 이(가) items 에 없다 — 필수 블록은 고른 블록이어야 한다",
-  "local.badFile": "{file} 을(를) 읽을 수 없음 — 올바른 개인 선택 파일이 아님. 고친 뒤 pick --local 로 다시 고르기. 대신 지우면 프로젝트 MCP 위에 더했던 서버는 .mcp.json 등에서 직접 지워야 함",
+  "local.badFile": "{file} 을(를) 읽을 수 없음 — 올바른 개인 선택 파일이 아님. 고친 뒤 guideline apply 로 개인 선택을 되살리고, 바꾸려면 pick --local 로 다시 고르기. 대신 지우면 프로젝트 MCP 위에 더했던 서버는 .mcp.json 등에서 직접 지워야 함",
   "defaults.badFile": "{file} 을(를) 읽을 수 없음 — 올바른 머신 기본값 파일이 아님. 고치거나 지우기",
   "defaults.badServer": "{server} 의 머신 기본값을 저장할 수 없음 — 서버 주소가 아님",
   "web.form.personal": "내 개인 선택",

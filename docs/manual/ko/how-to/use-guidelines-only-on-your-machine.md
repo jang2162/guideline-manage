@@ -75,7 +75,7 @@ ruler 는 이것들을 에이전트 설정(`.mcp.json`, `.claude/skills/` 등)�
 
 - ruler 를 개인 선택으로 돌리기 전에, CLI 가 임시 폴더에서 프로젝트 선택만으로 ruler 를 한 번 더 돌리고 그 `.gitignore` 를 나중에 되돌려 둡니다. 개인 선택으로만 생기는 설정 파일(예: 프로젝트에 MCP 서버가 없을 때의 `.mcp.json`)은 대신 이 워크트리의 `info/exclude` 블록에 적힙니다.
 - ruler 는 더 받지 않는 MCP 서버·스킬·서브에이전트를 지우지 않습니다. 개인으로 뺀 것, 전에 더했다가 이제 더하지 않는 것은 CLI 가 `.mcp.json`, `opencode.json`, `.codex/config.toml`, `.claude/skills/`, `.agents/skills/`, `.opencode/skills/`, `.claude/agents/`, `.codex/agents/` 에서 지웁니다.
-- 전에 더한 것 때문에만 생긴 설정 파일·폴더라도 손으로 둔 것이 남아 있으면 그대로 둡니다. 그런 파일이나 다른 에이전트 설정에 ruler 가 남기는 `.bak` 백업도 그대로 둡니다. CLI 가 지운 claude·codex·opencode 설정의 `.bak` 은 함께 지웁니다. 남긴 것은 `ruler-leftover` 할 일이 알립니다.
+- 전에 더한 것 때문에만 생긴 설정 파일·폴더라도 손으로 둔 것이 남아 있으면 그대로 둡니다. 손으로 둔 설정 파일이나 다른 에이전트 설정에 ruler 가 남기는 `.bak` 백업도 그대로 둡니다(손으로 둔 파일의 `.bak` 은 사람 원본이라 그 파일이 지워져도 둡니다). 개인 선택으로만 생겼다가 CLI 가 지운 claude·codex·opencode 설정의 `.bak` 은 함께 지웁니다. 남긴 것은 `ruler-leftover` 할 일이 알립니다.
 - CLI 는 이 에이전트들의 설정만 압니다. `.ruler/ruler.project.toml` 로 켠 그 밖의 에이전트(예: Cursor)의 설정은 건드리지 않고 `ruler-leftover` 할 일로 알립니다: 그 에이전트 설정에서 서버를 직접 지우세요.
 
 개인 선택은 `pick --local` 로 비우세요. `local.json` 을 지우거나 손으로 비우면 프로젝트 MCP 위에 더했던 서버는 남으니 `.mcp.json` 등에서 직접 지워야 합니다.
@@ -151,7 +151,7 @@ ruler 는 이것들을 에이전트 설정(`.mcp.json`, `.claude/skills/` 등)�
 - **프로젝트의 출처만.** `guideline.json` 에 있는 출처의 블록만 더할 수 있습니다.
 - **다른 출처의 같은 이름.** 프로젝트가 다른 출처에서 같은 최종 이름의 블록을 골랐으면 내 더함은 쓰이지 않습니다. `pick --local` 은 그것과 그 아래 블록을 저장하지 않고 `personal-shadowed` 할 일을 냅니다. 더한 뒤에 프로젝트가 그 블록을 고르면 내 더함과 그 아래에 더한 블록도 쓰지 않아, 다른 출처의 스택에 섞이지 않습니다.
 - **모노레포 하위 디렉터리.** 스킬·서브에이전트·MCP 서버는 git 루트에서만 받지만, 하위 디렉터리의 개인 폼은 그것들을 더하는 것을 막지 않습니다. git 루트의 개인 선택에서 더하세요.
-- **깨진 파일.** `local.json` 을 읽을 수 없으면 `apply` 는 프로젝트 선택만으로 조합하고(`local-bad` 할 일), `pick --local` 은 그 파일을 덮어쓰지 않고 종료 코드 1 로 멈춥니다. 파일을 고친 뒤 `pick --local` 로 다시 고르세요. 파일을 지우면 프로젝트 MCP 위에 더했던 서버는 남으니 `.mcp.json` 등에서 직접 지워야 합니다.
+- **깨진 파일.** `local.json` 을 읽을 수 없으면 `apply` 는 프로젝트 선택만으로 조합하고(`local-bad` 할 일), `pick --local` 은 그 파일을 덮어쓰지 않고 종료 코드 1 로 멈춥니다. 파일을 고친 뒤 `guideline apply` 로 개인 선택을 되살리고, 바꾸려면 그다음 `pick --local` 로 다시 고르세요. 파일을 지우면 프로젝트 MCP 위에 더했던 서버는 남으니 `.mcp.json` 등에서 직접 지워야 합니다.
 
 ## 다음 문서
 
