@@ -9,8 +9,8 @@ import { realOf, unitOf, unitName, finalUnit, toVirtual, collisions, collisionMe
 import { catalogView } from '../catalog-view.js';
 import { blockKeys } from '../catalog.js';
 import { blockKey, isBlockKey, isWithin, withAncestors } from '../blocks.js';
-import { personalPlace, readLocal, writeLocal, effectiveItems, shadowedAdds, LocalError } from '../personal.js';
-import { readDefaults, writeDefaults, DefaultsError } from '../defaults.js';
+import { personalPlace, readLocal, writeLocal, effectiveItems, shadowedAdds, roleBasis, LocalError } from '../personal.js';
+import { readDefaults, writeDefaults, roleDefaultsFor, DefaultsError } from '../defaults.js';
 import { layoutOf } from '../layout.js';
 import { openProject } from './project-update.js';
 import { splitQualified } from '../manifest.js';
@@ -38,11 +38,16 @@ const isDir = p => {
 export async function projectPick({
   project, newTarget, server, source, browser = true, json = false, env = process.env, out = console.log, err = console.error,
   open = openBrowser, fetchImpl = fetch, git = runGit, home, cwd = process.cwd(), pollWait = 30, runRuler,
-  recommend, readStdin = readAllStdin, local = false,
+  recommend, readStdin = readAllStdin, local = false, role,
 }) {
+  if (role !== undefined && !local) {
+    err(t('pick.roleNeedsLocal'));
+    return 2;
+  }
   if (local) {
     return pickLocal({
       project, newTarget, server, source, browser, json, env, out, err, open, fetchImpl, git, home, cwd, pollWait, runRuler, recommend, readStdin,
+      role: role ?? null,
     });
   }
   if (project !== undefined && newTarget !== undefined) {
@@ -463,14 +468,21 @@ async function readRecommend(arg, { cwd, readStdin, local }) {
 /**
  * guideline pick --local: 출처마다 개인 모드 폼으로 이 단위의 개인 선택(더함·뺌)을 고른다. 커밋되는 파일은 바꾸지 않는다 —
  * 결과는 git 공용 디렉터리의 개인 저장소(local.json)에 쓰고, 개인 사본을 받아 개인 겹을 넣어 조합한다.
+ * role 을 주면(--role) 공통 겹 대신 그 역할 겹을 고른다: 폼의 프로젝트 상태는 프로젝트 + 공통 겹 결과, 미리 체크는 그 역할의 정의 →
+ * 그 서버의 역할 기본값, 결과는 local.roles[role], 「기본값으로 저장」 은 그 서버의 roles[role]. 역할이 없으면 만든다.
  * 폼과 개인 사본은 프로젝트 잠금의 리비전 원본으로 만든다(프로젝트 사본과 리비전이 어긋나지 않게). 0 완료, 3 취소·만료, 1 오류, 2 사용법 오류.
  * @returns {Promise<number>}
  */
 async function pickLocal({
   project, newTarget, server, source, browser, json, env, out, err, open, fetchImpl, git, home, cwd, pollWait, runRuler, recommend, readStdin,
+  role = null,
 }) {
   if (newTarget !== undefined) {
     err(t('pick.localAndNew'));
+    return 2;
+  }
+  if (role !== null && !NAME.test(role)) {
+    err(t('role.badName', { name: role }));
     return 2;
   }
   const dir = project !== undefined ? expandPath(project) : cwd;
@@ -528,6 +540,11 @@ async function pickLocal({
   const failures = fetched.failures.map(f => `${f.source}: ${f.message}`);
   const status = projectStatus(dir, git, unit.root);
   const next = { version: 2, sources: { ...local.sources }, roles: local.roles };
+  // 역할 겹은 프로젝트 + 공통 겹 결과(명시 항목)에 얹힌다. 역할 없이 고르면 기준은 프로젝트 그대로
+  const common = role !== null ? effectiveItems(manifest, local) : null;
+  const basis = role !== null ? roleBasis(manifest, common) : manifest;
+  const layer = role !== null ? { ...(local.roles[role]?.sources ?? {}) } : next.sources;
+  if (role !== null) next.roles = { ...local.roles, [role]: { sources: layer } };
   const trees = new Map();
   const saved = new Map();
   const todos = [];
@@ -538,9 +555,12 @@ async function pickLocal({
     const aliases = src.aliases ?? {};
     const keys = blockKeys(tree.tree);
     const guarded = new Set(withAncestors(src.required ?? []));
-    // 미리 체크: 이 단위의 개인 선택, 없으면 그 서버의 머신 기본값. 원본에 없는 블록은 싣지 않는다(고를 수 없다).
-    const preset = local.sources[name] ? 'local' : defaults.servers[new URL(src.server).origin] ? 'defaults' : 'none';
-    const start = local.sources[name] ?? defaults.servers[new URL(src.server).origin] ?? { add: [], remove: [] };
+    // 미리 체크: 이 단위의 개인 선택(역할이면 그 역할의 정의), 없으면 그 서버의 머신 기본값(역할이면 그 역할 기본값).
+    // 원본에 없는 블록은 싣지 않는다(고를 수 없다).
+    const mineNow = role !== null ? local.roles[role]?.sources[name] : local.sources[name];
+    const preferred = role !== null ? roleDefaultsFor(src.server, role, { env, home }) : defaults.servers[new URL(src.server).origin];
+    const preset = mineNow ? 'local' : preferred ? 'defaults' : 'none';
+    const start = mineNow ?? preferred ?? { add: [], remove: [] };
     let add = start.add.filter(k => keys.has(k));
     let remove = start.remove.filter(k => keys.has(k));
     let rec = null;
@@ -565,11 +585,13 @@ async function pickLocal({
     const v = virtualize({ manifest: only, lock: null, trees: new Map([[name, tree]]) });
     const vk = k => toVirtual(k, aliases);
     const personal = {
-      chosen: [...v.view.items],
+      // 프로젝트 상태 열: 역할이면 프로젝트 + 공통 겹 결과(역할이 얹히는 기준), 아니면 프로젝트 선택
+      chosen: role !== null ? common.sources[name].items.map(vk) : [...v.view.items],
       required: withAncestors((src.required ?? []).map(vk)),
       add: add.map(vk).sort(),
       remove: remove.map(vk).sort(),
       preset,
+      role,
     };
     const payload = formPayload({
       tree: v.tree, revision: tree.revision, projectPath: dir, isNew: false, agents: manifest.agents, status,
@@ -588,7 +610,7 @@ async function pickLocal({
     const list = x => (Array.isArray(x) ? x.filter(isBlockKey).map(real) : []);
     const mine = { add: list(sel.add), remove: list(sel.remove) };
     // 다른 출처의 같은 최종 이름을 프로젝트가 골랐으면 그 더함은 조합이 쓰지 않는다(personal-shadowed). 저장하지 않고 알린다.
-    const eff = effectiveItems(manifest, { version: 2, sources: { [name]: mine }, roles: {} });
+    const eff = effectiveItems(basis, { version: 2, sources: { [name]: mine }, roles: {} });
     // 가려진 키 아래의 더함도 뺀다: 조합이 그 조상을 다시 채우면 같은 할 일이 매번 나고, 받으면 다른 출처의 스택 안에 이 출처의 하위가 섞인다
     const shadowed = shadowedAdds(manifest, eff).filter(x => x.source === name);
     const drop = new Set();
@@ -602,7 +624,9 @@ async function pickLocal({
         : t('pick.localShadowed', { item, by: x.by, final: x.final });
       todos.push({ kind: 'personal-shadowed', item, message });
     }
-    next.sources[name] = { add: mine.add.filter(k => !drop.has(k)), remove: mine.remove };
+    const kept = mine.add.filter(k => !drop.has(k));
+    const extra = role !== null ? keptAncestors({ basis, name, shown: common.sources[name].items, mine, add: kept, drop }) : [];
+    layer[name] = { add: extra.length ? uniq([...kept, ...extra]) : kept, remove: mine.remove };
     // 기본값은 서버마다다(프로젝트와 상관없이) — 가림으로 거른 것도 그대로 둔다. 같은 서버의 출처가 여럿이면 합친다
     if (sel.saveDefault === true) saved.set(new URL(src.server).origin, [...(saved.get(new URL(src.server).origin) ?? []), { name, mine }]);
     trees.set(name, tree);
@@ -616,7 +640,10 @@ async function pickLocal({
     for (const [origin, picks] of saved) {
       const merged = mergeDefaults(picks);
       for (const c of merged.conflicts) err(t('pick.defaultsConflict', { origin, ...c }));
-      servers[origin] = { ...servers[origin], ...merged.value }; // 그 서버의 역할 기본값(roles)은 보존
+      // 공통 기본값을 저장하면 그 서버의 역할 기본값(roles)은 보존, 역할 기본값을 저장하면 공통과 다른 역할은 보존
+      servers[origin] = role !== null
+        ? { add: [], remove: [], ...servers[origin], roles: { ...servers[origin]?.roles, [role]: merged.value } }
+        : { ...servers[origin], ...merged.value };
     }
     writeDefaults({ version: 2, servers }, { env, home });
   }
@@ -627,6 +654,22 @@ async function pickLocal({
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;
   return failures.length ? 1 : 0;
+}
+
+const uniq = list => [...new Set(list)].sort();
+
+/**
+ * 역할 폼이 「받음」 으로 보였지만 역할 겹 계산에서 사라지는 조상. 폼은 프로젝트 상태(공통 결과)를 조상까지 채워 보이지만, 역할 겹의
+ * 기준(basis)은 명시 항목만이라 공통이 하위 스택만 더했을 때 역할이 그 하위를 빼면 아무도 고르지 않은 조상도 사라진다. 사람은 그 조상을
+ * 그대로(받음) 두었으므로 역할의 더함으로 적어 폼 표시와 결과를 맞춘다. 사람이 뺀 것과 가려져 거른 더함(drop)은 다시 넣지 않는다.
+ * @returns {string[]}
+ */
+function keptAncestors({ basis, name, shown, mine, add, drop }) {
+  const gone = new Set(mine.remove);
+  const want = [...shown.filter(k => !gone.has(k)), ...add];
+  const eff = effectiveItems(basis, { version: 2, sources: { [name]: { add, remove: mine.remove } }, roles: {} });
+  const got = new Set(eff.sources[name].items);
+  return want.filter(k => !got.has(k) && ![...drop].some(d => isWithin(k, d)));
 }
 
 /**

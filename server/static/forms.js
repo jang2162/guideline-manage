@@ -752,6 +752,9 @@ if (app.dataset.status !== 'pending') {
     $('#dirty').hidden = true;
     $('#personal').hidden = false;
     $('#personal-intro').textContent = t('web.client.personal.intro');
+    // 역할 겹을 고르는 폼(pick --local --role)이면 제목 줄에 역할 이름을 보인다
+    const role = state.data.personal.role;
+    if (typeof role === 'string' && role) $('#subtitle').textContent = `${project().path} · ${t('web.client.personalRoleTitle', { name: role })}`;
     const preset = state.data.personal.preset;
     $('#preset').hidden = preset !== 'local' && preset !== 'defaults';
     if (!$('#preset').hidden) $('#preset').textContent = t(`web.client.personal.preset.${preset}`);

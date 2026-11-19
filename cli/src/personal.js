@@ -175,6 +175,23 @@ export function effectiveItems(manifest, local) {
 }
 
 /**
+ * 역할 겹의 기준 매니페스트: 출처마다 items = (프로젝트 items ∪ common.added) − common.removed. 공통 결과의 명시 항목만 쓰고
+ * 자동으로 채운 조상은 넣지 않는다(layeredLocal 참고). required·별칭 등 나머지는 그대로.
+ * @param {import('./manifest.js').Manifest} manifest
+ * @param {ReturnType<typeof effectiveItems>} common effectiveItems(manifest, local)
+ * @returns {import('./manifest.js').Manifest}
+ */
+export function roleBasis(manifest, common) {
+  const sources = {};
+  for (const [name, src] of Object.entries(manifest.sources)) {
+    const c = common.sources[name];
+    const gone = new Set(c.removed);
+    sources[name] = { ...src, items: uniqSorted([...src.items, ...c.added]).filter(k => !gone.has(k)) };
+  }
+  return { ...manifest, sources };
+}
+
+/**
  * 세 겹(프로젝트 → 공통 개인 선택 → 역할 개인 선택) 계산과, 그 결과를 한 겹짜리 개인 선택(flat)으로 펼친 것.
  * - common = effectiveItems(manifest, local).
  * - 역할 겹의 기준 매니페스트: 출처마다 items = (프로젝트 items ∪ common.added) − common.removed. 공통 결과의 명시 항목만 쓰고
@@ -195,13 +212,7 @@ export function layeredLocal(manifest, local, role) {
   const roles = local.roles ?? {};
   const roleDefined = role != null && Object.hasOwn(roles, role);
   if (!roleDefined) return { flat: { version: 2, sources: local.sources, roles: {} }, common, role: null, roleDefined };
-  const sources = {};
-  for (const [name, src] of Object.entries(manifest.sources)) {
-    const c = common.sources[name];
-    const gone = new Set(c.removed);
-    sources[name] = { ...src, items: uniqSorted([...src.items, ...c.added]).filter(k => !gone.has(k)) };
-  }
-  const roleEff = effectiveItems({ ...manifest, sources }, { version: 2, sources: roles[role].sources, roles: {} });
+  const roleEff = effectiveItems(roleBasis(manifest, common), { version: 2, sources: roles[role].sources, roles: {} });
   const flatSources = {};
   for (const [name, src] of Object.entries(manifest.sources)) {
     const project = new Set(src.items);

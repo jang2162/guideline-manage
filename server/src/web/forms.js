@@ -40,9 +40,9 @@ function personalChoicesOf(body) {
   return Object.fromEntries(Object.entries(raw).filter(([k, v]) => isBlockKey(k) && PERSONAL_CHOICES.includes(v)));
 }
 
-/** 화면에 넘기는 개인 모드 재료. payload 에 다른 필드가 있어도 이것만(허용 목록). */
+/** 화면에 넘기는 개인 모드 재료. payload 에 다른 필드가 있어도 이것만(허용 목록). role 은 고르는 역할(pick --local --role), 없으면 null. */
 function personalData(p) {
-  return { chosen: p.chosen, required: p.required, add: p.add, remove: p.remove, preset: p.preset };
+  return { chosen: p.chosen, required: p.required, add: p.add, remove: p.remove, preset: p.preset, role: typeof p.role === 'string' ? p.role : null };
 }
 
 function subtitle(f) {
