@@ -9,6 +9,7 @@ import { checkManifest } from '../src/manifest.js';
 import { render } from '../src/render/index.js';
 import { virtualize } from '../src/workspace.js';
 import { compose } from '../src/compose.js';
+import { layeredLocal } from '../src/personal.js';
 import { readBlock } from '../src/gitignore-block.js';
 import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../src/render/outputs.js';
 import { oldRenderFiles } from './old-layout.js';
@@ -436,4 +437,49 @@ test('개인 사본은 개인으로 더한 키 아래에서만 읽는다', t => 
   assert.ok(!r.generated.personal.some(k => k.includes('09-old') || k.includes('07-left')), r.generated.personal.join(', '));
   assert.equal(r.files['.ruler/extra/00-e.md'].toString(), '# 개인 더함\n');
   assert.deepEqual(r.generated.personal, ['.ruler/extra/00-e.md', 'docs/guideline/extra/SETUP.md']);
+});
+
+/** 역할이 있는 개인 겹 입력: composeInputs 처럼 세 겹을 계산해 local 은 펼친 선택, layers 는 겹별 결과. */
+function roleOf(t, local, role, manifest, opts) {
+  const base = personalOf(t, {}, opts);
+  const l = layeredLocal(manifest, local, role);
+  return { ...base, local: l.flat, role, layers: { common: l.common, role: l.role } };
+}
+
+test('관리 지침의 개인 절은 공통 겹과 역할 겹을 나눠 보이고, 역할 겹의 필수 뺌도 personal-ignored 할 일이다', t => {
+  const manifest = checkManifest({ ...MANIFEST, sources: {
+    company: { ...MANIFEST.sources.company, required: ['rules/base'] },
+    team: MANIFEST.sources.team,
+  } });
+  const { p } = composedProject(t, manifest);
+  const local = {
+    version: 2,
+    sources: { team: { add: [], remove: ['skills/s'] } },
+    roles: { ui: { sources: { company: { add: ['rules/extra'], remove: ['rules/base', `rules/${DEPLOY}`] } } } },
+  };
+  const r = run(p, roleOf(t, local, 'ui', manifest), manifest);
+  const guide = r.files['.ruler/guideline.md'].toString();
+  assert.ok(guide.includes([
+    '- 뺀 것: `skills/team-s` (team)',
+    '- 역할: `ui`',
+    '- 역할이 더한 것: `rules/extra` (company)',
+    `- 역할이 뺀 것: \`rules/${DEPLOY}\` (company)`,
+    '- 역할에서 무시된 뺌: `rules/base` (company, 필수라 뺄 수 없음)',
+    '- 개인 범위 스택',
+  ].join('\n')), guide);
+  assert.doesNotMatch(guide, /^- 더한 것:/m, '공통 겹은 더한 것이 없다');
+  assert.deepEqual(r.todos.filter(x => x.kind === 'personal-ignored').map(x => x.item), ['company:rules/base']);
+  // 조합은 세 겹의 최종 결과다
+  assert.equal(r.files['.ruler/extra/00-e.md'].toString(), '# 개인 더함\n');
+  assert.equal(r.files[`.ruler/${DEPLOY}/01-y.md`], null);
+  assert.equal(r.files['.ruler/skills/team-s/SKILL.md'], null);
+  assert.deepEqual(r.generated.personal, ['.ruler/extra/00-e.md', 'docs/guideline/extra/SETUP.md']);
+});
+
+test('역할이 정의돼 있지 않으면 관리 지침의 개인 절은 역할 없을 때와 바이트 같다', t => {
+  const { p } = composedProject(t);
+  const local = { version: 2, sources: { company: { add: ['rules/extra'], remove: [] } }, roles: {} };
+  const plain = run(p, personalOf(t, { company: { add: ['rules/extra'] } }));
+  const missing = run(p, roleOf(t, local, 'ui', MANIFEST));
+  assert.equal(missing.files['.ruler/guideline.md'].toString(), plain.files['.ruler/guideline.md'].toString());
 });

@@ -32,6 +32,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | 새로 클론한 뒤나 새 워크트리, 또는 `status` 가 생성물이 낡았다고 할 때 | `guideline apply --json`(서버가 필요 없다). 그 전에 `ruler apply` 만 돌리지 않는다 |
 | 이 작업자가 받는 것만 바꾸기("나만", "프로젝트는 그대로 두고") | `guideline pick --local --json` — 아래 「개인 범위」 |
 | 이 작업자가 쓰는 도구에 맞게 골라 달라("내 작업 방식에 맞는 것 더해") | 아래 「개인 범위」 3 |
+| 워크트리마다 다른 선택("이 워크트리에만 프런트엔드 스택", "이 워크트리를 백엔드 역할로") | 아래 「개인 범위」 6 |
 | 새 프로젝트("새 프로젝트에 지침") | `guideline pick --new <이름 또는 경로> --json` |
 | 고친 사본을 원본에 올리기("이 수정 공용으로") | `guideline propose --dry-run` 으로 보여 주고, 맞으면 `guideline propose --title "<제목>"`. 보내면 어떻게 되는지는 dry-run 이 알린다(`--json` 이면 `mode`). `apply`(「보내면 바로 반영됨」)면 보내기 전에 사용자에게 검토 없이 바로 반영된다고 알리고, 사용자가 검토를 원하면 `--review` 를 붙인다 |
 
@@ -56,6 +57,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 3. 추천할 때는 「추천해서 받기」 처럼 `guideline list --json` 을 읽되, 프로젝트 파일이 아니라 이 작업자의 작업과 도구로 판단한다. `when` 이 도구를 말하는 스택(「<도구>를 쓰는 작업」)은 그 도구를 쓰는 작업자에게 맞는다. 무엇을 쓰는지 보이지 않으면 사용자에게 묻는다. 추천은 `{"add": {"<블록 키>": "<이유>"}, "remove": {"<블록 키>": "<이유>"}}` 로 쓰고(그냥 `{"<블록 키>": "<이유>"}` 는 더함이다), `guideline pick --local --recommend <파일> --json` 을 돌린다. 폼은 추천이 체크되고 표시된 채로 열린다. 원본에 없는 키, 필수 블록이나 그것을 품은 스택의 뺌은 폼을 열기 전에 코드 2 로 멈춘다.
 4. **필수** 블록(`guideline.json` 의 `sources.<이름>.required`, 프로젝트 pick 폼에서 표시)과 그 위의 스택은 개인 선택으로 뺄 수 없다.
 5. `pick --local` 은 개인 사본을 프로젝트 잠금의 리비전으로 받는다. `guideline update` 가 프로젝트와 개인 사본을 함께 최신으로 맞춘다.
+6. **개인 역할.** 워크트리마다 역할 하나를 쓸 수 있다: 공통 개인 선택 위에 얹는, 이름 붙은 더함·뺌 겹이다. 역할을 정의하거나 고치려면 `guideline pick --local --role <이름> --json`(영소문자·숫자·`-` 이름. 없는 역할은 만들고, 그 폼의 프로젝트 열은 「프로젝트·공통 선택이 받음」 이다). 그것만으로 워크트리가 그 역할로 바뀌지는 않는다: `guideline role use <이름> --json` 이 역할을 `<git 디렉터리>/guideline/role`(이 워크트리만)에 쓰고 git 루트에서 반영한다. `guideline role use --none --json` 은 역할을 지우고, `guideline role --json` 은 역할과 단위마다 정의된 역할을 보인다. `role use` 가 반영 일부가 실패했다고 하면 역할은 그대로다: 원인을 고친 뒤 `guideline apply --json`. 공통 선택이 받은 스택 아래 블록만 역할에서 빼면 그 스택은 남는다 — 그것도 빼려면 스택 자체를 뺀다.
 
 ## 할 일 처리
 
@@ -85,6 +87,8 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `personal-revision` | 개인 사본과 프로젝트 사본이 한 출처의 다른 리비전이다(예: 다른 워크트리에서 `update`). 바꿈이 가리키는 절이 어긋날 수 있다. `guideline update` 로 맞춘다 |
 | `personal-sync` | 개인 사본을 받지 못했다: 쓰기 오류, 또는 읽을 수 없는 개인 잠금(문구에 나온 파일을 지운다). 프로젝트 반영은 끝났다. 고친 뒤 `guideline update` 를 다시 돌린다 |
 | `local-bad` | 개인 선택(`local.json`)을 읽을 수 없어 프로젝트 선택만으로 조합했다. 문구를 보여 주고, 사용자가 그 파일을 고치거나 지운 뒤(지우면 개인 선택이 사라진다) `guideline apply` 를 돌린다 |
+| `role-missing` | 이 워크트리의 역할이 어느 단위에도 정의돼 있지 않아 공통 개인 선택만 썼다. 정의할지(`guideline pick --local --role <이름> --json`) 지울지(`guideline role use --none --json`) 사용자에게 묻는다 |
+| `role-bad` | 워크트리의 역할 파일에 올바른 역할 이름이 없어 역할 없이 조합했다. 어느 역할을 쓸지 사용자에게 물은 뒤 `guideline role use <이름> --json` 이나 `guideline role use --none --json` |
 | `ruler-leftover` | 작업자의 개인 선택 때문에만 ruler 가 만들거나 바꾼 것을 그대로 두었다: 손으로 둔 것이 남았거나 추적되거나 claude·codex·opencode 밖 에이전트의 것이거나 그런 다른 에이전트의 설정 또는 손으로 둔 설정의 백업인 설정 파일·폴더(`.mcp.json`, `.claude/skills`, `.cursor/mcp.json`, `.mcp.json.bak` …), 또는 이번 조합에서 빠졌지만 그런 다른 에이전트의 설정에 남은 MCP 서버. 사용자에게 보여 주고 직접 지우지 않는다 |
 | `override-target` | 바꿈이 조합한 사본(프로젝트 사본 위에 개인 사본을 얹은 것)에 없는 파일·절을 가리킨다. 바꿈의 첫 줄을 고치거나, 리비전이 어긋났으면(`personal-revision`) `guideline update` 를 돌린다. 개인 범위가 없는 프로젝트에서도 나온다 |
 | `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`, 원본 키)을 받지 않았다. 빠진 블록을 알리고, 그 블록을 담은 추천 파일(`{"<빠진 블록>": "<item> 이 필요로 함"}`)을 써서 `guideline pick --recommend <파일> --json` 을 「추천해서 받기」 처럼 띄운다 — 폼 제출이 확인이다. 출처가 여럿이면(`item` 이 `<출처>:` 로 시작) `--source <출처>` 를 붙인다 |

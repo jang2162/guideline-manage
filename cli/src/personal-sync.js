@@ -5,7 +5,7 @@ import { LOCK, readLock, lockText, ManifestError, qualify, splitQualified } from
 import { diskReader, itemStates } from './project-state.js';
 import { render } from './render/index.js';
 import { virtualize, toRealLock, showId } from './workspace.js';
-import { effectiveItems, projectFinalOwners, shadowedAdds } from './personal.js';
+import { effectiveItems, projectFinalOwners, shadowedAdds, reportedShadows } from './personal.js';
 import { withAncestors } from './blocks.js';
 import { finalUnit } from './sources.js';
 import { t } from './i18n.js';
@@ -16,7 +16,8 @@ import { t } from './i18n.js';
 const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * 출처(이 매니페스트의 것)마다 개인 사본으로 받을 블록(실제 이름): local.json 의 개인 더함과 그 조상 전부. 지금 워크트리의 프로젝트
+ * 출처(이 매니페스트의 것)마다 개인 사본으로 받을 블록(실제 이름): local.json 의 공통 더함 ∪ 모든 역할의 더함과 그 조상 전부.
+ * 지금 워크트리의 역할로 거르지 않는다 — 개인 저장소는 역할이 다른 워크트리끼리 함께 쓰므로, 어느 워크트리에서 받아도 같은 사본이 유지된다. 지금 워크트리의 프로젝트
  * 선택으로 거르지 않는다 — 개인 저장소는 워크트리끼리 함께 쓰는데 프로젝트 선택은 브랜치마다 달라, 한 워크트리에서 프로젝트가 고른
  * 블록이 다른 워크트리에서는 개인 사본으로만 들어온다. 「프로젝트가 같은 블록을 고르면 개인 사본을 쓰지 않는다」 는 조합(personalTree
  * 의 주인 판정, 다른 출처 가려짐은 shadowedAdds)이 워크트리마다 정한다.
@@ -28,7 +29,8 @@ const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
  */
 export function personalTargets(manifest, local) {
   const out = {};
-  for (const name of Object.keys(manifest.sources)) out[name] = withAncestors(local.sources[name]?.add ?? []);
+  const layers = [local.sources, ...Object.values(local.roles ?? {}).map(r => r.sources)];
+  for (const name of Object.keys(manifest.sources)) out[name] = withAncestors(layers.flatMap(l => l[name]?.add ?? []));
   return out;
 }
 
@@ -106,12 +108,15 @@ export function syncPersonal({ store, manifest, local, trees, revisions, nested 
 /**
  * update·pick 이 프로젝트를 반영한 뒤 같은 trees 로 개인 사본을 받아 store 에 쓴다. 할 일을 돌려준다.
  * 개인 사본 대상도 지난 개인 잠금도 없으면 아무것도 하지 않는다. 실패해도 프로젝트 반영은 되돌리지 않고 할 일로 알린다.
- * @param {{ personal: { store: string, local: import('./personal.js').Local }, manifest: import('./manifest.js').Manifest,
- *   trees: Map<string, object>, revisions: Record<string, number>, nested?: boolean }} opts
+ * 대상은 저장된 local.json 전체(saved — 모든 역할 포함)로 정한다. composeInputs 의 local 은 이 워크트리 역할로 펼친 조합용이라
+ * 그것으로 정하면 다른 역할의 개인 사본·잠금이 지워진다. saved 가 없으면(local 만 넘긴 호출) local 이 저장된 것이다.
+ * @param {{ personal: { store: string, local: import('./personal.js').Local, saved?: import('./personal.js').Local },
+ *   manifest: import('./manifest.js').Manifest, trees: Map<string, object>, revisions: Record<string, number>, nested?: boolean }} opts
  * @returns {object[]}
  */
 export function writePersonal({ personal, manifest, trees, revisions, nested = false }) {
-  const { store, local } = personal;
+  const { store } = personal;
+  const local = personal.saved ?? personal.local;
   const lockFile = path.join(store, LOCK);
   const wanted = Object.values(personalTargets(manifest, local)).some(list => list.length > 0);
   if (!wanted && !fs.existsSync(lockFile)) return [];
@@ -136,24 +141,34 @@ export function writePersonal({ personal, manifest, trees, revisions, nested = f
 }
 
 /**
- * status 가 보일 개인 범위: 개인 더함·뺌·필수라 무시된 뺌(실제 이름, 출처가 둘 이상이면 `<출처>:<id>`)과 개인 사본 상태.
+ * status 가 보일 개인 범위: 공통 겹의 개인 더함·뺌·필수라 무시된 뺌(실제 이름, 출처가 둘 이상이면 `<출처>:<id>`), 이 워크트리 역할 겹의
+ * 같은 것(role), 다른 출처에 가려진 더함(최종 결과로 판정)과 개인 사본 상태.
+ * local 은 조합에 쓴 펼친 선택(composeInputs), saved 는 저장된 local.json 전체(개인 사본 대상), layers 는 겹별 결과. saved·layers 가
+ * 없으면 local 이 저장된 것이고 겹은 공통 하나다. role 은 역할 이름이 있을 때만(정의가 이 단위에 없으면 defined: false, 목록은 빈 것).
  * 개인 사본 상태는 받은 trees(최신) 기준으로 개인 잠금·store 디스크를 견준다. 개인 잠금을 읽을 수 없으면 items 는 비고 할 일.
- * @returns {{ added: string[], removed: string[], ignored: string[], items: { id: string, state: string }[], todos: object[] }}
+ * @returns {{ added: string[], removed: string[], ignored: string[], shadowed: { id: string, by: string }[],
+ *   role: { name: string, defined: boolean, added: string[], removed: string[], ignored: string[] } | null,
+ *   items: { id: string, state: string }[], todos: object[] }}
  */
-export function personalStatus({ store, manifest, local, trees, nested = false }) {
+export function personalStatus({ store, manifest, local, saved = local, layers = null, role = null, trees, nested = false }) {
   const eff = effectiveItems(manifest, local);
   const many = Object.keys(manifest.sources).length > 1;
   const show = (name, k) => (many ? qualify(name, k) : k);
-  const added = [];
-  const removed = [];
-  const ignored = [];
-  for (const name of Object.keys(eff.sources).sort(byStr)) {
-    const e = eff.sources[name];
-    added.push(...e.added.map(k => show(name, k)));
-    removed.push(...e.removed.map(k => show(name, k)));
-    ignored.push(...e.ignored.filter(k => e.ignoredWhy[k] === 'required').map(k => show(name, k)));
-  }
-  const shadowed = shadowedAdds(manifest, eff).flatMap(x => [x.key, ...x.below].map(k => ({ id: show(x.source, k), by: x.by })));
+  const listsOf = e => {
+    const out = { added: [], removed: [], ignored: [] };
+    for (const name of Object.keys(e.sources).sort(byStr)) {
+      const x = e.sources[name];
+      out.added.push(...x.added.map(k => show(name, k)));
+      out.removed.push(...x.removed.map(k => show(name, k)));
+      out.ignored.push(...x.ignored.filter(k => x.ignoredWhy[k] === 'required').map(k => show(name, k)));
+    }
+    return out;
+  };
+  const { added, removed, ignored } = listsOf(layers?.common ?? eff);
+  const roleShown = role === null ? null : {
+    name: role, defined: !!layers?.role, ...(layers?.role ? listsOf(layers.role) : { added: [], removed: [], ignored: [] }),
+  };
+  const shadowed = reportedShadows(shadowedAdds(manifest, eff), layers?.filled).flatMap(x => [x.key, ...x.below].map(k => ({ id: show(x.source, k), by: x.by })));
   const todos = [];
   let lock;
   try {
@@ -161,14 +176,14 @@ export function personalStatus({ store, manifest, local, trees, nested = false }
   } catch (e) {
     if (!(e instanceof ManifestError)) throw e;
     todos.push(lockBadTodo(store, e));
-    return { added, removed, ignored, shadowed, items: [], todos };
+    return { added, removed, ignored, shadowed, role: roleShown, items: [], todos };
   }
-  const pm = personalManifest(manifest, local);
+  const pm = personalManifest(manifest, saved);
   const v = virtualize({ manifest: pm, lock, trees });
   const viewLock = v.viewLock ?? { version: 1, revision: 1, sources: {}, outputs: [] };
   const { states } = itemStates({ tree: v.tree, reader: diskReader(store), manifest: v.view, lock: viewLock, nested, management: {} });
   const items = [...states].map(([id, state]) => ({ id: showId(id, v.sources, many), state }));
-  return { added, removed, ignored, shadowed, items, todos };
+  return { added, removed, ignored, shadowed, role: roleShown, items, todos };
 }
 
 /**

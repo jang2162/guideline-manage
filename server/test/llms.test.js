@@ -25,9 +25,11 @@ test('/llms.txt 는 로그인 없이 열리고, 이 서버의 주소로 사용·
   assert.match(text, /"aliases"/);
   // 개인 범위: pick --local 과 그 할 일, 머신 기본값
   for (const want of ['guideline pick --local', '## 내 머신에서만 (개인 범위)', 'defaults.json', 'info/exclude', 'scope: "personal"']) assert.ok(text.includes(want), want);
-  for (const kind of ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed']) {
+  for (const kind of ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed', 'role-missing', 'role-bad']) {
     assert.ok(text.includes(`| \`${kind}\` |`), `할 일 ${kind}`);
   }
+  // 개인 역할: 역할 폼과 워크트리 역할 고르기
+  for (const want of ['guideline pick --local --role', 'guideline role use']) assert.ok(text.includes(want), want);
 });
 
 test('화면 상단에 사용법(/usage) 링크가 있다', async t => {

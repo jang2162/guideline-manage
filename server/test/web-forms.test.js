@@ -250,7 +250,7 @@ test('개인 모드 제출은 personalSelection 결과를 결과로 둔다', asy
   const cookie = await openForm(f);
   const data = (await getAs(f.s, cookie, `/forms/${f.id}/data`)).json();
   assert.equal(data.mode, 'personal');
-  assert.deepEqual(data.personal, PERSONAL);
+  assert.deepEqual(data.personal, { ...PERSONAL, role: null });
   const rejected = await postJson(f.s, `/forms/${f.id}/submit`, { personalChoices: { 'rules/base': 'remove' } }, { cookie });
   assert.equal(rejected.status, 400);
   assert.match(rejected.json().error, /필수/);
@@ -284,10 +284,44 @@ test('payload 에 required 가 없으면(옛 CLI) 화면이 보낸 필수를 결
   assert.equal(Object.hasOwn((await result(f)).selection, 'required'), false);
 });
 
-test('폼 data 의 personal 은 chosen·required·add·remove·preset 만 넘긴다', async t => {
+test('폼 data 의 personal 은 chosen·required·add·remove·preset·role 만 넘긴다', async t => {
   const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, secret: 'x', store: '/home/me/.git' } });
   const cookie = await openForm(f);
-  assert.deepEqual((await getAs(f.s, cookie, `/forms/${f.id}/data`)).json().personal, PERSONAL);
+  // 역할이 없는 payload(옛 CLI·역할 없는 pick --local)는 role: null
+  assert.deepEqual((await getAs(f.s, cookie, `/forms/${f.id}/data`)).json().personal, { ...PERSONAL, role: null });
+});
+
+test('/data 는 personal.role 을 넘기고 다른 personal 필드는 거른다', async t => {
+  const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui', secret: 'x' } });
+  const cookie = await openForm(f);
+  assert.deepEqual((await getAs(f.s, cookie, `/forms/${f.id}/data`)).json().personal, { ...PERSONAL, role: 'ui' });
+  // 문자열이 아니면 null
+  const g = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: { name: 'ui' } } });
+  const c = await openForm(g);
+  assert.equal((await getAs(g.s, c, `/forms/${g.id}/data`)).json().personal.role, null);
+});
+
+test('정적 forms.js 는 역할이 있으면 개인 폼 제목에 역할 이름을 보인다(personalRoleTitle)', async t => {
+  const s = await startApp(t);
+  const src = (await s.req('/static/forms.js')).text;
+  assert.ok(src.includes("'web.client.personalRoleTitle'"));
+  const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui' } });
+  const cookie = await openForm(f);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
+  assert.ok(page.includes('"web.client.personalRoleTitle"'));
+});
+
+test('정적 forms.js 는 역할 폼의 기준 열을 프로젝트·공통 선택 문구로 보인다(공통 폼은 그대로)', async t => {
+  const s = await startApp(t);
+  const src = (await s.req('/static/forms.js')).text;
+  for (const key of ['web.client.personal.inRoleBasis', 'web.client.personal.notInRoleBasis']) assert.ok(src.includes(`'${key}'`), key);
+  // 공통 폼 문구도 남는다
+  for (const key of ['web.client.personal.inProject', 'web.client.personal.notInProject']) assert.ok(src.includes(`'${key}'`), key);
+  const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui' } });
+  const cookie = await openForm(f);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
+  assert.ok(page.includes('"web.client.personal.inRoleBasis":"프로젝트·공통 선택이 받음"'));
+  assert.ok(page.includes('"web.client.personal.notInRoleBasis":"프로젝트·공통 선택이 받지 않음"'));
 });
 
 test('폼 페이지는 개인 모드·필수 문구를 브라우저 문구 블록에 싣는다', async t => {

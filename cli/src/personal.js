@@ -3,7 +3,7 @@ import path from 'node:path';
 import { t } from './i18n.js';
 import { gitCommonDir, runGit } from './projects.js';
 import { isBlockKey, isWithin, withAncestors } from './blocks.js';
-import { finalUnit } from './sources.js';
+import { finalUnit, NAME } from './sources.js';
 
 export class LocalError extends Error {}
 
@@ -14,7 +14,7 @@ const uniqSorted = list => [...new Set(list)].sort(byStr);
 
 /**
  * @typedef {{ add: string[], remove: string[] }} LocalSource  실제 이름(별칭 전)의 블록 키
- * @typedef {{ version: 1, sources: Record<string, LocalSource> }} Local
+ * @typedef {{ version: 2, sources: Record<string, LocalSource>, roles: Record<string, { sources: Record<string, LocalSource> }> }} Local  roles: 역할 이름 → 그 역할의 출처별 개인 선택
  */
 
 /**
@@ -68,10 +68,10 @@ export function personalPlace(unit, git = runGit) {
   return { common, unitRel, store: path.join(common, 'guideline', 'units', key), worktree: worktreeId(unit.dir, common, git) };
 }
 
-/** @returns {Local} 파일이 없으면 빈 개인 선택 */
+/** @returns {Local} 파일이 없으면 빈 개인 선택. v1 은 roles 없는 v2 로 읽는다. */
 export function readLocal(store) {
   const file = path.join(store, LOCAL_FILE);
-  if (!fs.existsSync(file)) return { version: 1, sources: {} };
+  if (!fs.existsSync(file)) return { version: 2, sources: {}, roles: {} };
   const bad = () => new LocalError(t('local.badFile', { file }));
   let data;
   try {
@@ -80,24 +80,41 @@ export function readLocal(store) {
     throw bad();
   }
   const okList = v => Array.isArray(v) && v.every(isBlockKey);
-  if (!data || data.version !== 1 || !data.sources || typeof data.sources !== 'object' || Array.isArray(data.sources)) throw bad();
-  const sources = {};
-  for (const [name, s] of Object.entries(data.sources)) {
-    if (!s || typeof s !== 'object' || !okList(s.add) || !okList(s.remove)) throw bad();
-    sources[name] = { add: uniqSorted(s.add), remove: uniqSorted(s.remove) };
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  const readSources = raw => {
+    if (!isObj(raw)) throw bad();
+    const sources = {};
+    for (const [name, s] of Object.entries(raw)) {
+      if (!s || typeof s !== 'object' || !okList(s.add) || !okList(s.remove)) throw bad();
+      sources[name] = { add: uniqSorted(s.add), remove: uniqSorted(s.remove) };
+    }
+    return sources;
+  };
+  if (!data || (data.version !== 1 && data.version !== 2)) throw bad();
+  const sources = readSources(data.sources);
+  const roles = {};
+  if (data.version === 2 && data.roles !== undefined) {
+    if (!isObj(data.roles)) throw bad();
+    for (const [role, r] of Object.entries(data.roles)) {
+      if (!NAME.test(role) || !isObj(r)) throw bad();
+      roles[role] = { sources: readSources(r.sources) };
+    }
   }
-  return { version: 1, sources };
+  return { version: 2, sources, roles };
 }
 
-/** 출처 이름과 블록 키를 정렬·중복 제거해 쓴다. */
+const sortedSources = src => {
+  const out = {};
+  for (const name of Object.keys(src).sort(byStr)) out[name] = { add: uniqSorted(src[name].add), remove: uniqSorted(src[name].remove) };
+  return out;
+};
+
+/** 출처·역할 이름과 블록 키를 정렬·중복 제거해 늘 v2 로 쓴다. */
 export function writeLocal(store, local) {
-  const sources = {};
-  for (const name of Object.keys(local.sources).sort(byStr)) {
-    const s = local.sources[name];
-    sources[name] = { add: uniqSorted(s.add), remove: uniqSorted(s.remove) };
-  }
+  const roles = {};
+  for (const role of Object.keys(local.roles ?? {}).sort(byStr)) roles[role] = { sources: sortedSources(local.roles[role].sources) };
   fs.mkdirSync(store, { recursive: true });
-  fs.writeFileSync(path.join(store, LOCAL_FILE), `${JSON.stringify({ version: 1, sources }, null, 2)}\n`);
+  fs.writeFileSync(path.join(store, LOCAL_FILE), `${JSON.stringify({ version: 2, sources: sortedSources(local.sources), roles }, null, 2)}\n`);
 }
 
 const WHY_RANK = ['required', 'canceled', 'already-chosen', 'no-effect'];
@@ -158,6 +175,63 @@ export function effectiveItems(manifest, local) {
 }
 
 /**
+ * 역할 겹의 기준 매니페스트: 출처마다 items = 공통 겹 결과 그대로(자동으로 채운 조상 포함). 역할 폼은 이 기준을 「받음」 으로
+ * 보여 주므로 폼에서 「그대로」 둔 조상이 결과에도 남고, 역할 정의에 고르지 않은 조상을 적지 않아도 돼 공통 선택이 바뀌면 역할도
+ * 따라간다. 대가로 역할이 공통의 하위 스택만 빼면 그 부모(자동 조상)는 남는다 — 부모도 빼려면 역할이 부모를 뺀다.
+ * required·별칭 등 나머지는 그대로.
+ * @param {import('./manifest.js').Manifest} manifest
+ * @param {ReturnType<typeof effectiveItems>} common effectiveItems(manifest, local)
+ * @returns {import('./manifest.js').Manifest}
+ */
+export function roleBasis(manifest, common) {
+  const sources = {};
+  for (const [name, src] of Object.entries(manifest.sources)) sources[name] = { ...src, items: [...common.sources[name].items] };
+  return { ...manifest, sources };
+}
+
+/**
+ * 세 겹(프로젝트 → 공통 개인 선택 → 역할 개인 선택) 계산과, 그 결과를 한 겹짜리 개인 선택(flat)으로 펼친 것.
+ * - common = effectiveItems(manifest, local).
+ * - 역할 겹의 기준 매니페스트는 roleBasis(공통 겹 결과 그대로, 자동 조상 포함).
+ * - flat 은 effectiveItems(manifest, flat) 의 items 가 세 겹의 최종 items 와 같도록 펼친다(P = 프로젝트 items, F = 최종 items):
+ *   add = ((common.added ∪ role.added) ∩ F − P) ∪ 그것만으로 다시 채워지지 않는 F 의 키, remove = P − F. 뒤의 것은 공통이 자동으로
+ *   채운 조상인데 역할이 그 아래 하위만 빼 남은 것이다. add 를 F − P 로 두어도 items 는 같지만 그러면 다른 자동 조상까지
+ *   개인 더함(added)으로 보여, 명시한 키만 쓰는 added·가려짐(shadowedAdds) 판정이 한 겹일 때와 달라진다.
+ *   F 는 조상이 닫혀 있어 remove(P − F)의 자손이 F 에 없고, 필수와 그 조상은 어느 겹에서도 빠지지 않아 P − F 에 없다.
+ *   매니페스트에 없는 출처의 공통 개인 항목은 그대로 둬 orphans 가 공통과 같다.
+ * filled 는 출처마다 그 보충한 키(아무도 명시로 더하지 않은 조상)다. flat 의 added 에는 보이므로 가려짐 보고(reportedShadows)에서 뺀다.
+ * 역할이 없거나(null) local.roles 에 그 역할이 없으면 role = null, flat 은 공통 개인 선택 그대로, filled 는 비었다.
+ * @param {import('./manifest.js').Manifest} manifest
+ * @param {Local} local
+ * @param {string | null} role
+ * @returns {{ flat: Local, common: ReturnType<typeof effectiveItems>, role: ReturnType<typeof effectiveItems> | null, roleDefined: boolean,
+ *   filled: Record<string, string[]> }}
+ */
+export function layeredLocal(manifest, local, role) {
+  const common = effectiveItems(manifest, local);
+  const roles = local.roles ?? {};
+  const roleDefined = role != null && Object.hasOwn(roles, role);
+  if (!roleDefined) return { flat: { version: 2, sources: local.sources, roles: {} }, common, role: null, roleDefined, filled: {} };
+  const roleEff = effectiveItems(roleBasis(manifest, common), { version: 2, sources: roles[role].sources, roles: {} });
+  const flatSources = {};
+  const filled = {};
+  for (const [name, src] of Object.entries(manifest.sources)) {
+    const project = new Set(src.items);
+    const final = new Set(roleEff.sources[name].items);
+    const explicit = [...common.sources[name].added, ...roleEff.sources[name].added].filter(k => final.has(k) && !project.has(k));
+    const remove = uniqSorted(src.items.filter(k => !final.has(k)));
+    const reached = new Set(effectiveItems({ ...manifest, sources: { [name]: src } }, { version: 2, sources: { [name]: { add: explicit, remove } }, roles: {} }).sources[name].items);
+    const fill = uniqSorted([...final].filter(k => !reached.has(k)));
+    if (fill.length) filled[name] = fill;
+    flatSources[name] = { add: uniqSorted([...explicit, ...fill]), remove };
+  }
+  for (const [name, s] of Object.entries(local.sources)) {
+    if (!(name in manifest.sources)) flatSources[name] = { add: [...s.add], remove: [...s.remove] };
+  }
+  return { flat: { version: 2, sources: flatSources, roles: {} }, common, role: roleEff, roleDefined, filled };
+}
+
+/**
  * 프로젝트 선택(조상 포함)의 최종 키(별칭을 입힌 것) → 그것을 고른 출처. 출처 이름 순으로 먼저 고른 출처가 주인이다.
  * 개인 더함의 최종 키가 여기 있으면 조합은 그 키를 프로젝트 사본에서 읽는다(personalTree) — 개인 사본은 쓰이지 않는다.
  * @param {import('./manifest.js').Manifest} manifest
@@ -199,4 +273,17 @@ export function shadowedAdds(manifest, eff) {
     out.push(...mine);
   }
   return out;
+}
+
+/**
+ * shadowedAdds 중 할 일·status 로 알릴 것. 펼친 선택이 보충한 조상(layeredLocal 의 filled)은 아무도 명시로 더하지 않았으므로 가려져도
+ * 알리지 않는다 — 공통만 있을 때 같은 상태가 알리지 않는 것과 같다. 조합은 shadowedAdds 전체로 숨긴다(프로젝트 사본을 쓴다).
+ * @param {ReturnType<typeof shadowedAdds>} shadowed
+ * @param {Record<string, string[]>} [filled]
+ */
+export function reportedShadows(shadowed, filled = {}) {
+  return shadowed.flatMap(x => {
+    const fill = new Set(filled[x.source] ?? []);
+    return fill.has(x.key) ? [] : [{ ...x, below: x.below.filter(k => !fill.has(k)) }];
+  });
 }

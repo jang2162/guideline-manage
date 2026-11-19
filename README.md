@@ -28,6 +28,7 @@ It is for teams whose projects use [ruler](https://github.com/intellectronica/ru
 - Send local edits upstream as proposals that an admin reviews with diffs and a 3-way merge.
 - Combine guidelines from several servers in one project, with aliases for clashing names.
 - Add or remove blocks for yourself with `guideline pick --local`, without changing what the project commits. Mark the blocks nobody may remove as **Required**.
+- Give each worktree its own personal role with `guideline pick --local --role` and `guideline role use`.
 - Hand the work to an agent: the server's `/llms.txt` and the `guideline-sync` skill tell agents how to receive guidelines and handle to-dos.
 - Run the CLI and the admin web in English or Korean, and add other languages with language packs.
 

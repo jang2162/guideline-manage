@@ -9,7 +9,7 @@ import { blockedReason } from './render/index.js';
 import { withAncestors, isWithin } from './blocks.js';
 import { unitOf, unitName, finalUnit } from './sources.js';
 import { readBlock, writeBlock } from './gitignore-block.js';
-import { effectiveItems, shadowedAdds } from './personal.js';
+import { effectiveItems, shadowedAdds, reportedShadows } from './personal.js';
 import { readProjectOverrides, checkOverrides } from './project-overrides.js';
 import { excludeMarkers, excludePattern, unitPathOf, readExclude } from './exclude.js';
 import { readLock, splitQualified, ManifestError } from './manifest.js';
@@ -118,50 +118,65 @@ function overrideCopies(tree, chosen) {
 /**
  * 매니페스트에 개인 선택을 입힌 것. 출처마다 items = 프로젝트 items − 개인으로 빠진 것 + 개인으로 더한 것(조상은 virtualKeys 가 채운다) —
  * 개인 선택이 아무것도 바꾸지 않으면 items 가 매니페스트와 같아 조합 결과도 바이트 단위로 같다.
- * note 는 관리 지침의 개인 절(별칭을 입힌 키). 보일 것이 없으면 null.
+ * local 은 펼친 선택(composeInputs — 세 겹의 최종 결과)이다. layers 는 겹별 결과(없으면 local 하나가 공통 겹)와 펼친 선택이 보충한 조상
+ * (filled — 가려져도 할 일로 알리지 않는다), role 은 역할 이름.
+ * note 는 관리 지침의 개인 절(별칭을 입힌 키) — 더함·뺌·무시된 뺌은 겹별로 보이고(역할이 정의돼 있으면 note.role), 다른 출처에 가려진
+ * 더함은 최종 결과로 판정해 어느 겹에서도 더한 것으로 보이지 않는다. 보일 것이 없으면 null.
  */
-function personalLayer(manifest, local) {
+function personalLayer(manifest, local, layers = null, role = null) {
   const eff = effectiveItems(manifest, local);
+  const common = layers?.common ?? eff;
+  const roleEff = layers?.role ?? null;
   const names = Object.keys(manifest.sources).sort(byStr);
   const many = names.length > 1;
   const sources = {};
   const note = { added: [], removed: [], ignored: [] };
+  const roleNote = roleEff ? { name: role, added: [], removed: [], ignored: [] } : null;
   const todos = [];
+  const used = [];
+  let changed = false;
   // 다른 출처의 같은 최종 이름을 프로젝트가 고른 개인 더함은 조합이 프로젝트 사본을 쓴다 — 더한 것으로 보이지 않고 할 일로 알린다
   // 가려진 키 아래의 개인 더함도 쓰지 않는다 — 쓰면 다른 출처의 스택 안에 이 출처의 하위 스택이 섞이고, 세팅 표가 그 스택의 출처를
   // 이 출처로 적는다(managementOf 는 개인 겹을 입힌 매니페스트를 본다)
   const shadowed = shadowedAdds(manifest, eff);
-  for (const x of shadowed) {
+  for (const x of reportedShadows(shadowed, layers?.filled)) {
     const item = many ? `${x.source}:${x.key}` : x.key;
     const message = x.below.length
       ? t('todo.personalShadowedBelow', { item, final: x.final, by: x.by, below: x.below.join(', ') })
       : t('todo.personalShadowed', { item, final: x.final, by: x.by });
     todos.push({ kind: 'personal-shadowed', item, message });
   }
+  const ignoredTodo = new Set();
   for (const name of names) {
     const src = manifest.sources[name];
     const e = eff.sources[name];
     const gone = new Set(e.removed);
     const hidden = new Set(shadowed.filter(x => x.source === name).flatMap(x => [x.key, ...x.below]));
-    const used = e.added.filter(k => !hidden.has(k));
-    sources[name] = { ...src, items: [...src.items.filter(k => !gone.has(k)), ...used] };
+    const mine = e.added.filter(k => !hidden.has(k));
+    sources[name] = { ...src, items: [...src.items.filter(k => !gone.has(k)), ...mine] };
+    if (mine.length || e.removed.length) changed = true;
     const show = k => ({ key: finalUnit(k, src.aliases ?? {}), source: many ? name : null });
-    note.added.push(...used.map(show));
-    note.removed.push(...e.removed.map(show));
-    // 무시된 뺌만 보인다(무시된 더함은 결과가 같다 — 이미 고른 것이거나 뺌에 상쇄된 것)
-    for (const k of e.ignored) {
-      const why = e.ignoredWhy[k];
-      if (why === 'required' || why === 'no-effect') note.ignored.push({ ...show(k), why });
-      // 필수가 된 블록의 개인 뺌은 pick --local 에서 정리할 때까지 할 일로도 알린다(관리 지침만으로는 작업자가 놓친다)
-      if (why === 'required') {
+    used.push(...mine.map(k => show(k).key));
+    for (const [layer, out] of [[common.sources[name], note], [roleEff?.sources[name], roleNote]]) {
+      if (!layer) continue;
+      out.added.push(...layer.added.filter(k => !hidden.has(k)).map(show));
+      out.removed.push(...layer.removed.map(show));
+      // 무시된 뺌만 보인다(무시된 더함은 결과가 같다 — 이미 고른 것이거나 뺌에 상쇄된 것)
+      for (const k of layer.ignored) {
+        const why = layer.ignoredWhy[k];
+        if (why === 'required' || why === 'no-effect') out.ignored.push({ ...show(k), why });
+        // 필수가 된 블록의 개인 뺌은 pick --local 에서 정리할 때까지 할 일로도 알린다(관리 지침만으로는 작업자가 놓친다). 어느 겹에서든.
         const item = many ? `${name}:${k}` : k;
-        todos.push({ kind: 'personal-ignored', item, message: t('todo.personalIgnored', { item }) });
+        if (why === 'required' && !ignoredTodo.has(item)) {
+          ignoredTodo.add(item);
+          todos.push({ kind: 'personal-ignored', item, message: t('todo.personalIgnored', { item }) });
+        }
       }
     }
   }
-  const changed = note.added.length > 0 || note.removed.length > 0;
+  const shows = note.added.length || note.removed.length || note.ignored.length || roleNote;
   return {
-    manifest: { ...manifest, sources }, changed, added: note.added.map(x => x.key), note: changed || note.ignored.length ? note : null, todos,
+    manifest: { ...manifest, sources }, changed, added: used, note: shows ? { ...note, ...(roleNote ? { role: roleNote } : {}) } : null, todos,
   };
 }
 
@@ -296,8 +311,9 @@ function build({ tree, guide, manifest, keys, nested, rulerAgentsEnabled, manage
  * 개인 겹에서만 나온 경로는 exclude(info/exclude 의 단위·워크트리 블록에 쓸 것)로 돌려준다. info/exclude 는 호출자가 쓴다(writeExclude).
  * @param {{ project: string, manifest: import('./manifest.js').Manifest, nested?: boolean, rulerAgentsEnabled?: boolean,
  *   personal?: { local: import('./personal.js').Local, prior?: import('./personal.js').Local, store: string, common: string, unitRel: string,
- *     worktree: string } | null }} opts
- *   project 는 단위 디렉터리(절대경로), manifest 는 v3(출처별 실제 id·별칭). personal 은 composeInputs 가 만든다(git 이 아니면 null)
+ *     worktree: string, layers?: { common: object, role: object | null, filled?: Record<string, string[]> }, role?: string | null } | null }} opts
+ *   project 는 단위 디렉터리(절대경로), manifest 는 v3(출처별 실제 id·별칭). personal 은 composeInputs 가 만든다(git 이 아니면 null).
+ *   local·prior 는 펼친 선택(세 겹의 최종 결과), layers 는 관리 지침·무시된 뺌 할 일에 쓰는 겹별 결과
  * @returns {{ files: Record<string, Buffer | null>, generated: { project: string[], personal: string[] }, todos: object[],
  *   exclude: { markers: { start: string, end: string }, paths: string[] } | null,
  *   ruler: { baseline: Map<string, Buffer>, mine: string[] } | null }}
@@ -319,7 +335,7 @@ export function compose({ project, manifest, nested = false, rulerAgentsEnabled 
   // 사본이 있는 항목만 조합한다. 막혔거나 원본에서 사라진 항목은 동기화가 지난 사본을 남겨 두므로 그것을 쓴다.
   const fit = ks => ks.filter(k => !(nested && isRootOnly(k)));
   const projectKeys = fit(virtualKeys(manifest));
-  const layer = personal ? personalLayer(manifest, personal.local) : null;
+  const layer = personal ? personalLayer(manifest, personal.local, personal.layers, personal.role) : null;
   const chosen = layer ? layer.manifest : manifest;
   const keys = layer ? fit(virtualKeys(chosen)) : projectKeys;
   // 개인 사본은 개인으로 더한 키 아래에서만 읽는다(personalTree). 개인으로 더한 하위 스택의 조상 중 프로젝트가 고르지 않은 것도

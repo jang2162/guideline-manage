@@ -46,8 +46,11 @@ Product names, commands, file names, setting keys and code stay untranslated.
 | personal scope | 개인 범위 | What one worker adds to or removes from the project's choice with `guideline pick --local`. Never committed |
 | personal selection | 개인 선택 | `local.json` in `<git common dir>/guideline/units/<unit key>/` |
 | personal copy | 개인 사본 | A copy received for the personal scope, kept in the git common directory |
+| common personal selection | 공통 개인 선택 | The personal selection outside any role (`sources` of `local.json`). Every worktree of the clone uses it |
+| personal role | 개인 역할 | A named layer on top of the common personal selection (`roles.<name>` of `local.json`). Each worktree uses one, set with `guideline role use` |
 | machine defaults | 머신 기본값 | `defaults.json` in the CLI's config folder: pre-checks the personal form, per server |
 | git common directory | git 공용 디렉터리 | The `.git` folder that all worktrees of a clone share (`git rev-parse --git-common-dir`) |
+| git dir (of a worktree) | git 디렉터리 | A worktree's own git directory (`git rev-parse --git-dir`): `.git/` in the main worktree, `.git/worktrees/<name>/` in a linked one |
 | admin token | 관리자 토큰 | `ADMIN_TOKEN` |
 | read token | 읽기 토큰 | |
 | scope | 범위 | `read`, `propose`, `admin` |

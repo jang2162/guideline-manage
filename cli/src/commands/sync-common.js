@@ -14,7 +14,8 @@ import { RULER_TOML, layoutOf } from '../layout.js';
 import { strayRulerOutput } from '../stray.js';
 import { fetchSources, manifestClashes } from '../workspace.js';
 import { migrateLayout, preparePackage, readOnlyPrepareTodos } from '../migrate-layout.js';
-import { personalPlace, readLocal, LocalError } from '../personal.js';
+import { personalPlace, readLocal, layeredLocal, LocalError } from '../personal.js';
+import { readRole, roleFile } from '../role.js';
 import { writeExclude, readExclude, KEEP_BAK_MARK } from '../exclude.js';
 import { writePersonal, personalRevisionTodos } from '../personal-sync.js';
 import { runGit } from '../projects.js';
@@ -112,18 +113,65 @@ export function mergeTodos(syncTodos, composeTodos) {
  * 하나라도 빠뜨리면 그 명령은 개인 겹 없이 조합해 개인 생성물을 지우고, status 는 apply 할 일을 영영 낸다.
  * git 저장소가 아니면 personal 은 null(개인 범위를 지원하지 않는다). 개인 선택 파일이 깨졌으면 null 과 할 일 — 그 사이 info/exclude 와
  * 개인 생성물은 건드리지 않는다(블록을 읽지 않으니 지우지도 않는다).
- * @param {{ project: string, unit: { root: string }, git?: import('../projects.js').GitRunner }} opts project 는 단위 디렉터리
- * @returns {{ personal: { local: object, store: string, common: string, unitRel: string, worktree: string } | null, todos: object[] }}
+ * 이 워크트리의 역할(role.js)을 읽어 세 겹(프로젝트 → 공통 → 역할)으로 계산한다. local 은 펼친 선택(조합용, 읽기 전용)이고 saved 는
+ * 읽은 local.json 그대로(모든 역할 포함)다 — 개인 사본 대상 계산(writePersonal·personalStatus)에는 saved 를 써야 다른 역할의 사본이
+ * 지워지지 않는다. layers 는 겹별 결과(status·관리 지침·무시된 뺌 할 일은 여기서 읽는다 — 역할이 있으면 펼친 선택에는 무시된 항목이 없다).
+ * 역할 파일이 깨졌으면 역할 없음으로 조합하고 role-bad, 역할이 이 워크트리의 어느 단위에도 정의돼 있지 않으면 role-missing(이 단위에만
+ * 없으면 할 일 없이 roleAnywhere = true). 두 할 일은 워크트리에 하나라 하위 단위 조합(composeSubUnits)은 루트가 낸 것과 겹치지 않게 뺀다.
+ * @param {{ project: string, unit: { root: string }, manifest?: object, git?: import('../projects.js').GitRunner }} opts project 는 단위 디렉터리.
+ *   manifest 를 주지 않으면 project 의 것을 읽는다.
+ * @returns {{ personal: { local: object, saved: object, role: string | null, roleDefined: boolean, roleAnywhere: boolean,
+ *   layers: { common: object, role: object | null, filled: Record<string, string[]> }, store: string, common: string, unitRel: string, worktree: string } | null, todos: object[] }}
  */
-export function composeInputs({ project, unit, git = runGit }) {
+export function composeInputs({ project, unit, manifest, git = runGit }) {
   const place = personalPlace({ dir: project, root: unit.root }, git);
   if (!place) return { personal: null, todos: [] };
+  const todos = [];
+  const role = readRole(project, git);
+  if (role.bad) todos.push({ kind: 'role-bad', item: null, scope: 'personal', message: t('todo.roleBad', { file: roleFile(project, git) }) });
+  let saved;
   try {
-    return { personal: { ...place, local: readLocal(place.store) }, todos: [] };
+    saved = readLocal(place.store);
   } catch (e) {
     if (!(e instanceof LocalError)) throw e;
-    return { personal: null, todos: [{ kind: 'local-bad', item: null, message: t('todo.localBad', { reason: e.message }) }] };
+    return { personal: null, todos: [...todos, { kind: 'local-bad', item: null, message: t('todo.localBad', { reason: e.message }) }] };
   }
+  const m = manifest === undefined ? readManifest(project) : manifest;
+  const l = layeredLocal(m, saved, role.name);
+  const roleAnywhere = l.roleDefined || (role.name !== null && roleDefinedAnywhere(unit.root, role.name, git));
+  if (role.name !== null && !roleAnywhere) {
+    todos.push({ kind: 'role-missing', item: null, scope: 'personal', message: t('todo.roleMissing', { name: role.name }) });
+  }
+  return {
+    personal: {
+      ...place, local: l.flat, saved, role: role.name, roleDefined: l.roleDefined, roleAnywhere, layers: { common: l.common, role: l.role, filled: l.filled },
+    },
+    todos,
+  };
+}
+
+/** 워크트리 하나에 하나인 역할 할 일(하위 단위 조합이 루트와 겹치지 않게 다룬다). */
+const ROLE_TODOS = new Set(['role-bad', 'role-missing']);
+
+/**
+ * git 루트 단위나 그 아래 하위 단위(subUnits) 중 하나라도 그 역할을 local.json 에 정의했는가. 읽을 수 없는 local.json 은 정의 없음으로 본다.
+ * @param {string} root git 루트
+ * @param {string} role
+ * @param {import('../projects.js').GitRunner} [git]
+ */
+export function roleDefinedAnywhere(root, role, git = runGit) {
+  for (const rel of ['', ...subUnits(root, git)]) {
+    const dir = rel === '' ? root : path.join(root, ...rel.split('/'));
+    if (!fs.existsSync(dir)) continue;
+    const place = personalPlace({ dir, root }, git);
+    if (!place) continue;
+    try {
+      if (Object.hasOwn(readLocal(place.store).roles ?? {}, role)) return true;
+    } catch (e) {
+      if (!(e instanceof LocalError)) throw e;
+    }
+  }
+  return false;
 }
 
 /** 이 단위의 생성물을 조합한다(디스크는 읽기만). ruler.toml 은 ruler.project.toml 에서 만든다. personal 은 composeInputs 의 것. */
@@ -222,7 +270,7 @@ export function rulerStep({ root, env, runRuler, todos, rootIsUnit = true, git =
 function rootRulerPlan(root, git) {
   const opened = openProject({ dir: root, err: () => {}, needManifest: false });
   if (opened.code !== undefined || !opened.manifest || layoutOf(opened.lock, root) !== 'guideline') return null;
-  const inputs = composeInputs({ project: root, unit: { root }, git });
+  const inputs = composeInputs({ project: root, unit: { root }, manifest: opened.manifest, git });
   if (!inputs.personal) return null;
   const composed = composeUnit({ project: root, nested: false, manifest: opened.manifest, personal: inputs.personal });
   return { place: inputs.personal, ruler: composed.ruler };
@@ -395,7 +443,7 @@ export function finishApply({
   }
   writeFileAtomic(path.join(project, MANIFEST), manifestText(manifest));
   writeFileAtomic(path.join(project, LOCK), lockText(lock));
-  const inputs = composeInputs({ project, unit: { root }, git });
+  const inputs = composeInputs({ project, unit: { root }, manifest, git });
   if (sync && inputs.personal) todos = mergeTodos(todos, writePersonal({ personal: inputs.personal, manifest, nested, ...sync }));
   const composed = composeWithStray({ project, nested, manifest, personal: inputs.personal });
   todos = mergeTodos(todos, [...inputs.todos, ...composed.todos]);
@@ -433,11 +481,13 @@ export function finishPersonal({
   project, root = project, nested = false, manifest, sync, prior = null, todos: before = [], env = process.env, runRuler = defaultRunRuler, err = console.error,
   git = runGit,
 }) {
-  const inputs = composeInputs({ project, unit: { root }, git });
+  const inputs = composeInputs({ project, unit: { root }, manifest, git });
   let todos = [...before, ...inputs.todos];
   if (inputs.personal) todos = mergeTodos(todos, writePersonal({ personal: inputs.personal, manifest, nested, ...sync }));
-  // 지난 개인 선택: 이번에 비웠어도 그 되돌림은 조합이 에이전트 설정에서 지운다
-  const personal = inputs.personal && prior ? { ...inputs.personal, prior } : inputs.personal;
+  // 지난 개인 선택: 이번에 비웠어도 그 되돌림은 조합이 에이전트 설정에서 지운다. 지난 조합처럼 이 워크트리의 역할로 펼친다
+  const personal = inputs.personal && prior
+    ? { ...inputs.personal, prior: layeredLocal(manifest, prior, inputs.personal.role).flat }
+    : inputs.personal;
   const composed = composeWithStray({ project, nested, manifest, personal });
   todos = mergeTodos(todos, composed.todos);
   const w = writeComposedOrFail(project, composed.files, err, composed.exclude);
@@ -479,9 +529,10 @@ export function subUnits(root, git = runGit) {
  * 단위의 할 일·경로·쓰기 실패 메시지는 루트 기준으로 앞에 단위 경로를 붙인다. 쓰다 실패한 단위는 unit-write-failed 할 일을 낸다 —
  * 뒤이은 ruler 는 그 단위의 낡거나 반쯤 쓴 생성물로 AGENTS.md 등을 만든다.
  * 루트의 apply 와, 비중첩 단위(git 루트)의 update·pick(finishApply)·pick --local(finishPersonal)이 부른다.
+ * 역할 할 일(role-bad·role-missing)은 루트 단위가 낸다. 루트가 guideline 단위가 아니면 worktreeTodos 로 여기서 한 번 낸다.
  * @returns {{ written: string[], deleted: string[], todos: object[], composed: { rel: string, lock: object }[], failed: boolean }}
  */
-export function composeSubUnits({ root, subs, err, git = runGit }) {
+export function composeSubUnits({ root, subs, err, git = runGit, worktreeTodos = false }) {
   const res = { written: [], deleted: [], todos: [], composed: [], failed: false };
   for (const rel of subs) {
     const dir = path.join(root, ...rel.split('/'));
@@ -499,9 +550,13 @@ export function composeSubUnits({ root, subs, err, git = runGit }) {
         : { kind: 'unit-problem', item: null, unit: rel, message: t('todo.unitProblem', { dir: rel, reason: t('update.notYet') }) });
       continue;
     }
-    const inputs = composeInputs({ project: dir, unit: { root }, git });
+    const inputs = composeInputs({ project: dir, unit: { root }, manifest: opened.manifest, git });
     const { files, todos, exclude } = composeWithStray({ project: dir, nested: true, manifest: opened.manifest, personal: inputs.personal });
-    todos.unshift(...inputs.todos, ...revisionTodos(inputs, opened.manifest, opened.lock));
+    // 역할 할 일은 워크트리에 하나다 — 루트 단위가 이미 냈으면 빼고, 아니면 단위 이름 없이 한 번만
+    for (const x of inputs.todos.filter(x => ROLE_TODOS.has(x.kind))) {
+      if (worktreeTodos && !res.todos.some(y => y.kind === x.kind && y.message === x.message)) res.todos.push(x);
+    }
+    todos.unshift(...inputs.todos.filter(x => !ROLE_TODOS.has(x.kind)), ...revisionTodos(inputs, opened.manifest, opened.lock));
     const prep = preparePackage({ project: dir, root });
     todos.push(...prep.todos);
     const w = writeComposedOrFail(dir, { ...files, ...prep.files }, m => err(t('apply.unitTodo', { dir: rel, message: m })), exclude);
@@ -555,7 +610,7 @@ export async function migrateIfOld({ dir, unit, manifest, lock, env, home, fetch
     }
   };
   // .gitignore 블록을 먼저 써야 추적에서 뺀 생성물이 다시 커밋되지 않는다
-  const inputs = composeInputs({ project: dir, unit, git });
+  const inputs = composeInputs({ project: dir, unit, manifest, git });
   const composed = composeWithStray({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
   todos.push(...inputs.todos);
   const c = writeComposedOrFail(dir, composed.files, err, composed.exclude);

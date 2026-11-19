@@ -50,9 +50,11 @@ To let an agent choose for you, see [Let an agent recommend](#let-an-agent-recom
 | Your personal selection | `<git common dir>/guideline/units/<unit key>/local.json` | No |
 | Copies of the blocks you added | `<git common dir>/guideline/units/<unit key>/.guideline/` and `guideline-lock.json` | No |
 | Generated files, and agents' settings files from ruler, that only your selection adds | Listed in `<git common dir>/info/exclude`, in a block for this unit and worktree | No |
+| The role this worktree uses ([Use a role per worktree](#use-a-role-per-worktree)) | `<git dir>/guideline/role` | No |
 | `guideline.json`, `guideline-lock.json`, `.guideline/`, the `.gitignore` block | Unchanged | Yes, as before |
 
 `<git common dir>` is `.git/` in an ordinary clone.
+`<git dir>` is the worktree's own git directory: `.git/` in the main worktree, `.git/worktrees/<name>/` in a linked one.
 The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path, for example `packages%2Fapi`.
 
 What you receive is the project's choice, plus your additions and their ancestor stacks, minus your removals and the stacks below them.
@@ -91,6 +93,88 @@ Without a personal selection, or with an empty one, this works as before: ruler 
 - The personal copies hold every block you added, even one that this branch's project already picks: a worktree on another branch may not pick it. Where the project picks it, the project's copy is used. A copy is deleted only when you drop the addition in `pick --local`.
 - If a block you added has no personal copy (it was never received, or was deleted), it is not composed and you get a `no-copy` to-do with `scope: "personal"`. Run `guideline update` to receive it.
 - Another clone, or another machine, has no personal selection until you run `pick --local` there.
+- Each worktree uses its own role, if any. See the next section.
+
+## Use a role per worktree
+
+A **personal role** is a named set of additions and removals on top of your common personal selection.
+Each worktree can use one role.
+For example, one worktree of a clone gets the frontend stacks and another the backend stacks, while the committed files and `git status` stay the same in both.
+
+A worktree with a role composes three layers:
+
+1. The project's choice in `guideline.json`.
+2. Your common personal selection, from `guideline pick --local`. Every worktree shares it.
+3. The role's additions and removals, on top of the result of layer 2.
+
+A worktree without a role composes exactly as before.
+No environment variable changes the role.
+
+### Define a role
+
+1. In the unit directory, run `pick --local --role` with a role name.
+
+   ```bash
+   guideline pick --local --role frontend
+   ```
+
+   A role name starts with a lowercase letter and uses lowercase letters, digits and `-`, up to 32 characters. Another name, or `--role` without `--local`, stops with exit code 2 before the form opens.
+
+2. Choose the role's blocks in the personal form, one form per source. It is the personal form described above, with two differences:
+   - The column that says what is received reads "project + my common selection get it". The role sits on the project's choice plus your common selection.
+   - The subtitle ends with "personal selection — role frontend". A 0.24 server ignores the role, so it shows the plain personal form and the label "project gets it"; the result is the same.
+3. Submit. The role is created when it does not exist yet.
+
+The form pre-checks the role's current definition. Without one, it pre-checks that server's saved defaults for the role, otherwise nothing.
+**Save this selection as my default** saves the role's defaults for that server, separately from your common defaults.
+
+The result goes to `roles.frontend` in this unit's `local.json`. Your common selection does not change.
+`pick --local --role` receives the personal copies the role needs, but it does not switch this worktree to the role. It composes with the role this worktree already uses.
+
+Because the role sits on the result of your common selection, it follows that selection when you change it later.
+A stack you receive only because your common selection added a block below it stays when the role removes only that block.
+To drop that stack too, remove the parent stack itself in the role form.
+
+### Switch this worktree to a role
+
+```bash
+guideline role use frontend
+```
+
+- It writes the role name to `<git dir>/guideline/role`. Other worktrees keep their own role.
+- It then applies from the git root, like `guideline apply` there, whichever unit you run it in. MCP servers and skills that only the previous role added are removed from the agents' settings.
+- The role must be defined in at least one unit of the worktree. Otherwise it stops with exit code 2: "Role frontend is not defined in any unit".
+- If applying fails before anything is written, the role is set back and the message names it.
+- If part of applying fails after files were written (a unit below the git root, for example), the role stays as the new one. Fix the cause the message names, then run `guideline apply`.
+
+Other commands:
+
+| Command | What it does |
+| --- | --- |
+| `guideline role` | Prints this worktree's role and the roles each unit defines |
+| `guideline role use --none` | Clears the role and applies the same way |
+| `guideline role remove <name>` | Deletes the role's definition from this unit's `local.json`. It does not apply. When it is this worktree's role, you get an `apply` to-do |
+
+`guideline status` shows the role's layer next to the personal scope lines:
+
+```text
+  Role — frontend
+  Personal scope — added 1: rules/extra
+  Personal scope — removed 0: -
+  Role frontend — added 1: rules/web
+  Role frontend — removed 0: -
+```
+
+The management guideline's personal section shows the role and what it adds and removes.
+
+### Roles and units
+
+Each unit keeps its role definitions in its own `local.json`, but a worktree has one role.
+
+- A unit that does not define the worktree's role composes your common selection only. `status` there says "Role frontend — not defined in this unit".
+- When no unit defines the role, you get a `role-missing` to-do and only the common selection is used. Define the role with `guideline pick --local --role <name>`, or run `guideline role use --none`.
+- When the role file does not hold a valid role name, you get a `role-bad` to-do and the worktree composes without a role. Run `guideline role use <name>` or `guideline role use --none`.
+- `guideline update` receives the personal copies for every role's additions, whichever worktree runs it. A worktree that switches roles later finds its copies ready.
 
 ## Keep it up to date
 
@@ -150,6 +234,7 @@ A key that is not in the source, or a removal of a Required block, stops with ex
 - **Sources of the project only.** You can add blocks only from the sources in `guideline.json`.
 - **Same names from another source.** If the project picked a block with the same final name from another source, your addition would never be used. `pick --local` does not save it, nor the blocks below it, and reports a `personal-shadowed` to-do. If the project picks that block after you added it, your addition and the blocks you added below it are not used either, so they never mix into the other source's stack.
 - **Monorepo subdirectories.** Skills, subagents and MCP servers are received only at the git root, but the personal form in a subdirectory does not stop you from adding them. Add them in the git root's personal selection instead.
+- **Older CLIs.** This CLI writes `local.json` and `defaults.json` as version 2. A 0.24.0 CLI cannot read them: its `apply`, `update` and `status` compose from the project's choice only (`local-bad` to-do), and its `pick --local` stops with exit code 1. Upgrade the CLI everywhere the clone is used.
 - **Broken files.** If `local.json` cannot be read, `apply` composes from the project's choice only (`local-bad` to-do) and `pick --local` stops with exit code 1 without overwriting it. Fix the file and run `guideline apply` to bring your personal selection back, then run `pick --local` if you want to change it. If you delete it instead, the MCP servers you added on top of the project's MCP servers stay: remove them from `.mcp.json` and the other settings yourself.
 
 ## Next

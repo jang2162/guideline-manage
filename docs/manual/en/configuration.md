@@ -21,7 +21,7 @@ It is for CLI users and server operators looking up a value.
 | --- | --- |
 | `~/.config/guideline/config.json` | CLI settings. `{ "lang": "ko" }` sets the language when `GUIDELINE_LANG` is not set |
 | `~/.config/guideline/credentials.json` | Stored tokens, one per server (mode 600) |
-| `~/.config/guideline/defaults.json` | Machine defaults of the personal form, per server address (origin): `{ "version": 1, "servers": { "<origin>": { "add": [block keys], "remove": [block keys] } } }` (mode 600). Written when you check **Save this selection as my default** in `guideline pick --local`; read only to pre-check that form ([Machine defaults](reference.md#machine-defaults)) |
+| `~/.config/guideline/defaults.json` | Machine defaults of the personal form, per server address (origin): `{ "version": 2, "servers": { "<origin>": { "add": [block keys], "remove": [block keys], "roles": { "<role>": { "add": [block keys], "remove": [block keys] } } } } }` (mode 600). `roles` is optional and holds the defaults of each personal role. Written when you check **Save this selection as my default** in `guideline pick --local`; read only to pre-check that form ([Machine defaults](reference.md#machine-defaults)). A file of version 1 is still read. A 0.24.0 CLI cannot read version 2 |
 
 These files live in `$XDG_CONFIG_HOME/guideline/` when `XDG_CONFIG_HOME` is set.
 
@@ -50,8 +50,9 @@ The personal scope (`guideline pick --local`) keeps its files outside the projec
 
 | File | Contents |
 | --- | --- |
-| `<git common dir>/guideline/units/<unit key>/local.json` | Your personal selection for that unit: additions and removals per source |
+| `<git common dir>/guideline/units/<unit key>/local.json` | Your personal selection for that unit: additions and removals per source, and each personal role's layer. `{ "version": 2, "sources": { … }, "roles": { "<role>": { "sources": { … } } } }`; a file of version 1 is still read, and a 0.24.0 CLI cannot read version 2 |
 | `<git common dir>/guideline/units/<unit key>/.guideline/`, `guideline-lock.json` | Personal copies of the blocks you added, and their lock |
+| `<git dir>/guideline/role` | The personal role of this worktree, set with `guideline role use`. `<git dir>` is the worktree's own git directory, so each worktree has its own |
 | `<git common dir>/info/exclude` | A block per unit and worktree that lists the generated files, and the agents' settings files ruler writes (such as `.mcp.json`), that come only from the personal scope |
 
 The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path (`packages%2Fapi`). The places and formats are in [Personal scope](reference.md#personal-scope).

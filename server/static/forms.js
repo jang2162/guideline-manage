@@ -529,6 +529,13 @@ function userPersonal(unit, v) {
   if (n) state.notes.push(t(v === 'remove' ? 'web.client.personal.childrenRemoved' : 'web.client.personal.childrenReset', { n }));
 }
 
+/** 개인 폼의 기준 열 문구. 역할 폼의 기준은 프로젝트 + 내 공통 선택 결과다(그 위에 역할이 얹힌다). */
+function basisLabel(here) {
+  const role = typeof state.data.personal?.role === 'string' && state.data.personal.role;
+  if (role) return here ? 'web.client.personal.inRoleBasis' : 'web.client.personal.notInRoleBasis';
+  return here ? 'web.client.personal.inProject' : 'web.client.personal.notInProject';
+}
+
 function personalRow({ unit, depth, entry }, sel, received) {
   const { inProject, guarded } = pBasis();
   const v = pGet(unit);
@@ -547,7 +554,7 @@ function personalRow({ unit, depth, entry }, sel, received) {
     + `<span class="main"><span class="name">${blockHtml(short, entry.label, entry.name)}</span>`
     + `${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}`
     + `${Object.hasOwn(rec, unit) ? `<span class="badge rec">${esc(t('web.client.recommended'))}</span>` : ''}</span>`
-    + `<span class="state ${here ? 'p-in' : 'p-out'}">${esc(t(here ? 'web.client.personal.inProject' : 'web.client.personal.notInProject'))}</span>`
+    + `<span class="state ${here ? 'p-in' : 'p-out'}">${esc(t(basisLabel(here)))}</span>`
     + `<span class="extra">${lock}${effect ? `<span class="act act-${effect}">${esc(t(`web.client.personal.${effect}`))}</span>` : ''}</span>`
     + `<span class="tri" role="radiogroup" aria-label="${esc(unitName(unit))}">${radio('keep', false)}${radio('add', here)}${radio('remove', !here || guarded.has(unit))}</span>`
     + (entry.when ? `<div class="reason">${esc(t('web.client.when', { when: entry.when }))}</div>` : '')
@@ -752,6 +759,9 @@ if (app.dataset.status !== 'pending') {
     $('#dirty').hidden = true;
     $('#personal').hidden = false;
     $('#personal-intro').textContent = t('web.client.personal.intro');
+    // 역할 겹을 고르는 폼(pick --local --role)이면 제목 줄에 역할 이름을 보인다
+    const role = state.data.personal.role;
+    if (typeof role === 'string' && role) $('#subtitle').textContent = `${project().path} · ${t('web.client.personalRoleTitle', { name: role })}`;
     const preset = state.data.personal.preset;
     $('#preset').hidden = preset !== 'local' && preset !== 'defaults';
     if (!$('#preset').hidden) $('#preset').textContent = t(`web.client.personal.preset.${preset}`);

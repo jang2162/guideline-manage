@@ -6,7 +6,7 @@ import { tmpDir } from './helpers.js';
 import { configDir } from '../src/config-dir.js';
 import { credentialsPath } from '../src/credentials.js';
 import { configPath } from '../src/i18n.js';
-import { readDefaults, writeDefaults, defaultsFor, DefaultsError } from '../src/defaults.js';
+import { readDefaults, writeDefaults, defaultsFor, roleDefaultsFor, DefaultsError } from '../src/defaults.js';
 
 function where(t) {
   const home = tmpDir('guideline-home-');
@@ -24,7 +24,7 @@ test('configDir 은 XDG_CONFIG_HOME 이 있으면 그 아래, 없으면 ~/.confi
 });
 
 test('defaults 는 파일이 없으면 비어 있다', t => {
-  assert.deepEqual(readDefaults(where(t)), { version: 1, servers: {} });
+  assert.deepEqual(readDefaults(where(t)), { version: 2, servers: {} });
   assert.equal(defaultsFor('https://g.example.com', where(t)), null);
 });
 
@@ -69,4 +69,28 @@ test('defaults 는 손으로 쓴 끝 슬래시 키도 찾는다', t => {
   fs.mkdirSync(configDir(w), { recursive: true });
   fs.writeFileSync(path.join(configDir(w), 'defaults.json'), '{"version":1,"servers":{"https://g.example.com/":{"add":["rules/a"],"remove":[]}}}');
   assert.deepEqual(defaultsFor('https://g.example.com', w), { add: ['rules/a'], remove: [] });
+});
+
+test('v1 defaults 를 읽고 v2 로 쓴다', t => {
+  const w = where(t);
+  fs.mkdirSync(configDir(w), { recursive: true });
+  fs.writeFileSync(path.join(configDir(w), 'defaults.json'), JSON.stringify({ version: 1, servers: { 'https://g.example.com': { add: ['rules/a'], remove: [] } } }));
+  assert.deepEqual(readDefaults(w), { version: 2, servers: { 'https://g.example.com': { add: ['rules/a'], remove: [] } } });
+  writeDefaults(readDefaults(w), w);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(configDir(w), 'defaults.json'), 'utf8')).version, 2);
+});
+
+test('roleDefaultsFor 는 그 서버의 그 역할만', t => {
+  const w = where(t);
+  writeDefaults({
+    version: 2,
+    servers: {
+      'https://g.example.com': { add: ['rules/c'], remove: [], roles: { ui: { add: ['skills/z', 'skills/a'], remove: [] }, api: { add: [], remove: ['rules/x'] } } },
+      'http://other:3000': { add: [], remove: [], roles: { ui: { add: ['rules/o'], remove: [] } } },
+    },
+  }, w);
+  assert.deepEqual(roleDefaultsFor('https://g.example.com/p', 'ui', w), { add: ['skills/a', 'skills/z'], remove: [] });
+  assert.equal(roleDefaultsFor('https://g.example.com', 'none', w), null);
+  assert.equal(roleDefaultsFor('https://nope.example.com', 'ui', w), null);
+  assert.deepEqual(defaultsFor('https://g.example.com', w), { add: ['rules/c'], remove: [] });
 });

@@ -115,7 +115,7 @@ test('help 에 pick 이 있고, pick 에 허용되지 않은 옵션은 2', t => 
   assert.match(h.out, /status +반영한 지침이 최신인지/);
   const bad = run(['pick', '--force'], root);
   assert.equal(bad.code, 2);
-  assert.match(bad.out, /pick 에서 쓸 수 있는 옵션: --project, --no-browser, --new, --server, --source, --recommend, --local, --json/);
+  assert.match(bad.out, /pick 에서 쓸 수 있는 옵션: --project, --no-browser, --new, --server, --source, --recommend, --local, --role, --json/);
 });
 
 test('bin 의 pick: 서버 주소가 없으면 2', t => {
@@ -211,4 +211,34 @@ test('help 에 apply 가 있고, apply 는 --project·--json 만 받으며 받�
   const r = run(['apply', '--project', dir], dir);
   assert.equal(r.code, 2, r.out);
   assert.match(r.out, /guideline pick 먼저/);
+});
+
+test('role 은 명령줄에서 --json·--none 을 받고, 인자가 너무 많으면 2', t => {
+  const dir = fs.realpathSync(tmpDir('guideline-role-cli-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  const env = { ...process.env, GUIDELINE_LANG: 'ko' };
+  const j = run(['role', '--json'], dir, env);
+  assert.equal(j.code, 0, j.out);
+  assert.deepEqual(JSON.parse(j.out), { role: null, bad: false, units: [] });
+  // 옵션은 받는다 — 받은 적 없는 빈 저장소라 반영이 2 로 실패하고 역할은 그대로(없음)로 되돌린다
+  const n = run(['role', 'use', '--none', '--json'], dir, env);
+  assert.doesNotMatch(n.out, /Unknown option|모르는 옵션/);
+  assert.equal(n.code, 2, n.out);
+  assert.match(n.out, /아직 받지 않음 — guideline pick 먼저/);
+  assert.match(n.out, /^반영에 실패해 역할을 되돌렸음 — 없음$/m);
+  const extra = run(['role', 'use', 'a', 'b'], dir, env);
+  assert.equal(extra.code, 2);
+  assert.match(extra.out, /인자가 너무 많음/);
+});
+
+test('pick 은 --role 을 받고, --local 없이 쓰면 2', t => {
+  const dir = fs.realpathSync(tmpDir('guideline-pick-role-cli-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const env = { ...process.env, GUIDELINE_LANG: 'ko' };
+  const r = run(['pick', '--role', 'ui', '--project', dir], dir, env);
+  assert.equal(r.code, 2, r.out);
+  assert.doesNotMatch(r.out, /Unknown option|모르는 옵션/);
+  assert.match(r.out, /--role 은 --local 과 함께만/);
+  assert.match(run(['help'], dir, env).out, /--role <이름> {7}--local 과 함께/);
 });

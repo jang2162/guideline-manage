@@ -168,3 +168,45 @@ test('개인 범위: CHANGELOG 와 README 가 pick --local·필수·머신 기�
   }
   for (const f of ['README.md', 'README.ko.md']) assert.ok(read(f).includes('guideline pick --local'), f);
 });
+
+// 개인 역할(워크트리마다 공통 개인 선택 위에 역할 겹)을 문서가 실제 동작대로 적는다.
+const ROLE_KINDS = ['role-missing', 'role-bad'];
+
+test('개인 역할: how-to·참조·설정·문제 해결·올리기 문서가 pick --local --role·role use·세 겹·역할 파일 자리·새 할 일을 적는다', () => {
+  for (const lang of ['en', 'ko']) {
+    const how = read(`docs/manual/${lang}/how-to/use-guidelines-only-on-your-machine.md`);
+    const gitDir = lang === 'en' ? '<git dir>' : '<git 디렉터리>';
+    for (const want of ['guideline pick --local --role', 'guideline role use', 'guideline role use --none', 'guideline role remove', `${gitDir}/guideline/role`, ...ROLE_KINDS.map(k => `\`${k}\``)]) {
+      assert.ok(how.includes(want), `${lang}/how-to: ${want}`);
+    }
+    // 세 겹: 프로젝트 → 공통 개인 선택 → 역할
+    assert.match(how, lang === 'en' ? /three layers/ : /세 겹/, `${lang}/how-to: 세 겹`);
+    // 역할이 공통의 하위 스택만 빼면 부모(자동 조상)는 남는다
+    assert.match(how, lang === 'en' ? /remove the parent stack itself in the role form/ : /역할 폼에서 부모 스택을 빼세요/, `${lang}/how-to: 자동 조상`);
+    // role use 가 일부만 반영하고 실패하면 역할은 유지된다
+    assert.match(how, lang === 'en' ? /the role stays[^\n]*guideline apply/ : /역할은 그대로[^\n]*guideline apply/, `${lang}/how-to: 부분 실패`);
+    // 역할 폼의 기준 열
+    assert.ok(how.includes(lang === 'en' ? 'project + my common selection get it' : '프로젝트·공통 선택이 받음'), `${lang}/how-to: 기준 열`);
+    const ref = read(`docs/manual/${lang}/reference.md`);
+    for (const want of ['guideline role', 'guideline role use <name>'.replace('<name>', lang === 'en' ? '<name>' : '<이름>'), '--role <name>'.replace('<name>', lang === 'en' ? '<name>' : '<이름>'), '"roles"', '`defined`', ...ROLE_KINDS.map(k => `\`${k}\``)]) {
+      assert.ok(ref.includes(want), `${lang}/reference.md: ${want}`);
+    }
+    const conf = read(`docs/manual/${lang}/configuration.md`);
+    for (const want of ['"version": 2', '"roles"', `${gitDir}/guideline/role`]) assert.ok(conf.includes(want), `${lang}/configuration.md: ${want}`);
+    assert.equal(conf.split('\n').filter(l => l.includes('"version": 2')).length >= 2, true, `${lang}/configuration.md: local.json·defaults.json 둘 다 v2`);
+    const tr = read(`docs/manual/${lang}/troubleshooting.md`);
+    for (const want of [...ROLE_KINDS, 'guideline role use --none']) assert.ok(tr.includes(want), `${lang}/troubleshooting.md: ${want}`);
+    const up = read(`docs/manual/${lang}/how-to/upgrade.md`);
+    for (const want of ['0.25', ...ROLE_KINDS.map(k => `\`${k}\``), 'local-bad']) assert.ok(up.includes(want), `${lang}/upgrade.md: ${want}`);
+  }
+  const glossary = read('docs/manual/glossary.md');
+  for (const want of ['| personal role | 개인 역할 |', '| common personal selection | 공통 개인 선택 |']) assert.ok(glossary.includes(want), want);
+});
+
+test('개인 역할: CHANGELOG 가 guideline role·--role·새 할 일과 0.24.0 CLI 가 v2 파일을 못 읽음을 적는다', () => {
+  const log = read('CHANGELOG.md');
+  const unreleased = log.slice(log.indexOf('## Unreleased'), log.indexOf('## 0.24.0'));
+  for (const want of ['`guideline role`', '`--role', ...ROLE_KINDS.map(k => `\`${k}\``), '0.24.0', '`local.json`', '`defaults.json`', 'version 2']) assert.ok(unreleased.includes(want), want);
+  // 0.24.0 CLI: apply·update·status 는 local-bad, pick --local 은 코드 1
+  assert.match(unreleased, /0\.24\.0[^\n]*cannot read[^\n]*`local-bad`[^\n]*`pick --local`[^\n]*exit code 1/);
+});

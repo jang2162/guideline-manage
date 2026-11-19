@@ -10,6 +10,7 @@ import { projectStatus } from './commands/project-status.js';
 import { projectApply } from './commands/project-apply.js';
 import { login, logout } from './commands/login.js';
 import { locale } from './commands/locale.js';
+import { role } from './commands/role.js';
 import { t, currentLocale } from './i18n.js';
 
 const usage = () => t('help.usage');
@@ -17,7 +18,7 @@ const usage = () => t('help.usage');
 /** 명령별로 허용하는 옵션. 여기 넣은 이름은 OPTIONS 에도 있어야 한다(없으면 parseArgs 가 모르는 옵션으로 거부한다). */
 export const ALLOWED_OPTIONS = {
   list: ['json', 'server', 'source'],
-  pick: ['project', 'no-browser', 'new', 'server', 'source', 'recommend', 'local', 'json'],
+  pick: ['project', 'no-browser', 'new', 'server', 'source', 'recommend', 'local', 'role', 'json'],
   update: ['project', 'server', 'source', 'force', 'json'],
   status: ['project', 'server', 'source', 'json'],
   apply: ['project', 'json'],
@@ -27,6 +28,7 @@ export const ALLOWED_OPTIONS = {
   source: ['server', 'source'],
   proposals: ['server', 'source', 'json', 'status'],
   locale: ['json'],
+  role: ['project', 'json', 'none'],
   help: [],
 };
 
@@ -51,6 +53,8 @@ export const OPTIONS = {
   apply: { type: 'boolean' },
   review: { type: 'boolean' },
   status: { type: 'string' },
+  none: { type: 'boolean' },
+  role: { type: 'string' },
 };
 
 /**
@@ -137,7 +141,7 @@ export async function main(argv) {
 
   if (command === 'pick') {
     return projectPick({
-      project: values.project, newTarget: values.new, server: values.server, source: values.source, browser: !values['no-browser'], recommend: values.recommend, local: values.local === true, json: values.json, cwd,
+      project: values.project, newTarget: values.new, server: values.server, source: values.source, browser: !values['no-browser'], recommend: values.recommend, local: values.local === true, role: values.role, json: values.json, cwd,
     });
   }
 
@@ -151,6 +155,14 @@ export async function main(argv) {
 
   if (command === 'apply') {
     return projectApply({ project: values.project, json: values.json, cwd });
+  }
+
+  if (command === 'role') {
+    if (positionals.length > 3) {
+      console.error(t('role.extraArgs'));
+      return 2;
+    }
+    return role({ action: positionals[1], name: positionals[2], none: values.none === true, project: values.project, json: values.json, cwd });
   }
 
   if (command === 'locale') {

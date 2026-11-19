@@ -11,6 +11,7 @@ import { MANIFEST, manifestText, readManifest } from '../src/manifest.js';
 import { projectStatus } from '../src/commands/project-status.js';
 import { projectApply } from '../src/commands/project-apply.js';
 import { personalStore, writeLocal } from '../src/personal.js';
+import { writeRole } from '../src/role.js';
 import { runGit } from '../src/projects.js';
 
 async function setup(t, opts) {
@@ -253,6 +254,7 @@ test('status 는 개인 더함·뺌과 개인 사본 상태를 보인다', async
     ignored: ['rules/base'],
     shadowed: [],
     items: [{ id: 'rules/extra/00-e.md', state: 'upstream' }],
+    role: null,
   });
   const ignored = data.todos.filter(x => x.kind === 'personal-ignored');
   assert.deepEqual(ignored.map(x => x.item), ['rules/base']);
@@ -263,4 +265,44 @@ test('status 는 개인 더함·뺌과 개인 사본 상태를 보인다', async
   assert.match(text.text(), /^ {2}개인 범위 — 뺌 1: skills\/s$/m);
   assert.match(text.text(), /^ {2}원본 새로 나옴 {2}rules\/extra\/00-e\.md \(개인 사본\)$/m);
   assert.match(text.text(), /- rules\/base: 필수가 된 블록이라 개인 뺌을 무시함/);
+});
+
+test('status --json 의 personal.role 과 겹별 줄', async t => {
+  const { s, p, env } = await setup(t);
+  runGit(['init', '-q'], p);
+  s.store.commit({ ...META, changes: { 'rules/extra/00-e.md': `${ALWAYS}# 개인 더함\n` } });
+  const m = readManifest(p);
+  write(p, MANIFEST, manifestText({ ...m, sources: { default: { ...m.sources.default, required: ['rules/base'] } } }));
+  const store = personalStore({ dir: p, root: p });
+  // 공통 겹은 skills/s 를 빼고, 역할 ui 는 rules/extra 를 더하고 필수 rules/base 를 빼려 한다
+  writeLocal(store, {
+    version: 2,
+    sources: { default: { add: [], remove: ['skills/s'] } },
+    roles: { ui: { sources: { default: { add: ['rules/extra'], remove: ['rules/base'] } } } },
+  });
+  writeRole(p, 'ui');
+  assert.equal(await projectUpdate({ project: p, env, json: true, out: () => {}, err: () => {}, runRuler: () => 0 }), 0);
+  assert.ok(fs.existsSync(path.join(p, '.ruler/extra/00-e.md')));
+
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, json: true, env, out: o.out }), 0);
+  const data = JSON.parse(o.text());
+  assert.deepEqual(data.personal, {
+    added: [],
+    removed: ['skills/s'],
+    ignored: [],
+    shadowed: [],
+    items: [{ id: 'rules/extra/00-e.md', state: 'current' }],
+    role: { name: 'ui', defined: true, added: ['rules/extra'], removed: [], ignored: ['rules/base'] },
+  });
+  assert.equal(data.todos.some(x => x.kind === 'apply'), false, JSON.stringify(data.todos));
+  assert.deepEqual(data.todos.filter(x => x.kind === 'personal-ignored').map(x => x.item), ['rules/base']);
+
+  const text = collect();
+  await projectStatus({ project: p, env, out: text.out });
+  assert.match(text.text(), /^ {2}역할 — ui$/m);
+  assert.match(text.text(), /^ {2}개인 범위 — 더함 0: -$/m);
+  assert.match(text.text(), /^ {2}개인 범위 — 뺌 1: skills\/s$/m);
+  assert.match(text.text(), /^ {2}역할 ui — 더함 1: rules\/extra$/m);
+  assert.match(text.text(), /^ {2}역할 ui — 뺌 0: -$/m);
 });

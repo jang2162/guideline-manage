@@ -39,7 +39,7 @@ export async function projectStatus({
   // apply 가 고칠 prepare 도 낡은 것으로 보고, 고칠 수 없는 prepare(guideline CLI 가 의존성에 없음 등)는 해결될 때까지 알린다.
   const unit = unitInfo(dir, git);
   // apply 와 같은 개인 겹으로 조합해야 개인 생성물을 낡은 것으로 보지 않는다
-  const inputs = composeInputs({ project: dir, unit, git });
+  const inputs = composeInputs({ project: dir, unit, manifest, git });
   const composed = composeUnit({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
   const prep = preparePackage({ project: dir, root: unit.root });
   const excludeOld = inputs.personal !== null && excludeStale({ ...inputs.personal, paths: composed.exclude.paths });
@@ -72,7 +72,10 @@ export async function projectStatus({
   const show = id => showId(id, v.sources, v.many);
   // 개인 범위(git 저장소가 아니거나 개인 선택이 깨졌으면 null): 개인 더함·뺌과, 받은 원본 기준 개인 사본 상태
   const personal = inputs.personal
-    ? personalStatus({ store: inputs.personal.store, manifest, local: inputs.personal.local, trees, nested: unit.nested })
+    ? personalStatus({
+      store: inputs.personal.store, manifest, local: inputs.personal.local, saved: inputs.personal.saved, layers: inputs.personal.layers,
+      role: inputs.personal.role, trees, nested: unit.nested,
+    })
     : null;
   // 개인 잠금이 깨졌으면 리비전 비교와 개인 사본 상태가 같은 할 일을 낸다 — mergeTodos 로 한 번만
   const todos = mergeTodos(
@@ -95,6 +98,7 @@ export async function projectStatus({
       outputs: outputs.map(o => ({ path: o.path, ...(o.key ? { key: o.key } : {}), state: o.state })),
       personal: personal && {
         added: personal.added, removed: personal.removed, ignored: personal.ignored, shadowed: personal.shadowed, items: personal.items,
+        role: personal.role,
       },
       todos,
       token,
@@ -113,13 +117,22 @@ export async function projectStatus({
   out(`  ${STATE_ORDER.filter(k => counts[k]).map(k => `${stateLabel(k)} ${counts[k]}`).join(' · ')}`);
   for (const [id, s] of states) if (s !== 'current') out(`  ${stateLabel(s)}  ${show(id)}`);
   for (const o of outputs) if (o.items.length === 0 && o.state !== 'current') out(`  ${stateLabel(o.state)}  ${o.path}`);
-  if (personal && (personal.added.length || personal.removed.length || personal.items.length)) {
+  if (personal && (personal.added.length || personal.removed.length || personal.items.length || personal.role)) {
     const list = keys => (keys.length ? keys.join(', ') : '-');
     // 다른 출처의 같은 이름에 가려진 더함은 받지 않는다 — 더함 줄에서 그렇게 보인다
     const hiddenBy = new Map(personal.shadowed.map(x => [x.id, x.by]));
-    const addedShown = personal.added.map(id => (hiddenBy.has(id) ? t('status.personalShadowed', { id, by: hiddenBy.get(id) }) : id));
-    out(`  ${t('status.personalAdded', { count: personal.added.length, items: list(addedShown) })}`);
+    const shown = ids => ids.map(id => (hiddenBy.has(id) ? t('status.personalShadowed', { id, by: hiddenBy.get(id) }) : id));
+    const role = personal.role;
+    if (role) out(`  ${t('status.role', { name: role.name })}`);
+    out(`  ${t('status.personalAdded', { count: personal.added.length, items: list(shown(personal.added)) })}`);
     out(`  ${t('status.personalRemoved', { count: personal.removed.length, items: list(personal.removed) })}`);
+    if (role?.defined) {
+      out(`  ${t('status.roleAdded', { name: role.name, count: role.added.length, items: list(shown(role.added)) })}`);
+      out(`  ${t('status.roleRemoved', { name: role.name, count: role.removed.length, items: list(role.removed) })}`);
+    } else if (role && inputs.personal.roleAnywhere) {
+      // 어느 단위에도 없으면 role-missing 할 일이 알린다 — 이 단위에만 없는 것은 흔해(모노레포) 줄로만 보인다
+      out(`  ${t('status.roleNotHere', { name: role.name })}`);
+    }
     for (const { id, state } of personal.items) if (state !== 'current') out(`  ${t('status.personalCopy', { state: stateLabel(state), id })}`);
   }
   printTodos(todos, out);

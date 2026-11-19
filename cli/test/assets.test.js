@@ -187,7 +187,7 @@ test('guideline-sync 는 개인 범위 절을 두고, 개인 사본을 고치지
   assert.match(text, /guideline pick --local --recommend <파일> --json/);
   assert.match(text, /`sources\.<이름>\.required`/);
   assert.match(text, /개인 사본[^\n]*고치지 않는다/);
-  for (const kind of ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed']) {
+  for (const kind of ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed', 'role-missing', 'role-bad']) {
     assert.ok(text.includes(`| \`${kind}\` |`), `할 일 ${kind} 행이 없다`);
   }
 });
