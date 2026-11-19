@@ -18,10 +18,12 @@ import { t } from '../i18n.js';
  * git 루트에서 부르면 git 이 추적하는 하위 단위(guideline-lock.json 이 있는 디렉터리)도 조합한 뒤 ruler 를 한 번 돈다 — ruler 는
  * nested 로 하위 단위까지 돌므로, 루트의 prepare 하나로 클론의 모든 단위가 채워져야 한다. 루트가 guideline 프로젝트가 아니어도
  * (guideline.json 이 없어도) 하위 단위가 있으면 그것들을 조합한다.
+ * prior 는 지난 조합의 펼친 개인 선택(role use 가 지난 역할로 펼친 것) — 그것만 더했던 MCP·스킬을 이 단위 조합이 지운다.
  * @returns {Promise<number>}
  */
 export async function projectApply({
   dir: given, project, json = false, env = process.env, out = console.log, err = console.error, cwd = process.cwd(), runRuler = defaultRunRuler, git = runGit,
+  prior = null,
 }) {
   const dir = given ?? (project !== undefined ? expandPath(project) : cwd);
   if (fs.existsSync(dir) && !fs.existsSync(path.join(dir, MANIFEST))) {
@@ -44,7 +46,8 @@ export async function projectApply({
 
   const unit = unitInfo(dir, git);
   const inputs = composeInputs({ project: dir, unit, manifest, git });
-  const { files, todos, exclude } = composeWithStray({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
+  const personal = inputs.personal && prior ? { ...inputs.personal, prior } : inputs.personal;
+  const { files, todos, exclude } = composeWithStray({ project: dir, nested: unit.nested, manifest, personal });
   todos.unshift(...inputs.todos, ...revisionTodos(inputs, manifest, lock));
   // prepare 가 아직 ruler apply 를 부르면 고친다(guideline-manage 를 설치한 뒤 처음 apply 에서 바뀐다)
   const prep = preparePackage({ project: dir, root: unit.root });

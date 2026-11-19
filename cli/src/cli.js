@@ -10,6 +10,7 @@ import { projectStatus } from './commands/project-status.js';
 import { projectApply } from './commands/project-apply.js';
 import { login, logout } from './commands/login.js';
 import { locale } from './commands/locale.js';
+import { role } from './commands/role.js';
 import { t, currentLocale } from './i18n.js';
 
 const usage = () => t('help.usage');
@@ -27,6 +28,7 @@ export const ALLOWED_OPTIONS = {
   source: ['server', 'source'],
   proposals: ['server', 'source', 'json', 'status'],
   locale: ['json'],
+  role: ['project', 'json', 'none'],
   help: [],
 };
 
@@ -51,6 +53,7 @@ export const OPTIONS = {
   apply: { type: 'boolean' },
   review: { type: 'boolean' },
   status: { type: 'string' },
+  none: { type: 'boolean' },
 };
 
 /**
@@ -151,6 +154,14 @@ export async function main(argv) {
 
   if (command === 'apply') {
     return projectApply({ project: values.project, json: values.json, cwd });
+  }
+
+  if (command === 'role') {
+    if (positionals.length > 3) {
+      console.error(t('role.extraArgs'));
+      return 2;
+    }
+    return role({ action: positionals[1], name: positionals[2], none: values.none === true, project: values.project, json: values.json, cwd });
   }
 
   if (command === 'locale') {

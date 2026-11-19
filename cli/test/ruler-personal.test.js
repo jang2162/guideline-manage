@@ -13,6 +13,8 @@ import { personalStore, readLocal, writeLocal } from '../src/personal.js';
 import { writeRole } from '../src/role.js';
 import { projectApply } from '../src/commands/project-apply.js';
 import { finishPersonal, defaultRunRuler } from '../src/commands/sync-common.js';
+import { role } from '../src/commands/role.js';
+import { writePersonal } from '../src/personal-sync.js';
 import { t as tr } from '../src/i18n.js';
 
 // 진짜 ruler(이 저장소 devDependency)로 개인 겹이 ruler 출력 종류(MCP·스킬)를 바꿀 때를 본다. 단위 테스트의 runRuler: () => 0 은
@@ -321,4 +323,48 @@ test('진짜 ruler: 역할만 MCP 를 더해도 커밋되는 .gitignore 는 그�
   await apply(p);
   assert.equal(read(p, '.gitignore'), gitignore);
   assert.deepEqual(servers(p), ['c7']);
+});
+
+/** guideline role use 를 진짜 ruler 로. */
+async function roleUse(p, name) {
+  const errs = [];
+  const opts = name === null ? { action: 'use', none: true } : { action: 'use', name };
+  assert.equal(await role({ ...opts, cwd: p, env, runRuler, out: () => {}, err: m => errs.push(m) }), 0, errs.join('\n'));
+  assert.equal(porcelain(p), '', 'role use 뒤 깨끗');
+}
+
+test('진짜 ruler: role use 로 역할을 바꾸면 지난 역할만 더했던 MCP·스킬을 지운다', async t => {
+  const p = await project(t, ['rules/base']);
+  const gitignore = read(p, '.gitignore');
+  const store = personalStore({ dir: p, root: p });
+  writeLocal(store, {
+    version: 2, sources: {}, roles: { a: { sources: { default: { add: ['mcp/c8', 'skills/p'], remove: [] } } }, b: { sources: {} } },
+  });
+  const trees = new Map([['default', { server: 'http://x', revision: 1, tree: memoryTree(FILES) }]]);
+  writePersonal({ personal: { store, local: readLocal(store) }, manifest: readManifest(p), trees, revisions: { default: 1 } });
+  await roleUse(p, 'a');
+  assert.deepEqual(servers(p), ['c8']);
+  assert.deepEqual(skills(p), ['p']);
+  await roleUse(p, 'b');
+  assert.equal(servers(p), null);
+  assert.deepEqual(skills(p), []);
+  assert.equal(read(p, '.gitignore'), gitignore);
+});
+
+test('진짜 ruler: 프로젝트 MCP 위에 역할로 더한 MCP 를 role use 로 다른 역할·역할 없음으로 바꾸면 지운다(지난 역할)', async t => {
+  const p = await project(t, ['rules/base', 'mcp/c7']);
+  const gitignore = read(p, '.gitignore');
+  const store = personalStore({ dir: p, root: p });
+  writeLocal(store, { version: 2, sources: {}, roles: { a: { sources: { default: { add: ['mcp/c8'], remove: [] } } }, b: { sources: {} } } });
+  const trees = new Map([['default', { server: 'http://x', revision: 1, tree: memoryTree(FILES) }]]);
+  writePersonal({ personal: { store, local: readLocal(store) }, manifest: readManifest(p), trees, revisions: { default: 1 } });
+  for (const next of ['b', null]) {
+    await roleUse(p, 'a');
+    assert.deepEqual(servers(p), ['c7', 'c8']);
+    // 개인 출력이 프로젝트 블록에 다 들어 있어 이 워크트리 단위 블록이 없다 — 지난 역할만이 되돌림을 알려 준다
+    assert.doesNotMatch(exclude(p), /guideline personal files/);
+    await roleUse(p, next);
+    assert.deepEqual(servers(p), ['c7'], String(next));
+  }
+  assert.equal(read(p, '.gitignore'), gitignore);
 });

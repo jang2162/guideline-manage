@@ -212,3 +212,18 @@ test('help 에 apply 가 있고, apply 는 --project·--json 만 받으며 받�
   assert.equal(r.code, 2, r.out);
   assert.match(r.out, /guideline pick 먼저/);
 });
+
+test('role 은 명령줄에서 --json·--none 을 받고, 인자가 너무 많으면 2', t => {
+  const dir = fs.realpathSync(tmpDir('guideline-role-cli-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  const env = { ...process.env, GUIDELINE_LANG: 'ko' };
+  const j = run(['role', '--json'], dir, env);
+  assert.equal(j.code, 0, j.out);
+  assert.deepEqual(JSON.parse(j.out), { role: null, bad: false, units: [] });
+  const n = run(['role', 'use', '--none', '--json'], dir, env);
+  assert.doesNotMatch(n.out, /Unknown option|모르는 옵션/);
+  const extra = run(['role', 'use', 'a', 'b'], dir, env);
+  assert.equal(extra.code, 2);
+  assert.match(extra.out, /인자가 너무 많음/);
+});

@@ -105,7 +105,10 @@ test('역할이 다른 두 워크트리는 생성물이 다르고 둘 다 깨끗
   // status 도 같은 입력으로 조합해 거짓 apply 할 일을 내지 않는다(서버 없이 하는 판정)
   for (const w of [ui, doc]) {
     const o = collect();
-    await projectStatus({ project: w, json: true, env: {}, out: o.out, err: () => {}, fetchImpl: async () => { throw new Error('없음'); } });
+    // 서버에 닿지 못해 코드 1. 그때 status 는 서버 없이 낸 할 일이 있을 때만 JSON 을 쓴다 — 빈 출력은 「할 일 없음」이라 거짓 apply 가
+    // 있으면 출력되고 아래 검사가 실패한다
+    const code = await projectStatus({ project: w, json: true, env: {}, out: o.out, err: () => {}, fetchImpl: async () => { throw new Error('없음'); } });
+    assert.equal(code, 1, w);
     assert.equal(JSON.parse(o.text() || '{"todos":[]}').todos.some(x => x.kind === 'apply'), false, w);
   }
 });
@@ -114,6 +117,9 @@ test('역할 a 워크트리에서 개인 사본을 받아도 역할 b 의 사본
   const p = project(t);
   const store = storeOf(p);
   writeLocal(store, { version: 2, sources: {}, roles: { ui: ROLES.ui, doc: { sources: { default: { add: ['rules/other'], remove: [] } } } } });
+  // 역할 b 의 사본을 먼저 받아 둔다 — 역할 a 의 받기가 그것을 지우지 않아야 한다
+  fetchCopies(p);
+  assert.equal(exists(store, '.guideline/rules/other/00-o.md'), true);
   const ui = worktree(t, p);
   writeRole(ui, 'ui');
   const trees = new Map([['default', { server: 'http://x', revision: 1, tree: memoryTree(FILES) }]]);
@@ -194,4 +200,26 @@ test('깨진 역할 파일은 role-bad 하나와 역할 없는 조합', async t 
     assert.equal(todos.some(x => x.kind === 'role-missing'), false);
     assert.deepEqual(generated(p), plain);
   }
+});
+
+test('루트가 guideline 단위가 아닌 모노레포에서도 역할 할 일은 하나(어느 단위에도 없을 때만)', async t => {
+  const p = fs.realpathSync(tmpDir('guideline-role-wt-mono-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  runGit(['init', '-q'], p);
+  for (const sub of ['pkg/a', 'pkg/b']) {
+    fs.mkdirSync(path.join(p, sub), { recursive: true });
+    syncedProject(path.join(p, sub), { items: ['rules/base', 'rules/web'], source: FILES, nested: true });
+  }
+  commit(p);
+  assert.equal(exists(p, 'guideline.json'), false);
+  writeRole(p, 'ui');
+  const missing = (await apply(p)).filter(x => x.kind === 'role-missing');
+  assert.equal(missing.length, 1, JSON.stringify(missing));
+  assert.equal(missing[0].unit, undefined);
+  assert.equal(missing[0].scope, 'personal');
+  writeLocal(storeOf(p, 'pkg/b'), { version: 2, sources: {}, roles: { ui: ROLES.doc } });
+  const todos = await apply(p);
+  assert.equal(todos.some(x => x.kind === 'role-missing'), false, JSON.stringify(todos));
+  assert.equal(exists(p, 'pkg/b/.ruler/web/00-w.md'), false);
+  assert.equal(exists(p, 'pkg/a/.ruler/web/00-w.md'), true);
 });
