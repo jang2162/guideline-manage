@@ -527,7 +527,7 @@ async function pickLocal({
   const fetched = await fetchSources({ manifest, lock, latest: new Set(), only: targets, single, env, home, fetchImpl });
   const failures = fetched.failures.map(f => `${f.source}: ${f.message}`);
   const status = projectStatus(dir, git, unit.root);
-  const next = { version: 1, sources: { ...local.sources } };
+  const next = { version: 2, sources: { ...local.sources }, roles: local.roles };
   const trees = new Map();
   const saved = new Map();
   const todos = [];
@@ -588,7 +588,7 @@ async function pickLocal({
     const list = x => (Array.isArray(x) ? x.filter(isBlockKey).map(real) : []);
     const mine = { add: list(sel.add), remove: list(sel.remove) };
     // 다른 출처의 같은 최종 이름을 프로젝트가 골랐으면 그 더함은 조합이 쓰지 않는다(personal-shadowed). 저장하지 않고 알린다.
-    const eff = effectiveItems(manifest, { version: 1, sources: { [name]: mine } });
+    const eff = effectiveItems(manifest, { version: 2, sources: { [name]: mine }, roles: {} });
     // 가려진 키 아래의 더함도 뺀다: 조합이 그 조상을 다시 채우면 같은 할 일이 매번 나고, 받으면 다른 출처의 스택 안에 이 출처의 하위가 섞인다
     const shadowed = shadowedAdds(manifest, eff).filter(x => x.source === name);
     const drop = new Set();

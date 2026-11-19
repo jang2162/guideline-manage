@@ -91,7 +91,7 @@ test('pick --local 은 개인 선택을 공용 저장소에 쓰고 조합한다'
   assert.deepEqual(seen.data.personal, { chosen: ['rules/base'], required: [], add: [], remove: [], preset: 'none' });
   assert.equal(seen.submit.status, 200);
   // 결과는 공용 저장소의 local.json 과 개인 사본으로 — 커밋되는 파일은 그대로다
-  assert.deepEqual(readLocal(store), { version: 1, sources: { default: { add: ['rules/extra'], remove: [] } } });
+  assert.deepEqual(readLocal(store), { version: 2, sources: { default: { add: ['rules/extra'], remove: [] } }, roles: {} });
   assert.equal(read(store, '.guideline/rules/extra/00-e.md'), EXTRA['rules/extra/00-e.md']);
   assert.match(read(p, '.ruler/extra/00-e.md'), /# 개인 더함/);
   assert.equal(exists(p, '.guideline/rules/extra'), false);
@@ -102,6 +102,19 @@ test('pick --local 은 개인 선택을 공용 저장소에 쓰고 조합한다'
   assert.ok(r.written.includes('.ruler/extra/00-e.md'));
   // 기본값으로 저장하지 않았으면 머신 기본값은 비어 있다
   assert.deepEqual(readDefaults({ env }).servers, {});
+});
+
+test('pick --local 은 저장된 역할별 개인 선택을 지우지 않는다', async t => {
+  const { s, p, env, store } = await setup(t);
+  const roles = { ui: { sources: { default: { add: ['rules/extra'], remove: [] } } } };
+  writeLocal(store, { version: 2, sources: {}, roles });
+  const e = collect();
+  const code = await projectPick({
+    project: p, local: true, env, ...quiet, json: true, out: () => {}, err: e.out,
+    open: form(s, {}, { personalChoices: { 'rules/extra': 'add' } }),
+  });
+  assert.equal(code, 0, e.text());
+  assert.deepEqual(readLocal(store).roles, roles);
 });
 
 test('pick --local 은 개인 선택이 없으면 머신 기본값으로 미리 체크한다', async t => {
@@ -330,6 +343,6 @@ test('pick --local 으로 개인 선택을 비우면 지난 선택으로 더했�
   // ruler 가 merge 해 쓴 것처럼(이 테스트의 runRuler 는 아무것도 하지 않는다)
   write(p, '.mcp.json', `${JSON.stringify({ mcpServers: { c7: { command: 'npx' } } }, null, 2)}\n`);
   assert.equal(await pick({}), 0);
-  assert.deepEqual(readLocal(store), { version: 1, sources: { default: { add: [], remove: [] } } });
+  assert.deepEqual(readLocal(store), { version: 2, sources: { default: { add: [], remove: [] } }, roles: {} });
   assert.equal(exists(p, '.mcp.json'), false);
 });

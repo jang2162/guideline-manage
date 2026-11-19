@@ -3,7 +3,7 @@ import path from 'node:path';
 import { t } from './i18n.js';
 import { gitCommonDir, runGit } from './projects.js';
 import { isBlockKey, isWithin, withAncestors } from './blocks.js';
-import { finalUnit } from './sources.js';
+import { finalUnit, NAME } from './sources.js';
 
 export class LocalError extends Error {}
 
@@ -14,7 +14,7 @@ const uniqSorted = list => [...new Set(list)].sort(byStr);
 
 /**
  * @typedef {{ add: string[], remove: string[] }} LocalSource  실제 이름(별칭 전)의 블록 키
- * @typedef {{ version: 1, sources: Record<string, LocalSource> }} Local
+ * @typedef {{ version: 2, sources: Record<string, LocalSource>, roles: Record<string, { sources: Record<string, LocalSource> }> }} Local  roles: 역할 이름 → 그 역할의 출처별 개인 선택
  */
 
 /**
@@ -68,10 +68,10 @@ export function personalPlace(unit, git = runGit) {
   return { common, unitRel, store: path.join(common, 'guideline', 'units', key), worktree: worktreeId(unit.dir, common, git) };
 }
 
-/** @returns {Local} 파일이 없으면 빈 개인 선택 */
+/** @returns {Local} 파일이 없으면 빈 개인 선택. v1 은 roles 없는 v2 로 읽는다. */
 export function readLocal(store) {
   const file = path.join(store, LOCAL_FILE);
-  if (!fs.existsSync(file)) return { version: 1, sources: {} };
+  if (!fs.existsSync(file)) return { version: 2, sources: {}, roles: {} };
   const bad = () => new LocalError(t('local.badFile', { file }));
   let data;
   try {
@@ -80,24 +80,41 @@ export function readLocal(store) {
     throw bad();
   }
   const okList = v => Array.isArray(v) && v.every(isBlockKey);
-  if (!data || data.version !== 1 || !data.sources || typeof data.sources !== 'object' || Array.isArray(data.sources)) throw bad();
-  const sources = {};
-  for (const [name, s] of Object.entries(data.sources)) {
-    if (!s || typeof s !== 'object' || !okList(s.add) || !okList(s.remove)) throw bad();
-    sources[name] = { add: uniqSorted(s.add), remove: uniqSorted(s.remove) };
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  const readSources = raw => {
+    if (!isObj(raw)) throw bad();
+    const sources = {};
+    for (const [name, s] of Object.entries(raw)) {
+      if (!s || typeof s !== 'object' || !okList(s.add) || !okList(s.remove)) throw bad();
+      sources[name] = { add: uniqSorted(s.add), remove: uniqSorted(s.remove) };
+    }
+    return sources;
+  };
+  if (!data || (data.version !== 1 && data.version !== 2)) throw bad();
+  const sources = readSources(data.sources);
+  const roles = {};
+  if (data.version === 2 && data.roles !== undefined) {
+    if (!isObj(data.roles)) throw bad();
+    for (const [role, r] of Object.entries(data.roles)) {
+      if (!NAME.test(role) || !isObj(r)) throw bad();
+      roles[role] = { sources: readSources(r.sources) };
+    }
   }
-  return { version: 1, sources };
+  return { version: 2, sources, roles };
 }
 
-/** 출처 이름과 블록 키를 정렬·중복 제거해 쓴다. */
+const sortedSources = src => {
+  const out = {};
+  for (const name of Object.keys(src).sort(byStr)) out[name] = { add: uniqSorted(src[name].add), remove: uniqSorted(src[name].remove) };
+  return out;
+};
+
+/** 출처·역할 이름과 블록 키를 정렬·중복 제거해 늘 v2 로 쓴다. */
 export function writeLocal(store, local) {
-  const sources = {};
-  for (const name of Object.keys(local.sources).sort(byStr)) {
-    const s = local.sources[name];
-    sources[name] = { add: uniqSorted(s.add), remove: uniqSorted(s.remove) };
-  }
+  const roles = {};
+  for (const role of Object.keys(local.roles ?? {}).sort(byStr)) roles[role] = { sources: sortedSources(local.roles[role].sources) };
   fs.mkdirSync(store, { recursive: true });
-  fs.writeFileSync(path.join(store, LOCAL_FILE), `${JSON.stringify({ version: 1, sources }, null, 2)}\n`);
+  fs.writeFileSync(path.join(store, LOCAL_FILE), `${JSON.stringify({ version: 2, sources: sortedSources(local.sources), roles }, null, 2)}\n`);
 }
 
 const WHY_RANK = ['required', 'canceled', 'already-chosen', 'no-effect'];

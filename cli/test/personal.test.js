@@ -87,7 +87,7 @@ test('personalStore 는 git 저장소가 아니면 null', t => {
 test('readLocal 은 파일이 없으면 빈 개인 선택, writeLocal 은 정렬해 쓰고 되읽는다', t => {
   const store = path.join(tmpDir('guideline-local-'), 'units', '_root');
   t.after(() => fs.rmSync(path.dirname(path.dirname(store)), { recursive: true, force: true }));
-  assert.deepEqual(readLocal(store), { version: 1, sources: {} });
+  assert.deepEqual(readLocal(store), { version: 2, sources: {}, roles: {} });
   writeLocal(store, { version: 1, sources: { b: { add: ['skills/z', 'rules/a', 'rules/a'], remove: [] }, a: { add: [], remove: ['rules/x'] } } });
   const onDisk = JSON.parse(fs.readFileSync(path.join(store, 'local.json'), 'utf8'));
   assert.deepEqual(Object.keys(onDisk.sources), ['a', 'b']);
@@ -98,7 +98,7 @@ test('readLocal 은 파일이 없으면 빈 개인 선택, writeLocal 은 정렬
 test('readLocal 은 깨진 파일을 LocalError 로 거절한다', t => {
   const store = tmpDir('guideline-local-');
   t.after(() => fs.rmSync(store, { recursive: true, force: true }));
-  for (const bad of ['{', '{"version":2,"sources":{}}', '{"version":1,"sources":{"a":{"add":["rules/a/00-x.md"],"remove":[]}}}', '{"version":1,"sources":{"a":{"add":"rules/a","remove":[]}}}']) {
+  for (const bad of ['{', '{"version":3,"sources":{}}', '{"version":1,"sources":{"a":{"add":["rules/a/00-x.md"],"remove":[]}}}', '{"version":1,"sources":{"a":{"add":"rules/a","remove":[]}}}']) {
     fs.writeFileSync(path.join(store, 'local.json'), bad);
     assert.throws(() => readLocal(store), LocalError, bad);
   }
@@ -168,4 +168,39 @@ test('effectiveItems 는 매니페스트에 없는 출처의 개인 항목을 so
   assert.deepEqual(effectiveItems(manifest(), { version: 1, sources: {} }).orphans, {});
   const both = effectiveItems(manifest(), { version: 1, sources: { default: { add: ['skills/x'], remove: [] }, ...l.sources } });
   assert.deepEqual(Object.keys(both.orphans), ['gone']);
+});
+
+test('readLocal 은 v1 을 roles 없는 v2 로 읽는다', t => {
+  const store = tmpDir('guideline-local-');
+  t.after(() => fs.rmSync(store, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(store, 'local.json'), JSON.stringify({ version: 1, sources: { a: { add: ['rules/b', 'rules/a'], remove: [] } } }));
+  assert.deepEqual(readLocal(store), { version: 2, sources: { a: { add: ['rules/a', 'rules/b'], remove: [] } }, roles: {} });
+});
+
+test('writeLocal 은 역할을 정렬해 v2 로 쓴다', t => {
+  const store = tmpDir('guideline-local-');
+  t.after(() => fs.rmSync(store, { recursive: true, force: true }));
+  writeLocal(store, {
+    version: 2,
+    sources: {},
+    roles: {
+      ui: { sources: { z: { add: ['rules/b', 'rules/a'], remove: [] }, a: { add: [], remove: ['rules/x'] } } },
+      api: { sources: {} },
+    },
+  });
+  const raw = JSON.parse(fs.readFileSync(path.join(store, 'local.json'), 'utf8'));
+  assert.equal(raw.version, 2);
+  assert.deepEqual(Object.keys(raw.roles), ['api', 'ui']);
+  assert.deepEqual(Object.keys(raw.roles.ui.sources), ['a', 'z']);
+  assert.deepEqual(raw.roles.ui.sources.z.add, ['rules/a', 'rules/b']);
+  assert.deepEqual(readLocal(store).roles.api, { sources: {} });
+});
+
+test('readLocal 은 규칙에 맞지 않는 역할 이름을 LocalError 로 거절한다', t => {
+  const store = tmpDir('guideline-local-');
+  t.after(() => fs.rmSync(store, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(store, 'local.json'), JSON.stringify({ version: 2, sources: {}, roles: { UI: { sources: {} } } }));
+  assert.throws(() => readLocal(store), LocalError);
+  fs.writeFileSync(path.join(store, 'local.json'), JSON.stringify({ version: 2, sources: {}, roles: { ui: { sources: { a: { add: 'x', remove: [] } } } } }));
+  assert.throws(() => readLocal(store), LocalError);
 });
