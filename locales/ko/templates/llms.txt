@@ -89,6 +89,8 @@ guideline update --source company    # 그 출처만 최신으로
 ```bash
 guideline pick --local                       # 개인 폼: 블록마다 그대로 / 더함 / 뺌
 guideline pick --local --recommend r.json    # 미리 체크: {"add": {"블록 키": "이유"}, "remove": {"블록 키": "이유"}}
+guideline pick --local --role frontend       # 개인 역할의 겹 — 공통 개인 선택 위에 얹는다
+guideline role use frontend                  # 이 워크트리가 그 역할을 쓴다(git 루트에서 반영). --none 은 지운다
 ```
 
 - **저장 자리.** 개인 선택은 git 공용 디렉터리의 `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` 이다(단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것, 예: `packages%2Fapi`). 그 클론의 모든 워크트리가 함께 쓰고, 커밋되지 않는다. 개인 사본(`.guideline/` 과 `guideline-lock.json`)도 그 옆에 있다. git 저장소와 git 2.31 이상이 필요하다. 아니면 `pick --local` 이 코드 2 로 멈춘다.
@@ -99,6 +101,7 @@ guideline pick --local --recommend r.json    # 미리 체크: {"add": {"블록 �
 - **최신 유지.** `pick --local` 은 개인 사본을 프로젝트 잠금의 리비전으로 받는다. `guideline update` 가 프로젝트와 개인 사본을 함께 올린다. `guideline apply` 는 어느 워크트리에서든 서버 없이 그것들을 조합한다. 개인 사본은 고치지 않는다: `update` 가 덮어쓰고 `propose` 는 보내지 않는다.
 - **세팅.** 개인 범위로만 받은 스택은 `setup` 대신 `setup-personal` 할 일을 낸다: 커밋되는 파일을 바꾸지 않고 세팅하고, 바꿔야 하는 단계는 사용자에게 알린다.
 - `guideline status` 는 개인 범위를 두 줄(「개인 범위 — 더함 …」, 「… 뺌 …」)로 보이고, `status --json` 에는 `personal` 이 있다(단위가 git 저장소가 아니거나 `local.json` 을 읽을 수 없으면 `null`).
+- **개인 역할.** 워크트리마다 역할 하나를 쓸 수 있고, 이름은 `<git 디렉터리>/guideline/role`(그 워크트리 자신의 git 디렉터리, 커밋 안 됨)에 있다. 역할이 있는 워크트리는 세 겹을 받는다: 프로젝트 선택, 공통 개인 선택, 그 위에 역할의 더함·뺌(`local.json` 의 `roles.<이름>`, 버전 2). 역할이 없는 워크트리는 전과 같이 조합한다. `guideline role` 은 역할과 단위마다 정의된 역할을 보이고, `guideline role remove <이름>` 은 이 단위의 역할 정의를 지운다. `status` 는 「역할 — …」 줄을, `status --json` 은 `personal.role` 을 더한다. 어느 단위에도 없는 역할은 `role-missing`, 깨진 역할 파일은 `role-bad` 를 낸다.
 - 0.24 보다 옛 서버는 개인 폼을 모른다: `pick --local` 이 코드 1 로 멈춘다(「이 서버는 개인 폼을 모름」).
 
 ## 원본에 올리기 (제안)
@@ -162,6 +165,8 @@ guideline proposals <번호>              # 제안 하나: Outdated·충돌, 파
 | `personal-revision` | 개인 사본과 프로젝트 사본이 한 출처의 다른 리비전이다(다른 워크트리에서 `update`). 바꿈이 가리키는 절이 어긋날 수 있다. `guideline update` 를 돌린다 |
 | `personal-sync` | 개인 사본을 받지 못했다(쓰기 오류, 또는 읽을 수 없는 개인 잠금: 문구의 파일을 지운다). 프로젝트 반영은 끝났다. 고친 뒤 `guideline update` 를 다시 돌린다 |
 | `local-bad` | 개인 선택(`local.json`)을 읽을 수 없어 프로젝트 선택만으로 조합했다. 사용자가 그 파일을 고치거나 지운 뒤 `guideline apply` 를 돌린다 |
+| `role-missing` | 이 워크트리의 역할이 어느 단위에도 정의돼 있지 않아 공통 개인 선택만 썼다. `guideline pick --local --role <이름>` 으로 정의하거나 `guideline role use --none` 으로 지운다 |
+| `role-bad` | 워크트리의 역할 파일에 올바른 역할 이름이 없어 역할 없이 조합했다. `guideline role use <이름>` 이나 `guideline role use --none` |
 | `ruler-leftover` | 작업자의 개인 선택 때문에만 ruler 가 만들거나 바꾼 것을 그대로 두었다: 손으로 둔 것이 남았거나 추적되거나 claude·codex·opencode 밖 에이전트의 것이거나 그런 다른 에이전트의 설정 또는 손으로 둔 설정의 `.bak` 백업인 설정 파일·폴더, 또는 이번 조합에서 빠졌지만 그런 다른 에이전트의 설정에 남은 MCP 서버. 사용자에게 알리고, 필요 없으면 사용자가 지운다 |
 | `override-target` | 바꿈이 조합한 사본(프로젝트 사본 위에 개인 사본)에 없는 파일·절을 가리킨다. 바꿈의 첫 줄을 고치거나, 리비전이 어긋났으면 `guideline update` 를 돌린다. 어느 프로젝트에서든 나올 수 있다 |
 | `missing-requires` | 받은 블록(`item`)이 필요로 하는 블록(`data.missing`)을 받지 않았다(`update`·`status`). 빠진 블록을 알리고, 그 블록을 담은 추천 파일로 `guideline pick --recommend <파일> --json` 을 띄워(출처가 여럿이면 `--source <출처>` 를 붙인다) 폼 제출로 확인받는다 |

@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/troubleshooting.md @ v0.23.0 -->
+<!-- source: docs/manual/en/troubleshooting.md @ v0.24.0 -->
 [English](../en/troubleshooting.md) | **한국어**
 
 # 문제 해결
@@ -36,6 +36,10 @@
 | `…/local.json 을(를) 읽을 수 없음 — 올바른 개인 선택 파일이 아님`(`local-bad` 할 일) | git 공용 디렉터리의 내 개인 선택이 깨졌습니다. 고칠 때까지 `apply` 는 프로젝트 선택만으로 조합하고, `pick --local` 은 덮어쓰지 않고 멈춥니다 | 파일을 고치거나, 지워서 개인 선택을 버린 뒤 `guideline apply` 를 실행하세요 |
 | `…/defaults.json 을(를) 읽을 수 없음 — 올바른 머신 기본값 파일이 아님` | 머신 기본값이 깨져 `pick --local` 이 덮어쓰지 않고 멈춥니다 | 파일을 고치거나 지우세요 |
 | `개인 생성물을 git 의 info/exclude 에 쓰지 못함` | CLI 가 `<git 공용 디렉터리>/info/exclude` 를 쓰지 못했습니다. 그 블록을 생성물보다 먼저 쓰므로, 생성물을 쓰지 않고 멈췄습니다(종료 코드 1). 추적 안 된 파일로 보이지 않습니다 | 파일 권한을 확인하고 `guideline apply` 를 실행하세요 |
+| `role-missing` 할 일: 「이 워크트리의 역할 … 이(가) 어느 단위에도 정의돼 있지 않아」 | 역할 파일의 역할을 어느 단위의 `local.json` 도 정의하지 않습니다. 예: `guideline role remove` 뒤, 새 클론. 공통 개인 선택만 씁니다 | `guideline pick --local --role <이름>` 으로 역할을 정의하거나 `guideline role use --none` 으로 지우세요 |
+| `role-bad` 할 일: 「…/guideline/role: 역할 이름 규칙에 맞지 않아」 | 워크트리의 역할 파일을 손으로 고쳤거나 파일이 아닙니다. 역할 없이 조합합니다 | `guideline role use <이름>` 이나 `guideline role use --none` 을 실행하세요 |
+| `역할은 …(으)로 바꿨고 반영 일부가 실패함` | `guideline role use` 가 생성물 일부를 쓴 뒤 실패했습니다(예: git 루트 아래 단위). 새 역할은 그대로입니다 | 그 위 메시지의 원인을 고친 뒤 git 루트에서 `guideline apply` 를 실행하세요 |
+| 0.24.0 CLI 가 `local-bad` 를 내거나 그 `pick --local` 이 종료 코드 1 로 멈춥니다 | 더 새 CLI 가 `local.json` 이나 `defaults.json` 을 버전 2 로 썼고, 0.24.0 은 그것을 읽지 못합니다 | CLI 를 올리세요([서버와 CLI 올리기](how-to/upgrade.md)) |
 | 다른 클론에 내 개인 더함이 없습니다 | 개인 선택은 그 클론의 git 공용 디렉터리에 있습니다. 한 클론의 워크트리끼리는 함께 쓰지만 다른 클론과는 아닙니다 | 그 클론에서 `guideline pick --local` 을 실행하세요. [머신 기본값](how-to/use-guidelines-only-on-your-machine.md#머신-기본값)이 있으면 폼이 미리 체크된 채로 열립니다 |
 
 ## 관리자 웹

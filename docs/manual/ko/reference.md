@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/reference.md @ v0.23.0 -->
+<!-- source: docs/manual/en/reference.md @ v0.24.0 -->
 [English](../en/reference.md) | **한국어**
 
 # 레퍼런스
@@ -15,9 +15,13 @@
 | --- | --- |
 | `guideline pick` | 서버 폼을 열고, 제출하면 고른 항목을 반영합니다. `--new <이름\|경로>` 는 새 프로젝트를 만들고(`git init`) 반영합니다. `--no-browser` 는 주소만 냅니다. `--recommend <파일\|->` 는 에이전트가 고른 블록(JSON `{"블록 키": "이유"}`)을 미리 체크한 폼을 엽니다 — 출처 하나일 때만(여럿이면 `--source`). 0.19 이상 서버가 필요하고, 옛 서버는 추천 없이 폼을 엽니다. 스택을 고르려면 0.24 이상 서버가 필요합니다([종료 코드](#종료-코드) 참고) |
 | `guideline pick --local` | 개인 폼을 열고, 이 단위에서 내가 받는 것만 바꿉니다: 프로젝트 선택에 더하거나 거기서 뺄 블록입니다([개인 범위](#개인-범위)). 커밋되는 것은 아무것도 쓰지 않습니다. `--recommend <파일\|->` 는 `{"add": {"블록 키": "이유"}, "remove": {"블록 키": "이유"}}` 를 받습니다(그냥 `{"블록 키": "이유"}` 는 더함). git 2.31 이상의 git 저장소와, 개인 폼을 아는 서버가 필요합니다. `--new` 와 함께 쓸 수 없습니다 |
+| `guideline pick --local --role <이름>` | 개인 역할의 개인 폼을 열고, 결과를 이 단위 `local.json` 에 그 역할의 겹으로 저장합니다([개인 역할](#개인-역할)). 폼의 프로젝트 열은 프로젝트 선택에 내 공통 개인 선택을 입힌 것을 보입니다. 역할이 없으면 만듭니다. 이 워크트리를 그 역할로 바꾸지는 않습니다. 이름 규칙에 맞지 않는 이름이나 `--local` 없는 `--role` 은 종료 코드 2 입니다 |
 | `guideline update` | 고른 항목 그대로 서버 최신으로 다시 반영합니다. 프로젝트에서 고친 파일은 건너뛰고, `--force` 면 덮어씁니다. 0.24 이상 CLI 의 첫 `pick`·`update` 는 옛 배치로 받은 프로젝트를 옮깁니다([서버와 CLI 올리기](how-to/upgrade.md#guideline-배치로-프로젝트-옮기기)) |
 | `guideline apply` | 서버에 묻지 않고 `.guideline/` 과 `.ruler/ruler.project.toml` 에서 생성물을 조합하고, `.gitignore` 블록을 다시 쓰고, git 루트에서 `ruler apply` 를 돕니다. 클론한 뒤, 새 워크트리에서, `prepare` 에서 쓰세요. `pick`·`pick --local`·`update` 도 끝에 같은 방식으로 조합하지만(git 루트에서는 그 아래 단위도) ruler 는 쓴 것이 있을 때만 돕니다. `apply` 는 바뀐 것이 없어도 ruler 를 돕니다. 옵션: `--project <경로>`, `--json`. 종료 코드 0 완료, 1 쓰기 실패, 2 아직 받은 것이 없거나 옛 배치입니다. 클론 직후라면 ruler 가 모든 에이전트 몫으로 쓴 `CLAUDE.md` 도 지웁니다([문제 해결](troubleshooting.md#cli)). 모노레포의 git 루트에서는 그 아래에서 git 이 추적하는 단위도 모두 조합한 뒤 ruler 를 한 번 돕니다. 루트가 guideline 프로젝트가 아니어도 됩니다([모노레포](how-to/use-in-a-monorepo.md)) |
-| `guideline status` | 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지 보이고, 저장된 토큰의 이름과 범위를 보입니다(`--json` 은 `token`. 토큰이 없거나 0.20 보다 옛 서버면 보이지 않습니다). 개인 범위가 있으면 「개인 범위 — 더함 …」·「개인 범위 — 뺌 …」 줄과 최신이 아닌 개인 사본을 더합니다(`--json` 은 `personal`, [개인 범위](#개인-범위) 참고) |
+| `guideline status` | 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지 보이고, 저장된 토큰의 이름과 범위를 보입니다(`--json` 은 `token`. 토큰이 없거나 0.20 보다 옛 서버면 보이지 않습니다). 개인 범위가 있으면 「개인 범위 — 더함 …」·「개인 범위 — 뺌 …」 줄과 최신이 아닌 개인 사본을 더합니다(`--json` 은 `personal`, [개인 범위](#개인-범위) 참고). 역할이 있으면 「역할 — …」 과 「역할 <이름> — 더함 …」·「뺌 …」 줄을 더합니다 |
+| `guideline role` | 이 워크트리의 개인 역할과 단위마다 정의된 역할을 보입니다. `--json`: `{ role, bad, units: [{ unit, roles }] }`(git 루트 단위는 `.`, 역할이 없으면 `role` 은 `null`, 역할 파일이 깨졌으면 `bad` 는 `true`). [개인 역할](#개인-역할) 참고 |
+| `guideline role use <이름>` / `use --none` | 이 워크트리의 역할을 정하거나 지우고, git 루트에서 `guideline apply` 처럼 반영합니다. 그 역할이 단위 하나 이상에 정의돼 있어야 합니다(아니면 종료 코드 2) |
+| `guideline role remove <이름>` | 이 단위 `local.json` 에서 그 역할의 정의를 지우고 반영하지 않습니다. `--json`: `{ removed, todos }`. 이 단위가 정의하지 않았거나 폴더가 guideline 단위가 아니면 종료 코드 2 |
 | `guideline propose` | 고친 사본을 원본 모양으로 되돌려 제안합니다. 범위 `admin` 토큰이면 제안 대신 바로 반영합니다(검토 없음). `--review` 는 그래도 제안으로 보내고, `--apply` 는 명시해서 바로 반영합니다(admin 토큰이 아니면 오류). 둘을 같이 주면 사용법 오류(종료 코드 2)입니다. `--dry-run`(보내면 둘 중 어느 쪽인지도 알립니다), `--title`, `--message`, `--only <항목,…>`, `--from <폴더>`. `--json` 에는 `mode`: `apply` 또는 `proposal` 이 추가됩니다(보낼 것이 없으면 없습니다). 방식은 dry-run 으로 보는 것이 정확합니다 — 실제로 보낼 때와 같은 토큰·서버로 묻지만, `status` 는 다른 토큰을 쓸 수 있습니다(출처가 여럿일 때, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | 서버에 로그인해 토큰을 저장하거나 지웁니다. `--token-stdin` 은 브라우저 없이 토큰을 넣습니다. `login` 은 저장한 뒤 토큰의 범위(`read`·`propose`·`admin`)를 알립니다 |
 
@@ -49,7 +53,7 @@
 | `prepare-manual` | `prepare` 가 인자를 붙여 `ruler apply` 를 불러, 그 인자를 받지 않는 `guideline apply` 로 바꾸지 않았습니다. 손으로 `guideline apply` 로 바꾸고 ruler 설정은 `.ruler/ruler.project.toml` 로 옮기세요 |
 | `apply-hook` | `package.json` 이 없습니다. 세팅 단계에서 `guideline apply` 를 부르세요(Orca: `orca.yaml` 의 `scripts.setup`) |
 
-개인 범위가 더한 종류는 다음과 같습니다. `status` 는 `personal-ignored`·`personal-shadowed`·`override-target`·`personal-revision`·`local-bad` 도 냅니다.
+개인 범위가 더한 종류는 다음과 같습니다. `status` 는 `personal-ignored`·`personal-shadowed`·`override-target`·`personal-revision`·`local-bad`·`role-missing`·`role-bad` 도 냅니다.
 
 | 종류 | 뜻 |
 | --- | --- |
@@ -58,9 +62,12 @@
 | `personal-shadowed` | 개인으로 더한 블록이 프로젝트가 다른 출처에서 고른 블록과 최종 이름(별칭 뒤)이 같아 그것과 그 아래에 더한 블록을 쓰지 않습니다. `pick --local` 은 그 더함들을 저장하지 않습니다. 다른 명령에서 나왔으면 `guideline pick --local` 에서 정리하세요 |
 | `personal-revision` | 개인 사본과 프로젝트 사본이 한 출처의 다른 리비전입니다. 예: 다른 워크트리에서 `update` 한 뒤. `guideline update` 를 실행하세요(`apply`·`status` 가 냅니다) |
 | `personal-sync` | 개인 사본을 받지 못했습니다: 쓰기 오류, 또는 읽을 수 없는 개인 잠금(문구에 나온 파일을 지우세요). 프로젝트 반영은 끝났습니다. `guideline update` 를 다시 실행하세요 |
-| `local-bad` | `local.json` 을 읽을 수 없어 프로젝트 선택만으로 조합했습니다. 그 파일을 고치거나 지우세요 |
+| `local-bad` | `local.json` 을 읽을 수 없어 프로젝트 선택만으로 조합했습니다. 그 파일을 고치거나 지우세요. 0.24.0 CLI 는 버전 2 의 `local.json` 에도 이것을 냅니다 |
+| `role-missing` | 이 워크트리의 역할이 어느 단위에도 정의돼 있지 않아 공통 개인 선택만 썼습니다. `guideline pick --local --role <이름>` 으로 정의하거나 `guideline role use --none` 을 실행하세요. 일부 단위에만 없으면 할 일 대신 `status` 줄로 보입니다 |
+| `role-bad` | 역할 파일(`<git 디렉터리>/guideline/role`)에 올바른 역할 이름이 없어 역할 없이 조합했습니다. `guideline role use <이름>` 이나 `guideline role use --none` 을 실행하세요 |
 | `ruler-leftover` | 개인 선택 때문에만 ruler 가 만들거나 바꾼 것을 그대로 두었습니다: 손으로 둔 것이 남았거나 추적되거나 claude·codex·opencode 밖 에이전트의 것이거나 그런 다른 에이전트의 설정 또는 손으로 둔 설정의 백업인 설정 파일·폴더(`.mcp.json`, `.claude/skills`, `.cursor/mcp.json`, `.mcp.json.bak` …), 또는 이번 조합에서 빠졌지만 그런 다른 에이전트의 설정에 남은 MCP 서버. 확인하고 필요 없으면 직접 지우세요 |
 
+`role-missing`·`role-bad` 와 `guideline role remove` 의 `apply` 할 일에도 `scope: "personal"` 이 붙습니다.
 개인 사본에서 나온 할 일에는 `--json` 에 `scope: "personal"` 이 붙습니다: `setup-personal`, `removed-upstream`(`guideline pick --local` 에서 해제), 그리고 문구가 「개인 사본 —」 으로 시작하는 다른 종류입니다. `scope: "personal"` 인 `no-copy` 는 더한 블록에 개인 사본이 없어 조합하지 않았다는 뜻입니다. `guideline update` 를 실행하세요.
 
 없어진 종류도 있습니다: `mcp-local`(MCP 사본도 다른 사본처럼 `.guideline/mcp/<이름>/server.json` 으로 제안합니다), `moved`(사본의 자리가 하나입니다), `new-file`.
@@ -109,8 +116,9 @@
 
 | 자리 | 내용 |
 | --- | --- |
-| `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` | 개인 선택: `{ "version": 1, "sources": { "<출처>": { "add": [블록 키], "remove": [블록 키] } } }`, 별칭 전 실제 이름. 단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것(`packages%2Fapi`)입니다 |
+| `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` | 개인 선택: `{ "version": 2, "sources": { "<출처>": { "add": [블록 키], "remove": [블록 키] } }, "roles": { "<역할>": { "sources": { … } } } }`, 별칭 전 실제 이름. `roles` 에는 개인 역할마다 그 겹이 `sources` 와 같은 모양으로 있습니다. 버전 1(`roles` 없음) 파일도 그대로 읽습니다. 단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것(`packages%2Fapi`)입니다 |
 | `<git 공용 디렉터리>/guideline/units/<단위 키>/.guideline/`, `guideline-lock.json` | 내가 더한 블록의 개인 사본과 그 잠금. `pick --local` 과 `update` 가 씁니다. 고치지 마세요 |
+| `<git 디렉터리>/guideline/role` | 이 워크트리의 역할 이름(첫 줄). `<git 디렉터리>` 는 그 워크트리 자신의 git 디렉터리(메인 워크트리는 `.git/`, 링크 워크트리는 `.git/worktrees/<이름>/`)라 워크트리마다 따로입니다 |
 | `<git 공용 디렉터리>/info/exclude` | 단위와 워크트리마다 한 블록(`# START guideline personal files <단위 경로> @<워크트리>` … `# END …`)에 개인 범위에서만 나온 생성물과 ruler 가 쓰는 에이전트 설정 파일(`.mcp.json` 등)을 적습니다. `.` 은 git 루트 단위와 메인 워크트리입니다. git 이 더는 모르는 워크트리의 블록은 다음에 쓸 때 지웁니다 |
 
 한 클론의 모든 워크트리가 git 공용 디렉터리를 함께 쓰므로, 개인 선택과 개인 사본도 함께 씁니다.
@@ -128,13 +136,32 @@
 
 | 필드 | 뜻 |
 | --- | --- |
-| `added` | 내가 더해서 받는 블록(출처가 여럿이면 `<출처>:<키>`) |
+| `added` | 공통 개인 선택이 더해서 받는 블록(출처가 여럿이면 `<출처>:<키>`). `removed`·`ignored` 도 공통 겹의 것이고, 역할의 것은 `role` 에 있습니다 |
 | `removed` | 프로젝트 선택 중 내가 받지 않는 블록. 뺀 스택 아래의 스택도 들어갑니다 |
 | `ignored` | 필수라서 무시된 뺌 |
-| `shadowed` | `[{ id, by }]`: 출처 `by` 의 블록에 가려진 더함 |
+| `shadowed` | `[{ id, by }]`: 출처 `by` 의 블록에 가려진 더함. 워크트리가 최종으로 받는 것으로 판정합니다 |
+| `role` | 이 워크트리 역할의 `{ name, defined, added, removed, ignored }`, 역할이 없으면 `null`. 역할 이름은 있지만 이 단위가 정의하지 않았으면 `defined` 는 `false` 이고 목록은 빕니다 |
 | `items` | `[{ id, state }]`: 개인 사본과 그 상태(프로젝트 사본과 같은 상태 값) |
 
 단위가 git 저장소가 아니거나 `local.json` 을 읽을 수 없으면(`local-bad` 할 일로 알립니다) `personal` 은 `null` 입니다.
+
+### 개인 역할
+
+워크트리는 개인 역할을 쓸 수 있습니다: 공통 개인 선택 위에 얹는, 이름 붙은 더함·뺌 겹입니다.
+쓰는 방법: [워크트리마다 역할 쓰기](how-to/use-guidelines-only-on-your-machine.md#워크트리마다-역할-쓰기).
+
+`apply`·`update`·`pick`·`pick --local`·`status` 는 세 겹을 조합합니다: 프로젝트 선택, 공통 개인 선택, 그리고 `local.json` 의 `roles.<이름>` 에 있는 역할 겹입니다.
+
+- 역할 겹은 공통 겹의 결과 위에 얹힙니다. 내 더함 위로 채운 조상 스택도 그 결과에 들어갑니다. 역할이 그런 스택 아래 블록만 빼면 스택은 남습니다. 그 스택도 빼려면 스택 자체를 빼세요.
+- 필수 블록과 그 위 스택은 역할 겹에서도 뺄 수 없습니다(`personal-ignored`).
+- 워크트리의 역할을 정의하지 않은 단위는 공통 겹만으로 조합하고 `status` 가 그것을 알립니다. 워크트리의 어느 단위도 정의하지 않으면 모노레포에서도 워크트리에 `role-missing` 할 일 하나를 냅니다.
+- 개인 사본은 어느 워크트리에서 `update` 를 실행하든 모든 역할의 더함을 담습니다.
+- 이 단위가 역할을 정의하면 관리 지침의 개인 절에 「역할: `<이름>`」 과 역할의 더함·뺌이 보입니다.
+- 역할을 정의하거나 바꾸거나 지워도 커밋되는 파일은 바뀌지 않습니다.
+
+`guideline role use <이름>` 은 이름과 그 역할을 정의한 단위가 있는지 확인하고, 역할 파일을 쓴 뒤 git 루트에서 반영합니다.
+아무것도 쓰기 전에 반영이 실패하면 역할 파일을 원래 내용으로 되돌리고, 메시지가 그 전 역할을 알립니다.
+파일을 쓴 뒤 반영 일부가 실패하면 역할은 그대로이고, 메시지가 고친 뒤 `guideline apply` 를 실행하라고 알립니다.
 
 ### 머신 기본값
 
@@ -142,6 +169,7 @@
 그 출처에 개인 선택이 아직 없는 프로젝트에서만 개인 폼을 미리 체크합니다. 원본에 없는 블록은 빼고 체크합니다.
 `update`·`apply` 는 읽지 않습니다.
 마지막으로 기본값을 저장한 실행이 그 서버의 기본값을 정합니다. 한 실행 안에서 같은 서버의 출처 여럿은 합칩니다. 어떤 블록을 출처마다 다르게 골랐으면 이름 순으로 뒤 출처의 것을 남기고 경고합니다.
+역할 폼(`pick --local --role <이름>`)에서는 그 서버의 `roles.<이름>` 에 역할 기본값으로 저장하고, 공통 기본값과 다른 역할은 그대로 둡니다.
 
 ## 원본 명령
 
@@ -181,6 +209,8 @@
 
 `pick --local` 은 폴더가 git 저장소가 아니거나(또는 git 이 2.31 보다 옛날), 아직 받은 것이 없거나, 옛 배치 프로젝트이거나, `--new` 와 함께 쓰면 2 로 끝납니다.
 `local.json` 이나 `defaults.json` 을 읽을 수 없거나, 서버가 개인 폼을 모르면(「이 서버는 개인 폼을 모름」) 1 로 끝납니다.
+`pick --local --role` 은 이름 규칙에 맞지 않는 역할 이름에도 2 로, `--local` 없는 `pick --role` 도 2 로 끝납니다.
+`guideline role` 은 git 저장소 밖, 잘못된 이름이나 인자, 어느 단위도 정의하지 않은 역할을 `use` 로 고르면 2 로 끝납니다. `role use` 는 반영이 실패하면 1 로 끝납니다.
 
 서버가 0.24 보다 옛날이면 스택 선택을 받지 못합니다.
 그러면 `pick` 은 그 출처의 폼을 취소하고 「서버가 CLI 보다 옛날」 이라고 알린 뒤 그 출처를 그대로 둡니다.
@@ -227,6 +257,7 @@
 - 하위 스택을 더하면 프로젝트가 받지 않는 조상도 더합니다. 스택을 빼면 그 아래 스택도 뺍니다. 선택을 **그대로**로 되돌리면 같은 선택이던 아래 스택도 되돌립니다.
 - 맨 위 줄이 무엇으로 미리 체크했는지 알립니다: 「내 이 프로젝트 선택」 또는 「내 기본값」.
 - **확인**에 더할 것·뺄 것 목록과 **이 선택을 내 기본값으로** 칸이 있습니다. 커밋되는 것을 쓰지 않으므로 커밋 안 된 변경 경고는 없습니다.
+- `--role <이름>` 이면 폼은 그 역할의 겹을 고칩니다. 부제는 「개인 선택 — 역할 <이름>」 으로 끝나고, 프로젝트 열은 「프로젝트·공통 선택이 받음」(「… 받지 않음」)입니다. 0.24 서버는 보통의 개인 폼을 보입니다.
 - 모노레포 하위 디렉터리에서 개인 폼은 git 루트에서만 받는 스킬·서브에이전트·MCP 서버를 막지 않습니다. 그것들은 git 루트의 개인 선택에서 더하세요.
 
 ## 토큰 범위

@@ -14,9 +14,13 @@ Common options: `--project <path>` (default: current directory), `--server <URL>
 | --- | --- |
 | `guideline pick` | Opens the server form and applies the chosen items on submit. `--new <name\|path>` creates a new project (`git init`) and applies. `--no-browser` only prints the address. `--recommend <file\|->` opens the form with blocks an agent chose (JSON `{"block key": "reason"}`) already checked — one source at a time (add `--source` when there are several). Needs a 0.19+ server; an older server opens the form without the recommendations. Picking stacks needs a 0.24+ server (see [Exit codes](#exit-codes)) |
 | `guideline pick --local` | Opens the personal form and changes only what you receive in this unit: blocks added to or removed from the project's choice ([personal scope](#personal-scope)). Writes nothing that is committed. `--recommend <file\|->` takes `{"add": {"block key": "reason"}, "remove": {"block key": "reason"}}` (a plain `{"block key": "reason"}` is add). Needs a git repository with git 2.31 or later, and a server that knows the personal form. Cannot be combined with `--new` |
+| `guideline pick --local --role <name>` | Opens the personal form for a personal role and stores the result as that role's layer in this unit's `local.json` ([personal roles](#personal-roles)). The form's project column shows the project's choice plus your common personal selection. Creates the role when it does not exist. Does not switch this worktree to the role. A name that breaks the naming rule, or `--role` without `--local`, exits with code 2 |
 | `guideline update` | Re-applies the chosen items from the latest server revision. Skips files edited in the project; `--force` overwrites them. The first `pick` or `update` with a 0.24 or later CLI moves a project received in the old layout (see [Upgrade the server and the CLI](how-to/upgrade.md#move-projects-to-the-guideline-layout)) |
 | `guideline apply` | Composes the generated files from `.guideline/` and `.ruler/ruler.project.toml` without contacting the server, rewrites the `.gitignore` block and runs `ruler apply` at the git root. Use it after a clone, in a new worktree and from `prepare`. `pick`, `pick --local` and `update` compose the same way at their end (at the git root, the units below it too) but run ruler only when they wrote something; `apply` runs ruler even when nothing changed. Options: `--project <path>`, `--json`. Exit code 0 done, 1 could not write, 2 nothing received yet or the project is still in the old layout. Right after a clone it also deletes a `CLAUDE.md` that ruler wrote for every agent (see [Troubleshooting](troubleshooting.md#cli)). At the git root of a monorepo it also composes every unit below it that git tracks, then runs ruler once; this works when the root is not a guideline project too ([monorepos](how-to/use-in-a-monorepo.md)) |
-| `guideline status` | Shows whether the applied guidelines are current and what the project changed, plus the stored token's name and scope (`token` in `--json`; nothing when there is no token or the server is older than 0.20). With a personal scope it adds "Personal scope — added …" and "Personal scope — removed …" lines and the personal copies that are not current (`personal` in `--json`, see [Personal scope](#personal-scope)) |
+| `guideline status` | Shows whether the applied guidelines are current and what the project changed, plus the stored token's name and scope (`token` in `--json`; nothing when there is no token or the server is older than 0.20). With a personal scope it adds "Personal scope — added …" and "Personal scope — removed …" lines and the personal copies that are not current (`personal` in `--json`, see [Personal scope](#personal-scope)). With a role it adds "Role — …" and "Role <name> — added …", "removed …" lines |
+| `guideline role` | Prints this worktree's personal role and the roles each unit defines. `--json`: `{ role, bad, units: [{ unit, roles }] }` (the git root unit is `.`; `role` is `null` without a role, `bad` is `true` when the role file is broken). See [Personal roles](#personal-roles) |
+| `guideline role use <name>` / `use --none` | Sets or clears this worktree's role, then applies from the git root like `guideline apply` there. The role must be defined in at least one unit (exit code 2 otherwise) |
+| `guideline role remove <name>` | Deletes the role's definition from this unit's `local.json` without applying. `--json`: `{ removed, todos }`. Exit code 2 when this unit does not define it, or the folder is not a guideline unit |
 | `guideline propose` | Turns edited copies back into source form and proposes them. With an `admin` scope token it applies them directly instead (no review); `--review` sends a proposal anyway, `--apply` applies explicitly (an error with a non-admin token). Passing both is a usage error (exit code 2). `--dry-run` (also says which of the two sending would do), `--title`, `--message`, `--only <item,…>`, `--from <folder>`. `--json` adds `mode`: `apply` or `proposal` (absent when there is nothing to send). The dry run is the authoritative way to see the mode: it asks with the same token and server the real send uses, while `status` may resolve a different token (several sources, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | Logs in to a server and stores a token, or deletes it. `--token-stdin` stores a token without a browser. After saving, `login` prints the token's scope (`read`, `propose` or `admin`) |
 
@@ -48,7 +52,7 @@ The `.guideline/` layout adds these kinds. `apply`, `pick` and `update` print th
 | `prepare-manual` | `prepare` runs `ruler apply` with arguments, which `guideline apply` does not take, so it was left alone. Change it to `guideline apply` by hand and move the ruler settings to `.ruler/ruler.project.toml` |
 | `apply-hook` | There is no `package.json`: call `guideline apply` from your setup step (Orca: `scripts.setup` in `orca.yaml`) |
 
-The personal scope adds these kinds. `status` also prints `personal-ignored`, `personal-shadowed`, `override-target`, `personal-revision` and `local-bad`.
+The personal scope adds these kinds. `status` also prints `personal-ignored`, `personal-shadowed`, `override-target`, `personal-revision`, `local-bad`, `role-missing` and `role-bad`.
 
 | Kind | Meaning |
 | --- | --- |
@@ -57,9 +61,12 @@ The personal scope adds these kinds. `status` also prints `personal-ignored`, `p
 | `personal-shadowed` | A personal addition has the same final name (after aliases) as a block the project picked from another source, so it is not used, nor the blocks you added below it. `pick --local` does not save them; elsewhere, clean it up with `guideline pick --local` |
 | `personal-revision` | The personal copies and the project's copies are at different revisions of a source, for example after `update` in another worktree. Run `guideline update` (from `apply` and `status`) |
 | `personal-sync` | The personal copies could not be updated: a write error, or a personal lock that cannot be read (delete the file the message names). The project itself was applied. Run `guideline update` again |
-| `local-bad` | `local.json` cannot be read, so the files were composed from the project's choice only. Fix or delete the file |
+| `local-bad` | `local.json` cannot be read, so the files were composed from the project's choice only. Fix or delete the file. A 0.24.0 CLI also gives it for a `local.json` of version 2 |
+| `role-missing` | This worktree's role is defined in no unit, so only the common personal selection was used. Define it with `guideline pick --local --role <name>`, or run `guideline role use --none`. A role missing only in some units is a `status` line instead |
+| `role-bad` | The role file (`<git dir>/guideline/role`) does not hold a valid role name, so the worktree was composed without a role. Run `guideline role use <name>` or `guideline role use --none` |
 | `ruler-leftover` | Something ruler made or changed only for your personal choice was left alone: a settings file or folder (`.mcp.json`, `.claude/skills`, `.cursor/mcp.json`, `.mcp.json.bak` …) that still holds something added by hand, is tracked, belongs to an agent other than claude, codex and opencode, or is the backup of such another agent's settings or of a settings file put there by hand — or an MCP server dropped from the composed choice is still in such another agent's settings. Check it and remove it yourself if you no longer need it |
 
+`role-missing`, `role-bad` and the `apply` to-do of `guideline role remove` carry `scope: "personal"` too.
 To-dos that come from the personal copies carry `scope: "personal"` in `--json`: `setup-personal`, `removed-upstream` (remove it with `guideline pick --local`) and the other kinds, whose message starts with "Personal copy —". A `no-copy` with `scope: "personal"` means a block you added has no personal copy, so it was not composed; run `guideline update`.
 
 Some kinds no longer exist: `mcp-local` (an MCP copy is proposed like any other copy, from `.guideline/mcp/<name>/server.json`), `moved` (a copy has one place) and `new-file`.
@@ -108,8 +115,9 @@ Additions are limited to the sources in `guideline.json`.
 
 | Place | Contents |
 | --- | --- |
-| `<git common dir>/guideline/units/<unit key>/local.json` | Your personal selection: `{ "version": 1, "sources": { "<source>": { "add": [block keys], "remove": [block keys] } } }`, real names before aliases. The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path (`packages%2Fapi`) |
+| `<git common dir>/guideline/units/<unit key>/local.json` | Your personal selection: `{ "version": 2, "sources": { "<source>": { "add": [block keys], "remove": [block keys] } }, "roles": { "<role>": { "sources": { … } } } }`, real names before aliases. `roles` holds each personal role's layer, in the same form as `sources`. A file of version 1 (without `roles`) is still read. The unit key is `%root` for the git root unit, otherwise the URL-encoded unit path (`packages%2Fapi`) |
 | `<git common dir>/guideline/units/<unit key>/.guideline/`, `guideline-lock.json` | The personal copies of the blocks you added, and their lock. Written by `pick --local` and `update`; do not edit them |
+| `<git dir>/guideline/role` | This worktree's role name, on the first line. `<git dir>` is the worktree's own git directory (`.git/` in the main worktree, `.git/worktrees/<name>/` in a linked one), so each worktree has its own |
 | `<git common dir>/info/exclude` | One block per unit and worktree, `# START guideline personal files <unit path> @<worktree>` … `# END …`, with the generated files, and the agents' settings files ruler writes (such as `.mcp.json`), that come only from the personal scope. `.` is the git root unit and the main worktree. A block of a worktree that git no longer knows is removed on the next write |
 
 All worktrees of a clone share the git common directory, so they share the personal selection and copies.
@@ -127,13 +135,32 @@ The management guideline (`.ruler/guideline.md`) gets a "This worker's personal 
 
 | Field | Meaning |
 | --- | --- |
-| `added` | Blocks you added that are received (`<source>:<key>` with several sources) |
+| `added` | Blocks your common personal selection added that are received (`<source>:<key>` with several sources). `removed` and `ignored` are also the common layer's; the role's are in `role` |
 | `removed` | Blocks of the project's choice you do not receive, the stacks below a removed one included |
 | `ignored` | Removals ignored because the block is Required |
-| `shadowed` | `[{ id, by }]`: additions hidden by a block of source `by` |
+| `shadowed` | `[{ id, by }]`: additions hidden by a block of source `by`, judged on what the worktree finally receives |
+| `role` | `{ name, defined, added, removed, ignored }` for this worktree's role, `null` without a role. `defined` is `false` when the role has a name but this unit does not define it; the lists are then empty |
 | `items` | `[{ id, state }]`: the personal copies and their states, as for the project's copies |
 
 `personal` is `null` when the unit is not in a git repository, or `local.json` cannot be read (a `local-bad` to-do says so).
+
+### Personal roles
+
+A worktree can use a personal role: a named layer of additions and removals on top of the common personal selection.
+How to use it: [Use a role per worktree](how-to/use-guidelines-only-on-your-machine.md#use-a-role-per-worktree).
+
+`apply`, `update`, `pick`, `pick --local` and `status` compose three layers: the project's choice, the common personal selection, then the role's layer from `roles.<name>` in `local.json`.
+
+- The role's layer sits on the result of the common layer, the stacks it fills in above your additions included. When the role removes only a block below such a stack, the stack stays; remove the stack itself to drop it.
+- A Required block and the stacks above it cannot be removed in the role's layer either (`personal-ignored`).
+- A unit that does not define the worktree's role composes the common layer only, and `status` says so. When no unit of the worktree defines it, the worktree gets one `role-missing` to-do, even in a monorepo.
+- The personal copies hold the additions of every role, whichever worktree runs `update`.
+- The management guideline's personal section shows "Role: `<name>`" with the role's additions and removals when this unit defines the role.
+- Committed files never change when you define, switch or remove a role.
+
+`guideline role use <name>` checks the name and that some unit defines it, writes the role file, then applies from the git root.
+When applying fails before anything is written, the role file goes back to what it held and the message names the earlier role.
+When part of applying fails after files were written, the role stays and the message says to fix it and run `guideline apply`.
 
 ### Machine defaults
 
@@ -141,6 +168,7 @@ The management guideline (`.ruler/guideline.md`) gets a "This worker's personal 
 They pre-check the personal form only in a project where you have no personal selection for that source yet; blocks the source does not have are left out.
 `update` and `apply` never read them.
 The last run that saves defaults sets that server's defaults. Within one run, several sources on the same server are merged; when they chose a block differently, the later source by name wins and the CLI warns.
+In the role form (`pick --local --role <name>`), it stores the role's defaults under `roles.<name>` of that server, and leaves the common defaults and other roles alone.
 
 ## Source commands
 
@@ -180,6 +208,8 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 
 `pick --local` exits with 2 when the folder is not in a git repository (or git is older than 2.31), nothing was received yet, the project is still in the old layout, or it is combined with `--new`.
 It exits with 1 when `local.json` or `defaults.json` cannot be read, or when the server does not know the personal form ("This server does not know the personal form").
+`pick --local --role` also exits with 2 for a role name that breaks the naming rule, and `pick --role` without `--local` exits with 2.
+`guideline role` exits with 2 outside a git repository, for a bad name or arguments, and when `use` names a role no unit defines. `role use` exits with 1 when applying fails.
 
 A server older than 0.24 cannot take stack choices.
 `pick` then cancels that source's form, says "This server is older than the CLI" and leaves the source as it was.
@@ -226,6 +256,7 @@ A 0.24 server refuses a CLI that does not send the stack form's `formVersion` wi
 - Adding a child stack adds its ancestors the project does not get. Removing a stack removes the stacks below it. Turning a choice back to **As project** resets the stacks below that had the same choice.
 - A line at the top says what is pre-checked: "my selection for this project" or "my defaults".
 - **Review** lists what you add and remove, and has **Save this selection as my default**. There is no uncommitted-changes warning, because nothing committed is written.
+- With `--role <name>` the form edits that role's layer. Its subtitle ends with "personal selection — role <name>", and the project column reads "project + my common selection get it" ("… do not get it"). A 0.24 server shows the plain personal form instead.
 - In a monorepo subdirectory the personal form does not block skills, subagents and MCP servers, which are received only at the git root. Add them in the git root's personal selection.
 
 ## Token scopes

@@ -91,7 +91,7 @@ test('안내 템플릿: 사본은 .guideline/, 생성물은 apply 가 만든다�
 });
 
 // 개인 범위: 안내 템플릿 두 벌이 pick --local 흐름과 새 할 일을 다루고, 개인 세팅은 커밋되는 파일을 바꾸지 않는다고 시킨다.
-const PERSONAL_KINDS = ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed'];
+const PERSONAL_KINDS = ['setup-personal', 'personal-ignored', 'personal-shadowed', 'personal-revision', 'personal-sync', 'local-bad', 'ruler-leftover', 'override-target', 'unit-write-failed', 'role-missing', 'role-bad'];
 
 test('안내 템플릿: 개인 범위의 pick --local·추천 모양·새 할 일과 scope 를 다룬다', t => {
   for (const lang of ['en', 'ko']) {
@@ -100,7 +100,7 @@ test('안내 템플릿: 개인 범위의 pick --local·추천 모양·새 할 �
     const sync = currentLocale().template('skills/guideline-sync/SKILL.md');
     for (const [name, text] of [['llms.txt', llms], ['guideline-sync', sync]]) {
       for (const kind of PERSONAL_KINDS) assert.ok(text.includes(`| \`${kind}\` |`), `${lang} ${name}: ${kind} 행`);
-      for (const want of ['guideline pick --local', '--recommend', '{"add": {', '"remove": {', 'scope: "personal"', lang === 'en' ? '<git common dir>' : '<git 공용 디렉터리>', 'info/exclude']) {
+      for (const want of ['guideline pick --local', 'guideline pick --local --role', 'guideline role use', '--recommend', '{"add": {', '"remove": {', 'scope: "personal"', lang === 'en' ? '<git common dir>' : '<git 공용 디렉터리>', 'info/exclude']) {
         assert.ok(text.includes(want), `${lang} ${name}: ${want}`);
       }
       // 개인 세팅 행은 커밋되는 파일을 바꾸지 않고 바꿔야 하는 단계를 알리라고 시킨다
