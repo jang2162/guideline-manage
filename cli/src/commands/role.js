@@ -55,11 +55,17 @@ export async function role({
   const was = readRole(dir, git);
   const raw = rawRole(dir, git);
   writeRole(dir, none ? null : name, git);
-  const code = await projectApply({ dir: root, json, env, out, err, runRuler, git, prior });
-  if (code !== 0) {
-    // 반영이 실패했는데 역할만 바뀌어 남으면, 고쳐서 다시 칠 때 prior 가 새 역할로 펼친 것이 되어 지난 역할만 더했던 출력이 남는다
+  let wrote = false;
+  const code = await projectApply({ dir: root, json, env, out, err, runRuler, git, prior, onWriteStart: () => { wrote = true; } });
+  if (code === 0) return 0;
+  if (!wrote) {
+    // 쓰기 전에 실패했다(열기·배치 문제): 생성물은 지난 역할 그대로다. 역할만 바뀌어 남으면 고쳐서 다시 칠 때 prior 가 새 역할로
+    // 펼친 것이 되어 지난 역할만 더했던 출력이 남는다 — 역할을 되돌린다
     restoreRole(dir, raw, git);
     err(t('role.applyFailedRestored', { name: was.bad ? t('role.badShort') : was.name ?? t('role.noRoles') }));
+  } else {
+    // 무언가 쓴 뒤 일부가 실패했다: 쓴 생성물은 새 역할로 조합됐으므로 역할도 새 역할로 둔다(되돌리면 생성물과 어긋난다)
+    err(t('role.applyPartialKept', { name: none ? t('role.noRoles') : name }));
   }
   return code;
 }

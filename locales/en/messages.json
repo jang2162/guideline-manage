@@ -743,6 +743,8 @@
   "web.client.personal.remove": "Remove",
   "web.client.personal.inProject": "project gets it",
   "web.client.personal.notInProject": "project does not get it",
+  "web.client.personal.inRoleBasis": "project + my common selection get it",
+  "web.client.personal.notInRoleBasis": "project + my common selection do not get it",
   "web.client.personal.locked": "Required — cannot remove",
   "web.client.personal.lockedAncestor": "Holds a required block — cannot remove",
   "web.client.personal.preset.local": "Pre-checked: my selection for this project",
@@ -784,6 +786,7 @@
   "role.removed": "Removed the definition of role {name} from this unit ({unit})",
   "role.noneOnlyUse": "--none is only for guideline role use — guideline role use --none",
   "role.applyFailedRestored": "Applying failed, so the role was set back — {name}",
+  "role.applyPartialKept": "The role is now {name}, but part of applying failed — fix it, then guideline apply",
   "role.badShort": "broken role file",
   "role.notUnit": "Not a guideline unit (no guideline.json): {dir} — run guideline role remove in the unit's folder",
   "todo.roleRemovedApply": "Removed the definition of this worktree's role {name} — run guideline apply to apply it"

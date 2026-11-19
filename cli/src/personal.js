@@ -175,29 +175,27 @@ export function effectiveItems(manifest, local) {
 }
 
 /**
- * 역할 겹의 기준 매니페스트: 출처마다 items = (프로젝트 items ∪ common.added) − common.removed. 공통 결과의 명시 항목만 쓰고
- * 자동으로 채운 조상은 넣지 않는다(layeredLocal 참고). required·별칭 등 나머지는 그대로.
+ * 역할 겹의 기준 매니페스트: 출처마다 items = 공통 겹 결과 그대로(자동으로 채운 조상 포함). 역할 폼은 이 기준을 「받음」 으로
+ * 보여 주므로 폼에서 「그대로」 둔 조상이 결과에도 남고, 역할 정의에 고르지 않은 조상을 적지 않아도 돼 공통 선택이 바뀌면 역할도
+ * 따라간다. 대가로 역할이 공통의 하위 스택만 빼면 그 부모(자동 조상)는 남는다 — 부모도 빼려면 역할이 부모를 뺀다.
+ * required·별칭 등 나머지는 그대로.
  * @param {import('./manifest.js').Manifest} manifest
  * @param {ReturnType<typeof effectiveItems>} common effectiveItems(manifest, local)
  * @returns {import('./manifest.js').Manifest}
  */
 export function roleBasis(manifest, common) {
   const sources = {};
-  for (const [name, src] of Object.entries(manifest.sources)) {
-    const c = common.sources[name];
-    const gone = new Set(c.removed);
-    sources[name] = { ...src, items: uniqSorted([...src.items, ...c.added]).filter(k => !gone.has(k)) };
-  }
+  for (const [name, src] of Object.entries(manifest.sources)) sources[name] = { ...src, items: [...common.sources[name].items] };
   return { ...manifest, sources };
 }
 
 /**
  * 세 겹(프로젝트 → 공통 개인 선택 → 역할 개인 선택) 계산과, 그 결과를 한 겹짜리 개인 선택(flat)으로 펼친 것.
  * - common = effectiveItems(manifest, local).
- * - 역할 겹의 기준 매니페스트: 출처마다 items = (프로젝트 items ∪ common.added) − common.removed. 공통 결과의 명시 항목만 쓰고
- *   자동으로 채운 조상은 넣지 않는다 — 그래야 역할이 공통의 하위 스택을 뺐을 때 아무도 고르지 않은 조상이 남지 않는다. required 는 그대로.
+ * - 역할 겹의 기준 매니페스트는 roleBasis(공통 겹 결과 그대로, 자동 조상 포함).
  * - flat 은 effectiveItems(manifest, flat) 의 items 가 세 겹의 최종 items 와 같도록 펼친다(P = 프로젝트 items, F = 최종 items):
- *   add = (common.added ∪ role.added) ∩ F − P, remove = P − F. add 를 F − P 로 두어도 items 는 같지만 그러면 자동으로 채운 조상이
+ *   add = ((common.added ∪ role.added) ∩ F − P) ∪ 그것만으로 다시 채워지지 않는 F 의 키, remove = P − F. 뒤의 것은 공통이 자동으로
+ *   채운 조상인데 역할이 그 아래 하위만 빼 남은 것이다. add 를 F − P 로 두어도 items 는 같지만 그러면 다른 자동 조상까지
  *   개인 더함(added)으로 보여, 명시한 키만 쓰는 added·가려짐(shadowedAdds) 판정이 한 겹일 때와 달라진다.
  *   F 는 조상이 닫혀 있어 remove(P − F)의 자손이 F 에 없고, 필수와 그 조상은 어느 겹에서도 빠지지 않아 P − F 에 없다.
  *   매니페스트에 없는 출처의 공통 개인 항목은 그대로 둬 orphans 가 공통과 같다.
@@ -217,11 +215,10 @@ export function layeredLocal(manifest, local, role) {
   for (const [name, src] of Object.entries(manifest.sources)) {
     const project = new Set(src.items);
     const final = new Set(roleEff.sources[name].items);
-    const explicit = [...common.sources[name].added, ...roleEff.sources[name].added];
-    flatSources[name] = {
-      add: uniqSorted(explicit.filter(k => final.has(k) && !project.has(k))),
-      remove: uniqSorted(src.items.filter(k => !final.has(k))),
-    };
+    const explicit = [...common.sources[name].added, ...roleEff.sources[name].added].filter(k => final.has(k) && !project.has(k));
+    const remove = uniqSorted(src.items.filter(k => !final.has(k)));
+    const reached = new Set(effectiveItems({ ...manifest, sources: { [name]: src } }, { version: 2, sources: { [name]: { add: explicit, remove } }, roles: {} }).sources[name].items);
+    flatSources[name] = { add: uniqSorted([...explicit, ...[...final].filter(k => !reached.has(k))]), remove };
   }
   for (const [name, s] of Object.entries(local.sources)) {
     if (!(name in manifest.sources)) flatSources[name] = { add: [...s.add], remove: [...s.remove] };

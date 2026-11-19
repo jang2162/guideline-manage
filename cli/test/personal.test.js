@@ -249,6 +249,16 @@ test('펼친 선택은 세 겹 결과와 같다', () => {
       want: { a: ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x'], b: ['rules/tool'] },
     },
     {
+      why: '역할이 공통 하위 스택만 뺌(자동 조상은 남음)',
+      local: v2({ a: ls(['rules/web/ui', 'rules/new/ui']) }, { dev: { sources: { a: ls([], ['rules/web/ui', 'rules/new/ui']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'rules/new', 'rules/web', 'skills/x'], b: ['rules/tool'] },
+    },
+    {
+      why: '역할이 공통 하위 스택과 그 부모를 뺌',
+      local: v2({ a: ls(['rules/new/ui/deep']) }, { dev: { sources: { a: ls([], ['rules/new/ui']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'rules/new', 'rules/web', 'skills/x'], b: ['rules/tool'] },
+    },
+    {
       why: '매니페스트에 없는 출처(고아)',
       local: v2({ gone: ls(['rules/z']) }, { dev: { sources: { gone: ls(['rules/q']), a: ls(['skills/z']) } } }),
       want: { a: ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x', 'skills/z'], b: ['rules/tool'] },
@@ -275,14 +285,31 @@ test('펼친 더함에는 자동으로 채운 조상을 넣지 않는다', () =>
   assert.deepEqual(r.role.sources.a.added, ['rules/new/deep']);
 });
 
-test('역할이 공통의 하위 스택을 빼면 아무도 고르지 않은 조상이 남지 않는다', () => {
+test('역할이 공통의 하위 스택만 빼면 공통이 채운 조상은 남는다', () => {
   const m = twoSources();
   const r = layeredLocal(m, v2({ a: ls(['rules/web/ui', 'rules/new/ui']) }, { dev: { sources: { a: ls([], ['rules/web/ui', 'rules/new/ui']) } } }), 'dev');
   assert.deepEqual(r.common.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/new', 'rules/new/ui', 'rules/web', 'rules/web/ui', 'skills/x']);
-  // rules/web 은 프로젝트가 골라 남고, rules/new 는 아무도 고르지 않아 없다
-  assert.deepEqual(r.role.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x']);
-  assert.deepEqual(effectiveItems(m, r.flat).sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x']);
-  assert.deepEqual(r.flat.sources.a, { add: [], remove: [] });
+  // 역할 겹의 기준은 공통 결과 그대로(자동 조상 포함)라 rules/new 는 남는다 — 역할 폼이 「받음」 으로 보인 그대로
+  assert.deepEqual(r.role.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/new', 'rules/web', 'skills/x']);
+  assert.deepEqual(effectiveItems(m, r.flat).sources.a.items, r.role.sources.a.items);
+  // 펼친 선택은 하위가 빠져 다시 채워지지 않는 조상을 명시 더함으로 싣는다
+  assert.deepEqual(r.flat.sources.a, { add: ['rules/new'], remove: [] });
+  // 부모도 빼려면 역할이 부모를 뺀다
+  const both = layeredLocal(m, v2({ a: ls(['rules/new/ui']) }, { dev: { sources: { a: ls([], ['rules/new']) } } }), 'dev');
+  assert.deepEqual(both.role.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x']);
+  assert.deepEqual(both.flat.sources.a, { add: [], remove: [] });
+});
+
+test('역할 정의는 공통 선택이 바뀌면 따라간다(고르지 않은 조상을 적지 않는다)', () => {
+  // 리뷰 반례: 공통이 rules/extra/sub 를 더하고 역할이 그 하위만 뺀다. 나중에 공통에서 더함을 지우면 역할 워크트리에서도 rules/extra 가 사라진다
+  const m = twoSources();
+  const roles = { dev: { sources: { a: ls([], ['rules/extra/sub']) } } };
+  const before = layeredLocal(m, v2({ a: ls(['rules/extra/sub']) }, roles), 'dev');
+  assert.ok(before.role.sources.a.items.includes('rules/extra'));
+  assert.ok(!before.role.sources.a.items.includes('rules/extra/sub'));
+  const after = layeredLocal(m, v2({}, roles), 'dev');
+  assert.deepEqual(after.role.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x']);
+  assert.deepEqual(effectiveItems(m, after.flat).sources.a.items, after.role.sources.a.items);
 });
 
 test('역할은 필수와 그 조상을 못 뺀다', () => {
@@ -309,7 +336,7 @@ test('정의 없는 역할과 역할 없음은 공통만 쓴다', () => {
   assert.equal(layeredLocal(m, l, 'constructor').roleDefined, false);
 });
 
-test('역할 겹은 공통 결과의 명시 항목을 기준으로 계산한다', () => {
+test('역할 겹은 공통 결과를 기준으로 계산한다', () => {
   const m = twoSources();
   const r = layeredLocal(m, v2({ a: ls(['skills/y'], ['skills/x']) }, { dev: { sources: { a: ls(['skills/x']) } } }), 'dev');
   // 공통이 뺀 skills/x 를 역할이 다시 더하면 역할 겹의 added 다(기준에 없다)

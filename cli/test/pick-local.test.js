@@ -12,7 +12,7 @@ import { readDefaults, writeDefaults } from '../src/defaults.js';
 import { saveToken } from '../src/credentials.js';
 import { projectPick } from '../src/commands/project-pick.js';
 import { projectApply } from '../src/commands/project-apply.js';
-import { writeRole } from '../src/role.js';
+import { readRole, writeRole } from '../src/role.js';
 
 // 개인 저장소는 임시 git 저장소의 공용 디렉터리에, 머신 기본값·로그인은 임시 XDG_CONFIG_HOME 에 둔다
 // (이 저장소 자신의 .git 과 사용자의 ~/.config 는 건드리지 않는다).
@@ -390,6 +390,28 @@ test('pick --local --role 은 역할 정의에 쓰고 공통은 그대로 둔다
   assert.equal(porcelain(p), '');
 });
 
+test('이 워크트리의 역할이 다른 역할이어도 pick --local --role 은 그 역할의 사본을 받고, 조합은 이 워크트리의 역할로 한다', async t => {
+  const { s, p, env, store } = await setup(t);
+  const doc = { sources: { default: { add: ['rules/extra'], remove: [] } } };
+  writeLocal(store, { version: 2, sources: {}, roles: { doc } });
+  writeRole(p, 'doc');
+  const e = collect();
+  const code = await projectPick({
+    project: p, local: true, role: 'ui', env, ...quiet, err: e.out,
+    open: form(s, {}, { personalChoices: { 'rules/extra/sub': 'add' } }),
+  });
+  assert.equal(code, 0, e.text());
+  assert.deepEqual(readRole(p), { name: 'doc', bad: false });
+  // 폼은 하위를 더하면 그 조상도 함께 더해 보낸다
+  assert.deepEqual(readLocal(store).roles, { doc, ui: { sources: { default: { add: ['rules/extra', 'rules/extra/sub'], remove: [] } } } });
+  // ui 가 더한 하위 스택의 사본은 받는다(ui 워크트리가 쓸 수 있다)
+  assert.equal(read(store, '.guideline/rules/extra/sub/00-s.md'), EXTRA['rules/extra/sub/00-s.md']);
+  // 조합은 doc: rules/extra 는 받고 ui 만 더한 rules/extra/sub 는 받지 않는다
+  assert.match(read(p, '.ruler/extra/00-e.md'), /# 개인 더함/);
+  assert.equal(exists(p, '.ruler/extra/sub'), false);
+  assert.equal(porcelain(p), '');
+});
+
 test('역할 폼의 chosen 은 프로젝트 + 공통 결과다', async t => {
   const { s, p, env, store } = await setup(t, { items: ['rules/base', 'rules/base/sub'] });
   writeLocal(store, { version: 2, sources: { default: { add: ['rules/extra'], remove: ['rules/base/sub'] } }, roles: {} });
@@ -452,9 +474,9 @@ test('잘못된 역할 이름은 코드 2', async t => {
   assert.equal(exists(store, 'local.json'), false);
 });
 
-test('역할 폼이 공통의 자동 조상을 남긴다고 보였으면 결과에도 남는다', async t => {
-  // 공통이 하위 스택(rules/extra/sub)만 더했다(손으로 쓴 local.json). 폼은 조상 rules/extra 도 받는다고 보인다. 역할이 하위를 빼고
-  // 조상은 그대로 두면 역할 겹 기준(명시 항목)에서는 아무도 고르지 않은 조상이 사라지므로, 그 조상을 역할 더함으로 적어 화면과 맞춘다
+test('역할 폼이 공통의 자동 조상을 남긴다고 보였으면 결과에도 남고, 역할 정의에는 적지 않는다', async t => {
+  // 공통이 하위 스택(rules/extra/sub)만 더했다(손으로 쓴 local.json). 폼은 조상 rules/extra 도 받는다고 보인다. 역할 겹의 기준은
+  // 공통 결과 그대로(자동 조상 포함)라 역할이 하위만 빼도 조상은 남고, 역할 정의에는 사람이 고른 것만 적힌다
   const { s, p, env, store } = await setup(t);
   writeLocal(store, { version: 2, sources: { default: { add: ['rules/extra/sub'], remove: [] } }, roles: {} });
   writeRole(p, 'ui');
@@ -466,18 +488,36 @@ test('역할 폼이 공통의 자동 조상을 남긴다고 보였으면 결과�
   });
   assert.equal(code, 0, e.text());
   assert.deepEqual(seen.data.personal.chosen, ['rules/base', 'rules/extra', 'rules/extra/sub']);
-  assert.deepEqual(readLocal(store).roles.ui.sources.default, { add: ['rules/extra'], remove: ['rules/extra/sub'] });
+  assert.deepEqual(readLocal(store).roles.ui.sources.default, { add: [], remove: ['rules/extra/sub'] });
   assert.match(read(p, '.ruler/extra/00-e.md'), /# 개인 더함/);
   assert.equal(exists(p, '.ruler/extra/sub'), false);
   assert.equal(porcelain(p), '');
-  // 화면에서 조상도 빼면 조상을 더하지 않는다
-  const again = await projectPick({
+  // 리뷰 반례: 나중에 공통에서 하위 더함을 지우면 역할 워크트리에서도 rules/extra 가 사라진다(역할이 공통을 따라간다)
+  const common = await projectPick({
+    project: p, local: true, env, ...quiet, err: e.out,
+    open: form(s, {}, { personalChoices: {} }),
+  });
+  assert.equal(common, 0, e.text());
+  assert.deepEqual(readLocal(store).sources.default, { add: [], remove: [] });
+  assert.deepEqual(readLocal(store).roles.ui.sources.default, { add: [], remove: ['rules/extra/sub'] });
+  assert.equal(exists(p, '.ruler/extra'), false);
+  assert.equal(porcelain(p), '');
+});
+
+test('역할 폼에서 공통의 자동 조상까지 빼면 조상도 빠진다', async t => {
+  const { s, p, env, store } = await setup(t);
+  writeLocal(store, { version: 2, sources: { default: { add: ['rules/extra/sub'], remove: [] } }, roles: {} });
+  writeRole(p, 'ui');
+  const e = collect();
+  const code = await projectPick({
     project: p, local: true, role: 'ui', env, ...quiet, err: e.out,
     open: form(s, {}, { personalChoices: { 'rules/extra': 'remove' } }),
   });
-  assert.equal(again, 0, e.text());
+  assert.equal(code, 0, e.text());
+  // 폼은 뺀 블록의 자손도 함께 빼서 보낸다
   assert.deepEqual(readLocal(store).roles.ui.sources.default, { add: [], remove: ['rules/extra', 'rules/extra/sub'] });
   assert.equal(exists(p, '.ruler/extra'), false);
+  assert.equal(porcelain(p), '');
 });
 
 test('pick --local --role 은 다른 출처가 같은 이름으로 고른 블록을 역할에 더하지 않고 알린다', async t => {

@@ -540,7 +540,7 @@ async function pickLocal({
   const failures = fetched.failures.map(f => `${f.source}: ${f.message}`);
   const status = projectStatus(dir, git, unit.root);
   const next = { version: 2, sources: { ...local.sources }, roles: local.roles };
-  // 역할 겹은 프로젝트 + 공통 겹 결과(명시 항목)에 얹힌다. 역할 없이 고르면 기준은 프로젝트 그대로
+  // 역할 겹은 프로젝트 + 공통 겹 결과(자동 조상 포함)에 얹힌다. 역할 없이 고르면 기준은 프로젝트 그대로
   const common = role !== null ? effectiveItems(manifest, local) : null;
   const basis = role !== null ? roleBasis(manifest, common) : manifest;
   const layer = role !== null ? { ...(local.roles[role]?.sources ?? {}) } : next.sources;
@@ -625,8 +625,7 @@ async function pickLocal({
       todos.push({ kind: 'personal-shadowed', item, message });
     }
     const kept = mine.add.filter(k => !drop.has(k));
-    const extra = role !== null ? keptAncestors({ basis, name, shown: common.sources[name].items, mine, add: kept, drop }) : [];
-    layer[name] = { add: extra.length ? uniq([...kept, ...extra]) : kept, remove: mine.remove };
+    layer[name] = { add: kept, remove: mine.remove };
     // 기본값은 서버마다다(프로젝트와 상관없이) — 가림으로 거른 것도 그대로 둔다. 같은 서버의 출처가 여럿이면 합친다
     if (sel.saveDefault === true) saved.set(new URL(src.server).origin, [...(saved.get(new URL(src.server).origin) ?? []), { name, mine }]);
     trees.set(name, tree);
@@ -654,22 +653,6 @@ async function pickLocal({
   report({ result: { ...done, revision: revisionLabel(revisions) }, json, out });
   if (done.code !== 0) return done.code;
   return failures.length ? 1 : 0;
-}
-
-const uniq = list => [...new Set(list)].sort();
-
-/**
- * 역할 폼이 「받음」 으로 보였지만 역할 겹 계산에서 사라지는 조상. 폼은 프로젝트 상태(공통 결과)를 조상까지 채워 보이지만, 역할 겹의
- * 기준(basis)은 명시 항목만이라 공통이 하위 스택만 더했을 때 역할이 그 하위를 빼면 아무도 고르지 않은 조상도 사라진다. 사람은 그 조상을
- * 그대로(받음) 두었으므로 역할의 더함으로 적어 폼 표시와 결과를 맞춘다. 사람이 뺀 것과 가려져 거른 더함(drop)은 다시 넣지 않는다.
- * @returns {string[]}
- */
-function keptAncestors({ basis, name, shown, mine, add, drop }) {
-  const gone = new Set(mine.remove);
-  const want = [...shown.filter(k => !gone.has(k)), ...add];
-  const eff = effectiveItems(basis, { version: 2, sources: { [name]: { add, remove: mine.remove } }, roles: {} });
-  const got = new Set(eff.sources[name].items);
-  return want.filter(k => !got.has(k) && ![...drop].some(d => isWithin(k, d)));
 }
 
 /**

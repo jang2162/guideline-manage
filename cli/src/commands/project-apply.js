@@ -19,17 +19,18 @@ import { t } from '../i18n.js';
  * nested 로 하위 단위까지 돌므로, 루트의 prepare 하나로 클론의 모든 단위가 채워져야 한다. 루트가 guideline 프로젝트가 아니어도
  * (guideline.json 이 없어도) 하위 단위가 있으면 그것들을 조합한다.
  * prior 는 지난 조합의 펼친 개인 선택(role use 가 지난 역할로 펼친 것) — 그것만 더했던 MCP·스킬을 이 단위 조합이 지운다.
+ * onWriteStart 는 생성물을 쓰기 시작하기 직전에 한 번 부른다. 그 전에 실패했으면 아무것도 쓰지 않은 것이다(role use 가 되돌릴지 판단한다).
  * @returns {Promise<number>}
  */
 export async function projectApply({
   dir: given, project, json = false, env = process.env, out = console.log, err = console.error, cwd = process.cwd(), runRuler = defaultRunRuler, git = runGit,
-  prior = null,
+  prior = null, onWriteStart = () => {},
 }) {
   const dir = given ?? (project !== undefined ? expandPath(project) : cwd);
   if (fs.existsSync(dir) && !fs.existsSync(path.join(dir, MANIFEST))) {
     const unit = unitInfo(dir, git);
     const subs = unit.nested ? [] : subUnits(unit.root, git);
-    if (subs.length) return applyUnitsOnly({ root: unit.root, subs, json, env, out, err, runRuler, git });
+    if (subs.length) return applyUnitsOnly({ root: unit.root, subs, json, env, out, err, runRuler, git, onWriteStart });
   }
   const opened = openProject({ dir, err });
   if (opened.code !== undefined) return opened.code;
@@ -52,6 +53,7 @@ export async function projectApply({
   // prepare 가 아직 ruler apply 를 부르면 고친다(guideline-manage 를 설치한 뒤 처음 apply 에서 바뀐다)
   const prep = preparePackage({ project: dir, root: unit.root });
   todos.push(...prep.todos);
+  onWriteStart();
   const w = writeComposedOrFail(dir, { ...files, ...prep.files }, err, exclude);
   if (w.failed) return 1;
   if (unit.nested && !rootNestedOn(unit.root)) todos.push(nestedOffTodo(unit.root));
@@ -69,7 +71,8 @@ export async function projectApply({
 }
 
 /** 루트가 guideline 프로젝트가 아닌 모노레포: 하위 단위만 조합하고 루트에서 ruler 를 돈다(루트의 ruler.toml 은 프로젝트가 둔 것). */
-function applyUnitsOnly({ root, subs, json, env, out, err, runRuler, git }) {
+function applyUnitsOnly({ root, subs, json, env, out, err, runRuler, git, onWriteStart }) {
+  onWriteStart();
   const r = composeSubUnits({ root, subs, err, git, worktreeTodos: true });
   const todos = [...r.todos];
   // 이 루트는 guideline 이 ruler.toml 을 조합하지 않는다: ruler 가 읽는 것은 프로젝트가 둔 RULER_TOML 뿐이다. 그것이 없으면 ruler 를 돌지

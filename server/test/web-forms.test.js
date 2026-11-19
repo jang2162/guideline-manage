@@ -311,6 +311,19 @@ test('정적 forms.js 는 역할이 있으면 개인 폼 제목에 역할 이름
   assert.ok(page.includes('"web.client.personalRoleTitle"'));
 });
 
+test('정적 forms.js 는 역할 폼의 기준 열을 프로젝트·공통 선택 문구로 보인다(공통 폼은 그대로)', async t => {
+  const s = await startApp(t);
+  const src = (await s.req('/static/forms.js')).text;
+  for (const key of ['web.client.personal.inRoleBasis', 'web.client.personal.notInRoleBasis']) assert.ok(src.includes(`'${key}'`), key);
+  // 공통 폼 문구도 남는다
+  for (const key of ['web.client.personal.inProject', 'web.client.personal.notInProject']) assert.ok(src.includes(`'${key}'`), key);
+  const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui' } });
+  const cookie = await openForm(f);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
+  assert.ok(page.includes('"web.client.personal.inRoleBasis":"프로젝트·공통 선택이 받음"'));
+  assert.ok(page.includes('"web.client.personal.notInRoleBasis":"프로젝트·공통 선택이 받지 않음"'));
+});
+
 test('폼 페이지는 개인 모드·필수 문구를 브라우저 문구 블록에 싣는다', async t => {
   const f = await setup(t, {}, { mode: 'personal', personal: PERSONAL });
   const cookie = await openForm(f);

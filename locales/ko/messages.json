@@ -743,6 +743,8 @@
   "web.client.personal.remove": "뺌",
   "web.client.personal.inProject": "프로젝트가 받음",
   "web.client.personal.notInProject": "프로젝트가 안 받음",
+  "web.client.personal.inRoleBasis": "프로젝트·공통 선택이 받음",
+  "web.client.personal.notInRoleBasis": "프로젝트·공통 선택이 받지 않음",
   "web.client.personal.locked": "필수 — 뺄 수 없음",
   "web.client.personal.lockedAncestor": "필수 블록을 품음 — 뺄 수 없음",
   "web.client.personal.preset.local": "미리 체크: 내 이 프로젝트 선택",
@@ -784,6 +786,7 @@
   "role.removed": "이 단위({unit})에서 역할 {name} 의 정의를 지웠음",
   "role.noneOnlyUse": "--none 은 guideline role use 에서만 — guideline role use --none",
   "role.applyFailedRestored": "반영에 실패해 역할을 되돌렸음 — {name}",
+  "role.applyPartialKept": "역할은 {name}(으)로 바꿨고 반영 일부가 실패함 — 고친 뒤 guideline apply",
   "role.badShort": "깨진 역할 파일",
   "role.notUnit": "guideline 단위가 아님(guideline.json 없음): {dir} — 단위 폴더에서 guideline role remove",
   "todo.roleRemovedApply": "이 워크트리의 역할 {name} 의 정의를 지웠음 — guideline apply 로 반영"

@@ -195,6 +195,43 @@ test('role use 의 반영이 실패하면 역할 파일을 지난 역할로 되�
   assert.match(n.err, /^반영에 실패해 역할을 되돌렸음 — 없음$/m);
 });
 
+test('role use 의 반영이 쓰기 전에 실패하면 깨진 역할 파일도 그 바이트 그대로 되돌리고 그렇게 알린다', async t => {
+  const p = await project(t);
+  setLocal(p, '', { version: 2, sources: {}, roles: { ui: UI } });
+  fs.mkdirSync(path.dirname(roleFile(p)), { recursive: true });
+  fs.writeFileSync(roleFile(p), '{broken');
+  fs.writeFileSync(path.join(p, 'guideline.json'), '{');
+  const r = await run(p, { action: 'use', name: 'ui' });
+  assert.notEqual(r.code, 0);
+  assert.equal(fs.readFileSync(roleFile(p), 'utf8'), '{broken');
+  assert.match(r.err, /^반영에 실패해 역할을 되돌렸음 — 깨진 역할 파일$/m);
+});
+
+test('role use 의 반영이 무언가 쓴 뒤 일부만 실패하면 역할은 새 역할로 두고 고친 뒤 apply 하라고 알린다', async t => {
+  const p = await project(t, { sub: 'pkg/a' });
+  setLocal(p, '', { version: 2, sources: {}, roles: { ui: UI, doc: DOC } });
+  setLocal(p, 'pkg/a', { version: 2, sources: {}, roles: { ui: UI } });
+  writeRole(p, 'doc');
+  // 루트는 쓰고 하위 단위 쓰기만 실패한다: 하위 단위가 새 역할로 쓸 디렉터리 자리에 파일이 있다
+  fs.writeFileSync(path.join(p, 'pkg/a/.ruler/extra'), 'x');
+  const r = await run(p, { action: 'use', name: 'ui' });
+  assert.equal(r.code, 1, r.err);
+  // 루트 생성물은 새 역할(ui)로 조합됐다 — 역할 파일도 그것과 맞게 ui 로 남는다
+  assert.equal(exists(p, '.ruler/extra/00-e.md'), true);
+  assert.deepEqual(readRole(p), { name: 'ui', bad: false });
+  assert.match(r.err, /^역할은 ui\(으\)로 바꿨고 반영 일부가 실패함 — 고친 뒤 guideline apply$/m);
+  assert.doesNotMatch(r.err, /되돌렸음/);
+  // --none 이면 이름 대신 없음(이번에는 하위 단위가 지난 역할로 쓸 것이 없으므로 다른 자리를 막는다)
+  fs.rmSync(path.join(p, 'pkg/a/.ruler/extra'));
+  writeRole(p, 'ui');
+  fs.rmSync(path.join(p, 'pkg/a/.ruler/base'), { recursive: true, force: true });
+  fs.writeFileSync(path.join(p, 'pkg/a/.ruler/base'), 'x');
+  const n = await run(p, { action: 'use', none: true });
+  assert.equal(n.code, 1, n.err);
+  assert.equal(fs.existsSync(roleFile(p)), false);
+  assert.match(n.err, /^역할은 없음\(으\)로 바꿨고 반영 일부가 실패함 — 고친 뒤 guideline apply$/m);
+});
+
 test('role remove 를 guideline 단위가 아닌 폴더에서 치면 그 문구로 코드 2', async t => {
   const p = await project(t);
   setLocal(p, '', { version: 2, sources: {}, roles: { ui: UI } });
