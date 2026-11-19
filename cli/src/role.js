@@ -29,7 +29,12 @@ export function roleFile(dir, git = runGit) {
 export function readRole(dir, git = runGit) {
   const file = roleFile(dir, git);
   if (!file || !fs.existsSync(file)) return { name: null, bad: false };
-  const first = fs.readFileSync(file, 'utf8').split('\n')[0].trim();
+  let first;
+  try {
+    first = fs.readFileSync(file, 'utf8').split('\n')[0].trim();
+  } catch {
+    return { name: null, bad: true }; // 폴더거나 읽을 수 없는 것도 깨진 파일 취급 — 조합을 죽이지 않는다
+  }
   return NAME.test(first) ? { name: first, bad: false } : { name: null, bad: true };
 }
 

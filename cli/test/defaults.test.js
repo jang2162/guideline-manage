@@ -92,5 +92,5 @@ test('roleDefaultsFor 는 그 서버의 그 역할만', t => {
   assert.deepEqual(roleDefaultsFor('https://g.example.com/p', 'ui', w), { add: ['skills/a', 'skills/z'], remove: [] });
   assert.equal(roleDefaultsFor('https://g.example.com', 'none', w), null);
   assert.equal(roleDefaultsFor('https://nope.example.com', 'ui', w), null);
-  assert.deepEqual(defaultsFor('https://g.example.com', w), { add: ['rules/c'], remove: [], roles: readDefaults(w).servers['https://g.example.com'].roles });
+  assert.deepEqual(defaultsFor('https://g.example.com', w), { add: ['rules/c'], remove: [] });
 });

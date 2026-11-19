@@ -616,9 +616,9 @@ async function pickLocal({
     for (const [origin, picks] of saved) {
       const merged = mergeDefaults(picks);
       for (const c of merged.conflicts) err(t('pick.defaultsConflict', { origin, ...c }));
-      servers[origin] = merged.value;
+      servers[origin] = { ...servers[origin], ...merged.value }; // 그 서버의 역할 기본값(roles)은 보존
     }
-    writeDefaults({ version: 1, servers }, { env, home });
+    writeDefaults({ version: 2, servers }, { env, home });
   }
   const revisions = Object.fromEntries([...trees].map(([n, x]) => [n, x.revision]));
   const done = finishPersonal({

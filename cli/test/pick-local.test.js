@@ -117,6 +117,21 @@ test('pick --local 은 저장된 역할별 개인 선택을 지우지 않는다'
   assert.deepEqual(readLocal(store).roles, roles);
 });
 
+test('저장된 역할 기본값을 공통 기본값 저장이 지우지 않는다', async t => {
+  const { s, p, env } = await setup(t);
+  const roles = { ui: { add: ['rules/x'], remove: [] } };
+  writeDefaults({ version: 2, servers: { [s.base]: { add: [], remove: [], roles } } }, { env });
+  const e = collect();
+  const code = await projectPick({
+    project: p, local: true, env, ...quiet, json: true, out: () => {}, err: e.out,
+    open: form(s, {}, { personalChoices: { 'rules/extra': 'add' }, saveDefault: true }),
+  });
+  assert.equal(code, 0, e.text());
+  const saved = readDefaults({ env }).servers[new URL(s.base).origin];
+  assert.deepEqual(saved.add, ['rules/extra']);
+  assert.deepEqual(saved.roles, roles);
+});
+
 test('pick --local 은 개인 선택이 없으면 머신 기본값으로 미리 체크한다', async t => {
   const { s, p, env, store } = await setup(t);
   // 원본에 없는 블록은 고를 수 없으므로 싣지 않는다

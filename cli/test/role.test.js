@@ -35,6 +35,8 @@ test('메인과 링크 워크트리의 역할 파일은 서로 다르다', t => 
   writeRole(main, 'ui');
   assert.deepEqual(readRole(main), { name: 'ui', bad: false });
   assert.deepEqual(readRole(wt), { name: null, bad: false });
+  writeRole(wt, 'api');
+  assert.deepEqual(readRole(main), { name: 'ui', bad: false }); // 반대 방향도 새지 않는다
 });
 
 test('writeRole(null) 은 파일을 지운다', t => {
@@ -55,6 +57,12 @@ test('깨진 역할 파일은 bad', t => {
   }
   fs.writeFileSync(roleFile(main), '  api \nignored\n');
   assert.deepEqual(readRole(main), { name: 'api', bad: false });
+});
+
+test('역할 파일 자리가 폴더여도 던지지 않고 bad', t => {
+  const { main } = repoWithWorktree(t);
+  fs.mkdirSync(roleFile(main), { recursive: true });
+  assert.deepEqual(readRole(main), { name: null, bad: true });
 });
 
 test('git 이 아니면 roleFile 은 null', t => {

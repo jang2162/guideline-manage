@@ -86,7 +86,8 @@ export function writeDefaults(defaults, { env = process.env, home = os.homedir()
 
 /** 그 서버의 기본값. 없으면 null. */
 export function defaultsFor(server, opts = {}) {
-  return readDefaults(opts).servers[originOf(server)] ?? null;
+  const s = readDefaults(opts).servers[originOf(server)];
+  return s ? { add: s.add, remove: s.remove } : null;
 }
 
 /** 그 서버의 그 역할 기본값(공통 기본값은 따로 defaultsFor). 없으면 null. */
