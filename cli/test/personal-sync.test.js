@@ -17,6 +17,7 @@ import { propose } from '../src/commands/propose.js';
 import { projectApply } from '../src/commands/project-apply.js';
 import { projectStatus } from '../src/commands/project-status.js';
 import { saveToken } from '../src/credentials.js';
+import { writeRole } from '../src/role.js';
 
 // 개인 저장소는 임시 git 저장소의 공용 디렉터리에 둔다(이 저장소 자신의 .git 은 건드리지 않는다)
 
@@ -481,6 +482,44 @@ test('가려진 개인 더함 아래의 하위 스택도 쓰지 않는다 — �
   // status 도 둘 다 가려졌다고 보인다
   const st = await statusIn(p, env);
   assert.deepEqual(st.personal.shadowed, [{ id: 'b:rules/base', by: 'a' }, { id: 'b:rules/base/sub', by: 'a' }]);
+});
+
+test('역할 결과에 남은 공통의 자동 조상은 명시로 더한 것이 아니라 다른 출처에 가려져도 알리지 않는다', async t => {
+  const s = await startApp(t);
+  s.store.commit({ ...META, source: 'import', changes: { ...SOURCE, ...EXTRA } });
+  const config = tmpDir('guideline-cfg-');
+  const p = fs.realpathSync(tmpDir('guideline-personal-filled-'));
+  t.after(() => {
+    fs.rmSync(p, { recursive: true, force: true });
+    fs.rmSync(config, { recursive: true, force: true });
+  });
+  const env = { XDG_CONFIG_HOME: config, PATH: '' };
+  saveToken(s.base, { token: s.tokens.issue({ name: 'cli-t', scope: 'read' }).token, name: 'cli-t' }, { env });
+  runGit(['init', '-q'], p);
+  // 같은 서버의 두 출처: b 의 프로젝트 선택에 rules/extra(a 와 최종 이름이 같다), a 의 프로젝트 선택에는 없다
+  syncedProject(p, { server: s.base, source: { ...SOURCE, ...EXTRA }, sources: { a: { items: ['agents/rev.md'] }, b: { items: ['rules/extra'] } } });
+  commitAll(p);
+  const store = personalStore({ dir: p, root: p });
+  // 공통은 a 의 하위 스택만 더하고, 역할 dev 는 그 하위 스택을 뺀다 — a 의 rules/extra 는 공통이 채운 조상으로 남는다
+  writeLocal(store, { version: 2, sources: { a: { add: ['rules/extra/sub'], remove: [] } },
+    roles: { dev: { sources: { a: { add: [], remove: ['rules/extra/sub'] } } } } });
+  // 역할 없이(공통만) 같은 상태는 가려짐 할 일이 없다
+  const plain = await update(p, env);
+  assert.equal(plain.code, 0);
+  assert.deepEqual(plain.todos.filter(x => x.kind === 'personal-shadowed'), []);
+  writeRole(p, 'dev');
+  const r = await update(p, env);
+  assert.equal(r.code, 0);
+  // 아무도 a 의 rules/extra 를 명시로 더하지 않았다 — 가려짐 할 일도 status 의 가려짐 줄도 없다
+  assert.deepEqual(r.todos.filter(x => x.kind === 'personal-shadowed'), []);
+  assert.deepEqual((await applyIn(p)).todos.filter(x => x.kind === 'personal-shadowed'), []);
+  const st = await statusIn(p, env);
+  assert.deepEqual(st.personal.shadowed, []);
+  assert.ok(!st.todos.some(x => x.kind === 'personal-shadowed'));
+  // 조합은 그대로다: rules/extra 는 b 의 프로젝트 사본, 역할이 뺀 a 의 하위 스택은 없다
+  assert.match(read(p, '.ruler/extra/00-e.md'), /개인 더함/);
+  assert.equal(exists(p, '.ruler/extra/sub/00-s.md'), false);
+  assert.equal(porcelain(p), '');
 });
 
 test('personalTargets 는 모든 역할의 더함을 합친다', () => {

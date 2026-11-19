@@ -5,7 +5,7 @@ import { LOCK, readLock, lockText, ManifestError, qualify, splitQualified } from
 import { diskReader, itemStates } from './project-state.js';
 import { render } from './render/index.js';
 import { virtualize, toRealLock, showId } from './workspace.js';
-import { effectiveItems, projectFinalOwners, shadowedAdds } from './personal.js';
+import { effectiveItems, projectFinalOwners, shadowedAdds, reportedShadows } from './personal.js';
 import { withAncestors } from './blocks.js';
 import { finalUnit } from './sources.js';
 import { t } from './i18n.js';
@@ -168,7 +168,7 @@ export function personalStatus({ store, manifest, local, saved = local, layers =
   const roleShown = role === null ? null : {
     name: role, defined: !!layers?.role, ...(layers?.role ? listsOf(layers.role) : { added: [], removed: [], ignored: [] }),
   };
-  const shadowed = shadowedAdds(manifest, eff).flatMap(x => [x.key, ...x.below].map(k => ({ id: show(x.source, k), by: x.by })));
+  const shadowed = reportedShadows(shadowedAdds(manifest, eff), layers?.filled).flatMap(x => [x.key, ...x.below].map(k => ({ id: show(x.source, k), by: x.by })));
   const todos = [];
   let lock;
   try {

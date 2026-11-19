@@ -121,7 +121,7 @@ export function mergeTodos(syncTodos, composeTodos) {
  * @param {{ project: string, unit: { root: string }, manifest?: object, git?: import('../projects.js').GitRunner }} opts project 는 단위 디렉터리.
  *   manifest 를 주지 않으면 project 의 것을 읽는다.
  * @returns {{ personal: { local: object, saved: object, role: string | null, roleDefined: boolean, roleAnywhere: boolean,
- *   layers: { common: object, role: object | null }, store: string, common: string, unitRel: string, worktree: string } | null, todos: object[] }}
+ *   layers: { common: object, role: object | null, filled: Record<string, string[]> }, store: string, common: string, unitRel: string, worktree: string } | null, todos: object[] }}
  */
 export function composeInputs({ project, unit, manifest, git = runGit }) {
   const place = personalPlace({ dir: project, root: unit.root }, git);
@@ -144,7 +144,7 @@ export function composeInputs({ project, unit, manifest, git = runGit }) {
   }
   return {
     personal: {
-      ...place, local: l.flat, saved, role: role.name, roleDefined: l.roleDefined, roleAnywhere, layers: { common: l.common, role: l.role },
+      ...place, local: l.flat, saved, role: role.name, roleDefined: l.roleDefined, roleAnywhere, layers: { common: l.common, role: l.role, filled: l.filled },
     },
     todos,
   };

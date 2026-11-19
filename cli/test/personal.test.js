@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { tmpDir } from './helpers.js';
 import { gitCommonDir } from '../src/projects.js';
-import { personalStore, readLocal, writeLocal, effectiveItems, layeredLocal, LocalError } from '../src/personal.js';
+import { personalStore, readLocal, writeLocal, effectiveItems, layeredLocal, reportedShadows, LocalError } from '../src/personal.js';
 
 const git = (cwd, ...args) => {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
@@ -294,10 +294,21 @@ test('역할이 공통의 하위 스택만 빼면 공통이 채운 조상은 남
   assert.deepEqual(effectiveItems(m, r.flat).sources.a.items, r.role.sources.a.items);
   // 펼친 선택은 하위가 빠져 다시 채워지지 않는 조상을 명시 더함으로 싣는다
   assert.deepEqual(r.flat.sources.a, { add: ['rules/new'], remove: [] });
+  // 그 보충한 키는 filled 로 따로 돌려준다(아무도 명시로 더하지 않았다 — 가려짐 보고에서 뺀다)
+  assert.deepEqual(r.filled, { a: ['rules/new'] });
   // 부모도 빼려면 역할이 부모를 뺀다
   const both = layeredLocal(m, v2({ a: ls(['rules/new/ui']) }, { dev: { sources: { a: ls([], ['rules/new']) } } }), 'dev');
   assert.deepEqual(both.role.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x']);
   assert.deepEqual(both.flat.sources.a, { add: [], remove: [] });
+  assert.deepEqual(both.filled, {});
+  assert.deepEqual(layeredLocal(m, v2({ a: ls(['rules/new/ui']) }), null).filled, {});
+});
+
+test('reportedShadows 는 보충한 조상의 가려짐을 알리지 않고 명시 더함의 가려짐은 그대로 알린다', () => {
+  const x = { source: 'a', key: 'rules/extra', final: 'rules/extra', by: 'b', below: ['rules/extra/sub'] };
+  const y = { source: 'a', key: 'rules/web', final: 'rules/web', by: 'b', below: ['rules/web/ui', 'rules/web/old'] };
+  assert.deepEqual(reportedShadows([x, y], { a: ['rules/extra', 'rules/extra/sub', 'rules/web/old'] }), [{ ...y, below: ['rules/web/ui'] }]);
+  assert.deepEqual(reportedShadows([x, y]), [x, y]);
 });
 
 test('역할 정의는 공통 선택이 바뀌면 따라간다(고르지 않은 조상을 적지 않는다)', () => {

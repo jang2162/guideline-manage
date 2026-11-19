@@ -199,31 +199,36 @@ export function roleBasis(manifest, common) {
  *   개인 더함(added)으로 보여, 명시한 키만 쓰는 added·가려짐(shadowedAdds) 판정이 한 겹일 때와 달라진다.
  *   F 는 조상이 닫혀 있어 remove(P − F)의 자손이 F 에 없고, 필수와 그 조상은 어느 겹에서도 빠지지 않아 P − F 에 없다.
  *   매니페스트에 없는 출처의 공통 개인 항목은 그대로 둬 orphans 가 공통과 같다.
- * 역할이 없거나(null) local.roles 에 그 역할이 없으면 role = null, flat 은 공통 개인 선택 그대로다.
+ * filled 는 출처마다 그 보충한 키(아무도 명시로 더하지 않은 조상)다. flat 의 added 에는 보이므로 가려짐 보고(reportedShadows)에서 뺀다.
+ * 역할이 없거나(null) local.roles 에 그 역할이 없으면 role = null, flat 은 공통 개인 선택 그대로, filled 는 비었다.
  * @param {import('./manifest.js').Manifest} manifest
  * @param {Local} local
  * @param {string | null} role
- * @returns {{ flat: Local, common: ReturnType<typeof effectiveItems>, role: ReturnType<typeof effectiveItems> | null, roleDefined: boolean }}
+ * @returns {{ flat: Local, common: ReturnType<typeof effectiveItems>, role: ReturnType<typeof effectiveItems> | null, roleDefined: boolean,
+ *   filled: Record<string, string[]> }}
  */
 export function layeredLocal(manifest, local, role) {
   const common = effectiveItems(manifest, local);
   const roles = local.roles ?? {};
   const roleDefined = role != null && Object.hasOwn(roles, role);
-  if (!roleDefined) return { flat: { version: 2, sources: local.sources, roles: {} }, common, role: null, roleDefined };
+  if (!roleDefined) return { flat: { version: 2, sources: local.sources, roles: {} }, common, role: null, roleDefined, filled: {} };
   const roleEff = effectiveItems(roleBasis(manifest, common), { version: 2, sources: roles[role].sources, roles: {} });
   const flatSources = {};
+  const filled = {};
   for (const [name, src] of Object.entries(manifest.sources)) {
     const project = new Set(src.items);
     const final = new Set(roleEff.sources[name].items);
     const explicit = [...common.sources[name].added, ...roleEff.sources[name].added].filter(k => final.has(k) && !project.has(k));
     const remove = uniqSorted(src.items.filter(k => !final.has(k)));
     const reached = new Set(effectiveItems({ ...manifest, sources: { [name]: src } }, { version: 2, sources: { [name]: { add: explicit, remove } }, roles: {} }).sources[name].items);
-    flatSources[name] = { add: uniqSorted([...explicit, ...[...final].filter(k => !reached.has(k))]), remove };
+    const fill = uniqSorted([...final].filter(k => !reached.has(k)));
+    if (fill.length) filled[name] = fill;
+    flatSources[name] = { add: uniqSorted([...explicit, ...fill]), remove };
   }
   for (const [name, s] of Object.entries(local.sources)) {
     if (!(name in manifest.sources)) flatSources[name] = { add: [...s.add], remove: [...s.remove] };
   }
-  return { flat: { version: 2, sources: flatSources, roles: {} }, common, role: roleEff, roleDefined };
+  return { flat: { version: 2, sources: flatSources, roles: {} }, common, role: roleEff, roleDefined, filled };
 }
 
 /**
@@ -268,4 +273,17 @@ export function shadowedAdds(manifest, eff) {
     out.push(...mine);
   }
   return out;
+}
+
+/**
+ * shadowedAdds 중 할 일·status 로 알릴 것. 펼친 선택이 보충한 조상(layeredLocal 의 filled)은 아무도 명시로 더하지 않았으므로 가려져도
+ * 알리지 않는다 — 공통만 있을 때 같은 상태가 알리지 않는 것과 같다. 조합은 shadowedAdds 전체로 숨긴다(프로젝트 사본을 쓴다).
+ * @param {ReturnType<typeof shadowedAdds>} shadowed
+ * @param {Record<string, string[]>} [filled]
+ */
+export function reportedShadows(shadowed, filled = {}) {
+  return shadowed.flatMap(x => {
+    const fill = new Set(filled[x.source] ?? []);
+    return fill.has(x.key) ? [] : [{ ...x, below: x.below.filter(k => !fill.has(k)) }];
+  });
 }

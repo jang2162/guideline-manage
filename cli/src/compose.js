@@ -9,7 +9,7 @@ import { blockedReason } from './render/index.js';
 import { withAncestors, isWithin } from './blocks.js';
 import { unitOf, unitName, finalUnit } from './sources.js';
 import { readBlock, writeBlock } from './gitignore-block.js';
-import { effectiveItems, shadowedAdds } from './personal.js';
+import { effectiveItems, shadowedAdds, reportedShadows } from './personal.js';
 import { readProjectOverrides, checkOverrides } from './project-overrides.js';
 import { excludeMarkers, excludePattern, unitPathOf, readExclude } from './exclude.js';
 import { readLock, splitQualified, ManifestError } from './manifest.js';
@@ -118,7 +118,8 @@ function overrideCopies(tree, chosen) {
 /**
  * 매니페스트에 개인 선택을 입힌 것. 출처마다 items = 프로젝트 items − 개인으로 빠진 것 + 개인으로 더한 것(조상은 virtualKeys 가 채운다) —
  * 개인 선택이 아무것도 바꾸지 않으면 items 가 매니페스트와 같아 조합 결과도 바이트 단위로 같다.
- * local 은 펼친 선택(composeInputs — 세 겹의 최종 결과)이다. layers 는 겹별 결과(없으면 local 하나가 공통 겹), role 은 역할 이름.
+ * local 은 펼친 선택(composeInputs — 세 겹의 최종 결과)이다. layers 는 겹별 결과(없으면 local 하나가 공통 겹)와 펼친 선택이 보충한 조상
+ * (filled — 가려져도 할 일로 알리지 않는다), role 은 역할 이름.
  * note 는 관리 지침의 개인 절(별칭을 입힌 키) — 더함·뺌·무시된 뺌은 겹별로 보이고(역할이 정의돼 있으면 note.role), 다른 출처에 가려진
  * 더함은 최종 결과로 판정해 어느 겹에서도 더한 것으로 보이지 않는다. 보일 것이 없으면 null.
  */
@@ -138,7 +139,7 @@ function personalLayer(manifest, local, layers = null, role = null) {
   // 가려진 키 아래의 개인 더함도 쓰지 않는다 — 쓰면 다른 출처의 스택 안에 이 출처의 하위 스택이 섞이고, 세팅 표가 그 스택의 출처를
   // 이 출처로 적는다(managementOf 는 개인 겹을 입힌 매니페스트를 본다)
   const shadowed = shadowedAdds(manifest, eff);
-  for (const x of shadowed) {
+  for (const x of reportedShadows(shadowed, layers?.filled)) {
     const item = many ? `${x.source}:${x.key}` : x.key;
     const message = x.below.length
       ? t('todo.personalShadowedBelow', { item, final: x.final, by: x.by, below: x.below.join(', ') })
@@ -310,7 +311,7 @@ function build({ tree, guide, manifest, keys, nested, rulerAgentsEnabled, manage
  * 개인 겹에서만 나온 경로는 exclude(info/exclude 의 단위·워크트리 블록에 쓸 것)로 돌려준다. info/exclude 는 호출자가 쓴다(writeExclude).
  * @param {{ project: string, manifest: import('./manifest.js').Manifest, nested?: boolean, rulerAgentsEnabled?: boolean,
  *   personal?: { local: import('./personal.js').Local, prior?: import('./personal.js').Local, store: string, common: string, unitRel: string,
- *     worktree: string, layers?: { common: object, role: object | null }, role?: string | null } | null }} opts
+ *     worktree: string, layers?: { common: object, role: object | null, filled?: Record<string, string[]> }, role?: string | null } | null }} opts
  *   project 는 단위 디렉터리(절대경로), manifest 는 v3(출처별 실제 id·별칭). personal 은 composeInputs 가 만든다(git 이 아니면 null).
  *   local·prior 는 펼친 선택(세 겹의 최종 결과), layers 는 관리 지침·무시된 뺌 할 일에 쓰는 겹별 결과
  * @returns {{ files: Record<string, Buffer | null>, generated: { project: string[], personal: string[] }, todos: object[],
