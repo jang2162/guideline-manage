@@ -482,3 +482,20 @@ test('가려진 개인 더함 아래의 하위 스택도 쓰지 않는다 — �
   const st = await statusIn(p, env);
   assert.deepEqual(st.personal.shadowed, [{ id: 'b:rules/base', by: 'a' }, { id: 'b:rules/base/sub', by: 'a' }]);
 });
+
+test('personalTargets 는 모든 역할의 더함을 합친다', () => {
+  const m = checkManifest({ version: 3, form: 'ruler', agents: ['claude'], sources: {
+    a: { server: 'http://x', items: ['rules/base'] }, b: { server: 'http://y', items: [] },
+  } });
+  const local = {
+    version: 2,
+    sources: { a: { add: ['rules/c'], remove: [] } },
+    roles: {
+      dev: { sources: { a: { add: ['rules/d/sub', 'rules/c'], remove: ['rules/c'] }, gone: { add: ['rules/z'], remove: [] } } },
+      ops: { sources: { b: { add: ['skills/o'], remove: [] } } },
+    },
+  };
+  assert.deepEqual(personalTargets(m, local), { a: ['rules/c', 'rules/d', 'rules/d/sub'], b: ['skills/o'] });
+  // 역할이 없으면 공통 더함만(0.24 와 같다)
+  assert.deepEqual(personalTargets(m, { version: 2, sources: local.sources, roles: {} }), { a: ['rules/c'], b: [] });
+});

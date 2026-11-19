@@ -16,7 +16,8 @@ import { t } from './i18n.js';
 const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * 출처(이 매니페스트의 것)마다 개인 사본으로 받을 블록(실제 이름): local.json 의 개인 더함과 그 조상 전부. 지금 워크트리의 프로젝트
+ * 출처(이 매니페스트의 것)마다 개인 사본으로 받을 블록(실제 이름): local.json 의 공통 더함 ∪ 모든 역할의 더함과 그 조상 전부.
+ * 지금 워크트리의 역할로 거르지 않는다 — 개인 저장소는 역할이 다른 워크트리끼리 함께 쓰므로, 어느 워크트리에서 받아도 같은 사본이 유지된다. 지금 워크트리의 프로젝트
  * 선택으로 거르지 않는다 — 개인 저장소는 워크트리끼리 함께 쓰는데 프로젝트 선택은 브랜치마다 달라, 한 워크트리에서 프로젝트가 고른
  * 블록이 다른 워크트리에서는 개인 사본으로만 들어온다. 「프로젝트가 같은 블록을 고르면 개인 사본을 쓰지 않는다」 는 조합(personalTree
  * 의 주인 판정, 다른 출처 가려짐은 shadowedAdds)이 워크트리마다 정한다.
@@ -28,7 +29,8 @@ const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
  */
 export function personalTargets(manifest, local) {
   const out = {};
-  for (const name of Object.keys(manifest.sources)) out[name] = withAncestors(local.sources[name]?.add ?? []);
+  const layers = [local.sources, ...Object.values(local.roles ?? {}).map(r => r.sources)];
+  for (const name of Object.keys(manifest.sources)) out[name] = withAncestors(layers.flatMap(l => l[name]?.add ?? []));
   return out;
 }
 

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { tmpDir } from './helpers.js';
 import { gitCommonDir } from '../src/projects.js';
-import { personalStore, readLocal, writeLocal, effectiveItems, LocalError } from '../src/personal.js';
+import { personalStore, readLocal, writeLocal, effectiveItems, layeredLocal, LocalError } from '../src/personal.js';
 
 const git = (cwd, ...args) => {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
@@ -203,4 +203,118 @@ test('readLocal 은 규칙에 맞지 않는 역할 이름을 LocalError 로 거�
   assert.throws(() => readLocal(store), LocalError);
   fs.writeFileSync(path.join(store, 'local.json'), JSON.stringify({ version: 2, sources: {}, roles: { ui: { sources: { a: { add: 'x', remove: [] } } } } }));
   assert.throws(() => readLocal(store), LocalError);
+});
+
+const twoSources = () => ({
+  version: 3, form: 'ruler', agents: ['claude'],
+  sources: {
+    a: { server: 'https://s', items: ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x'], aliases: {}, required: ['rules/base/sec'] },
+    b: { server: 'https://t', items: ['rules/tool'], aliases: {}, required: [] },
+  },
+});
+const v2 = (sources, roles = {}) => ({ version: 2, sources, roles });
+const ls = (add = [], remove = []) => ({ add, remove });
+
+test('펼친 선택은 세 겹 결과와 같다', () => {
+  const m = twoSources();
+  const cases = [
+    {
+      why: '공통 더함 + 역할 뺌',
+      local: v2({ a: ls(['rules/web/ui', 'skills/y']) }, { dev: { sources: { a: ls([], ['skills/y', 'skills/x']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'rules/web', 'rules/web/ui'], b: ['rules/tool'] },
+    },
+    {
+      why: '공통 뺌 + 역할 다시 더함',
+      local: v2({ a: ls([], ['rules/web']), b: ls([], ['rules/tool']) }, { dev: { sources: { a: ls(['rules/web']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x'], b: [] },
+    },
+    {
+      why: '역할이 하위 스택만 더함',
+      local: v2({}, { dev: { sources: { a: ls(['rules/new/deep/er']), b: ls(['rules/tool/sub']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'rules/new', 'rules/new/deep', 'rules/new/deep/er', 'rules/web', 'skills/x'], b: ['rules/tool', 'rules/tool/sub'] },
+    },
+    {
+      why: '역할이 필수를 빼려 함',
+      local: v2({}, { dev: { sources: { a: ls([], ['rules/base', 'rules/base/sec', 'rules/web']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'skills/x'], b: ['rules/tool'] },
+    },
+    {
+      why: '공통이 뺀 부모 아래를 역할이 더함',
+      local: v2({ a: ls([], ['rules/web']) }, { dev: { sources: { a: ls(['rules/web/ui']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'rules/web', 'rules/web/ui', 'skills/x'], b: ['rules/tool'] },
+    },
+    {
+      why: '역할이 공통 더함의 부모를 뺌',
+      local: v2({ a: ls(['rules/web/ui/x', 'rules/new/a']) }, { dev: { sources: { a: ls(['rules/new/b'], ['rules/web/ui', 'rules/new']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x'], b: ['rules/tool'] },
+    },
+    {
+      why: '매니페스트에 없는 출처(고아)',
+      local: v2({ gone: ls(['rules/z']) }, { dev: { sources: { gone: ls(['rules/q']), a: ls(['skills/z']) } } }),
+      want: { a: ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x', 'skills/z'], b: ['rules/tool'] },
+    },
+  ];
+  for (const c of cases) {
+    const r = layeredLocal(m, c.local, 'dev');
+    assert.equal(r.roleDefined, true, c.why);
+    assert.deepEqual(r.flat.roles, {}, c.why);
+    const flat = effectiveItems(m, r.flat);
+    for (const name of Object.keys(m.sources)) {
+      assert.deepEqual(r.role.sources[name].items, c.want[name], `${c.why}: 세 겹 ${name}`);
+      assert.deepEqual(flat.sources[name].items, c.want[name], `${c.why}: 펼침 ${name}`);
+      // 펼친 더함은 겹이 명시한 키뿐이다(자동으로 채운 조상은 넣지 않는다)
+      assert.deepEqual(flat.sources[name].added, r.flat.sources[name].add, `${c.why}: 펼친 added ${name}`);
+    }
+    assert.deepEqual(flat.orphans, r.common.orphans, `${c.why}: 고아`);
+  }
+});
+
+test('펼친 더함에는 자동으로 채운 조상을 넣지 않는다', () => {
+  const r = layeredLocal(twoSources(), v2({}, { dev: { sources: { a: ls(['rules/new/deep']) } } }), 'dev');
+  assert.deepEqual(r.flat.sources.a, { add: ['rules/new/deep'], remove: [] });
+  assert.deepEqual(r.role.sources.a.added, ['rules/new/deep']);
+});
+
+test('역할이 공통의 하위 스택을 빼면 아무도 고르지 않은 조상이 남지 않는다', () => {
+  const m = twoSources();
+  const r = layeredLocal(m, v2({ a: ls(['rules/web/ui', 'rules/new/ui']) }, { dev: { sources: { a: ls([], ['rules/web/ui', 'rules/new/ui']) } } }), 'dev');
+  assert.deepEqual(r.common.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/new', 'rules/new/ui', 'rules/web', 'rules/web/ui', 'skills/x']);
+  // rules/web 은 프로젝트가 골라 남고, rules/new 는 아무도 고르지 않아 없다
+  assert.deepEqual(r.role.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x']);
+  assert.deepEqual(effectiveItems(m, r.flat).sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x']);
+  assert.deepEqual(r.flat.sources.a, { add: [], remove: [] });
+});
+
+test('역할은 필수와 그 조상을 못 뺀다', () => {
+  const m = twoSources();
+  const r = layeredLocal(m, v2({}, { dev: { sources: { a: ls([], ['rules/base', 'rules/base/sec']) } } }), 'dev');
+  assert.equal(r.role.sources.a.ignoredWhy['rules/base'], 'required');
+  assert.equal(r.role.sources.a.ignoredWhy['rules/base/sec'], 'required');
+  assert.deepEqual(r.role.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x']);
+  assert.deepEqual(effectiveItems(m, r.flat).sources.a.items, r.role.sources.a.items);
+});
+
+test('정의 없는 역할과 역할 없음은 공통만 쓴다', () => {
+  const m = twoSources();
+  const l = v2({ a: ls(['rules/web/ui'], ['skills/x']), gone: ls(['rules/z']) }, { other: { sources: { a: ls(['skills/q']) } } });
+  for (const role of ['dev', null]) {
+    const r = layeredLocal(m, l, role);
+    assert.equal(r.roleDefined, false);
+    assert.equal(r.role, null);
+    assert.deepEqual(r.flat, { version: 2, sources: l.sources, roles: {} });
+    assert.deepEqual(r.common, effectiveItems(m, l));
+    assert.deepEqual(effectiveItems(m, r.flat), r.common);
+  }
+  // 프로토타입 이름은 정의된 역할이 아니다
+  assert.equal(layeredLocal(m, l, 'constructor').roleDefined, false);
+});
+
+test('역할 겹은 공통 결과의 명시 항목을 기준으로 계산한다', () => {
+  const m = twoSources();
+  const r = layeredLocal(m, v2({ a: ls(['skills/y'], ['skills/x']) }, { dev: { sources: { a: ls(['skills/x']) } } }), 'dev');
+  // 공통이 뺀 skills/x 를 역할이 다시 더하면 역할 겹의 added 다(기준에 없다)
+  assert.deepEqual(r.role.sources.a.added, ['skills/x']);
+  assert.deepEqual(r.role.sources.a.items, ['rules/base', 'rules/base/sec', 'rules/web', 'skills/x', 'skills/y']);
+  // 프로젝트가 고른 것으로 되돌아오므로 펼친 선택에서는 더함도 뺌도 아니다
+  assert.deepEqual(r.flat.sources.a, { add: ['skills/y'], remove: [] });
 });

@@ -175,6 +175,50 @@ export function effectiveItems(manifest, local) {
 }
 
 /**
+ * 세 겹(프로젝트 → 공통 개인 선택 → 역할 개인 선택) 계산과, 그 결과를 한 겹짜리 개인 선택(flat)으로 펼친 것.
+ * - common = effectiveItems(manifest, local).
+ * - 역할 겹의 기준 매니페스트: 출처마다 items = (프로젝트 items ∪ common.added) − common.removed. 공통 결과의 명시 항목만 쓰고
+ *   자동으로 채운 조상은 넣지 않는다 — 그래야 역할이 공통의 하위 스택을 뺐을 때 아무도 고르지 않은 조상이 남지 않는다. required 는 그대로.
+ * - flat 은 effectiveItems(manifest, flat) 의 items 가 세 겹의 최종 items 와 같도록 펼친다(P = 프로젝트 items, F = 최종 items):
+ *   add = (common.added ∪ role.added) ∩ F − P, remove = P − F. add 를 F − P 로 두어도 items 는 같지만 그러면 자동으로 채운 조상이
+ *   개인 더함(added)으로 보여, 명시한 키만 쓰는 added·가려짐(shadowedAdds) 판정이 한 겹일 때와 달라진다.
+ *   F 는 조상이 닫혀 있어 remove(P − F)의 자손이 F 에 없고, 필수와 그 조상은 어느 겹에서도 빠지지 않아 P − F 에 없다.
+ *   매니페스트에 없는 출처의 공통 개인 항목은 그대로 둬 orphans 가 공통과 같다.
+ * 역할이 없거나(null) local.roles 에 그 역할이 없으면 role = null, flat 은 공통 개인 선택 그대로다.
+ * @param {import('./manifest.js').Manifest} manifest
+ * @param {Local} local
+ * @param {string | null} role
+ * @returns {{ flat: Local, common: ReturnType<typeof effectiveItems>, role: ReturnType<typeof effectiveItems> | null, roleDefined: boolean }}
+ */
+export function layeredLocal(manifest, local, role) {
+  const common = effectiveItems(manifest, local);
+  const roles = local.roles ?? {};
+  const roleDefined = role != null && Object.hasOwn(roles, role);
+  if (!roleDefined) return { flat: { version: 2, sources: local.sources, roles: {} }, common, role: null, roleDefined };
+  const sources = {};
+  for (const [name, src] of Object.entries(manifest.sources)) {
+    const c = common.sources[name];
+    const gone = new Set(c.removed);
+    sources[name] = { ...src, items: uniqSorted([...src.items, ...c.added]).filter(k => !gone.has(k)) };
+  }
+  const roleEff = effectiveItems({ ...manifest, sources }, { version: 2, sources: roles[role].sources, roles: {} });
+  const flatSources = {};
+  for (const [name, src] of Object.entries(manifest.sources)) {
+    const project = new Set(src.items);
+    const final = new Set(roleEff.sources[name].items);
+    const explicit = [...common.sources[name].added, ...roleEff.sources[name].added];
+    flatSources[name] = {
+      add: uniqSorted(explicit.filter(k => final.has(k) && !project.has(k))),
+      remove: uniqSorted(src.items.filter(k => !final.has(k))),
+    };
+  }
+  for (const [name, s] of Object.entries(local.sources)) {
+    if (!(name in manifest.sources)) flatSources[name] = { add: [...s.add], remove: [...s.remove] };
+  }
+  return { flat: { version: 2, sources: flatSources, roles: {} }, common, role: roleEff, roleDefined };
+}
+
+/**
  * 프로젝트 선택(조상 포함)의 최종 키(별칭을 입힌 것) → 그것을 고른 출처. 출처 이름 순으로 먼저 고른 출처가 주인이다.
  * 개인 더함의 최종 키가 여기 있으면 조합은 그 키를 프로젝트 사본에서 읽는다(personalTree) — 개인 사본은 쓰이지 않는다.
  * @param {import('./manifest.js').Manifest} manifest
