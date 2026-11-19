@@ -32,8 +32,10 @@ export function demoteHeadings(text) {
 }
 
 /**
- * 관리 지침의 개인 절: 이 작업자가 더한 것·뺀 것·무시된 뺌과, 개인 범위 스택의 세팅 규칙.
- * @param {{ added: Shown[], removed: Shown[], ignored: (Shown & { why: 'required' | 'no-effect' })[] }} personal
+ * 관리 지침의 개인 절: 이 작업자가 더한 것·뺀 것·무시된 뺌(공통 겹), 이 워크트리 역할의 같은 것(role, 역할이 정의돼 있을 때만)과,
+ * 개인 범위 스택의 세팅 규칙. role 이 없으면 역할 기능 이전과 바이트 같다.
+ * @param {{ added: Shown[], removed: Shown[], ignored: (Shown & { why: 'required' | 'no-effect' })[],
+ *   role?: { name: string, added: Shown[], removed: Shown[], ignored: Shown[] } }} personal
  * @typedef {{ key: string, source: string | null }} Shown  source 는 출처가 둘 이상일 때만
  */
 function personalSection(personal) {
@@ -47,6 +49,14 @@ function personalSection(personal) {
   if (personal.added.length) lines.push(`- ${t('manage.personalAdded', { items: list(personal.added) })}`);
   if (personal.removed.length) lines.push(`- ${t('manage.personalRemoved', { items: list(personal.removed) })}`);
   if (personal.ignored.length) lines.push(`- ${t('manage.personalIgnored', { items: list(personal.ignored) })}`);
+  // 역할 겹(정의돼 있을 때만): 공통 겹 위에 얹은 이 워크트리 역할의 더함·뺌
+  const role = personal.role;
+  if (role) {
+    lines.push(`- ${t('manage.personalRole', { name: role.name })}`);
+    if (role.added.length) lines.push(`- ${t('manage.roleAdded', { items: list(role.added) })}`);
+    if (role.removed.length) lines.push(`- ${t('manage.roleRemoved', { items: list(role.removed) })}`);
+    if (role.ignored.length) lines.push(`- ${t('manage.roleIgnored', { items: list(role.ignored) })}`);
+  }
   lines.push(`- ${t('manage.personalSetup', { mark: t('manage.personalMark') })}`);
   return `\n## ${t('manage.personalTitle')}\n\n${t('manage.personalIntro')}\n\n${lines.join('\n')}\n`;
 }

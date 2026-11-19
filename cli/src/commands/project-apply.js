@@ -43,7 +43,7 @@ export async function projectApply({
   }
 
   const unit = unitInfo(dir, git);
-  const inputs = composeInputs({ project: dir, unit, git });
+  const inputs = composeInputs({ project: dir, unit, manifest, git });
   const { files, todos, exclude } = composeWithStray({ project: dir, nested: unit.nested, manifest, personal: inputs.personal });
   todos.unshift(...inputs.todos, ...revisionTodos(inputs, manifest, lock));
   // prepare 가 아직 ruler apply 를 부르면 고친다(guideline-manage 를 설치한 뒤 처음 apply 에서 바뀐다)
@@ -67,7 +67,7 @@ export async function projectApply({
 
 /** 루트가 guideline 프로젝트가 아닌 모노레포: 하위 단위만 조합하고 루트에서 ruler 를 돈다(루트의 ruler.toml 은 프로젝트가 둔 것). */
 function applyUnitsOnly({ root, subs, json, env, out, err, runRuler, git }) {
-  const r = composeSubUnits({ root, subs, err, git });
+  const r = composeSubUnits({ root, subs, err, git, worktreeTodos: true });
   const todos = [...r.todos];
   // 이 루트는 guideline 이 ruler.toml 을 조합하지 않는다: ruler 가 읽는 것은 프로젝트가 둔 RULER_TOML 뿐이다. 그것이 없으면 ruler 를 돌지
   // 않고 root-ruler-toml 이 그것을 두라고 하므로 nested-off 는 내지 않는다

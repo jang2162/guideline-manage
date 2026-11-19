@@ -10,6 +10,7 @@ import { readManifest } from '../src/manifest.js';
 import { runGit } from '../src/projects.js';
 import { memoryTree } from '../src/tree.js';
 import { personalStore, readLocal, writeLocal } from '../src/personal.js';
+import { writeRole } from '../src/role.js';
 import { projectApply } from '../src/commands/project-apply.js';
 import { finishPersonal, defaultRunRuler } from '../src/commands/sync-common.js';
 import { t as tr } from '../src/i18n.js';
@@ -297,4 +298,27 @@ test('진짜 ruler: local.json 을 손으로 비우고 apply 해도 개인으로
   assert.deepEqual(skills(p), []);
   assert.equal(porcelain(p), '');
   assert.doesNotMatch(out.join('\n'), /ruler-leftover/);
+});
+
+test('진짜 ruler: 역할만 MCP 를 더해도 커밋되는 .gitignore 는 그대로고 info/exclude 가 가린다', async t => {
+  const p = await project(t, ['rules/base']);
+  const gitignore = read(p, '.gitignore');
+  assert.equal(servers(p), null);
+  const store = personalStore({ dir: p, root: p });
+  writeLocal(store, { version: 2, sources: {}, roles: { ui: { sources: { default: { add: ['mcp/c7', 'skills/p'], remove: [] } } } } });
+  writeRole(p, 'ui');
+  const trees = new Map([['default', { server: 'http://x', revision: 1, tree: memoryTree(FILES) }]]);
+  const errs = [];
+  const r = finishPersonal({ project: p, manifest: readManifest(p), sync: { trees, revisions: { default: 1 } }, env, runRuler, err: m => errs.push(m) });
+  assert.equal(r.code, 0, errs.join('\n'));
+  assert.deepEqual(r.todos.filter(x => x.kind === 'ruler-apply' || x.kind === 'ruler-leftover'), []);
+  assert.equal(read(p, '.gitignore'), gitignore);
+  assert.equal(porcelain(p), '');
+  assert.deepEqual(servers(p), ['c7']);
+  assert.deepEqual(skills(p), ['p']);
+  assert.match(exclude(p), /^\/\.mcp\.json$/m);
+  // 같은 역할로 apply 를 다시 돌아도 그대로
+  await apply(p);
+  assert.equal(read(p, '.gitignore'), gitignore);
+  assert.deepEqual(servers(p), ['c7']);
 });
