@@ -21,7 +21,7 @@
 | `guideline status` | 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지 보이고, 저장된 토큰의 이름과 범위를 보입니다(`--json` 은 `token`. 토큰이 없거나 0.20 보다 옛 서버면 보이지 않습니다). 개인 범위가 있으면 「개인 범위 — 더함 …」·「개인 범위 — 뺌 …」 줄과 최신이 아닌 개인 사본을 더합니다(`--json` 은 `personal`, [개인 범위](#개인-범위) 참고). 역할이 있으면 「역할 — …」 과 「역할 <이름> — 더함 …」·「뺌 …」 줄을 더합니다 |
 | `guideline role` | 이 워크트리의 개인 역할과 단위마다 정의된 역할을 보입니다. `--json`: `{ role, bad, units: [{ unit, roles }] }`(git 루트 단위는 `.`, 역할이 없으면 `role` 은 `null`, 역할 파일이 깨졌으면 `bad` 는 `true`). [개인 역할](#개인-역할) 참고 |
 | `guideline role use <이름>` / `use --none` | 이 워크트리의 역할을 정하거나 지우고, git 루트에서 `guideline apply` 처럼 반영합니다. 그 역할이 단위 하나 이상에 정의돼 있어야 합니다(아니면 종료 코드 2) |
-| `guideline role remove <이름>` | 이 단위 `local.json` 에서 그 역할의 정의를 지우고 반영하지 않습니다. `--json`: `{ removed, todos }`. 이 단위가 정의하지 않았거나 폴더가 guideline 단위가 아니면 종료 코드 2 |
+| `guideline role remove <이름>` | 이 단위 `local.json` 에서 그 역할의 정의를 지우고 반영하지 않습니다. `--json`: `{ removed, todos }`. 이 단위가 정의하지 않았거나 `local.json` 을 읽을 수 없거나 폴더가 guideline 단위가 아니면 종료 코드 2 |
 | `guideline propose` | 고친 사본을 원본 모양으로 되돌려 제안합니다. 범위 `admin` 토큰이면 제안 대신 바로 반영합니다(검토 없음). `--review` 는 그래도 제안으로 보내고, `--apply` 는 명시해서 바로 반영합니다(admin 토큰이 아니면 오류). 둘을 같이 주면 사용법 오류(종료 코드 2)입니다. `--dry-run`(보내면 둘 중 어느 쪽인지도 알립니다), `--title`, `--message`, `--only <항목,…>`, `--from <폴더>`. `--json` 에는 `mode`: `apply` 또는 `proposal` 이 추가됩니다(보낼 것이 없으면 없습니다). 방식은 dry-run 으로 보는 것이 정확합니다 — 실제로 보낼 때와 같은 토큰·서버로 묻지만, `status` 는 다른 토큰을 쓸 수 있습니다(출처가 여럿일 때, `GUIDELINE_TOKEN`) |
 | `guideline login` / `logout` | 서버에 로그인해 토큰을 저장하거나 지웁니다. `--token-stdin` 은 브라우저 없이 토큰을 넣습니다. `login` 은 저장한 뒤 토큰의 범위(`read`·`propose`·`admin`)를 알립니다 |
 
@@ -210,7 +210,7 @@
 `pick --local` 은 폴더가 git 저장소가 아니거나(또는 git 이 2.31 보다 옛날), 아직 받은 것이 없거나, 옛 배치 프로젝트이거나, `--new` 와 함께 쓰면 2 로 끝납니다.
 `local.json` 이나 `defaults.json` 을 읽을 수 없거나, 서버가 개인 폼을 모르면(「이 서버는 개인 폼을 모름」) 1 로 끝납니다.
 `pick --local --role` 은 이름 규칙에 맞지 않는 역할 이름에도 2 로, `--local` 없는 `pick --role` 도 2 로 끝납니다.
-`guideline role` 은 git 저장소 밖, 잘못된 이름이나 인자, 어느 단위도 정의하지 않은 역할을 `use` 로 고르면 2 로 끝납니다. `role use` 는 반영이 실패하면 1 로 끝납니다.
+`guideline role` 은 git 저장소 밖, 잘못된 이름이나 인자, 어느 단위도 정의하지 않은 역할을 `use` 로 고르면 2 로 끝납니다. `role use` 는 `guideline apply` 와 같은 코드로 끝납니다(1 쓰기 실패, 2 받은 것 없음·옛 배치).
 
 서버가 0.24 보다 옛날이면 스택 선택을 받지 못합니다.
 그러면 `pick` 은 그 출처의 폼을 취소하고 「서버가 CLI 보다 옛날」 이라고 알린 뒤 그 출처를 그대로 둡니다.
