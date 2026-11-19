@@ -780,5 +780,9 @@
   "role.unitLine": "  {unit} — {roles}",
   "role.noRoles": "없음",
   "role.removed": "이 단위({unit})에서 역할 {name} 의 정의를 지웠음",
+  "role.noneOnlyUse": "--none 은 guideline role use 에서만 — guideline role use --none",
+  "role.applyFailedRestored": "반영에 실패해 역할을 되돌렸음 — {name}",
+  "role.badShort": "깨진 역할 파일",
+  "role.notUnit": "guideline 단위가 아님(guideline.json 없음): {dir} — 단위 폴더에서 guideline role remove",
   "todo.roleRemovedApply": "이 워크트리의 역할 {name} 의 정의를 지웠음 — guideline apply 로 반영"
 }

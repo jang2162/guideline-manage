@@ -221,8 +221,12 @@ test('role 은 명령줄에서 --json·--none 을 받고, 인자가 너무 많�
   const j = run(['role', '--json'], dir, env);
   assert.equal(j.code, 0, j.out);
   assert.deepEqual(JSON.parse(j.out), { role: null, bad: false, units: [] });
+  // 옵션은 받는다 — 받은 적 없는 빈 저장소라 반영이 2 로 실패하고 역할은 그대로(없음)로 되돌린다
   const n = run(['role', 'use', '--none', '--json'], dir, env);
   assert.doesNotMatch(n.out, /Unknown option|모르는 옵션/);
+  assert.equal(n.code, 2, n.out);
+  assert.match(n.out, /아직 받지 않음 — guideline pick 먼저/);
+  assert.match(n.out, /^반영에 실패해 역할을 되돌렸음 — 없음$/m);
   const extra = run(['role', 'use', 'a', 'b'], dir, env);
   assert.equal(extra.code, 2);
   assert.match(extra.out, /인자가 너무 많음/);

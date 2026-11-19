@@ -780,5 +780,9 @@
   "role.unitLine": "  {unit} — {roles}",
   "role.noRoles": "none",
   "role.removed": "Removed the definition of role {name} from this unit ({unit})",
+  "role.noneOnlyUse": "--none is only for guideline role use — guideline role use --none",
+  "role.applyFailedRestored": "Applying failed, so the role was set back — {name}",
+  "role.badShort": "broken role file",
+  "role.notUnit": "Not a guideline unit (no guideline.json): {dir} — run guideline role remove in the unit's folder",
   "todo.roleRemovedApply": "Removed the definition of this worktree's role {name} — run guideline apply to apply it"
 }

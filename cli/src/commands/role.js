@@ -26,7 +26,7 @@ export async function role({
     return 2;
   }
   if (none && action !== 'use') {
-    err(t('role.useArgs'));
+    err(t('role.noneOnlyUse'));
     return 2;
   }
   const root = fs.existsSync(dir) && roleFile(dir, git) !== null ? gitRoot(dir, git) : null;
@@ -52,8 +52,36 @@ export async function role({
   // 지난 역할로 펼친 선택: 그 역할만 더했던 ruler 출력(MCP·스킬)을 이번 조합이 에이전트 설정에서 지운다. 루트가 guideline 단위가
   // 아니면 하위 단위는 nested 조합이라 이것을 쓰지 않는다
   const prior = priorAt(root, git);
+  const was = readRole(dir, git);
+  const raw = rawRole(dir, git);
   writeRole(dir, none ? null : name, git);
-  return projectApply({ dir: root, json, env, out, err, runRuler, git, prior });
+  const code = await projectApply({ dir: root, json, env, out, err, runRuler, git, prior });
+  if (code !== 0) {
+    // 반영이 실패했는데 역할만 바뀌어 남으면, 고쳐서 다시 칠 때 prior 가 새 역할로 펼친 것이 되어 지난 역할만 더했던 출력이 남는다
+    restoreRole(dir, raw, git);
+    err(t('role.applyFailedRestored', { name: was.bad ? t('role.badShort') : was.name ?? t('role.noRoles') }));
+  }
+  return code;
+}
+
+/** 역할 파일의 원래 바이트(없거나 읽을 수 없으면 null). 깨진 파일도 그대로 되돌리기 위해서다. */
+function rawRole(dir, git) {
+  const file = roleFile(dir, git);
+  try {
+    return file && fs.statSync(file).isFile() ? fs.readFileSync(file) : null;
+  } catch {
+    return null;
+  }
+}
+
+function restoreRole(dir, raw, git) {
+  if (raw === null) {
+    writeRole(dir, null, git);
+    return;
+  }
+  const file = roleFile(dir, git);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, raw);
 }
 
 /** git 루트 단위의 지금(역할을 바꾸기 전) 펼친 개인 선택. 루트가 guideline 단위가 아니거나 읽을 수 없으면 null. */
@@ -100,6 +128,11 @@ function show({ dir, root, json, out, git }) {
 function remove({ dir, root, name, json, out, err, git }) {
   if (name === undefined) {
     err(t('role.removeArgs'));
+    return 2;
+  }
+  // 단위가 아닌 폴더면 personalPlace 가 그 폴더 이름을 단위로 잡아 엉뚱한 단위를 안내한다
+  if (!fs.existsSync(path.join(dir, MANIFEST))) {
+    err(t('role.notUnit', { dir }));
     return 2;
   }
   const place = personalPlace({ dir, root }, git);

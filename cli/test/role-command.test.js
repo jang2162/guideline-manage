@@ -177,3 +177,40 @@ test('git 저장소가 아니면 role 명령은 코드 2', async t => {
   const bad = await run(d, { action: 'nope' });
   assert.equal(bad.code, 2);
 });
+
+test('role use 의 반영이 실패하면 역할 파일을 지난 역할로 되돌리고 그것을 알린다', async t => {
+  const p = await project(t);
+  setLocal(p, '', { version: 2, sources: {}, roles: { ui: UI, doc: DOC } });
+  writeRole(p, 'doc');
+  fs.writeFileSync(path.join(p, 'guideline.json'), '{'); // 반영(apply)이 매니페스트를 못 읽어 실패한다
+  const r = await run(p, { action: 'use', name: 'ui' });
+  assert.notEqual(r.code, 0);
+  assert.deepEqual(readRole(p), { name: 'doc', bad: false });
+  assert.match(r.err, /^반영에 실패해 역할을 되돌렸음 — doc$/m);
+  // 역할이 없던 워크트리는 없음으로 돌아간다
+  writeRole(p, null);
+  const n = await run(p, { action: 'use', name: 'ui' });
+  assert.notEqual(n.code, 0);
+  assert.equal(fs.existsSync(roleFile(p)), false);
+  assert.match(n.err, /^반영에 실패해 역할을 되돌렸음 — 없음$/m);
+});
+
+test('role remove 를 guideline 단위가 아닌 폴더에서 치면 그 문구로 코드 2', async t => {
+  const p = await project(t);
+  setLocal(p, '', { version: 2, sources: {}, roles: { ui: UI } });
+  fs.mkdirSync(path.join(p, 'src'));
+  const r = await run(path.join(p, 'src'), { action: 'remove', name: 'ui' });
+  assert.equal(r.code, 2);
+  assert.match(r.err, /guideline 단위가 아님/);
+  assert.doesNotMatch(r.err, /이 단위\(src\)/);
+  assert.deepEqual(Object.keys(readLocal(storeOf(p)).roles), ['ui']);
+});
+
+test('role --none 은 use 에서만 쓴다는 문구로 코드 2', async t => {
+  const p = await project(t);
+  for (const opts of [{ none: true }, { action: 'remove', name: 'ui', none: true }]) {
+    const r = await run(p, opts);
+    assert.equal(r.code, 2);
+    assert.match(r.err, /--none 은 guideline role use 에서만/);
+  }
+});
