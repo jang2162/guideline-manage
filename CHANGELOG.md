@@ -6,6 +6,8 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+## 0.25.0
+
 ### Added
 
 - **Personal roles (composition):** a worktree can have a role, named in `<this worktree's git dir>/guideline/role`. `apply`, `update`, `pick`, `pick --local` and `status` compose three layers: the project's choice, the common personal selection, then that role's additions and removals from `local.json`. Each worktree composes its own role, so worktrees with different roles get different generated files while the committed files and `git status` stay the same. A worktree without a role composes exactly as before. The personal copies keep the additions of every role, whichever worktree runs `update`. `status` prints a "Role — …" line and per-role "added …" and "removed …" lines next to the personal scope lines, and `status --json` has `personal.role` (`name`, `defined`, `added`, `removed`, `ignored`; `null` without a role); `personal.added`, `removed` and `ignored` keep the common layer. The management guideline's personal section shows the role and its additions and removals. A role removal of a Required block also gives `personal-ignored`.
