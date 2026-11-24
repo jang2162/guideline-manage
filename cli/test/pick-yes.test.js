@@ -11,6 +11,7 @@ import { runGit } from '../src/projects.js';
 import { personalStore, readLocal } from '../src/personal.js';
 import { projectPick } from '../src/commands/project-pick.js';
 import { initialChoices } from '../src/selection.js';
+import { writeOldLayout } from './old-layout.js';
 
 // pick --recommend … --yes: 폼을 만들지 않고 추천을 폼의 처음 체크 그대로 반영한다.
 
@@ -231,5 +232,158 @@ test('pick --local --yes 는 폼 없이 미리 체크한 개인 선택을 local.
   const local = readLocal(store);
   assert.deepEqual(local.roles.dev.sources.default, { add: ['mcp/gl'], remove: [] });
   assert.deepEqual(local.sources.default, { add: ['rules/extra', 'rules/extra/sub'], remove: ['skills/s'] });
+  assert.deepEqual(log, []);
+});
+
+/** 디렉터리의 모든 파일(.git 빼고) → 내용. */
+function snapshot(dir) {
+  const out = {};
+  const walk = rel => {
+    for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (r === '.git') continue;
+      if (e.isDirectory()) walk(r);
+      else out[r] = fs.readFileSync(path.join(dir, r)).toString('base64');
+    }
+  };
+  walk('');
+  return out;
+}
+
+/** 서버와, 그 서버에서 받은 옛 배치(.ruler/<스택>/) 프로젝트(모두 커밋됨). */
+async function oldSetup(t) {
+  const base = await setup(t);
+  const p = fs.realpathSync(tmpDir('guideline-pick-yes-old-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  runGit(['init', '-q'], p);
+  writeOldLayout(p, { server: base.s.base, source: FILES, items: ['rules/base/00-a.md', 'rules/base/01-b.md', 'rules/base/SETUP.md', 'skills/s'] });
+  commitAll(p);
+  return { ...base, p };
+}
+
+test('옛 배치 프로젝트에서 거절되는 추천은 배치를 옮기기 전에 코드 2, 프로젝트는 그대로(--yes 든 아니든)', async t => {
+  const { p, env, fetchImpl, log, rec } = await oldSetup(t);
+  const before = snapshot(p);
+  const bad = [
+    [{ 'rules/nope': '' }, /원본에 없는 추천 블록: rules\/nope/],
+    [{ add: { 'rules/extra/sub': '' }, remove: { 'rules/extra': '' } }, /rules\/extra\/sub 를 더하라고 추천했지만 빼라고 추천한 rules\/extra 안에 있음/],
+    [{ add: { 'skills/s': '' }, remove: { 'skills/s': '' } }, /더하라고도 빼라고도 추천한 블록: skills\/s/],
+  ];
+  for (const yes of [false, true]) {
+    for (const [obj, msg] of bad) {
+      const e = collect();
+      assert.equal(await projectPick({ project: p, env, ...quiet, err: e.out, out: () => {}, fetchImpl, open: noForm, yes, recommend: rec(obj) }), 2, JSON.stringify(obj));
+      assert.match(e.text(), msg);
+      assert.deepEqual(snapshot(p), before, `옮기지 않는다: ${JSON.stringify(obj)} yes=${yes}`);
+    }
+  }
+  assert.equal(runGit(['status', '--porcelain'], p).stdout, '');
+  assert.deepEqual(log, []);
+});
+
+test('옛 배치 프로젝트에서 --yes 는 배치를 옮기고 추천을 반영한다', async t => {
+  const { p, env, fetchImpl, log, rec } = await oldSetup(t);
+  const e = collect();
+  const code = await projectPick({ project: p, env, ...quiet, err: e.out, out: () => {}, fetchImpl, open: noForm, yes: true, recommend: rec({ 'mcp/gl': '' }) });
+  assert.equal(code, 0, e.text());
+  assert.deepEqual(log, []);
+  assert.deepEqual(readManifest(p).sources.default.items, ['mcp/gl', 'rules/base', 'skills/s']);
+  assert.ok(exists(p, '.guideline/rules/base/00-a.md'));
+  assert.ok(exists(p, '.guideline/mcp/gl/server.json'));
+});
+
+test('별칭이 걸린 출처: --yes 는 실제 이름으로 받은 추천을 별칭 자리에 반영하고 매니페스트에는 실제 이름을 쓴다', async t => {
+  const { p, env, fetchImpl, rec } = await setup(t, { items: ['rules/base', 'skills/s'] });
+  const m = readManifest(p);
+  m.sources.default.aliases = { 'rules/extra': 'my-extra' };
+  write(p, MANIFEST, manifestText(m));
+  commitAll(p);
+  const e = collect();
+  assert.equal(await projectPick({ project: p, env, ...quiet, err: e.out, out: () => {}, fetchImpl, open: noForm, yes: true, recommend: rec({ 'rules/extra/sub': '' }) }), 0, e.text());
+  assert.deepEqual(readManifest(p).sources.default.items, ['rules/base', 'rules/extra', 'rules/extra/sub', 'skills/s']);
+  assert.ok(exists(p, '.guideline/rules/my-extra/00-e.md'));
+  assert.ok(exists(p, '.guideline/rules/my-extra/sub/00-s.md'));
+  assert.ok(!exists(p, '.guideline/rules/extra/00-e.md'));
+  commitAll(p);
+  const e2 = collect();
+  assert.equal(await projectPick({ project: p, env, ...quiet, err: e2.out, out: () => {}, fetchImpl, open: noForm, yes: true, recommend: rec({ remove: { 'rules/extra': '' } }) }), 0, e2.text());
+  assert.deepEqual(readManifest(p).sources.default.items, ['rules/base', 'skills/s']);
+  assert.ok(!exists(p, '.guideline/rules/my-extra/00-e.md'));
+  // 별칭 이름(가상 이름)은 원본의 키가 아니다
+  commitAll(p);
+  const e3 = collect();
+  assert.equal(await projectPick({ project: p, env, ...quiet, err: e3.out, out: () => {}, fetchImpl, open: noForm, yes: true, recommend: rec({ 'rules/my-extra': '' }) }), 2);
+  assert.match(e3.text(), /원본에 없는 추천 블록: rules\/my-extra/);
+});
+
+test('출처가 여럿이면 --yes --source 는 그 출처만 바꾸고 다른 출처는 그대로 둔다', async t => {
+  const { s, p, env, fetchImpl, log, rec } = await setup(t);
+  const { manifest } = syncedProject(p, {
+    sources: {
+      a: { server: s.base, items: ['rules/base'], tree: FILES },
+      b: { server: s.base, items: ['skills/s'], aliases: { 'skills/s': 'b-s' }, tree: FILES },
+    },
+  });
+  write(p, MANIFEST, manifestText(manifest));
+  fs.rmSync(path.join(p, '.guideline/skills/s'), { recursive: true, force: true });
+  commitAll(p);
+  const noSource = collect();
+  assert.equal(await projectPick({ project: p, env, ...quiet, err: noSource.out, fetchImpl, open: noForm, yes: true, recommend: rec({ 'mcp/gl': '' }) }), 2);
+  assert.match(noSource.text(), /--source <이름>/);
+  const e = collect();
+  assert.equal(await projectPick({ project: p, env, ...quiet, err: e.out, out: () => {}, fetchImpl, open: noForm, yes: true, source: 'b', recommend: rec({ 'mcp/gl': '' }) }), 0, e.text());
+  const m = readManifest(p);
+  assert.deepEqual(m.sources.a.items, ['rules/base']);
+  assert.deepEqual(m.sources.b.items, ['mcp/gl', 'skills/s']);
+  assert.ok(exists(p, '.guideline/skills/b-s/SKILL.md'));
+  assert.ok(exists(p, '.guideline/rules/base/00-a.md'));
+  assert.deepEqual(log, []);
+});
+
+test('--yes 는 원본에 없는 .guideline/ 의 파일(고아)을 지우지 않는다', async t => {
+  const { p, env, fetchImpl, rec } = await setup(t);
+  write(p, '.guideline/skills/mine/SKILL.md', '---\nname: mine\ndescription: 내 것\n---\n\n본문\n');
+  commitAll(p);
+  const e = collect();
+  assert.equal(await projectPick({ project: p, env, ...quiet, err: e.out, out: () => {}, fetchImpl, open: noForm, yes: true, recommend: rec({ 'mcp/gl': '' }) }), 0, e.text());
+  assert.ok(exists(p, '.guideline/skills/mine/SKILL.md'));
+  assert.ok(readManifest(p).sources.default.items.includes('mcp/gl'));
+});
+
+test('--yes 에서 반영할 수 없는(blocked) 원본 파일은 그대로 반영하지 않고 할 일로 남는다', async t => {
+  const { p, env, fetchImpl, rec } = await setup(t, { change: { 'rules/base/07-x.md': '# 틀 없는 지침\n' } });
+  const o = collect();
+  const e = collect();
+  assert.equal(await projectPick({ project: p, env, ...quiet, err: e.out, out: o.out, json: true, fetchImpl, open: noForm, yes: true, recommend: rec({ 'mcp/gl': '' }) }), 0, e.text());
+  assert.ok(!exists(p, '.guideline/rules/base/07-x.md'));
+  assert.ok(exists(p, '.guideline/rules/base/00-a.md'));
+  assert.ok(readManifest(p).sources.default.items.includes('rules/base'));
+  assert.ok(JSON.parse(o.text()).todos.some(x => x.kind === 'blocked' && x.item === 'rules/base/07-x.md'), o.text());
+});
+
+test('--local 도 더하고 빼는 같은 키, 빼라는 스택 안을 더하라는 키는 폼을 만들지 않고 코드 2(--yes 든 아니든)', async t => {
+  const { p, env, fetchImpl, log, rec, forms } = await setup(t);
+  const store = personalStore({ dir: p, root: p });
+  for (const yes of [false, true]) {
+    const both = collect();
+    assert.equal(await projectPick({ project: p, local: true, env, ...quiet, err: both.out, fetchImpl, open: noForm, yes, recommend: rec({ add: { 'mcp/gl': '' }, remove: { 'mcp/gl': '' } }) }), 2);
+    assert.match(both.text(), /더하라고도 빼라고도 추천한 블록: mcp\/gl/);
+    const inside = collect();
+    assert.equal(await projectPick({ project: p, local: true, env, ...quiet, err: inside.out, fetchImpl, open: noForm, yes, recommend: rec({ add: { 'rules/extra/sub': '' }, remove: { 'rules/extra': '' } }) }), 2);
+    assert.match(inside.text(), /rules\/extra\/sub 를 더하라고 추천했지만 빼라고 추천한 rules\/extra 안에 있음/);
+  }
+  assert.ok(!fs.existsSync(path.join(store, 'local.json')));
+  assert.equal(forms(), 0);
+  assert.deepEqual(log, []);
+});
+
+test('프로젝트 모드도 빼라는 스택 안을 더하라는 키는 폼을 만들지 않고 코드 2', async t => {
+  const { p, env, fetchImpl, log, rec, forms } = await setup(t);
+  for (const yes of [false, true]) {
+    const e = collect();
+    assert.equal(await projectPick({ project: p, env, ...quiet, err: e.out, fetchImpl, open: noForm, yes, recommend: rec({ add: { 'rules/extra/sub': '' }, remove: { 'rules/extra': '' } }) }), 2);
+    assert.match(e.text(), /rules\/extra\/sub 를 더하라고 추천했지만 빼라고 추천한 rules\/extra 안에 있음/);
+  }
+  assert.equal(forms(), 0);
   assert.deepEqual(log, []);
 });

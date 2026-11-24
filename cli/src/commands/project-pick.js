@@ -136,9 +136,9 @@ export async function projectPick({
       err(recommended.error);
       return 2;
     }
-    const both = Object.keys(recommended.value.add).filter(k => Object.hasOwn(recommended.value.remove, k));
-    if (both.length) {
-      err(t('pick.recommendBoth', { keys: both.join(', ') }));
+    const conflict = recommendConflicts(recommended.value);
+    if (conflict.length) {
+      for (const m of conflict) err(m);
       return 2;
     }
   }
@@ -151,6 +151,23 @@ export async function projectPick({
     const before = projectStatus(dir, git, unit.root);
     if (!before.gitRepo || before.dirty) {
       err(t(before.gitRepo ? 'pick.yesDirty' : 'pick.yesNotGit', { dir }));
+      return 2;
+    }
+  }
+  // 추천은 받은 원본으로 검사한다 — 배치 옮기기(쓰기) 전에. 거절하면 아무것도 쓰지 않는다. 받은 원본은 아래에서 그대로 쓴다.
+  const preloaded = new Map();
+  if (recommended) {
+    const name = targets[0];
+    const { server: url } = sources[name];
+    try {
+      preloaded.set(name, await loadSource(remoteClient({ server: url, token: tokenFor(url, { env, home, single }), fetchImpl })));
+    } catch {
+      // 받지 못하면 아래의 같은 받기가 실패로 알린다
+    }
+    const src = preloaded.get(name);
+    const bad = src ? recommendInvalid(recommended.value, { keys: blockKeys(src.tree), required: sources[name].required }) : [];
+    if (bad.length) {
+      for (const m of bad) err(m);
       return 2;
     }
   }
@@ -179,9 +196,9 @@ export async function projectPick({
     // 토큰이 없어도 공개 서버(PUBLIC_READ)에서는 받을 수 있다. 비공개면 서버의 401 이 로그인 안내가 된다.
     const token = tokenFor(url, { env, home, single });
     const client = remoteClient({ server: url, token, fetchImpl });
-    let src;
+    let src = preloaded.get(name);
     try {
-      src = await loadSource(client);
+      src ??= await loadSource(client);
     } catch (e) {
       failures.push(`${name}: ${explain(e, url)}`);
       continue;
@@ -199,20 +216,8 @@ export async function projectPick({
       required: sources[name].required.map(k => toVirtual(k, aliases)),
     });
     if (recommended) {
-      const keys = blockKeys(src.tree);
+      // 검사는 배치 옮기기 전에 했다(recommendInvalid)
       const { add: ra, remove: rr } = recommended.value;
-      const unknown = [...Object.keys(ra), ...Object.keys(rr)].filter(k => !keys.has(k));
-      if (unknown.length) {
-        err(t('pick.recommendUnknown', { keys: unknown.join(', ') }));
-        return 2;
-      }
-      // 필수 블록과 그것을 품은 스택은 뺄 수 없다(--local 과 같다)
-      const guarded = new Set(withAncestors(sources[name].required));
-      const cannot = Object.keys(rr).filter(k => guarded.has(k));
-      if (cannot.length) {
-        err(t('pick.recommendRequired', { keys: cannot.join(', ') }));
-        return 2;
-      }
       const vk = k => finalUnit(k, aliases);
       payload.recommend = Object.fromEntries(Object.entries(ra).map(([k, why]) => [vk(k), why]));
       if (Object.keys(rr).length) payload.recommendRemove = Object.fromEntries(Object.entries(rr).map(([k, why]) => [vk(k), why]));
@@ -472,6 +477,36 @@ async function readAllStdin() {
 }
 
 /**
+ * 원본 없이 알 수 있는 추천의 모순: 더하고 빼는 같은 키, 빼라는 블록 안(하위 스택)을 더하라는 키. 폼에서도 --yes 에서도 뺌이 더함을 지운다.
+ * @param {{ add: Record<string, string>, remove: Record<string, string> }} value
+ * @returns {string[]} 오류 문구(없으면 빈 배열)
+ */
+function recommendConflicts({ add, remove }) {
+  const out = [];
+  const both = Object.keys(add).filter(k => Object.hasOwn(remove, k));
+  if (both.length) out.push(t('pick.recommendBoth', { keys: both.join(', ') }));
+  for (const a of Object.keys(add)) {
+    const r = Object.keys(remove).find(x => x !== a && isWithin(a, x));
+    if (r) out.push(t('pick.recommendInsideRemoved', { add: a, remove: r }));
+  }
+  return out;
+}
+
+/**
+ * 받은 원본으로 본 추천의 잘못: 원본에 없는 키, 필수 블록과 그것을 품은 스택의 뺌. 키는 실제 이름이다.
+ * @param {{ add: Record<string, string>, remove: Record<string, string> }} value
+ * @param {{ keys: Set<string>, required: string[] }} opts
+ * @returns {string[]}
+ */
+function recommendInvalid({ add, remove }, { keys, required }) {
+  const unknown = [...Object.keys(add), ...Object.keys(remove)].filter(k => !keys.has(k));
+  if (unknown.length) return [t('pick.recommendUnknown', { keys: unknown.join(', ') })];
+  const guarded = new Set(withAncestors(required));
+  const cannot = Object.keys(remove).filter(k => guarded.has(k));
+  return cannot.length ? [t('pick.recommendRequired', { keys: cannot.join(', ') })] : [];
+}
+
+/**
  * 폼 없이 제출한 프로젝트 폼 결과: 서버의 제출(buildSelection)에 폼의 처음 체크를 그대로 넣은 것. 덮어쓰기·고아 지우기는 꺼진 채
  * (고친 사본은 남기고 할 일, 고아는 둔다), 필수는 지금 필수, 에이전트는 그대로(project 없음)다.
  */
@@ -582,6 +617,11 @@ async function pickLocal({
       err(recommended.error);
       return 2;
     }
+    const conflict = recommendConflicts(recommended.value);
+    if (conflict.length) {
+      for (const m of conflict) err(m);
+      return 2;
+    }
   }
 
   const single = names.length === 1;
@@ -603,7 +643,6 @@ async function pickLocal({
     const src = manifest.sources[name];
     const aliases = src.aliases ?? {};
     const keys = blockKeys(tree.tree);
-    const guarded = new Set(withAncestors(src.required ?? []));
     // 미리 체크: 이 단위의 개인 선택(역할이면 그 역할의 정의), 없으면 그 서버의 머신 기본값(역할이면 그 역할 기본값).
     // 원본에 없는 블록은 싣지 않는다(고를 수 없다).
     const mineNow = role !== null ? local.roles[role]?.sources[name] : local.sources[name];
@@ -615,14 +654,9 @@ async function pickLocal({
     let rec = null;
     if (recommended) {
       const { add: ra, remove: rr } = recommended.value;
-      const unknown = [...Object.keys(ra), ...Object.keys(rr)].filter(k => !keys.has(k));
-      if (unknown.length) {
-        err(t('pick.recommendUnknown', { keys: unknown.join(', ') }));
-        return 2;
-      }
-      const cannot = Object.keys(rr).filter(k => guarded.has(k));
-      if (cannot.length) {
-        err(t('pick.recommendRequired', { keys: cannot.join(', ') }));
+      const bad = recommendInvalid(recommended.value, { keys, required: src.required ?? [] });
+      if (bad.length) {
+        for (const m of bad) err(m);
         return 2;
       }
       // 추천을 미리 체크에 얹는다(개인 모드 화면은 추천을 표시만 하고 체크하지 않는다)

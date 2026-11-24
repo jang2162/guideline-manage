@@ -29,7 +29,7 @@ Common options: `--project <path>` (default: current directory), `--server <URL>
 `guideline pick --recommend <file|-> --yes` applies the recommendation without creating a form or opening a browser. Use it only when nobody needs to review the choice.
 
 - It applies what the form would have opened with checked: the source's blocks in `guideline.json`, plus the recommended additions, the blocks they need (`requires`) and their ancestor stacks, minus the recommended removals. Removing a stack also removes its chosen child stacks, and the ancestors and dependencies that were checked only because of it, as unchecking it in the form does.
-- Required blocks stay Required. Recommending the removal of a Required block, or a stack that holds one, exits with code 2. So does a key both added and removed, and a key not in the source.
+- Required blocks stay Required. Recommending the removal of a Required block, or a stack that holds one, exits with code 2. So does a key both added and removed, an addition inside a stack recommended for removal (adding `rules/a/b` while removing `rules/a`), and a key not in the source. These checks run before anything is written, also before a project in the old layout is moved, and apply to the form (without `--yes`) and to `--local` too.
 - Agents stay as they are.
 - Files edited in the project are not overwritten: they are skipped with a `skipped` to-do, as `guideline update` does without `--force`. A removed block whose copy was edited keeps that copy, with a `leftover` to-do. Files in `.guideline/` that the source does not have stay. Blocked items stay blocked.
 - It refuses, with exit code 2 and nothing written, when the working tree has uncommitted changes or the project is not in a git repository (the form asks **Proceed anyway** then). Commit first.
@@ -221,7 +221,7 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 
 `pick --local` exits with 2 when the folder is not in a git repository (or git is older than 2.31), nothing was received yet, the project is still in the old layout, or it is combined with `--new`.
 It exits with 1 when `local.json` or `defaults.json` cannot be read, or when the server does not know the personal form ("This server does not know the personal form").
-`pick --yes` exits with 2 without `--recommend`, with `--new`, with uncommitted changes in the working tree or outside a git repository (project mode), and for a recommended removal of a Required block. Nothing is written then.
+`pick --yes` exits with 2 without `--recommend`, with `--new`, with uncommitted changes in the working tree or outside a git repository (project mode), and for a recommended removal of a Required block. `pick --recommend` (with or without `--yes` and `--local`) exits with 2 for a key not in the source, a key both added and removed, and an addition inside a stack recommended for removal. Nothing is written then, and a project in the old layout is not moved.
 `pick --local --role` also exits with 2 for a role name that breaks the naming rule, and `pick --role` without `--local` exits with 2.
 `guideline role` exits with 2 outside a git repository, for a bad name or arguments, and when `use` names a role no unit defines. `role use` exits with the code `guideline apply` would (1 write failure, 2 nothing received or old layout).
 

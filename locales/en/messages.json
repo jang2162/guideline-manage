@@ -770,6 +770,7 @@
   "pick.yesDirty": "{dir} has uncommitted changes — commit them first, then run pick --yes again (or leave out --yes and decide in the form)",
   "pick.yesNotGit": "{dir} is not in a git repository — pick --yes applies only in a git repository with everything committed (leave out --yes and decide in the form)",
   "pick.recommendBoth": "Recommended both to add and to remove: {keys}",
+  "pick.recommendInsideRemoved": "Recommended to add {add}, which is inside {remove} that is recommended for removal — removing {remove} would drop it; recommend one of them",
   "web.client.recommendedRemove": "Agent removal",
   "pick.localShadowed": "{item}: not added — the project chose the block with the same name ({final}) from source {by}, so your copy would never be used",
   "pick.localShadowedBelow": "{item}: not added, nor the blocks below it ({below}) — the project chose the block with the same name ({final}) from source {by}, so your copies would never be used, or would be mixed into that source's stack",
