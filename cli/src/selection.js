@@ -163,6 +163,128 @@ export function personalChoices(personal) {
 
 export { blockKey };
 
+/**
+ * 폼 목록(catalog)의 requires: 블록 키 → 그 블록이 필요로 하는 블록 키.
+ * @param {{ stacks: object[], skills: object[], subagents: object[], mcp: object[] }} catalog
+ * @returns {Record<string, string[]>}
+ */
+export function requiresOf(catalog) {
+  return Object.fromEntries([
+    ...catalog.stacks.map(x => [`rules/${x.name}`, x.requires ?? []]), ...catalog.skills.map(x => [`skills/${x.name}`, x.requires ?? []]),
+    ...catalog.subagents.map(x => [`agents/${x.name}.md`, x.requires ?? []]), ...catalog.mcp.map(x => [`mcp/${x.name}`, x.requires ?? []]),
+  ]);
+}
+
+/**
+ * 프로젝트 폼의 처음 체크 상태. 폼 화면과 `pick --recommend … --yes`(폼 없이 그대로 제출)가 함께 쓴다 — 둘이 어긋나지 않게.
+ * 1. 항목마다 defaultChoice(프로젝트에 있는 것·고아는 켜짐, 고친 사본은 덮어쓰지 않음).
+ * 2. 프로젝트에 파일이 하나라도 있는 스택은 통째로 켠다.
+ * 3. 추천한 블록을 켜고, 그 블록이 필요로 하는 블록(requires)을 켜고, 골라진 하위 스택의 조상을 켠다.
+ * 4. 빼라고 추천한 블록을 끈다. 사람이 그 칸을 끈 것과 같다: 골라진 자손도 풀고, 그 때문에 켰던 블록(의존성·조상)을 함께 푼다.
+ * @param {{ items: object[], catalog: object, recommend?: string[], remove?: string[] }} opts 키는 폼이 받는 이름(가상 키)
+ * @returns {{ choices: Record<string, object>, marked: Set<string>, auto: Set<string>, ancestor: Set<string>,
+ *   pulled: { by: string, needs: string }[], released: { by: string, needs: string }[], childrenReleased: number }}
+ */
+export function initialChoices({ items, catalog, recommend = [], remove = [] }) {
+  const choices = {};
+  for (const i of items) choices[itemKey(i)] = defaultChoice(i);
+  const marked = new Set();
+  const auto = new Set();
+  const ancestor = new Set();
+  const touched = new Set();
+  const pulled = [];
+  const released = [];
+  let childrenReleased = 0;
+  const requires = requiresOf(catalog);
+  const isRemoved = i => i.lockState === 'removed';
+  const isChecked = key => choices[key]?.checked ?? false;
+  const unitItems = unit => items.filter(i => i.kind !== 'orphan' && i.state !== 'blocked' && !isRemoved(i) && blockKey(i.id) === unit);
+  const stackItems = name => items.filter(i => (i.kind === 'rule' || i.kind === 'setup') && i.stack === name && i.state !== 'blocked' && !isRemoved(i));
+  const chosenUnits = () => new Set([
+    ...items.filter(i => i.kind !== 'orphan' && !isRemoved(i) && isChecked(itemKey(i))).map(i => blockKey(i.id)).filter(Boolean),
+    ...marked,
+  ]);
+  const isBundle = unit => unit.startsWith('rules/') && !items.some(i => (i.kind === 'rule' || i.kind === 'setup') && i.stack === unit.slice('rules/'.length));
+  const setStack = (unit, on) => {
+    for (const i of unitItems(unit)) choices[itemKey(i)].checked = on;
+    if (isBundle(unit)) {
+      if (on) marked.add(unit);
+      else marked.delete(unit);
+    }
+  };
+  const turnOn = unit => {
+    if (chosenUnits().has(unit)) return false;
+    if (isBundle(unit)) {
+      marked.add(unit);
+      return true;
+    }
+    const list = unitItems(unit);
+    for (const i of list) choices[itemKey(i)].checked = true;
+    return list.length > 0;
+  };
+  const pull = units => {
+    for (const p of pullRequired(units, requires, { isChosen: u => chosenUnits().has(u), turnOn })) {
+      auto.add(p.needs);
+      pulled.push(p);
+    }
+  };
+
+  for (const s of catalog.stacks) {
+    if (stackItems(s.name).some(i => isChecked(itemKey(i)))) setStack(`rules/${s.name}`, true);
+  }
+  for (const unit of recommend) turnOn(unit);
+  pull(recommend);
+  const up = [];
+  for (const u of chosenUnits()) {
+    for (const a of ancestorKeys(u)) {
+      if (turnOn(a)) {
+        ancestor.add(a);
+        up.push(a);
+      }
+    }
+  }
+  if (up.length) pull(up);
+
+  // 뺌: 폼에서 스택 칸(스킬·MCP 는 블록 칸)을 끈 것과 같다(forms.js userStack)
+  const releaseDeps = (units, before) => {
+    const gone = new Set(units);
+    for (const unit of units) {
+      const chosen = new Set([...before].filter(u => u === unit || !gone.has(u)));
+      for (const u of releasable(unit, { chosen, auto, touched, requires })) {
+        if (!chosenUnits().has(u)) continue;
+        setStack(u, false);
+        auto.delete(u);
+        released.push({ by: unit, needs: u });
+      }
+    }
+  };
+  for (const unit of remove) {
+    const before = chosenUnits();
+    setStack(unit, false);
+    touched.add(unit);
+    auto.delete(unit);
+    ancestor.delete(unit);
+    if (!before.has(unit)) continue;
+    const kids = chosenDescendants(unit, before);
+    for (const k of kids) {
+      setStack(k, false);
+      auto.delete(k);
+      ancestor.delete(k);
+    }
+    childrenReleased += kids.length;
+    releaseDeps([unit, ...kids], before);
+    const chosen = chosenUnits();
+    const gone = releasableAncestors(unit, { chosen, ancestor, touched, requires });
+    for (const a of gone) {
+      setStack(a, false);
+      ancestor.delete(a);
+      released.push({ by: unit, needs: a });
+    }
+    if (gone.length) releaseDeps(gone, chosen);
+  }
+  return { choices, marked, auto, ancestor, pulled, released, childrenReleased };
+}
+
 const STEP_OF_KIND = { rule: 'rules', setup: 'rules', mcp: 'mcp', subagent: 'agents', skill: 'skills' };
 const STEP_OF_DIR = { rules: 'rules', mcp: 'mcp', agents: 'agents', skills: 'skills' };
 

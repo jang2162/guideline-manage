@@ -179,6 +179,27 @@ test('폼 data 의 recommend: 없으면 빈 객체, 문자열 값이 아닌 reco
   assert.equal(bad2.status, 400);
 });
 
+test('폼 data 의 recommendRemove: 받은 그대로 싣고(없으면 빈 객체), 문자열 값이 아니면 폼을 만들지 못한다', async t => {
+  const f = await setup(t, {}, { recommendRemove: { 'rules/base': '안 씀' } });
+  const data = (await f.s.req(`/forms/${f.id}/data`, { headers: { Cookie: await openForm(f) } })).json();
+  assert.deepEqual(data.recommendRemove, { 'rules/base': '안 씀' });
+  const plain = await setup(t);
+  assert.deepEqual((await plain.s.req(`/forms/${plain.id}/data`, { headers: { Cookie: await openForm(plain) } })).json().recommendRemove, {});
+  for (const recommendRemove of [[1], { 'rules/base': 1 }, 'rules/base']) {
+    const bad = await f.s.req('/api/v1/forms', {
+      method: 'POST', auth: f.token, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ formVersion: 2, revision: 1, project: { name: 'p' }, items: [], overrides: [], recommendRemove }),
+    });
+    assert.equal(bad.status, 400, JSON.stringify(recommendRemove));
+  }
+});
+
+test('폼 페이지는 빼라는 추천 문구를 브라우저 문구 블록에 싣는다', async t => {
+  const f = await setup(t);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: await openForm(f) } })).text;
+  assert.ok(page.includes('"web.client.recommendedRemove"'));
+});
+
 test('폼 페이지는 추천·의존성 문구를 브라우저 문구 블록에 싣는다', async t => {
   const f = await setup(t);
   const cookie = await openForm(f);

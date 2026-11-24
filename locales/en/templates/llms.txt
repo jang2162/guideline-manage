@@ -33,7 +33,8 @@ This document is the guide agents and people read when they first use this serve
 
 ```bash
 guideline pick                 # open the server form; submitting applies the choice right away
-guideline pick --recommend r.json   # open the form with blocks an agent chose ({"block key": "reason"}) already checked
+guideline pick --recommend r.json   # open the form with blocks an agent chose ({"block key": "reason"}, or {"add": {…}, "remove": {…}}) already checked
+guideline pick --recommend r.json --yes   # apply them without the form — only when the user said so (needs a committed git working tree)
 guideline pick --new <name>    # new project: create GUIDELINE_PROJECTS_DIR/<name>, git init, then apply (a path works too)
 guideline status               # are the applied guidelines current, and what did the project change?
 guideline update               # same items, latest version. Files edited in the project are skipped
@@ -88,7 +89,7 @@ A worker can add blocks to the project's choice, or remove blocks from it, for t
 
 ```bash
 guideline pick --local                       # the personal form: As project / Add / Remove per block
-guideline pick --local --recommend r.json    # pre-checked: {"add": {"block key": "reason"}, "remove": {"block key": "reason"}}
+guideline pick --local --recommend r.json    # pre-checked: {"add": {"block key": "reason"}, "remove": {"block key": "reason"}}; --yes saves it without the form
 guideline pick --local --role frontend       # a personal role's layer, on top of the common personal selection
 guideline role use frontend                  # this worktree uses that role (applies from the git root); --none clears it
 ```

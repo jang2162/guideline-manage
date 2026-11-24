@@ -99,6 +99,9 @@ A server that was started before the versions below keeps the old text, so updat
 > [!WARNING]
 > **Servers started before 0.25:** the `guideline-sync` skill does not know personal roles. On the web, copy these from the language pack's `templates/skills/guideline-sync/SKILL.md`: the role row in "What to do", step 6 of "Personal scope" (`pick --local --role`, `guideline role use`), and the `role-missing` and `role-bad` rows in "Handling to-dos". Without them an agent does not know how to answer `role-missing` and `role-bad`.
 
+> [!WARNING]
+> **Servers started before 0.26:** the `guideline-sync` skill does not know `pick --recommend … --yes` (applying a recommendation without the form) or recommended removals in the project form. On the web, copy these from the language pack's `templates/skills/guideline-sync/SKILL.md`: the "Apply the recommendation without the form" row in "What to do", the `{"add": …, "remove": …}` sentences in steps 3 and 5 of "Recommend and receive", its step 6 (`--yes` only when the user said to apply without the form), and the `--yes` sentences in step 3 of "Personal scope". Without them an agent keeps opening the form, which is safe; with only part of them it may skip the form when the user did not ask for that.
+
 ## Next
 
 - [Back up and restore the server](back-up-and-restore.md)

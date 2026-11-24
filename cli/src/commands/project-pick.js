@@ -20,6 +20,7 @@ import { unitInfo, unitProblem, rootStacks } from '../unit.js';
 import { render } from '../render/index.js';
 import { RULER_TOML_BASE, NESTED_TOML_BASE } from '../render/outputs.js';
 import { rulerTomlText, PROJECT_TOML, RULER_TOML } from '../layout.js';
+import { initialChoices, buildSelection, personalChoices, personalSelection } from '../selection.js';
 import { finishApply, finishPersonal, report, migrateIfOld, manifestV3Todos, finishMigrationOnly } from './sync-common.js';
 import { t } from '../i18n.js';
 
@@ -38,8 +39,17 @@ const isDir = p => {
 export async function projectPick({
   project, newTarget, server, source, browser = true, json = false, env = process.env, out = console.log, err = console.error,
   open = openBrowser, fetchImpl = fetch, git = runGit, home, cwd = process.cwd(), pollWait = 30, runRuler,
-  recommend, readStdin = readAllStdin, local = false, role,
+  recommend, readStdin = readAllStdin, local = false, role, yes = false,
 }) {
+  // --yes: 추천을 폼 없이 그대로 제출한다. 추천이 없으면 제출할 것이 없고, 새 프로젝트는 폼(에이전트 고르기)을 거친다.
+  if (yes && recommend === undefined) {
+    err(t('pick.yesNeedsRecommend'));
+    return 2;
+  }
+  if (yes && newTarget !== undefined) {
+    err(t('pick.yesAndNew'));
+    return 2;
+  }
   if (role !== undefined && !local) {
     err(t('pick.roleNeedsLocal'));
     return 2;
@@ -47,7 +57,7 @@ export async function projectPick({
   if (local) {
     return pickLocal({
       project, newTarget, server, source, browser, json, env, out, err, open, fetchImpl, git, home, cwd, pollWait, runRuler, recommend, readStdin,
-      role: role ?? null,
+      role: role ?? null, yes,
     });
   }
   if (project !== undefined && newTarget !== undefined) {
@@ -121,9 +131,14 @@ export async function projectPick({
       err(t('pick.recommendOneSource'));
       return 2;
     }
-    recommended = await readRecommend(recommend, { cwd, readStdin, local: false });
+    recommended = await readRecommend(recommend, { cwd, readStdin });
     if (recommended.error) {
       err(recommended.error);
+      return 2;
+    }
+    const both = Object.keys(recommended.value.add).filter(k => Object.hasOwn(recommended.value.remove, k));
+    if (both.length) {
+      err(t('pick.recommendBoth', { keys: both.join(', ') }));
       return 2;
     }
   }
@@ -131,6 +146,14 @@ export async function projectPick({
   const single = Object.keys(sources).length === 1;
 
   const unit = isNew ? { dir, root: dir, nested: false } : unitInfo(dir, git);
+  if (yes) {
+    // 폼은 커밋하지 않은 변경·git 밖의 프로젝트에서 「그래도 진행」 을 묻는다. 폼 없이는 묻지 않고 거절한다 — 아무것도 쓰기 전에(배치 옮기기 전에)
+    const before = projectStatus(dir, git, unit.root);
+    if (!before.gitRepo || before.dirty) {
+      err(t(before.gitRepo ? 'pick.yesDirty' : 'pick.yesNotGit', { dir }));
+      return 2;
+    }
+  }
   const v3 = isNew ? [] : manifestV3Todos(dir);
   // 옛 배치면 폼을 만들기 전에 새 배치로 옮긴다 — 폼이 .guideline/ 사본과 원본을 비교하고 반영도 새 배치로 쓴다
   let migrated = { todos: [], migration: null };
@@ -177,12 +200,22 @@ export async function projectPick({
     });
     if (recommended) {
       const keys = blockKeys(src.tree);
-      const unknown = Object.keys(recommended.value).filter(k => !keys.has(k));
+      const { add: ra, remove: rr } = recommended.value;
+      const unknown = [...Object.keys(ra), ...Object.keys(rr)].filter(k => !keys.has(k));
       if (unknown.length) {
         err(t('pick.recommendUnknown', { keys: unknown.join(', ') }));
         return 2;
       }
-      payload.recommend = Object.fromEntries(Object.entries(recommended.value).map(([k, why]) => [finalUnit(k, aliases), why]));
+      // 필수 블록과 그것을 품은 스택은 뺄 수 없다(--local 과 같다)
+      const guarded = new Set(withAncestors(sources[name].required));
+      const cannot = Object.keys(rr).filter(k => guarded.has(k));
+      if (cannot.length) {
+        err(t('pick.recommendRequired', { keys: cannot.join(', ') }));
+        return 2;
+      }
+      const vk = k => finalUnit(k, aliases);
+      payload.recommend = Object.fromEntries(Object.entries(ra).map(([k, why]) => [vk(k), why]));
+      if (Object.keys(rr).length) payload.recommendRemove = Object.fromEntries(Object.entries(rr).map(([k, why]) => [vk(k), why]));
     }
     const takenBy = takenUnits(sources, name);
     const othersOwn = otherOwned(sources, lock, name);
@@ -194,7 +227,10 @@ export async function projectPick({
         return owner ? { ...it, state: 'blocked', reason: t('pick.nameTaken', { owner }) } : it;
       });
 
-    const round = await formRound({ client, payload, name, many: targets.length > 1, url, browser, open, err, pollWait });
+    // --yes: 폼을 만들지 않고, 폼이 처음 보일 체크(selection.js initialChoices) 그대로 제출한 결과를 만든다
+    const round = yes
+      ? { result: { status: 'submitted', selection: yesSelection(payload, src.revision) } }
+      : await formRound({ client, payload, name, many: targets.length > 1, url, browser, open, err, pollWait });
     if (round.failure) failures.push(round.failure);
     if (!round.result) continue;
     const sel = round.result.selection;
@@ -257,7 +293,9 @@ export async function projectPick({
     const own = id => realOf(id, v.sources)?.source === name;
     // 폼에 올리지 않은 고아 id 는 조작된 제출이다. 지울 범위가 디렉터리 트리라 할 일·경고 없이 버린다.
     const items = sel.items.filter(i => i.kind !== 'orphan' || offered.has(i.id));
-    for (const i of items) if (i.kind === 'orphan' || own(i.id)) decisions[i.id] = { action: i.action, overwrite: i.overwrite === true, state: i.state };
+    // --yes 의 뺌은 「풀면 지움」 동의가 아니다: 프로젝트에서 고친 사본은 지우지 않고 leftover 할 일로 남긴다(고치지 않은 사본은 지운다)
+    const consent = a => (yes && a === 'remove' ? null : a);
+    for (const i of items) if (i.kind === 'orphan' || own(i.id)) decisions[i.id] = { action: consent(i.action), overwrite: i.overwrite === true, state: i.state };
     for (const b of sel.blocked) if (own(b.id)) decisions[b.id] = { state: 'blocked', reason: b.reason };
     orphans.push(...items.filter(i => i.kind === 'orphan' && i.action === 'remove').flatMap(i => orphanFiles(dir, i.id)));
   }
@@ -434,12 +472,23 @@ async function readAllStdin() {
 }
 
 /**
- * --recommend 의 JSON(블록 키 → 이유). 파일 경로나 `-`(표준 입력).
- * local(pick --local)이면 `{ "add": { 키: 이유 }, "remove": { 키: 이유 } }` 모양도 받고, 늘 { add, remove } 로 돌려준다
- * (지금 모양 `{ 키: 이유 }` 는 add). 블록 키는 `/` 를 품으므로 `add`·`remove` 라는 최상위 키는 새 모양으로만 읽힌다.
- * @returns {Promise<{ value: Record<string, string> | { add: Record<string, string>, remove: Record<string, string> } } | { error: string }>}
+ * 폼 없이 제출한 프로젝트 폼 결과: 서버의 제출(buildSelection)에 폼의 처음 체크를 그대로 넣은 것. 덮어쓰기·고아 지우기는 꺼진 채
+ * (고친 사본은 남기고 할 일, 고아는 둔다), 필수는 지금 필수, 에이전트는 그대로(project 없음)다.
  */
-async function readRecommend(arg, { cwd, readStdin, local }) {
+function yesSelection(payload, revision) {
+  const { choices } = initialChoices({
+    items: payload.items, catalog: payload.catalog,
+    recommend: Object.keys(payload.recommend ?? {}), remove: Object.keys(payload.recommendRemove ?? {}),
+  });
+  return buildSelection({ revision, items: payload.items, choices, project: null, required: payload.required });
+}
+
+/**
+ * --recommend 의 JSON. 파일 경로나 `-`(표준 입력). `{ 키: 이유 }`(더함) 나 `{ "add": { 키: 이유 }, "remove": { 키: 이유 } }` 를 받고,
+ * 늘 { add, remove } 로 돌려준다. 블록 키는 `/` 를 품으므로 `add`·`remove` 라는 최상위 키는 새 모양으로만 읽힌다.
+ * @returns {Promise<{ value: { add: Record<string, string>, remove: Record<string, string> } } | { error: string }>}
+ */
+async function readRecommend(arg, { cwd, readStdin }) {
   let text;
   try {
     text = arg === '-' ? await readStdin() : fs.readFileSync(path.resolve(cwd, expandPath(arg)), 'utf8');
@@ -453,7 +502,7 @@ async function readRecommend(arg, { cwd, readStdin, local }) {
     return { error: t('pick.badRecommend') };
   }
   const reasons = v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.values(v).every(x => typeof x === 'string');
-  if (local && value && typeof value === 'object' && !Array.isArray(value)) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
     const keys = Object.keys(value);
     if (keys.length && keys.every(k => k === 'add' || k === 'remove')) {
       const add = value.add ?? {};
@@ -462,7 +511,7 @@ async function readRecommend(arg, { cwd, readStdin, local }) {
     }
   }
   if (!reasons(value)) return { error: t('pick.badRecommend') };
-  return { value: local ? { add: value, remove: {} } : value };
+  return { value: { add: value, remove: {} } };
 }
 
 /**
@@ -475,7 +524,7 @@ async function readRecommend(arg, { cwd, readStdin, local }) {
  */
 async function pickLocal({
   project, newTarget, server, source, browser, json, env, out, err, open, fetchImpl, git, home, cwd, pollWait, runRuler, recommend, readStdin,
-  role = null,
+  role = null, yes = false,
 }) {
   if (newTarget !== undefined) {
     err(t('pick.localAndNew'));
@@ -528,7 +577,7 @@ async function pickLocal({
       err(t('pick.recommendOneSource'));
       return 2;
     }
-    recommended = await readRecommend(recommend, { cwd, readStdin, local: true });
+    recommended = await readRecommend(recommend, { cwd, readStdin });
     if (recommended.error) {
       err(recommended.error);
       return 2;
@@ -600,9 +649,12 @@ async function pickLocal({
     payload.catalog = withVirtualRequires(catalogView(v.tree), aliases);
     if (rec) payload.recommend = Object.fromEntries(Object.entries(rec).map(([k, why]) => [vk(k), why]));
 
-    const round = await formRound({
-      client: tree.client, payload, name, many: targets.length > 1, url: tree.server, browser, open, err, pollWait, needMode: 'personal',
-    });
+    // --yes: 개인 폼이 처음 보일 선택(personalChoices) 그대로 제출한 결과. 「기본값으로 저장」 은 하지 않는다
+    const round = yes
+      ? { result: { status: 'submitted', selection: personalSelection({ personal, choices: personalChoices(personal), saveDefault: false }) } }
+      : await formRound({
+        client: tree.client, payload, name, many: targets.length > 1, url: tree.server, browser, open, err, pollWait, needMode: 'personal',
+      });
     if (round.failure) failures.push(round.failure);
     if (!round.result) continue;
     const sel = round.result.selection ?? {};

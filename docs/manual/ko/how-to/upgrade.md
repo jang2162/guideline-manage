@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/how-to/upgrade.md @ v0.24.0 -->
+<!-- source: docs/manual/en/how-to/upgrade.md @ v0.25.0 -->
 [English](../../en/how-to/upgrade.md) | **한국어**
 
 # 서버와 CLI 올리기
@@ -99,6 +99,9 @@ npm install -g guideline-manage
 
 > [!WARNING]
 > **0.25 전에 띄운 서버:** `guideline-sync` 스킬이 개인 역할을 모릅니다. 웹에서 언어팩 `templates/skills/guideline-sync/SKILL.md` 에서 옮겨 오세요: 「무엇을 할지」 의 역할 행, 「개인 범위」 6단계(`pick --local --role`, `guideline role use`), 「할 일 처리」 의 `role-missing`·`role-bad` 행. 없으면 에이전트가 `role-missing`·`role-bad` 에 어떻게 답할지 모릅니다.
+
+> [!WARNING]
+> **0.26 전에 띄운 서버:** `guideline-sync` 스킬이 `pick --recommend … --yes`(폼 없이 추천 반영)와 프로젝트 폼의 빼라는 추천을 모릅니다. 웹에서 언어팩 `templates/skills/guideline-sync/SKILL.md` 에서 옮겨 오세요: 「무엇을 할지」 의 「폼 없이 추천대로 반영」 행, 「추천해서 받기」 3·5단계의 `{"add": …, "remove": …}` 문장과 6단계(사용자가 폼 없이 반영하라고 했을 때만 `--yes`), 「개인 범위」 3단계의 `--yes` 문장. 없으면 에이전트는 계속 폼을 열어 안전합니다. 일부만 옮기면 사용자가 요청하지 않았는데 폼을 건너뛸 수 있습니다.
 
 ## 다음 문서
 

@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/how-to/hand-off-to-an-agent.md @ v0.21.0 -->
+<!-- source: docs/manual/en/how-to/hand-off-to-an-agent.md @ v0.25.0 -->
 [English](../../en/how-to/hand-off-to-an-agent.md) | **한국어**
 
 # 에이전트에게 맡기기
@@ -23,6 +23,8 @@ Claude Code, Codex 같은 에이전트와 함께 일하는 CLI 사용자를 위�
 에이전트가 블록을 골라 `guideline pick --recommend` 로 폼을 엽니다.
 추천 항목에는 **에이전트 추천**과 이유가 붙어 있습니다.
 훑어보고 제출하세요.
+
+폼 없이 반영하라고 하면("확인 없이 그냥 반영해") 에이전트가 `--yes` 를 붙여 폼 없이 추천을 반영합니다. 먼저 변경을 커밋해 두세요.
 
 `--recommend` 는 출처 하나씩만 받고, 0.19 이상 서버가 필요합니다. [프로젝트 명령](../reference.md#프로젝트-명령)을 보세요.
 
