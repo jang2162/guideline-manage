@@ -23,6 +23,8 @@ It chooses blocks and opens the form with `guideline pick --recommend`.
 Recommended items carry **Agent pick** and a reason.
 Review them and submit.
 
+When you say to apply without the form ("just apply it, no need to review"), the agent adds `--yes` and the recommendation is applied with no form; commit your changes first.
+
 `--recommend` takes one source at a time and needs a 0.19 or later server. See [Project commands](../reference.md#project-commands).
 
 ## Next

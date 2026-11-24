@@ -1,6 +1,6 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, defaultChoice, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis } from './selection.js';
+import { itemKey, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis, initialChoices, requiresOf } from './selection.js';
 import { ancestorKeys, isWithin } from './blocks.js';
 
 const $ = sel => document.querySelector(sel);
@@ -89,11 +89,7 @@ function itemLabel(item) {
 
 /** 블록 키 → 그 블록이 필요로 하는 블록 키(폼에는 별칭을 입힌 이름으로 온다). */
 function requiresMap() {
-  const c = state.data.catalog;
-  return Object.fromEntries([
-    ...c.stacks.map(x => [`rules/${x.name}`, x.requires ?? []]), ...c.skills.map(x => [`skills/${x.name}`, x.requires ?? []]),
-    ...c.subagents.map(x => [`agents/${x.name}.md`, x.requires ?? []]), ...c.mcp.map(x => [`mcp/${x.name}`, x.requires ?? []]),
-  ]);
+  return requiresOf(state.data.catalog);
 }
 
 /** 블록을 이루는 고를 수 있는 항목(반영 불가·사라짐 제외). */
@@ -259,10 +255,14 @@ function stackNotes(stack, rules) {
 function unitTags(unit) {
   if (!unit) return '';
   const rec = state.data.recommend ?? {};
+  const recRemove = state.data.recommendRemove ?? {};
   const out = [];
   if (Object.hasOwn(rec, unit)) {
     out.push(`<span class="badge rec">${esc(t('web.client.recommended'))}</span>`);
     if (rec[unit]) out.push(`<span class="why">${esc(t('web.client.why', { why: rec[unit] }))}</span>`);
+  } else if (Object.hasOwn(recRemove, unit)) {
+    out.push(`<span class="badge rec">${esc(t('web.client.recommendedRemove'))}</span>`);
+    if (recRemove[unit]) out.push(`<span class="why">${esc(t('web.client.why', { why: recRemove[unit] }))}</span>`);
   }
   const chosen = chosenUnits();
   if (state.auto.has(unit) && chosen.has(unit)) out.push(`<span class="badge dep">${esc(t('web.client.dependency'))}</span>`);
@@ -770,16 +770,18 @@ if (app.dataset.status !== 'pending') {
     state.initialRequired = new Set(state.required);
   }
   if (state.data && !isPersonal()) {
-    for (const i of state.data.items) state.choices[itemKey(i)] = defaultChoice(i);
-    // 스택은 통째로 받는다: 프로젝트에 파일이 하나라도 있는 스택은 모든 항목을 켠다(새로 생긴 파일도 함께 들어온다).
-    for (const s of state.data.catalog.stacks) {
-      if (stackItems(s.name).some(i => isChecked(itemKey(i)))) setStack(`rules/${s.name}`, true);
-    }
-    // 에이전트 추천 블록을 켜고(하위 스택이면 조상도), 그 블록이 필요로 하는 블록을 의존성으로 켠다.
-    const rec = Object.keys(state.data.recommend ?? {});
-    for (const unit of rec) turnOn(unit);
-    pullRequires(rec);
-    ensureAncestors();
+    // 처음 체크(스택 통째로, 에이전트 추천과 그 의존성·조상, 빼라는 추천)는 selection.js initialChoices — pick --yes 와 같은 계산이다.
+    const init = initialChoices({
+      items: state.data.items, catalog: state.data.catalog,
+      recommend: Object.keys(state.data.recommend ?? {}), remove: Object.keys(state.data.recommendRemove ?? {}),
+    });
+    state.choices = init.choices;
+    state.marked = init.marked;
+    state.auto = init.auto;
+    state.ancestor = init.ancestor;
+    for (const p of init.pulled) state.notes.push(t('web.client.autoChecked', { by: unitName(p.by), needs: unitName(p.needs) }));
+    if (init.childrenReleased) state.notes.push(t('web.client.childrenReleased', { n: init.childrenReleased }));
+    for (const r of init.released) state.notes.push(t('web.client.autoReleased', { by: unitName(r.by), needs: unitName(r.needs) }));
     state.initial = structuredClone(state.choices);
     state.initialAuto = new Set(state.auto);
     state.initialMarked = new Set(state.marked);

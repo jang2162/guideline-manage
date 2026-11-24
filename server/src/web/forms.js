@@ -111,6 +111,8 @@ export function registerForms(router) {
       overrides: f.payload.overrides,
       // 에이전트가 고른 블록(가상 이름 → 이유). 옛 CLI 의 폼에는 없다.
       recommend: f.payload.recommend ?? {},
+      // 빼라고 추천한 블록(가상 이름 → 이유). 프로젝트 모드에서 화면이 미리 끈다. 옛 CLI 의 폼에는 없다.
+      recommendRemove: f.payload.recommendRemove ?? {},
       // 'personal' 이면 개인 선택 폼(personal: 프로젝트 선택·필수·미리 체크한 더함·뺌). required 는 프로젝트 모드의 지금 필수.
       mode: f.payload.mode ?? 'project',
       personal: f.payload.mode === 'personal' ? personalData(f.payload.personal) : null,

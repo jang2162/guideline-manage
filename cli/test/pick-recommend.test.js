@@ -179,8 +179,8 @@ test('--recommend 는 --local 에서 remove 를 받고 필수 뺌은 거절한�
   }), 2);
   assert.match(bad.text(), /필수 블록\(또는 필수를 품은 스택\)은 빼라고 추천할 수 없음: rules\/base/);
   assert.equal(s.app.store.db.prepare('SELECT COUNT(*) AS n FROM forms').get().n, before);
-  // 새 모양은 --local 에서만 받는다
-  const plain = collect();
-  assert.equal(await projectPick({ project: p, env: lenv, ...quiet, err: plain.out, open: () => assert.fail(), recommend: recFile(t, { add: { 'mcp/c7': '' } }) }), 2);
-  assert.match(plain.text(), /JSON 이어야 함/);
+  // 새 모양은 프로젝트 폼도 받는다(더함은 recommend 로)
+  await projectPick({ project: p, env: lenv, ...quiet, err: () => {}, open: peek(s, seen), recommend: recFile(t, { add: { 'mcp/c7': '' } }) });
+  assert.equal(seen.data.mode, 'project');
+  assert.deepEqual([seen.data.recommend, seen.data.recommendRemove], [{ 'mcp/c7': '' }, {}]);
 });

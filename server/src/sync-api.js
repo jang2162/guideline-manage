@@ -37,12 +37,16 @@ const keyList = v => Array.isArray(v) && v.every(k => typeof k === 'string' && i
 /** 개인 모드 payload: 키는 모두 블록 키(별칭을 입힌 가상 키), preset 은 미리 체크한 출처. */
 const okPersonal = p => isObj(p) && ['chosen', 'required', 'add', 'remove'].every(f => keyList(p[f])) && PRESETS.includes(p.preset);
 
+/** 추천: 블록 키 → 이유. */
+const reasons = v => isObj(v) && Object.values(v).every(x => typeof x === 'string');
+
 function checkFormBody(body, head) {
   const ok = isObj(body) && Number.isInteger(body.revision) && body.revision >= 1 && body.revision <= head
     && isObj(body.project) && typeof body.project.name === 'string'
     && Array.isArray(body.items) && Array.isArray(body.overrides)
     && (body.diffs === undefined || isObj(body.diffs))
-    && (body.recommend === undefined || (isObj(body.recommend) && Object.values(body.recommend).every(v => typeof v === 'string')))
+    && (body.recommend === undefined || reasons(body.recommend))
+    && (body.recommendRemove === undefined || reasons(body.recommendRemove))
     && (body.mode === undefined || FORM_MODES.includes(body.mode))
     && (body.required === undefined || keyList(body.required))
     && (body.mode !== 'personal' || okPersonal(body.personal));
