@@ -11,13 +11,15 @@ node_modules/
 .env
 .data/
 
+# 작업자마다 로컬로 고른 MCP 서버 설정. 공용으로 커밋하지 않는다
+.mcp.json
+.mcp.json.bak
+
 # START Ruler Generated Files
 /.agents/skills
 /.claude/skills
 /.codex/config.toml
 /.codex/config.toml.bak
-/.mcp.json
-/.mcp.json.bak
 /AGENTS.md
 /AGENTS.md.bak
 # END Ruler Generated Files
@@ -44,13 +46,9 @@ compose.override.yaml
 /.ruler/base/orca/05-switch.md
 /.ruler/base/orca/99-reference.md
 /.ruler/browser/99-reference.md
-/.ruler/codegraph/99-reference.md
 /.ruler/guideline.md
 /.ruler/komodo/99-reference.md
-/.ruler/lefthook/99-reference.md
 /.ruler/mise/99-reference.md
-/.ruler/oxc/01-formatting.md
-/.ruler/oxc/99-reference.md
 /.ruler/public-docs/99-reference.md
 /.ruler/ruler.toml
 /.ruler/ruler/00-sources.md
@@ -63,6 +61,7 @@ compose.override.yaml
 /.ruler/skills/orca-worker/dispatch.md
 /.ruler/skills/orca-worker/worker-start.md
 /.ruler/skills/orca-worker/worktree.md
+/.ruler/web/99-reference.md
 /docs/guideline/README.md
 /docs/guideline/base/03-comments.md
 /docs/guideline/base/04-citation.md
@@ -81,20 +80,13 @@ compose.override.yaml
 /docs/guideline/browser/03-cdp.md
 /docs/guideline/browser/04-shared-profile.md
 /docs/guideline/browser/05-page-scripts.md
-/docs/guideline/codegraph/00-index.md
-/docs/guideline/codegraph/01-orca-setup.md
-/docs/guideline/codegraph/SETUP.md
 /docs/guideline/komodo/00-stack.md
 /docs/guideline/komodo/01-environment.md
 /docs/guideline/komodo/02-override.md
-/docs/guideline/lefthook/00-toolchain.md
-/docs/guideline/lefthook/01-pre-push.md
-/docs/guideline/lefthook/02-post-checkout.md
 /docs/guideline/mise/00-source.md
 /docs/guideline/mise/01-path.md
 /docs/guideline/mise/02-pnpm.md
 /docs/guideline/mise/SETUP.md
-/docs/guideline/oxc/00-version.md
 /docs/guideline/public-docs/00-readme.md
 /docs/guideline/public-docs/01-images.md
 /docs/guideline/public-docs/02-manual.md
@@ -106,4 +98,5 @@ compose.override.yaml
 /docs/guideline/ruler/01-nested.md
 /docs/guideline/ruler/02-documents.md
 /docs/guideline/ruler/SETUP.md
+/docs/guideline/web/00-llms-txt.md
 # END guideline generated files

@@ -1,4 +1,4 @@
-# Orca 워크트리 셋업. 런타임(mise) → 의존성(pnpm) → 지침 생성물(guideline apply) → gitignore 된 로컬 설정 → codegraph 인덱스 순서다(docs/guideline/base/orca/06-orca-yaml.md, docs/guideline/codegraph/01-orca-setup.md).
+# Orca 워크트리 셋업. 런타임(mise) → 의존성(pnpm) → 지침 생성물(guideline apply) → gitignore 된 로컬 설정 순서다(docs/guideline/base/orca/06-orca-yaml.md).
 scripts:
   setup: |
     set -e
@@ -8,5 +8,4 @@ scripts:
     # prepare 가 없어 설치가 지침 생성물을 만들지 않는다. 이 저장소가 CLI 자신이라 체크아웃의 bin 으로 조합한다
     mise exec -- node cli/bin/guideline.js apply
     if [ -f "$ORCA_ROOT_PATH/.env" ]; then cp "$ORCA_ROOT_PATH/.env" "$ORCA_WORKTREE_PATH/.env"; fi
-    mise exec -- npx -y @colbymchenry/codegraph init || echo "codegraph init 실패: 인덱스 없이 진행"
 setupAgentStartupPolicy: wait-for-setup
