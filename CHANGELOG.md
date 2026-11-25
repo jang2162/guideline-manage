@@ -6,6 +6,8 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+## 0.26.0
+
 ### Added
 
 - **`guideline pick --recommend <file|-> --yes`:** applies an agent's recommendation without the form, for choices nobody needs to review. No form is created and no browser opens. It applies what the form would have opened with checked: the source's blocks in `guideline.json`, plus the recommended additions, the blocks they need (`requires`) and their ancestor stacks, minus the recommended removals (a removed stack takes its chosen child stacks, and the blocks checked only because of it, with it). Required marks and agents stay as they are. Files edited in the project are not overwritten (`skipped` to-do, as `update` without `--force`), a removed block's edited copy stays with a `leftover` to-do, files in `.guideline/` that the source lacks stay, and blocked items stay blocked. It prints the same report as a submitted pick (`--json` too). Exit code 2, with nothing written, when the working tree has uncommitted changes or the project is not in a git repository, for a recommended removal of a Required block or a stack that holds one, without `--recommend`, and with `--new`. `pick --local --yes` (also with `--role`) saves what the personal form would have opened with checked, never as machine defaults. Works with any server.
