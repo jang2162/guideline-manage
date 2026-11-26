@@ -40,6 +40,7 @@ guideline status               # are the applied guidelines current, and what di
 guideline update               # same items, latest version. Files edited in the project are skipped
 guideline update --force       # also overwrite files edited in the project
 guideline apply                # compose the generated agent files from .guideline/ without the server, then run ruler
+guideline agents add codex     # add (or remove) a coding agent in guideline.json and ruler.project.toml together, then apply — no form, no server
 guideline pick --local         # change only what you receive (personal scope, needs git); committed files stay as they are
 ```
 
@@ -140,6 +141,7 @@ A to-do with `scope: "personal"` comes from the personal copies (`setup-personal
 | `override-unchosen` | `.guideline/overrides/<stack>/` belongs to a stack that is not chosen, so it was not composed. Ask whether to pick the stack or delete the override |
 | `subagents-off` | The subagent has a copy in `.guideline/` but was not composed. Ask whether to turn on `[agents] enabled = true` in `.ruler/ruler.project.toml` (it adds generated files to `.gitignore`), then run `guideline apply` |
 | `apply` | The generated agent files are out of date (from `status`, or after a move that could not write them). Run `guideline apply`; it needs no server. Run it before committing, or `git add -A` puts the old copies back |
+| `agents-mismatch` | `agents` in `guideline.json` and `default_agents` in `.ruler/ruler.project.toml` differ (one was edited by hand); ruler follows `default_agents`. Ask the user which agents the project uses, then run `guideline agents add <name>` or `guideline agents remove <name>` to make them match. Do not open the form for it |
 | `ruler-apply` | Ask whether you may run the suggested `ruler apply` command |
 | `root-apply` | A monorepo unit's `apply` did not run ruler because the git root has no `.ruler/ruler.toml` yet. Run `guideline apply` at the git root first (or put `.ruler/ruler.toml` with `nested = true` there yourself), then run it in the unit again |
 | `unit-update` | `guideline apply`, `update`, `pick` or `pick --local` at the git root found a unit below it still in the old layout and did not compose it. Run `guideline update` in that unit (it needs the server) |

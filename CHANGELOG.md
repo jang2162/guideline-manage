@@ -6,6 +6,11 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+### Added
+
+- **`guideline agents`:** shows a project's coding agents, and `guideline agents add <name>…` / `guideline agents remove <name>…` (claude, codex, opencode) change them without the form or the server. It changes `agents` in `guideline.json` and the `default_agents` line of `.ruler/ruler.project.toml` together, then applies. Before, an existing project had no way to change its agents: the pick form shows the agent checkboxes only for a new project, and editing `guideline.json` by hand left `default_agents`, which ruler follows, unchanged. In a monorepo unit without its own `ruler.project.toml`, it changes only that unit's `guideline.json`, because ruler follows the git root's `default_agents`.
+- **`agents-mismatch` to-do:** `guideline status` reports it, without the server, when `agents` in `guideline.json` and `default_agents` in `ruler.project.toml` differ. The management guideline, `/llms.txt` and the `guideline-sync` skill now point agents to `guideline agents`; servers started before 0.27 need the skill rows copied by hand (see "Update the seed on a running server" in the upgrade guide).
+
 ## 0.26.1
 
 ### Fixed

@@ -31,6 +31,7 @@ First check the state with `guideline status --json` and report it in one line (
 | Apply the recommendation without the form ("just apply it, no need to review") | "Recommend and receive" step 6 below — only when the user said so |
 | Same items, latest version ("update the guidelines") | `guideline update --json` |
 | After a fresh clone or in a new worktree, or when `status` says the generated files are out of date | `guideline apply --json` (it needs no server). Do not run `ruler apply` alone before it |
+| Add or remove a coding agent ("use codex too", "drop opencode") | `guideline agents add <name> --json` / `guideline agents remove <name> --json` (claude, codex, opencode; no server). Do not open the form: it cannot change the agents of an existing project. `guideline agents --json` shows the current lists |
 | Change only what this worker receives ("only for me", "without changing the project") | `guideline pick --local --json` — see "Personal scope" below |
 | Pick for this worker's own tools ("add what fits how I work") | "Personal scope" step 3 below |
 | A different selection per worktree ("frontend stacks in this worktree only", "switch this worktree to the backend role") | "Personal scope" step 6 below |
@@ -77,6 +78,7 @@ A to-do with `scope: "personal"` comes from the personal copies: `setup-personal
 | `subagents-off` | The subagent has a copy in `.guideline/` but was not composed. Ask whether to turn on `[agents] enabled = true` in `.ruler/ruler.project.toml` (it adds generated files to `.gitignore`), then run `guideline apply` |
 | `ruler-apply` | Ask whether you may run the suggested command |
 | `apply` | The generated agent files are out of date (from `status`, or after a move that could not write them). Run `guideline apply`; run it before committing, or `git add -A` puts the old copies back |
+| `agents-mismatch` | `agents` in `guideline.json` and `default_agents` in `.ruler/ruler.project.toml` differ (one was edited by hand); ruler follows `default_agents`. Ask the user which agents the project uses, then run `guideline agents add <name> --json` or `guideline agents remove <name> --json` to make them match. Do not open the form for it |
 | `root-apply` | A monorepo unit's `apply` did not run ruler because the git root has no `.ruler/ruler.toml` yet. Run `guideline apply` at the git root first (or put `.ruler/ruler.toml` with `nested = true` there yourself), then run it in the unit again |
 | `unit-update` | `guideline apply`, `update`, `pick` or `pick --local` at the git root (they all compose the units below it) found a unit still in the old layout and did not compose it. Run `guideline update` in that unit (it needs the server) |
 | `unit-problem` | `guideline apply`, `update`, `pick` or `pick --local` at the git root could not open a unit below it (the reason follows). Fix it, or run `guideline apply` in that unit to see the error |

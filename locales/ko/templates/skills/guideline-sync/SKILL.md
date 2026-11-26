@@ -31,6 +31,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | 폼 없이 추천대로 반영("확인 없이 그냥 반영해") | 아래 「추천해서 받기」 6 — 사용자가 그렇게 말했을 때만 |
 | 고른 그대로 최신으로("지침 최신으로") | `guideline update --json` |
 | 새로 클론한 뒤나 새 워크트리, 또는 `status` 가 생성물이 낡았다고 할 때 | `guideline apply --json`(서버가 필요 없다). 그 전에 `ruler apply` 만 돌리지 않는다 |
+| 코딩 에이전트를 더하거나 뺀다(「codex 도 쓰자」, 「opencode 는 빼」) | `guideline agents add <이름> --json` / `guideline agents remove <이름> --json`(claude·codex·opencode, 서버 없이). 폼을 띄우지 않는다 — 기존 프로젝트의 폼으로는 에이전트를 못 바꾼다. 지금 목록은 `guideline agents --json` |
 | 이 작업자가 받는 것만 바꾸기("나만", "프로젝트는 그대로 두고") | `guideline pick --local --json` — 아래 「개인 범위」 |
 | 이 작업자가 쓰는 도구에 맞게 골라 달라("내 작업 방식에 맞는 것 더해") | 아래 「개인 범위」 3 |
 | 워크트리마다 다른 선택("이 워크트리에만 프런트엔드 스택", "이 워크트리를 백엔드 역할로") | 아래 「개인 범위」 6 |
@@ -77,6 +78,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `subagents-off` | 서브에이전트 사본은 `.guideline/` 에 있지만 조합하지 않았다. `.ruler/ruler.project.toml` 에 `[agents] enabled = true` 를 켤지 묻고(켜면 `.gitignore` 에 생성물이 추가된다), 켜면 `guideline apply` 를 돌린다 |
 | `ruler-apply` | 안내한 명령을 실행해도 되는지 묻는다 |
 | `apply` | 에이전트 파일(생성물)이 낡았다(`status` 에서, 또는 쓰지 못한 채 끝난 이전 뒤). `guideline apply` 를 돌린다. 커밋하기 전에 돌린다. 안 그러면 `git add -A` 가 옛 사본을 다시 넣는다 |
+| `agents-mismatch` | `guideline.json` 의 `agents` 와 `.ruler/ruler.project.toml` 의 `default_agents` 가 다르다(한쪽을 손으로 고쳤다). ruler 는 `default_agents` 를 따른다. 프로젝트가 쓰는 에이전트를 사용자에게 물은 뒤 `guideline agents add <이름> --json` 이나 `guideline agents remove <이름> --json` 으로 맞춘다. 이 일로 폼을 띄우지 않는다 |
 | `root-apply` | git 루트에 아직 `.ruler/ruler.toml` 이 없어 모노레포 단위의 `apply` 가 ruler 를 돌지 않았다. git 루트에서 `guideline apply` 를 먼저 돌리고(또는 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두고) 단위에서 다시 돌린다 |
 | `unit-update` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local`(모두 아래 단위도 조합한다)이 아래의 단위 하나가 아직 옛 배치라 조합하지 않았다. 그 단위에서 `guideline update` 를 돌린다(서버 필요) |
 | `unit-problem` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아래의 단위 하나를 열지 못했다(이유가 뒤따른다). 고치거나, 그 단위에서 `guideline apply` 를 돌려 오류를 본다 |

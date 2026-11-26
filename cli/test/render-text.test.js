@@ -20,6 +20,7 @@ const HEAD = [
   '- `.ruler/` 의 지침 파일(`.ruler/<스택>/`, `.ruler/guideline.md`, `.ruler/skills/`)과 `docs/guideline/`, `.ruler/ruler.toml` 은 `guideline apply` 가 `.guideline/` 에서 만든 생성물이라 `.gitignore` 에 들어 있다. 거기서 고친 것은 다음 `guideline apply` 때 덮이므로 그 폴더에 프로젝트 파일을 두지 않는다. 프로젝트에만 쓰는 규칙은 `.ruler/*.md`(예: `.ruler/50-project.md`)나 바꿈에 둔다.',
   `- 이 프로젝트에만 다르게 할 것은 바꿈에 쓴다. 자리는 \`.guideline/overrides/<스택 경로>/override.md\`(하위 스택은 \`.guideline/overrides/<부모>/<자식>/override.md\`), 파일이 여럿이면 \`.guideline/overrides/<스택 경로>/override.d/*.md\` 다. ${BAKKUM}`,
   '- 이 프로젝트의 ruler 설정(에이전트, 출력 경로, 프로젝트가 직접 쓴 MCP 서버)은 `.ruler/ruler.project.toml` 에 둔다. `guideline apply` 가 그 파일과 받은 MCP 서버로 `.ruler/ruler.toml` 을 만든다.',
+  '- 코딩 에이전트(claude·codex·opencode)를 더하거나 뺄 때는 `guideline agents add <이름>` / `guideline agents remove <이름>` 을 쓴다. 폼을 띄우지 않고, `guideline.json` 과 `.ruler/ruler.project.toml` 의 `default_agents` 를 함께 고친 뒤 apply 한다. 둘을 손으로 고치지 않는다.',
   '- 새로 클론했거나 새 워크트리를 만든 직후에는 `guideline apply` 를 돌려(서버가 필요 없다) 생성물을 만든다.',
   '- 지침을 최신으로 맞출 때는 `guideline status` 로 보고 `guideline update` 를 쓴다(에이전트는 `guideline-sync` 스킬).',
 ];

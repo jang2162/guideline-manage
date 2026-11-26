@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/reference.md @ v0.25.0 -->
+<!-- source: docs/manual/en/reference.md @ v0.26.1 -->
 [English](../en/reference.md) | **한국어**
 
 # 레퍼런스
@@ -18,6 +18,7 @@
 | `guideline pick --local --role <이름>` | 개인 역할의 개인 폼을 열고, 결과를 이 단위 `local.json` 에 그 역할의 겹으로 저장합니다([개인 역할](#개인-역할)). 폼의 프로젝트 열은 프로젝트 선택에 내 공통 개인 선택을 입힌 것을 보입니다. 역할이 없으면 만듭니다. 이 워크트리를 그 역할로 바꾸지는 않습니다. 이름 규칙에 맞지 않는 이름이나 `--local` 없는 `--role` 은 종료 코드 2 입니다 |
 | `guideline update` | 고른 항목 그대로 서버 최신으로 다시 반영합니다. 프로젝트에서 고친 파일은 건너뛰고, `--force` 면 덮어씁니다. 0.24 이상 CLI 의 첫 `pick`·`update` 는 옛 배치로 받은 프로젝트를 옮깁니다([서버와 CLI 올리기](how-to/upgrade.md#guideline-배치로-프로젝트-옮기기)) |
 | `guideline apply` | 서버에 묻지 않고 `.guideline/` 과 `.ruler/ruler.project.toml` 에서 생성물을 조합하고, `.gitignore` 블록을 다시 쓰고, git 루트에서 `ruler apply` 를 돕니다. 클론한 뒤, 새 워크트리에서, `prepare` 에서 쓰세요. `pick`·`pick --local`·`update` 도 끝에 같은 방식으로 조합하지만(git 루트에서는 그 아래 단위도) ruler 는 쓴 것이 있을 때만 돕니다. `apply` 는 바뀐 것이 없어도 ruler 를 돕니다. 옵션: `--project <경로>`, `--json`. 종료 코드 0 완료, 1 쓰기 실패, 2 아직 받은 것이 없거나 옛 배치입니다. 클론 직후라면 ruler 가 모든 에이전트 몫으로 쓴 `CLAUDE.md` 도 지웁니다([문제 해결](troubleshooting.md#cli)). 모노레포의 git 루트에서는 그 아래에서 git 이 추적하는 단위도 모두 조합한 뒤 ruler 를 한 번 돕니다. 루트가 guideline 프로젝트가 아니어도 됩니다([모노레포](how-to/use-in-a-monorepo.md)) |
+| `guideline agents` | 프로젝트의 코딩 에이전트를 보입니다: `guideline.json` 의 `agents` 와 `.ruler/ruler.project.toml` 의 `default_agents`, 둘이 다르면 그것도 알립니다(`--json`: `{ agents, rulerAgents, mismatch }`). `add <이름>…` / `remove <이름>…`(claude·codex·opencode)는 둘을 함께 바꾼 뒤 `guideline apply` 처럼 반영합니다. 서버와 폼이 필요 없고, `ruler.project.toml` 에서는 `default_agents` 줄만 바뀝니다. 모르는 이름, 마지막 에이전트 빼기, `default_agents` 가 없거나 한 줄 배열이 아닐 때는 아무것도 쓰지 않고 종료 코드 2 입니다. 바꿀 것이 없으면 「바뀐 것 없음」 을 내고 0 입니다. `ruler.project.toml` 이 없는 프로젝트는 `guideline.json` 만 바뀝니다. 자기 `ruler.project.toml` 이 없는 모노레포 단위에서는 ruler 가 git 루트의 `default_agents` 를 따르므로(`pick` 과 같은 규칙) `guideline agents` 는 루트의 목록을 보이고, `add`/`remove` 는 그 단위의 `guideline.json` 만 바꾸고 그렇다고 알립니다. ruler 가 쓰는 에이전트를 바꾸려면 git 루트에서 실행하세요. 옵션: `--project <경로>`, `--json` |
 | `guideline status` | 반영한 지침이 최신인지, 프로젝트에서 고친 것이 있는지 보이고, 저장된 토큰의 이름과 범위를 보입니다(`--json` 은 `token`. 토큰이 없거나 0.20 보다 옛 서버면 보이지 않습니다). 개인 범위가 있으면 「개인 범위 — 더함 …」·「개인 범위 — 뺌 …」 줄과 최신이 아닌 개인 사본을 더합니다(`--json` 은 `personal`, [개인 범위](#개인-범위) 참고). 역할이 있으면 「역할 — …」 과 「역할 <이름> — 더함 …」·「뺌 …」 줄을 더합니다 |
 | `guideline role` | 이 워크트리의 개인 역할과 단위마다 정의된 역할을 보입니다. `--json`: `{ role, bad, units: [{ unit, roles }] }`(git 루트 단위는 `.`, 역할이 없으면 `role` 은 `null`, 역할 파일이 깨졌으면 `bad` 는 `true`). [개인 역할](#개인-역할) 참고 |
 | `guideline role use <이름>` / `use --none` | 이 워크트리의 역할을 정하거나 지우고, git 루트에서 `guideline apply` 처럼 반영합니다. 그 역할이 단위 하나 이상에 정의돼 있어야 합니다(아니면 종료 코드 2) |
@@ -47,6 +48,7 @@
 | 종류 | 뜻 |
 | --- | --- |
 | `apply` | 생성물이 낡았거나(`status` 에서), 옮긴 뒤 쓰지 못했습니다. 커밋하기 전에 `guideline apply` 를 실행하세요 |
+| `agents-mismatch` | `guideline.json` 의 `agents` 와 `.ruler/ruler.project.toml` 의 `default_agents` 가 다르고, ruler 는 `default_agents` 를 따릅니다. `guideline agents add <이름>` 이나 `guideline agents remove <이름>` 으로 맞추세요. `status` 는 서버 없이도 이것을 냅니다 |
 | `root-apply` | git 루트에 `.ruler/ruler.toml` 이 없어 모노레포 단위의 `apply` 가 ruler 를 돌지 않았습니다. git 루트에서 `guideline apply` 를 먼저 실행하거나, 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두세요 |
 | `unit-update` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아직 옛 배치인 아래 단위를 건너뛰었습니다. 그 단위에서 `guideline update` 를 실행하세요 |
 | `unit-problem` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아래 단위를 열지 못했습니다. 이유가 뒤따릅니다 |
@@ -225,6 +227,7 @@
 `pick --yes` 는 `--recommend` 없이, `--new` 와 함께, 작업 트리에 커밋하지 않은 변경이 있거나 git 저장소 밖일 때(프로젝트 모드), 필수 블록의 뺌을 추천할 때 2 로 끝납니다. `pick --recommend`(`--yes`·`--local` 과 상관없이)는 원본에 없는 키, 더하고 빼는 같은 키, 빼라고 추천한 스택 안의 더함에 2 로 끝납니다. 그때는 아무것도 쓰지 않고, 옛 배치 프로젝트도 옮기지 않습니다.
 `pick --local --role` 은 이름 규칙에 맞지 않는 역할 이름에도 2 로, `--local` 없는 `pick --role` 도 2 로 끝납니다.
 `guideline role` 은 git 저장소 밖, 잘못된 이름이나 인자, 어느 단위도 정의하지 않은 역할을 `use` 로 고르면 2 로 끝납니다. `role use` 는 `guideline apply` 와 같은 코드로 끝납니다(1 쓰기 실패, 2 받은 것 없음·옛 배치).
+`guideline agents` 는 모르는 동작이나 에이전트 이름, 이름 없음, 마지막 에이전트 빼기, 읽을 수 없는 `default_agents` 줄, 아직 받은 것 없음에서 2 로 끝납니다. 그 밖의 `add`·`remove` 는 `guideline apply` 와 같은 코드로 끝납니다.
 
 서버가 0.24 보다 옛날이면 스택 선택을 받지 못합니다.
 그러면 `pick` 은 그 출처의 폼을 취소하고 「서버가 CLI 보다 옛날」 이라고 알린 뒤 그 출처를 그대로 둡니다.

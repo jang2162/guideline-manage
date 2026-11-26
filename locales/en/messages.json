@@ -123,7 +123,7 @@
   "manage.ignoredNoEffect": "nothing to remove",
   "manage.personalMark": "personal",
   "manage.personalSetup": "Set up personal-scope stacks (marked “{mark}” in the setup table) by following their setup documents, but do not change committed files. Do not skip a step that would (a committed config file, `.gitignore`, and so on) — tell the user instead.",
-  "manifest.badAgents": "agents must be one or more of claude, codex, opencode",
+  "manifest.badAgents": "agents must be one or more of claude, codex, opencode — change them with guideline agents add|remove <name>",
   "manifest.badAliasKey": "key {key} in sources.{name}.aliases must be rules/<stack>, skills/<name>, agents/<name>.md or mcp/<name>",
   "manifest.badAliasValue": "value {value} of sources.{name}.aliases.{key} breaks the naming rule",
   "manifest.badForm": "form must be ruler or instructions",
