@@ -1,6 +1,6 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis, initialChoices, requiresOf, tierOf, applyTier, TIERS } from './selection.js';
+import { itemKey, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis, initialChoices, requiresOf, tierOf, applyTier, TIERS, toggleOn, toggleTo } from './selection.js';
 import { ancestorKeys, isWithin } from './blocks.js';
 
 const $ = sel => document.querySelector(sel);
@@ -376,9 +376,10 @@ function renderSteps() {
   const inStep = (set, step) => [...set].filter(u => stepOf({ kind: '', id: u }) === step).length;
   for (const b of document.querySelectorAll('[data-step]')) {
     const step = b.dataset.step;
-    const text = sel ? t('web.client.personal.stepCount', { n: inStep(chosen, step) })
+    const text = sel ? t('web.client.personal.stepReceived', { n: inStep(pReceived(sel), step) })
       : t('web.client.stepTiers', { fixed: inStep(fixed, step), default: inStep(chosen, step) - inStep(fixed, step) });
-    b.querySelector('small').textContent = step === 'confirm' ? '' : hasStep(step) ? text : t('web.client.stepNone');
+    const confirmText = sel && chosen.size ? t('web.client.personal.stepCount', { n: chosen.size }) : '';
+    b.querySelector('small').textContent = step === 'confirm' ? confirmText : hasStep(step) ? text : t('web.client.stepNone');
     b.classList.toggle('on', step === state.step);
     b.classList.toggle('none', !hasStep(step));
     b.setAttribute('aria-current', step === state.step ? 'step' : 'false');
@@ -505,7 +506,7 @@ function changeList(action) {
     + items.map(i => `<li><code>${esc(i.id)}</code></li>`).join('') + '</ul></section>';
 }
 
-// 개인 모드: 블록마다 프로젝트가 받는지와 그대로·더함·뺌. 판정(조상 더함·자손 뺌·필수 거절)은 selection.js personalSelection 이 하고,
+// 개인 모드: 고정이 아닌 블록마다 켬·끔. 켬·끔은 프로젝트 선택과의 차이(더함·뺌·그대로, selection.js toggleTo)로 기록한다. 판정(조상 더함·자손 뺌·필수 거절)은 selection.js personalSelection 이 하고,
 // 서버가 제출 때 같은 함수로 다시 계산한다. 갱신·덮어쓰기·더러운 작업 트리 칸은 없다(커밋되는 파일을 바꾸지 않는다).
 
 /** 개인 모드에서 단계의 블록: 키, 나무 깊이, 원본 목록의 항목. */
@@ -563,61 +564,87 @@ function userPersonal(unit, v) {
   if (n) state.notes.push(t(v === 'remove' ? 'web.client.personal.childrenRemoved' : 'web.client.personal.childrenReset', { n }));
 }
 
-/** 개인 폼의 기준 열 문구. 역할 폼의 기준은 프로젝트 + 내 공통 선택 결과다(그 위에 역할이 얹힌다). */
-function basisLabel(here) {
-  const role = typeof state.data.personal?.role === 'string' && state.data.personal.role;
-  if (role) return here ? 'web.client.personal.inRoleBasis' : 'web.client.personal.notInRoleBasis';
-  return here ? 'web.client.personal.inProject' : 'web.client.personal.notInProject';
+/**
+ * 기준(프로젝트 선택, 역할 폼이면 프로젝트 + 내 공통 선택)에 있는 블록의 표시. 프로젝트가 받는 것은 「기본」,
+ * 역할 폼에서 공통 선택이 더한 것은 「내 공통 선택」. payload 에 프로젝트만의 선택(personal.project)이 없으면(옛 CLI) 모두 「기본」.
+ */
+function basisTag(unit) {
+  const p = state.data.personal;
+  const fromCommon = typeof p.role === 'string' && p.role && Array.isArray(p.project) && !personalBasis({ chosen: p.project }).inProject.has(unit);
+  return fromCommon ? t('web.client.personal.commonTag') : t('web.client.personal.defaultTag');
 }
 
-function personalRow({ unit, depth, entry }, sel, received) {
+/** 고정(필수와 그것을 품은 조상)은 잠긴 줄, 나머지는 켬·끔 토글. 하위 스택은 같은 묶음 안의 조상 수만큼 들여 쓴다. */
+function personalRow({ unit, entry }, depth, received) {
   const { inProject, guarded } = pBasis();
   const v = pGet(unit);
   const here = inProject.has(unit);
-  const effect = sel.add.includes(unit) ? 'add' : sel.remove.includes(unit) ? 'remove' : null;
   const short = unit.startsWith('rules/') && entry.parent ? entry.name.slice(entry.parent.length + 1) : entry.name;
-  const lock = guarded.has(unit)
-    ? `<span class="badge lock">${esc(t((state.data.personal.required ?? []).includes(unit) ? 'web.client.personal.locked' : 'web.client.personal.lockedAncestor'))}</span>` : '';
   const rec = state.data.recommend ?? {};
-  const radio = (val, off) => `<label class="tri-opt${v === val ? ' on' : ''}${off ? ' off' : ''}">`
-    + `<input type="radio" name="p:${esc(unit)}" data-personal="${esc(unit)}" value="${val}" ${v === val ? 'checked' : ''} ${off ? 'disabled' : ''}>${esc(t(`web.client.personal.${val}`))}</label>`;
   const warns = received.has(unit) ? missingRequires(received, requiresMap()).filter(m => m.unit === unit)
     .map(m => t('web.client.missingRequire', { needs: unitName(m.needs), by: unitName(unit) })) : [];
   const cats = entry.categories ?? [];
-  return `<div class="row prow${effect === 'remove' ? ' remove' : ''}${depth ? ' child' : ''}" data-depth="${Math.min(depth, 5)}" data-unit="${esc(unit)}">`
+  const tags = [];
+  let control;
+  if (guarded.has(unit)) {
+    const fixed = (state.data.personal.required ?? []).includes(unit);
+    control = `<span class="badge lock">${esc(t(fixed ? 'web.client.personal.locked' : 'web.client.personal.lockedAncestor'))}</span>`;
+  } else {
+    const on = toggleOn(unit, v, here);
+    if (here) tags.push(`<span class="state p-in">${esc(basisTag(unit))}</span>`);
+    if (v === 'add') tags.push(`<span class="act act-add">${esc(t('web.client.personal.turnedOn'))}</span>`);
+    if (v === 'remove') tags.push(`<span class="act act-remove">${esc(t('web.client.personal.turnedOff'))}</span>`);
+    control = `<label class="switch${on ? ' on' : ''}"><input type="checkbox" role="switch" data-toggle="${esc(unit)}" ${on ? 'checked' : ''} aria-label="${esc(unitName(unit))}">`
+      + `<span class="knob" aria-hidden="true"></span><span class="switch-text">${esc(t(on ? 'web.client.personal.on' : 'web.client.personal.off'))}</span></label>`;
+  }
+  return `<div class="row prow${v === 'remove' ? ' turned-off' : ''}${depth ? ' child' : ''}" data-depth="${Math.min(depth, 5)}" data-unit="${esc(unit)}">`
     + `<span class="main"><span class="name">${blockHtml(short, entry.label, entry.name)}</span>`
     + `${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}`
     + `${Object.hasOwn(rec, unit) ? `<span class="badge rec">${esc(t('web.client.recommended'))}</span>` : ''}</span>`
-    + `<span class="state ${here ? 'p-in' : 'p-out'}">${esc(t(basisLabel(here)))}</span>`
-    + `<span class="extra">${lock}${effect ? `<span class="act act-${effect}">${esc(t(`web.client.personal.${effect}`))}</span>` : ''}</span>`
-    + `<span class="tri" role="radiogroup" aria-label="${esc(unitName(unit))}">${radio('keep', false)}${radio('add', here)}${radio('remove', !here || guarded.has(unit))}</span>`
+    + `<span class="extra">${tags.join('')}</span>${control}`
     + (entry.when ? `<div class="reason">${esc(t('web.client.when', { when: entry.when }))}</div>` : '')
     + warns.map(w => `<div class="reason warn">${esc(w)}</div>`).join('')
     + '</div>';
 }
 
-/** 개인 모드 목록. 분류로 거를 때 지침 단계는 보일 스택의 조상도 보인다. */
+/** 개인 모드 목록: 「고정」 묶음 → 「켜고 끄기」 묶음. 분류로 거를 때 지침 단계는 보일 스택의 조상도 보인다. */
 function personalListHtml(step) {
   const sel = pResult();
   if (step === 'confirm') return personalConfirmHtml(sel);
   const received = pReceived(sel);
+  const { guarded } = pBasis();
   const units = personalUnits(step);
   const own = x => !state.cat || (x.entry.categories ?? []).includes(state.cat);
   const shown = new Set(units.filter(own).flatMap(x => [x.unit, ...ancestorKeys(x.unit)]));
-  const rows = units.filter(x => shown.has(x.unit)).map(x => personalRow(x, sel, received));
-  const hidden = units.length - rows.length;
-  return `<div class="group personal-list">${rows.join('')}</div>`
+  const visibleUnits = units.filter(x => shown.has(x.unit));
+  const group = (key, hint, cls, list) => {
+    if (!list.length) return '';
+    const inGroup = new Set(list.map(x => x.unit));
+    return `<h3 class="pgroup">${esc(t(key))} <small>${esc(t(hint))}</small></h3>`
+      + `<div class="group personal-list ${cls}">${list.map(x => personalRow(x, ancestorKeys(x.unit).filter(a => inGroup.has(a)).length, received)).join('')}</div>`;
+  };
+  const hidden = units.length - visibleUnits.length;
+  return group('web.client.personal.fixedGroup', 'web.client.personal.fixedGroupHint', 'fixed-list', visibleUnits.filter(x => guarded.has(x.unit)))
+    + group('web.client.personal.toggleGroup', 'web.client.personal.toggleGroupHint', 'toggle-list', visibleUnits.filter(x => !guarded.has(x.unit)))
     + (state.cat && hidden ? `<p class="meta hidden-count">${esc(t('web.client.hiddenByCategory', { cat: state.cat, n: hidden }))}</p>` : '');
 }
 
-/** 개인 모드 확인 단계: 더할·뺄 블록과 「이 선택을 내 기본값으로」. */
+/** 개인 모드 확인 단계: 받는 것(고정 · 기본 · 내가 켬), 내가 켠 것·끈 것과 「이 선택을 내 기본값으로」. */
 function personalConfirmHtml(sel) {
+  const { inProject, guarded } = pBasis();
+  const received = [...pReceived(sel)];
   const list = (key, cls, units) => (units.length
     ? `<section class="confirm-step confirm-${cls}"><h3>${esc(t(key, { n: units.length }))}</h3><ul>`
       + units.map(u => `<li>${esc(unitName(u))} <code>${esc(u)}</code></li>`).join('') + '</ul></section>'
     : '');
-  const changes = list('web.client.personal.confirm.add', 'add', sel.add) + list('web.client.personal.confirm.remove', 'remove', sel.remove);
-  return (changes || `<p class="meta">${esc(t('web.client.personal.confirmEmpty'))}</p>`)
+  const detail = t('web.client.personal.confirm.receivedDetail', {
+    fixed: received.filter(u => guarded.has(u)).length,
+    default: received.filter(u => inProject.has(u) && !guarded.has(u)).length,
+    on: sel.add.length,
+  });
+  const head = `<section class="confirm-step confirm-received"><h3>${esc(t('web.client.personal.confirm.received', { n: received.length }))}</h3><p class="meta">${esc(detail)}</p></section>`;
+  const changes = list('web.client.personal.confirm.on', 'add', sel.add) + list('web.client.personal.confirm.off', 'remove', sel.remove);
+  return head + (changes || `<p class="meta">${esc(t('web.client.personal.confirmEmpty'))}</p>`)
     + `<section class="confirm-step save-default"><label><input type="checkbox" data-save-default ${state.saveDefault ? 'checked' : ''}> ${esc(t('web.client.personal.saveDefault'))}</label>`
     + `<p class="meta">${esc(t('web.client.personal.saveDefaultHint'))}</p></section>`;
 }
@@ -685,8 +712,9 @@ $('#list').addEventListener('change', e => {
     return;
   }
   state.notes = [];
-  if (t.dataset.personal) {
-    userPersonal(t.dataset.personal, t.value);
+  if (t.dataset.toggle) {
+    const unit = t.dataset.toggle;
+    userPersonal(unit, toggleTo(t.checked, pBasis().inProject.has(unit)));
     renderList();
     return;
   }

@@ -40,9 +40,14 @@ function personalChoicesOf(body) {
   return Object.fromEntries(Object.entries(raw).filter(([k, v]) => isBlockKey(k) && PERSONAL_CHOICES.includes(v)));
 }
 
-/** 화면에 넘기는 개인 모드 재료. payload 에 다른 필드가 있어도 이것만(허용 목록). role 은 고르는 역할(pick --local --role), 없으면 null. */
+/**
+ * 화면에 넘기는 개인 모드 재료. payload 에 다른 필드가 있어도 이것만(허용 목록). role 은 고르는 역할(pick --local --role), 없으면 null.
+ * project 는 역할 폼에서 프로젝트만의 선택(「기본」 과 「내 공통 선택」 을 가른다). 옛 CLI 의 폼에는 없어 싣지 않는다.
+ */
 function personalData(p) {
-  return { chosen: p.chosen, required: p.required, add: p.add, remove: p.remove, preset: p.preset, role: typeof p.role === 'string' ? p.role : null };
+  const out = { chosen: p.chosen, required: p.required, add: p.add, remove: p.remove, preset: p.preset, role: typeof p.role === 'string' ? p.role : null };
+  if (Array.isArray(p.project) && p.project.every(k => typeof k === 'string')) out.project = p.project;
+  return out;
 }
 
 function subtitle(f) {

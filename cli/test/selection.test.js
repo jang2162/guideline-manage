@@ -239,3 +239,26 @@ test('applyTier 의 결과를 입히면 tierOf 가 그 칸을 돌려준다', asy
     }
   }
 });
+
+test('toggleOn: 기준에 있으면 뺌이 아닐 때 받고, 없으면 더함일 때만 받는다', async () => {
+  const { toggleOn } = await import('../src/selection.js');
+  assert.equal(toggleOn('rules/a', 'keep', true), true);
+  assert.equal(toggleOn('rules/a', 'remove', true), false);
+  assert.equal(toggleOn('rules/a', 'keep', false), false);
+  assert.equal(toggleOn('rules/a', 'add', false), true);
+});
+
+test('toggleTo: 기준에 있으면 켬=그대로·끔=뺌, 없으면 켬=더함·끔=그대로', async () => {
+  const { toggleTo } = await import('../src/selection.js');
+  assert.equal(toggleTo(true, true), 'keep');
+  assert.equal(toggleTo(false, true), 'remove');
+  assert.equal(toggleTo(true, false), 'add');
+  assert.equal(toggleTo(false, false), 'keep');
+});
+
+test('toggleTo 와 toggleOn 은 서로 되돌린다', async () => {
+  const { toggleOn, toggleTo } = await import('../src/selection.js');
+  for (const inBasis of [true, false]) {
+    for (const on of [true, false]) assert.equal(toggleOn('rules/a', toggleTo(on, inBasis), inBasis), on);
+  }
+});

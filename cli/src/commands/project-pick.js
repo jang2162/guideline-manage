@@ -675,6 +675,8 @@ async function pickLocal({
       remove: remove.map(vk).sort(),
       preset,
       role,
+      // 역할 폼: 프로젝트만의 선택. 화면이 기준 중 프로젝트가 받는 것(기본)과 공통 선택이 더한 것을 가른다. 없는 서버는 무시한다
+      ...(role !== null ? { project: [...v.view.items] } : {}),
     };
     const payload = formPayload({
       tree: v.tree, revision: tree.revision, projectPath: dir, isNew: false, agents: manifest.agents, status,

@@ -412,12 +412,14 @@ test('이 워크트리의 역할이 다른 역할이어도 pick --local --role �
   assert.equal(porcelain(p), '');
 });
 
-test('역할 폼의 chosen 은 프로젝트 + 공통 결과다', async t => {
+test('역할 폼의 chosen 은 프로젝트 + 공통 결과이고, project 는 프로젝트만의 선택이다', async t => {
   const { s, p, env, store } = await setup(t, { items: ['rules/base', 'rules/base/sub'] });
   writeLocal(store, { version: 2, sources: { default: { add: ['rules/extra'], remove: ['rules/base/sub'] } }, roles: {} });
   const seen = {};
   assert.equal(await projectPick({ project: p, local: true, role: 'ui', env, ...quiet, err: () => {}, open: form(s, seen, null) }), 3);
-  assert.deepEqual(seen.data.personal, { chosen: ['rules/base', 'rules/extra'], required: [], add: [], remove: [], preset: 'none', role: 'ui' });
+  assert.deepEqual(seen.data.personal, {
+    chosen: ['rules/base', 'rules/extra'], required: [], add: [], remove: [], preset: 'none', role: 'ui', project: ['rules/base', 'rules/base/sub'],
+  });
   // 취소했으면 아무것도 쓰지 않는다
   assert.deepEqual(readLocal(store).roles, {});
 });

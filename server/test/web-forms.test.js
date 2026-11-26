@@ -332,24 +332,26 @@ test('정적 forms.js 는 역할이 있으면 개인 폼 제목에 역할 이름
   assert.ok(page.includes('"web.client.personalRoleTitle"'));
 });
 
-test('정적 forms.js 는 역할 폼의 기준 열을 프로젝트·공통 선택 문구로 보인다(공통 폼은 그대로)', async t => {
+test('정적 forms.js 는 개인 폼을 켬·끔 토글(data-toggle)로 그리고 그대로·더함·뺌 라디오는 없다', async t => {
   const s = await startApp(t);
   const src = (await s.req('/static/forms.js')).text;
-  for (const key of ['web.client.personal.inRoleBasis', 'web.client.personal.notInRoleBasis']) assert.ok(src.includes(`'${key}'`), key);
-  // 공통 폼 문구도 남는다
-  for (const key of ['web.client.personal.inProject', 'web.client.personal.notInProject']) assert.ok(src.includes(`'${key}'`), key);
+  assert.match(src, /data-toggle="/);
+  assert.doesNotMatch(src, /tri-opt|data-personal=/);
+  assert.match(src, /^import \{[^}]*\btoggleOn\b[^}]*\btoggleTo\b[^}]*\} from '\.\/selection\.js';$/m);
+  for (const key of ['on', 'off', 'fixedGroup', 'toggleGroup', 'defaultTag', 'commonTag', 'turnedOn', 'turnedOff']) {
+    assert.ok(src.includes(`'web.client.personal.${key}'`), key);
+  }
   const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui' } });
-  const cookie = await openForm(f);
-  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
-  assert.ok(page.includes('"web.client.personal.inRoleBasis":"프로젝트·공통 선택이 받음"'));
-  assert.ok(page.includes('"web.client.personal.notInRoleBasis":"프로젝트·공통 선택이 받지 않음"'));
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: await openForm(f) } })).text;
+  assert.ok(page.includes('"web.client.personal.commonTag":"내 공통 선택"'));
+  assert.ok(page.includes('"web.client.personal.turnedOff":"내가 끔"'));
 });
 
 test('폼 페이지는 개인 모드·필수 문구를 브라우저 문구 블록에 싣는다', async t => {
   const f = await setup(t, {}, { mode: 'personal', personal: PERSONAL });
   const cookie = await openForm(f);
   const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
-  for (const key of ['web.client.personal.keep', 'web.client.personal.add', 'web.client.personal.remove', 'web.client.personal.inProject', 'web.client.personal.notInProject', 'web.client.personal.locked', 'web.client.personal.preset.local', 'web.client.personal.preset.defaults', 'web.client.personal.saveDefault']) {
+  for (const key of ['web.client.personal.on', 'web.client.personal.off', 'web.client.personal.defaultTag', 'web.client.personal.locked', 'web.client.personal.preset.local', 'web.client.personal.preset.defaults', 'web.client.personal.saveDefault']) {
     assert.ok(page.includes(`"${key}"`), key);
   }
 });
@@ -375,4 +377,11 @@ test('폼 data 의 fixedKnown: payload 에 required 가 있을 때만 참(옛 CL
   assert.equal((await getAs(f.s, await openForm(f), `/forms/${f.id}/data`)).json().fixedKnown, true);
   const old = await setup(t);
   assert.equal((await getAs(old.s, await openForm(old), `/forms/${old.id}/data`)).json().fixedKnown, false);
+});
+
+test('/data 는 역할 폼의 personal.project(프로젝트만의 선택)를 넘기고, 문자열 목록이 아니면 뺀다', async t => {
+  const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui', project: ['rules/base'] } });
+  assert.deepEqual((await getAs(f.s, await openForm(f), `/forms/${f.id}/data`)).json().personal.project, ['rules/base']);
+  const g = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui', project: [1] } });
+  assert.equal(Object.hasOwn((await getAs(g.s, await openForm(g), `/forms/${g.id}/data`)).json().personal, 'project'), false);
 });

@@ -149,6 +149,27 @@ export function applyTier(unit, tier, _ctx) {
 export const PERSONAL_CHOICES = ['keep', 'add', 'remove'];
 
 /**
+ * 로컬 폼의 켬·끔: 블록을 받는가. 기준(프로젝트 선택, 역할이면 프로젝트 + 공통 선택)에 있으면 뺌이 아닐 때, 없으면 더함일 때 받는다.
+ * @param {string} _unit
+ * @param {'keep' | 'add' | 'remove'} v
+ * @param {boolean} inBasis
+ */
+export function toggleOn(_unit, v, inBasis) {
+  return inBasis ? v !== 'remove' : v === 'add';
+}
+
+/**
+ * 켬·끔을 개인 선택(local.json 의 add·remove)으로. 기준에 있는 것을 끄면 뺌, 없는 것을 켜면 더함, 나머지는 기록 없음(그대로).
+ * @param {boolean} on
+ * @param {boolean} inBasis
+ * @returns {'keep' | 'add' | 'remove'}
+ */
+export function toggleTo(on, inBasis) {
+  if (inBasis) return on ? 'keep' : 'remove';
+  return on ? 'add' : 'keep';
+}
+
+/**
  * 개인 폼 payload 의 판정 재료. inProject: 프로젝트가 받는 블록(조상 포함), guarded: 필수와 그 조상(개인이 뺄 수 없다).
  * @param {{ chosen: string[], required: string[] }} personal
  */
