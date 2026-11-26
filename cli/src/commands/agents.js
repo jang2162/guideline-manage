@@ -87,7 +87,10 @@ export async function agents({
   writeFileAtomic(path.join(dir, MANIFEST), manifestText({ ...manifest, agents: next }));
   if (nextToml !== null && nextToml !== own) writeFileAtomic(tomlFile(dir), nextToml);
   if (follows) err(t('agents.followsRoot', { file: PROJECT_TOML, root: follows }));
-  return projectApply({ dir, json, env, out, err, runRuler, git });
+  const code = await projectApply({ dir, json, env, out, err, runRuler, git });
+  // 두 파일은 이미 바뀌었다: 다시 치면 「바뀐 것 없음」 이라 반영은 apply 로 마저 한다
+  if (code !== 0) err(t('agents.applyFailed', { files: nextToml !== null && nextToml !== own ? `${MANIFEST}, ${PROJECT_TOML}` : MANIFEST, agents: next.join(', ') }));
+  return code;
 }
 
 function unchanged({ next, json, out }) {

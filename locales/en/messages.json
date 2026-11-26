@@ -812,5 +812,6 @@
   "agents.showFollowsRoot": "This unit has no .ruler/ruler.project.toml of its own: ruler follows the git root ({root})",
   "agents.mismatch": "The two lists differ, and ruler follows default_agents. Make them match with guideline agents add|remove <name>",
   "todo.agentsMismatch": "Coding agents differ: guideline.json has {agents}, but ruler follows default_agents in {file} ({rulerAgents}) — make them match with guideline agents add|remove <name>",
-  "agents.showBadAgents": "guideline.json has invalid agents (only claude, codex and opencode count, at least one) — fix them with guideline agents add <name>"
+  "agents.showBadAgents": "guideline.json has invalid agents (only claude, codex and opencode count, at least one) — fix them with guideline agents add <name>",
+  "agents.applyFailed": "{files} already hold the new agents ({agents}), but applying failed — fix the cause above, then run guideline apply to finish (running guideline agents again says nothing changed)"
 }

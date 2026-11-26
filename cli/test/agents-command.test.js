@@ -318,3 +318,21 @@ test('agents 가 아닌 매니페스트 오류는 agents 도 그대로 1', async
   const r = await run(p, { action: 'add', names: ['codex'] });
   assert.equal(r.code, 1);
 });
+
+test('두 파일을 쓴 뒤 apply 가 실패하면 이미 바뀌었다고 하고 guideline apply 로 마저 반영하라고 알린다(리뷰 1)', async t => {
+  const p = project(t);
+  // 조합 쓰기를 실패시킨다: .ruler/ruler.toml 자리에 디렉터리
+  fs.rmSync(path.join(p, '.ruler/ruler.toml'));
+  fs.mkdirSync(path.join(p, '.ruler/ruler.toml'));
+  const r = await run(p, { action: 'add', names: ['codex'] });
+  assert.notEqual(r.code, 0);
+  assert.deepEqual(manifestAgents(p), ['claude', 'codex']);
+  assert.match(r.err, /이미 바꿨음/);
+  assert.match(r.err, /guideline apply/);
+  // 「바뀐 것 없음」 일 때는 지금처럼 apply 하지 않는다
+  fs.rmSync(path.join(p, '.ruler/ruler.toml'), { recursive: true });
+  const again = await run(p, { action: 'add', names: ['codex'] });
+  assert.equal(again.code, 0);
+  assert.match(again.out, /바뀐 것 없음/);
+  assert.equal(again.rulerCalls, 0);
+});
