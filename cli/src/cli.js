@@ -11,6 +11,7 @@ import { projectApply } from './commands/project-apply.js';
 import { login, logout } from './commands/login.js';
 import { locale } from './commands/locale.js';
 import { role } from './commands/role.js';
+import { agents } from './commands/agents.js';
 import { t, currentLocale } from './i18n.js';
 
 const usage = () => t('help.usage');
@@ -22,6 +23,7 @@ export const ALLOWED_OPTIONS = {
   update: ['project', 'server', 'source', 'force', 'json'],
   status: ['project', 'server', 'source', 'json'],
   apply: ['project', 'json'],
+  agents: ['project', 'json'],
   login: ['server', 'token-stdin'],
   logout: ['server'],
   propose: ['project', 'server', 'source', 'title', 'message', 'only', 'from', 'dry-run', 'apply', 'review', 'json'],
@@ -156,6 +158,10 @@ export async function main(argv) {
 
   if (command === 'apply') {
     return projectApply({ project: values.project, json: values.json, cwd });
+  }
+
+  if (command === 'agents') {
+    return agents({ action: positionals[1], names: positionals.slice(2), project: values.project, json: values.json, cwd });
   }
 
   if (command === 'role') {
