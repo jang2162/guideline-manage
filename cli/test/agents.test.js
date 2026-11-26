@@ -58,3 +58,8 @@ test('주석이 붙은 표 머리와 배열 표 머리 뒤의 default_agents 는
   assert.deepEqual(readDefaultAgents('nested = false\n[gitignore] # 주석\ndefault_agents = ["codex"]\n'), { agents: null, ok: true });
   assert.deepEqual(readDefaultAgents('[[x.y]]\ndefault_agents = ["codex"]\n'), { agents: null, ok: true });
 });
+
+test('agentsMismatch 는 toml 쪽의 AGENTS 밖 이름을 빼고 비교한다(리뷰 2)', () => {
+  assert.equal(agentsMismatch(['claude'], ['claude', 'cursor']), false);
+  assert.equal(agentsMismatch(['claude'], ['codex', 'cursor']), true);
+});

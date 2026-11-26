@@ -261,3 +261,18 @@ test('잠금도 .ruler/ 스택 폴더도 없으면 받은 적 없음으로 쓰�
   assert.match(r.err, /guideline pick 먼저/);
   assert.deepEqual(snapshot(p), before);
 });
+
+test('toml 의 AGENTS 밖 이름(cursor)은 어긋남으로 보지 않고, add 가 다시 쓸 때 그대로 남긴다(리뷰 2)', async t => {
+  const p = project(t, { toml: TOML.replace('["claude"]', '["claude", "cursor"]') });
+  const shown = await run(p, {});
+  assert.match(shown.out, /default_agents.*claude, cursor/);
+  assert.doesNotMatch(shown.out, /guideline agents add\|remove/);
+  assert.equal(JSON.parse((await run(p, { json: true })).out).mismatch, false);
+  const r = await run(p, { action: 'add', names: ['codex'] });
+  assert.equal(r.code, 0, r.err);
+  assert.equal(read(p, PROJECT_TOML), TOML.replace('["claude"]', '["claude", "codex", "cursor"]'));
+  assert.deepEqual(manifestAgents(p), ['claude', 'codex']);
+  // 이미 맞으면 cursor 가 있어도 바뀐 것 없음
+  const again = await run(p, { action: 'add', names: ['codex'] });
+  assert.match(again.out, /바뀐 것 없음/);
+});

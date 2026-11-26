@@ -72,7 +72,9 @@ export async function agents({
   if (own !== null) {
     const mine = readDefaultAgents(own);
     if (mine.ok && mine.agents && sameSet(next, mine.agents) && sameSet(next, current)) return unchanged({ next, json, out });
-    nextToml = setDefaultAgents(own, next);
+    // AGENTS 밖 이름은 guideline 이 다루지 않는다 — 지우지 않고 그대로 둔다
+    const others = (mine.agents ?? []).filter(a => !AGENTS.includes(a));
+    nextToml = setDefaultAgents(own, [...next, ...others]);
     if (nextToml === null) {
       err(t('agents.tomlUnreadable', { file: PROJECT_TOML }));
       return 2;

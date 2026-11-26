@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { agentsList } from './render/outputs.js';
 import { PROJECT_TOML } from './layout.js';
+import { AGENTS } from './manifest.js';
 import { t } from './i18n.js';
 
 // `.ruler/ruler.project.toml` 의 최상위 `default_agents` 한 줄을 읽고 바꾼다. ruler 가 실제로 따르는 에이전트 목록이 이것이고,
@@ -73,11 +74,14 @@ export function setDefaultAgents(text, agents) {
   return lines.join('\n');
 }
 
-/** 두 목록이 집합으로 다른가. toml 쪽이 없으면(null) 비교할 것이 없어 false. */
+/**
+ * 두 목록이 집합으로 다른가. toml 쪽이 없으면(null) 비교할 것이 없어 false. AGENTS 밖 이름(사람이 넣은 cursor 등)은 guideline 이 다루지 않으므로
+ * 빼고 비교한다 — 넣으면 `guideline agents` 로 영영 못 맞추는 어긋남이 된다.
+ */
 export function agentsMismatch(manifestAgents, tomlAgents) {
   if (tomlAgents === null) return false;
-  const a = new Set(manifestAgents);
-  const b = new Set(tomlAgents);
+  const a = new Set(manifestAgents.filter(x => AGENTS.includes(x)));
+  const b = new Set(tomlAgents.filter(x => AGENTS.includes(x)));
   return a.size !== b.size || [...a].some(x => !b.has(x));
 }
 

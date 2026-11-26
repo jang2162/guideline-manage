@@ -326,6 +326,9 @@ test('status 는 guideline.json 의 agents 와 ruler.project.toml 의 default_ag
   assert.match(differ[0].message, /guideline agents add\|remove/);
   const same = await todosOf({ agents: ['codex', 'claude'], toml: 'default_agents = ["claude", "codex"]\nnested = false\n' });
   assert.equal(same.some(x => x.kind === 'agents-mismatch'), false);
+  // AGENTS 밖 이름(cursor)은 비교에서 뺀다
+  const other = await todosOf({ agents: ['claude'], toml: 'default_agents = ["claude", "cursor"]\nnested = false\n' });
+  assert.equal(other.some(x => x.kind === 'agents-mismatch'), false);
   const none = await todosOf({ agents: ['claude', 'codex'], toml: null });
   assert.equal(none.some(x => x.kind === 'agents-mismatch'), false);
 });
