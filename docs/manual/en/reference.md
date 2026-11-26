@@ -226,7 +226,7 @@ It exits with 1 when `local.json` or `defaults.json` cannot be read, or when the
 `pick --yes` exits with 2 without `--recommend`, with `--new`, with uncommitted changes in the working tree or outside a git repository (project mode), and for a recommended removal of a Required block. `pick --recommend` (with or without `--yes` and `--local`) exits with 2 for a key not in the source, a key both added and removed, and an addition inside a stack recommended for removal. Nothing is written then, and a project in the old layout is not moved.
 `pick --local --role` also exits with 2 for a role name that breaks the naming rule, and `pick --role` without `--local` exits with 2.
 `guideline role` exits with 2 outside a git repository, for a bad name or arguments, and when `use` names a role no unit defines. `role use` exits with the code `guideline apply` would (1 write failure, 2 nothing received or old layout).
-`guideline agents` exits with 2 for an unknown action or agent name, no names, removing the last agent, an unreadable `default_agents` line, and nothing received yet; `add` and `remove` then exit with the code `guideline apply` would.
+`guideline agents` exits with 2 for an unknown action or agent name, no names, removing the last agent, an unreadable `default_agents` line, nothing received yet and a project still in the old layout, without writing anything; otherwise `add` and `remove` exit with the code `guideline apply` would.
 
 A server older than 0.24 cannot take stack choices.
 `pick` then cancels that source's form, says "This server is older than the CLI" and leaves the source as it was.

@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expandPath, runGit } from '../projects.js';
-import { MANIFEST, AGENTS, readManifest, manifestText, ManifestError } from '../manifest.js';
-import { PROJECT_TOML } from '../layout.js';
+import { MANIFEST, AGENTS, manifestText } from '../manifest.js';
+import { PROJECT_TOML, layoutOf } from '../layout.js';
 import { unitInfo } from '../unit.js';
 import { writeFileAtomic } from '../apply.js';
 import { readDefaultAgents, setDefaultAgents, agentsMismatch, rulerAgentsSource } from '../agents.js';
 import { projectApply } from './project-apply.js';
-import { defaultRunRuler } from './sync-common.js';
+import { defaultRunRuler, openProject } from './sync-common.js';
 import { t } from '../i18n.js';
 
 const tomlFile = dir => path.join(dir, ...PROJECT_TOML.split('/'));
@@ -18,7 +18,8 @@ const sameSet = (a, b) => !agentsMismatch(a, b);
  * .ruler/ruler.project.toml 의 default_agents 를 함께 고친 뒤 apply 와 같은 조합·ruler 를 돈다. 서버에 접속하지 않는다.
  * 하위 단위(모노레포)에 자기 ruler.project.toml 이 없으면 ruler 는 git 루트의 default_agents 를 따른다(pick 과 같은 규칙): 보일 때는 루트의
  * 것을 보이고, 바꿀 때는 그 단위의 guideline.json 만 바꾼다(루트의 파일은 건드리지 않는다).
- * 0 완료·바뀐 것 없음, 1 매니페스트를 읽을 수 없음·반영 실패, 2 인자·이름 문제, 받은 적 없음, default_agents 를 한 줄로 읽을 수 없음.
+ * 0 완료·바뀐 것 없음, 1 매니페스트를 읽을 수 없음·반영 실패, 2 인자·이름 문제, 받은 적 없음·옛 배치(apply 가 열지 못함), default_agents 를 한 줄로
+ * 읽을 수 없음. 2 와 쓰기 전의 1 은 아무것도 쓰지 않는다.
  * @returns {Promise<number>}
  */
 export async function agents({
@@ -30,16 +31,17 @@ export async function agents({
     err(t('agents.unknownAction', { action }));
     return 2;
   }
-  let manifest;
-  try {
-    manifest = fs.existsSync(path.join(dir, MANIFEST)) ? readManifest(dir) : null;
-  } catch (e) {
-    if (!(e instanceof ManifestError)) throw e;
-    err(e.message);
-    return 1;
-  }
-  if (!manifest) {
+  if (!fs.existsSync(path.join(dir, MANIFEST))) {
     err(t('update.notYet'));
+    return 2;
+  }
+  // apply 가 열지 못할 프로젝트(깨진 매니페스트, 잠금 없음, 옛 배치)는 쓰기 전에 멈춘다 — 쓰고 나서 apply 가 실패하면 두 파일만 바뀐 채 남는다
+  const opened = openProject({ dir, err });
+  if (opened.code !== undefined) return opened.code;
+  const { manifest, lock } = opened;
+  const layout = layoutOf(lock, dir);
+  if (action !== undefined && layout !== 'guideline') {
+    err(layout === 'ruler' ? t('apply.needsUpdate') : t('update.notYet'));
     return 2;
   }
   const unit = unitInfo(dir, git);

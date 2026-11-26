@@ -235,3 +235,29 @@ test('명령줄 guideline agents add codex 도 같은 결과', t => {
   assert.equal(bad.status, 2);
   assert.match(bad.stderr, /agents 에서 쓸 수 있는 옵션: --project, --json/);
 });
+
+test('apply 가 받지 못할 프로젝트(잠금 없음, 옛 배치)면 쓰기 전에 2, 두 파일 그대로', async t => {
+  const p = project(t);
+  fs.rmSync(path.join(p, 'guideline-lock.json'));
+  const before = snapshot(p);
+  const r = await run(p, { action: 'add', names: ['codex'] });
+  assert.equal(r.code, 2);
+  // .ruler/ 에 스택 폴더(생성물)가 있어 잠금 없는 이 프로젝트는 옛 배치로 보인다 — apply 와 같은 안내
+  assert.match(r.err, /예전 배치/);
+  assert.deepEqual(snapshot(p), before);
+  assert.equal(r.rulerCalls, 0);
+});
+
+test('잠금도 .ruler/ 스택 폴더도 없으면 받은 적 없음으로 쓰기 전에 2', async t => {
+  const p = fs.realpathSync(tmpDir('guideline-agents-nolock-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  runGit(['init', '-q'], p);
+  fs.mkdirSync(path.join(p, '.ruler'));
+  fs.writeFileSync(path.join(p, 'guideline.json'), '{\n  "version": 3,\n  "form": "ruler",\n  "agents": ["claude"],\n  "sources": {}\n}\n');
+  fs.writeFileSync(path.join(p, PROJECT_TOML), TOML);
+  const before = snapshot(p);
+  const r = await run(p, { action: 'add', names: ['codex'] });
+  assert.equal(r.code, 2);
+  assert.match(r.err, /guideline pick 먼저/);
+  assert.deepEqual(snapshot(p), before);
+});
