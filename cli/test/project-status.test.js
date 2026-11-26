@@ -332,3 +332,40 @@ test('status 는 guideline.json 의 agents 와 ruler.project.toml 의 default_ag
   const none = await todosOf({ agents: ['claude', 'codex'], toml: null });
   assert.equal(none.some(x => x.kind === 'agents-mismatch'), false);
 });
+
+/** 서버 없이 status --json 의 할 일(받기 실패, 로컬 할 일만). */
+async function offlineTodos(p) {
+  const o = collect();
+  assert.equal(await projectStatus({ project: p, env: {}, json: true, out: o.out, err: () => {} }), 1);
+  return o.text() ? JSON.parse(o.text()).todos : [];
+}
+
+test('status 는 default_agents 가 여러 줄 배열이면 agents-unreadable 할 일을 내고, 줄이 없으면 내지 않는다', async t => {
+  const mk = toml => {
+    const p = fs.realpathSync(tmpDir('guideline-status-unreadable-'));
+    t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+    syncedProject(p, { server: 'http://127.0.0.1:9', toml });
+    return p;
+  };
+  const multi = (await offlineTodos(mk('default_agents = [\n  "claude",\n]\nnested = false\n'))).filter(x => x.kind === 'agents-unreadable');
+  assert.equal(multi.length, 1);
+  assert.equal(multi[0].item, null);
+  assert.match(multi[0].message, /ruler\.project\.toml/);
+  assert.match(multi[0].message, /한 줄 배열/);
+  const noLine = await offlineTodos(mk('nested = false\n'));
+  assert.equal(noLine.some(x => x.kind === 'agents-unreadable' || x.kind === 'agents-mismatch'), false);
+});
+
+test('루트를 따르는 하위 단위의 agents-mismatch 는 git 루트에서 고치라고 한다(리뷰 6)', async t => {
+  const p = fs.realpathSync(tmpDir('guideline-status-sub-'));
+  t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+  runGit(['init', '-q'], p);
+  syncedProject(p, { server: 'http://127.0.0.1:9', agents: ['claude'] });
+  const sub = path.join(p, 'pkg');
+  fs.mkdirSync(sub);
+  syncedProject(sub, { server: 'http://127.0.0.1:9', agents: ['claude', 'codex'], toml: null, nested: true });
+  const todo = (await offlineTodos(sub)).find(x => x.kind === 'agents-mismatch');
+  assert.ok(todo);
+  assert.match(todo.message, /git 루트/);
+  assert.ok(todo.message.includes(p));
+});

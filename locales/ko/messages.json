@@ -813,5 +813,7 @@
   "agents.mismatch": "두 목록이 다름 — ruler 는 default_agents 를 따른다. guideline agents add|remove <이름> 으로 맞춘다",
   "todo.agentsMismatch": "코딩 에이전트가 어긋남: guideline.json 은 {agents}, ruler 가 따르는 {file} 의 default_agents 는 {rulerAgents} — guideline agents add|remove <이름> 으로 맞춘다",
   "agents.showBadAgents": "guideline.json 의 agents 가 올바르지 않음(claude·codex·opencode 만, 하나 이상) — guideline agents add <이름> 으로 고친다",
-  "agents.applyFailed": "{files} 은 이미 바꿨음({agents}), 반영은 실패 — 위의 원인을 고친 뒤 guideline apply 로 마저 반영한다(guideline agents 를 다시 치면 바뀐 것 없음으로 끝난다)"
+  "agents.applyFailed": "{files} 은 이미 바꿨음({agents}), 반영은 실패 — 위의 원인을 고친 뒤 guideline apply 로 마저 반영한다(guideline agents 를 다시 치면 바뀐 것 없음으로 끝난다)",
+  "todo.agentsMismatchRoot": "코딩 에이전트가 어긋남: 이 단위의 guideline.json 은 {agents}, 이 단위에는 .ruler/ruler.project.toml 이 없어 ruler 가 따르는 git 루트의 {file} 의 default_agents 는 {rulerAgents} — git 루트({root})에서 guideline agents add|remove <이름> 으로 맞춘다",
+  "todo.agentsUnreadable": "{file} 의 default_agents 가 여러 줄 배열이라 코딩 에이전트를 비교하거나 바꿀 수 없음 — 한 줄 배열로 고친다(예: default_agents = [\"claude\", \"codex\"])"
 }

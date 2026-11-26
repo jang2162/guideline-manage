@@ -79,6 +79,7 @@ description: 지침 서버의 지침 중 이 프로젝트에 맞는 것을 골�
 | `ruler-apply` | 안내한 명령을 실행해도 되는지 묻는다 |
 | `apply` | 에이전트 파일(생성물)이 낡았다(`status` 에서, 또는 쓰지 못한 채 끝난 이전 뒤). `guideline apply` 를 돌린다. 커밋하기 전에 돌린다. 안 그러면 `git add -A` 가 옛 사본을 다시 넣는다 |
 | `agents-mismatch` | `guideline.json` 의 `agents` 와 `.ruler/ruler.project.toml` 의 `default_agents` 가 다르다(한쪽을 손으로 고쳤다). ruler 는 `default_agents` 를 따른다. 프로젝트가 쓰는 에이전트를 사용자에게 물은 뒤 `guideline agents add <이름> --json` 이나 `guideline agents remove <이름> --json` 으로 맞춘다. 이 일로 폼을 띄우지 않는다 |
+| `agents-unreadable` | `.ruler/ruler.project.toml` 의 `default_agents` 가 여러 줄 배열이라 CLI 가 코딩 에이전트를 비교하거나 바꿀 수 없다. 같은 이름 그대로 한 줄 배열(`default_agents = ["claude", "codex"]`)로 고친다(사용자에게 확인을 받고) |
 | `root-apply` | git 루트에 아직 `.ruler/ruler.toml` 이 없어 모노레포 단위의 `apply` 가 ruler 를 돌지 않았다. git 루트에서 `guideline apply` 를 먼저 돌리고(또는 거기에 `nested = true` 인 `.ruler/ruler.toml` 을 직접 두고) 단위에서 다시 돌린다 |
 | `unit-update` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local`(모두 아래 단위도 조합한다)이 아래의 단위 하나가 아직 옛 배치라 조합하지 않았다. 그 단위에서 `guideline update` 를 돌린다(서버 필요) |
 | `unit-problem` | git 루트의 `guideline apply`·`update`·`pick`·`pick --local` 이 아래의 단위 하나를 열지 못했다(이유가 뒤따른다). 고치거나, 그 단위에서 `guideline apply` 를 돌려 오류를 본다 |

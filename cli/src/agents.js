@@ -100,14 +100,20 @@ export function rulerAgentsSource(dir, unit) {
   return { own, follows, file, text: follows ? read(file) : own };
 }
 
-/** guideline.json 의 agents 와 ruler 가 따르는 default_agents 가 다르면 agents-mismatch 할 일 하나, 같거나 비교할 수 없으면 빈 목록. */
+/**
+ * guideline.json 의 agents 와 ruler 가 따르는 default_agents 가 다르면 agents-mismatch 할 일 하나, default_agents 가 여러 줄 배열이면
+ * agents-unreadable 하나, 같거나 비교할 것이 없으면 빈 목록.
+ */
 export function agentsMismatchTodos(dir, unit, manifest) {
   const src = rulerAgentsSource(dir, unit);
-  const { agents } = readDefaultAgents(src.text);
+  const { agents, ok } = readDefaultAgents(src.text);
+  // 줄이 없는 것은 ruler 의 기본 동작(아는 에이전트 모두)이라 알리지 않는다. 여러 줄 배열은 비교도 쓰기도 못 한다
+  if (!ok) return [{ kind: 'agents-unreadable', item: null, message: t('todo.agentsUnreadable', { file: src.follows ? src.file : PROJECT_TOML }) }];
   if (!agentsMismatch(manifest.agents, agents)) return [];
-  const file = src.follows ? src.file : PROJECT_TOML;
-  return [{
-    kind: 'agents-mismatch', item: null,
-    message: t('todo.agentsMismatch', { agents: manifest.agents.join(', '), rulerAgents: agents.join(', '), file }),
-  }];
+  const vars = { agents: manifest.agents.join(', '), rulerAgents: agents.join(', ') };
+  // 루트를 따르는 단위에서는 그 단위의 guideline agents 로는 ruler 쪽이 안 바뀐다 — git 루트에서 고치라고 한다
+  const message = src.follows
+    ? t('todo.agentsMismatchRoot', { ...vars, file: src.file, root: src.follows })
+    : t('todo.agentsMismatch', { ...vars, file: PROJECT_TOML });
+  return [{ kind: 'agents-mismatch', item: null, message }];
 }
