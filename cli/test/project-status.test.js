@@ -306,3 +306,26 @@ test('status --json 의 personal.role 과 겹별 줄', async t => {
   assert.match(text.text(), /^ {2}역할 ui — 더함 1: rules\/extra$/m);
   assert.match(text.text(), /^ {2}역할 ui — 뺌 0: -$/m);
 });
+
+test('status 는 guideline.json 의 agents 와 ruler.project.toml 의 default_agents 가 다르면 서버 없이도 agents-mismatch 할 일을 낸다', async t => {
+  const todosOf = async opts => {
+    const p = fs.realpathSync(tmpDir('guideline-status-agents-'));
+    t.after(() => fs.rmSync(p, { recursive: true, force: true }));
+    // 닿지 않는 서버: 받기에 실패해도 로컬 할 일은 나온다
+    syncedProject(p, { server: 'http://127.0.0.1:9', ...opts });
+    const o = collect();
+    assert.equal(await projectStatus({ project: p, env: {}, json: true, out: o.out, err: () => {} }), 1);
+    // 로컬 할 일이 없으면 아무것도 쓰지 않는다
+    return o.text() ? JSON.parse(o.text()).todos : [];
+  };
+  const differ = (await todosOf({ agents: ['claude', 'codex'], toml: 'default_agents = ["claude"]\nnested = false\n' }))
+    .filter(x => x.kind === 'agents-mismatch');
+  assert.equal(differ.length, 1);
+  assert.equal(differ[0].item, null);
+  assert.match(differ[0].message, /claude, codex/);
+  assert.match(differ[0].message, /guideline agents add\|remove/);
+  const same = await todosOf({ agents: ['codex', 'claude'], toml: 'default_agents = ["claude", "codex"]\nnested = false\n' });
+  assert.equal(same.some(x => x.kind === 'agents-mismatch'), false);
+  const none = await todosOf({ agents: ['claude', 'codex'], toml: null });
+  assert.equal(none.some(x => x.kind === 'agents-mismatch'), false);
+});

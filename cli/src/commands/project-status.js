@@ -10,6 +10,7 @@ import { excludeStale } from '../exclude.js';
 import { personalStatus, personalRevisionTodos } from '../personal-sync.js';
 import { preparePackage } from '../migrate-layout.js';
 import { layoutOf } from '../layout.js';
+import { agentsMismatchTodos } from '../agents.js';
 import { t } from '../i18n.js';
 
 /** status 가 조합에서 가져와 내는 할 일 종류. */
@@ -49,6 +50,8 @@ export async function projectStatus({
     // 개인 사본과 프로젝트의 리비전이 출처별로 다르면(다른 워크트리의 update 가 개인 사본만 올림) 서버 없이도 알린다
     ...(inputs.personal ? personalRevisionTodos({ store: inputs.personal.store, manifest, local: inputs.personal.local, lock }) : []),
     ...prep.todos.filter(x => x.kind !== 'prepare'),
+    // 손으로 고친 guideline.json 이나 ruler.project.toml 로 두 에이전트 목록이 어긋났다(ruler 는 default_agents 를 따른다)
+    ...agentsMismatchTodos(dir, unit, manifest),
     // 조합이 낼 할 일 중 프로젝트가 고칠 것(apply·update 를 돌리지 않아도 보이게)
     ...mergeTodos([], composed.todos.filter(x => COMPOSE_KINDS.has(x.kind))),
   ];

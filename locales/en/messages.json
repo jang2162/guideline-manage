@@ -810,5 +810,6 @@
   "agents.showNoLine": "ruler default_agents ({file}): no default_agents line — ruler uses every agent it knows",
   "agents.showUnreadable": "ruler default_agents ({file}): not a one-line array — cannot read it",
   "agents.showFollowsRoot": "This unit has no .ruler/ruler.project.toml of its own: ruler follows the git root ({root})",
-  "agents.mismatch": "The two lists differ, and ruler follows default_agents. Make them match with guideline agents add|remove <name>"
+  "agents.mismatch": "The two lists differ, and ruler follows default_agents. Make them match with guideline agents add|remove <name>",
+  "todo.agentsMismatch": "Coding agents differ: guideline.json has {agents}, but ruler follows default_agents in {file} ({rulerAgents}) — make them match with guideline agents add|remove <name>"
 }

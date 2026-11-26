@@ -810,5 +810,6 @@
   "agents.showNoLine": "ruler default_agents({file}): default_agents 줄이 없음 — ruler 는 아는 에이전트를 모두 쓴다",
   "agents.showUnreadable": "ruler default_agents({file}): 한 줄 배열이 아니라 읽을 수 없음",
   "agents.showFollowsRoot": "이 단위에는 자기 .ruler/ruler.project.toml 이 없음: ruler 는 git 루트({root})를 따름",
-  "agents.mismatch": "두 목록이 다름 — ruler 는 default_agents 를 따른다. guideline agents add|remove <이름> 으로 맞춘다"
+  "agents.mismatch": "두 목록이 다름 — ruler 는 default_agents 를 따른다. guideline agents add|remove <이름> 으로 맞춘다",
+  "todo.agentsMismatch": "코딩 에이전트가 어긋남: guideline.json 은 {agents}, ruler 가 따르는 {file} 의 default_agents 는 {rulerAgents} — guideline agents add|remove <이름> 으로 맞춘다"
 }

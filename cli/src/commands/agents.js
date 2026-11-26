@@ -5,13 +5,12 @@ import { MANIFEST, AGENTS, readManifest, manifestText, ManifestError } from '../
 import { PROJECT_TOML } from '../layout.js';
 import { unitInfo } from '../unit.js';
 import { writeFileAtomic } from '../apply.js';
-import { readDefaultAgents, setDefaultAgents, agentsMismatch } from '../agents.js';
+import { readDefaultAgents, setDefaultAgents, agentsMismatch, rulerAgentsSource } from '../agents.js';
 import { projectApply } from './project-apply.js';
 import { defaultRunRuler } from './sync-common.js';
 import { t } from '../i18n.js';
 
 const tomlFile = dir => path.join(dir, ...PROJECT_TOML.split('/'));
-const readText = file => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
 const sameSet = (a, b) => !agentsMismatch(a, b);
 
 /**
@@ -43,12 +42,8 @@ export async function agents({
     err(t('update.notYet'));
     return 2;
   }
-  const own = readText(tomlFile(dir));
-  const unit = own === null ? unitInfo(dir, git) : null;
-  // 자기 toml 이 없는 하위 단위: ruler 가 따르는 것은 루트의 default_agents
-  const follows = unit?.nested ? unit.root : null;
-  const rulerFile = tomlFile(follows ?? dir);
-  const rulerText = follows ? readText(rulerFile) : own;
+  const unit = unitInfo(dir, git);
+  const { own, follows, file: rulerFile, text: rulerText } = rulerAgentsSource(dir, unit);
   const ruler = readDefaultAgents(rulerText);
 
   if (action === undefined) return show({ manifest, ruler, rulerText, rulerFile, follows, json, out });
