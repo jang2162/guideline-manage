@@ -6,6 +6,8 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+## 0.27.0
+
 ### Added
 
 - **`guideline agents`:** shows a project's coding agents, and `guideline agents add <name>…` / `guideline agents remove <name>…` (claude, codex, opencode) change them without the form or the server. It changes `agents` in `guideline.json` and the `default_agents` line of `.ruler/ruler.project.toml` together, then applies. Before, an existing project had no way to change its agents: the pick form shows the agent checkboxes only for a new project, and editing `guideline.json` by hand left `default_agents`, which ruler follows, unchanged. In a monorepo unit without its own `ruler.project.toml`, it changes only that unit's `guideline.json`, because ruler follows the git root's `default_agents`.
