@@ -10,6 +10,7 @@ import { blockKey, isBlockKey } from './blocks.js';
 import { itemKey } from './selection.js';
 import { AGENTS } from './manifest.js';
 import { rulerTomlText } from './layout.js';
+import { readDefaultAgents } from './agents.js';
 import { t } from './i18n.js';
 
 const RULE = /^rules\/(.+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
@@ -66,9 +67,12 @@ export function diskReader(project) {
 /** 매니페스트가 없는 기존 프로젝트의 에이전트: ruler 설정(.ruler/ruler.project.toml, 없으면 ruler.toml)의 default_agents. */
 export function inferAgents(project) {
   const text = rulerTomlText(project);
-  const m = text === null ? null : /^\s*default_agents\s*=\s*\[([^\]]*)\]/m.exec(text);
-  const list = m ? [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1]).filter(a => AGENTS.includes(a)) : [];
-  return list.length ? [...new Set(list)] : ['claude', 'codex'];
+  const { agents, ok } = readDefaultAgents(text);
+  // 여러 줄 배열은 쓰기에는 안전하지 않지만 읽기에는 닫는 ] 까지 이어 읽어도 된다
+  const multi = ok ? null : /^\s*default_agents\s*=\s*\[([^\]]*)\]/m.exec(text);
+  const names = multi ? [...new Set([...multi[1].matchAll(/"([^"]+)"/g)].map(x => x[1]))] : agents ?? [];
+  const list = names.filter(a => AGENTS.includes(a));
+  return list.length ? list : ['claude', 'codex'];
 }
 
 export function kindOf(id) {

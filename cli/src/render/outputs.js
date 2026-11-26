@@ -13,7 +13,8 @@ import { t } from '../i18n.js';
 const RULE = /^rules\/(.+)\/(\d{2}-[a-z0-9][a-z0-9-]*\.md)$/;
 const SETUP = /^rules\/(.+)\/SETUP\.md$/;
 const lf = s => s.replace(/\r\n/g, '\n');
-const agentsList = agents => `[${[...agents].sort().map(a => JSON.stringify(a)).join(', ')}]`;
+/** `default_agents` 의 값: 정렬한 TOML 배열. */
+export const agentsList = agents => `[${[...agents].sort().map(a => JSON.stringify(a)).join(', ')}]`;
 
 /** 새 ruler 프로젝트(git 루트)의 `.ruler/ruler.toml` 첫 내용. */
 export const RULER_TOML_BASE = agents => `default_agents = ${agentsList(agents)}\nnested = false\n\n[gitignore]\nenabled = true\n`;
