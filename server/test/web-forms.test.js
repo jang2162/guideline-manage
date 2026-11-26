@@ -322,15 +322,25 @@ test('/data 는 personal.role 을 넘기고 다른 personal 필드는 거른다'
   assert.equal((await getAs(g.s, c, `/forms/${g.id}/data`)).json().personal.role, null);
 });
 
-test('정적 forms.js 는 역할이 있으면 개인 폼 제목에 역할 이름을 보인다(personalRoleTitle)', async t => {
-  const s = await startApp(t);
-  const src = (await s.req('/static/forms.js')).text;
-  assert.ok(src.includes("'web.client.personalRoleTitle'"));
-  const f = await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui' } });
-  const cookie = await openForm(f);
-  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
-  assert.ok(page.includes('"web.client.personalRoleTitle"'));
+test('폼 제목과 부제는 모드마다 다르다: 프로젝트 지침 설정 / 로컬에서 사용할 지침(역할이면 역할 이름)', async t => {
+  const view = async f => (await getAs(f.s, await openForm(f), `/forms/${f.id}`)).text;
+  const proj = await view(await setup(t));
+  assert.match(proj, /<title>프로젝트 지침 설정<\/title>/);
+  assert.match(proj, /<h1>프로젝트 지침 설정<\/h1>/);
+  assert.doesNotMatch(proj, /지침 내보내기/);
+  const mine = await view(await setup(t, {}, { mode: 'personal', personal: PERSONAL }));
+  assert.match(mine, /<title>로컬에서 사용할 지침<\/title>/);
+  assert.match(mine, /<h1>로컬에서 사용할 지침<\/h1>/);
+  assert.match(mine, /\/x\/p · 이 기계에만 저장 · 커밋되는 파일은 바뀌지 않음/);
+  const role = await view(await setup(t, {}, { mode: 'personal', personal: { ...PERSONAL, role: 'ui' } }));
+  assert.match(role, /<title>로컬에서 사용할 지침 — 역할 ui<\/title>/);
+  assert.match(role, /<h1>로컬에서 사용할 지침 — 역할 ui<\/h1>/);
+  // 역할 표시는 서버가 그린다. 화면 스크립트가 부제를 다시 쓰지 않는다
+  const src = (await f0(t)).text;
+  assert.doesNotMatch(src, /personalRoleTitle/);
 });
+
+const f0 = async t => (await startApp(t)).req('/static/forms.js');
 
 test('정적 forms.js 는 개인 폼을 켬·끔 토글(data-toggle)로 그리고 그대로·더함·뺌 라디오는 없다', async t => {
   const s = await startApp(t);

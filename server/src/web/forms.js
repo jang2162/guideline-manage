@@ -50,6 +50,13 @@ function personalData(p) {
   return out;
 }
 
+/** 폼 제목: 프로젝트 폼과 로컬(개인) 폼을 이름부터 나눈다. 역할 폼은 로컬 제목에 역할 이름을 붙인다. */
+function formTitle(f) {
+  if (f.payload.mode !== 'personal') return t('web.form.title.project');
+  const role = f.payload.personal?.role;
+  return typeof role === 'string' && role ? t('web.form.title.role', { name: role }) : t('web.form.title.personal');
+}
+
 function subtitle(f) {
   const p = f.payload.project;
   if (f.payload.mode === 'personal') return `${p.path} · ${t('web.form.personal')}`;
@@ -104,7 +111,7 @@ export function registerForms(router) {
       return;
     }
     const f = formOf(ctx);
-    sendPage(ctx.res, 200, { title: t('web.form.title'), nav: false, wide: true, scripts: ['/static/forms.js'], body: formBody(f) });
+    sendPage(ctx.res, 200, { title: formTitle(f), nav: false, wide: true, scripts: ['/static/forms.js'], body: formBody(f) });
   });
 
   router.add('GET', '/forms/:id/data', ctx => {

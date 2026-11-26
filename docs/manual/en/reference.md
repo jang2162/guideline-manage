@@ -237,7 +237,7 @@ A 0.24 server refuses a CLI that does not send the stack form's `formVersion` wi
 
 ## The pick form
 
-`guideline pick` opens this form. Each item shows its state.
+`guideline pick` opens this form, titled "Project guidelines". Each item shows its state.
 
 | Shown | Meaning | When checked |
 | --- | --- | --- |
@@ -272,7 +272,7 @@ A 0.24 server refuses a CLI that does not send the stack form's `formVersion` wi
 
 ### The personal form
 
-`guideline pick --local` opens the same form in personal mode. Its subtitle ends with "my personal selection".
+`guideline pick --local` opens the same form in personal mode, titled "Guidelines on this machine". Its subtitle ends with "saved on this machine only · committed files do not change".
 
 - The **Fixed** group comes first and is locked: a Fixed block shows "Fixed — cannot turn off"; a stack above one shows "Holds a fixed block — cannot turn off".
 - The **On / off** group below holds every block that is not Fixed, each with an **On**/**Off** switch. Blocks the project gets carry **Default** and start on; the rest start off. A block you changed carries **I turned on** or **I turned off**.
@@ -280,7 +280,7 @@ A 0.24 server refuses a CLI that does not send the stack form's `formVersion` wi
 - Turning on a child stack turns on its ancestors. Turning off a stack turns off the stacks below it.
 - A line at the top says what is pre-checked: "my selection for this project" or "my defaults".
 - **Review** shows how many blocks you receive (fixed · default · turned on), lists what you turned on and off, and has **Save this selection as my default**. There is no uncommitted-changes warning, because nothing committed is written.
-- With `--role <name>` the form edits that role's layer. Its subtitle ends with "personal selection — role <name>", and a block your common selection added carries **My common choice** instead of **Default** (a 0.28 CLI is needed for that mark). A 0.24 server shows the plain personal form instead.
+- With `--role <name>` the form edits that role's layer. Its title reads "Guidelines on this machine — role <name>", and a block your common selection added carries **My common choice** instead of **Default** (a 0.28 CLI is needed for that mark). A 0.24 server shows the plain personal form instead.
 - In a monorepo subdirectory the personal form does not block skills, subagents and MCP servers, which are received only at the git root. Add them in the git root's personal selection.
 
 ## Token scopes

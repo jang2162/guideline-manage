@@ -22,7 +22,7 @@ Your additions and removals are your **personal selection**, stored in git's own
    guideline pick --local
    ```
 
-   The form opens with the subtitle "my personal selection". It shows the source at the revision the project received.
+   The form opens with the title "Guidelines on this machine". It shows the source at the revision the project received.
 
 2. Turn blocks **On** or **Off**.
    - Every block that is not Fixed has a switch. A block the project gets carries **Default** and starts on; the others start off. A block you changed carries **I turned on** or **I turned off**.
@@ -122,7 +122,7 @@ No environment variable changes the role.
 
 2. Choose the role's blocks in the personal form, one form per source. It is the personal form described above, with two differences:
    - The role sits on the project's choice plus your common selection: a block your common selection added starts on and carries **My common choice** instead of **Default**. Turning it off removes it in the role's layer.
-   - The subtitle ends with "personal selection — role frontend". A 0.24 server ignores the role, so it shows the plain personal form; the result is the same.
+   - The title reads "Guidelines on this machine — role frontend". A 0.24 server ignores the role, so it shows the plain personal form; the result is the same.
 3. Submit. The role is created when it does not exist yet.
 
 The form pre-checks the role's current definition. Without one, it pre-checks that server's saved defaults for the role, otherwise nothing.
