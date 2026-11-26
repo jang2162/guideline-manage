@@ -6,6 +6,8 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+## 0.28.0
+
 ### Changed
 
 - **The pick form offers Not used · Default · Fixed per block.** The block checkbox and its separate **Required** checkbox become one choice of three, on stack rows and on MCP server, subagent and skill rows. Step tabs count "fixed n · default n", and **Review** groups the chosen blocks by Fixed and Default. A form made by a CLI that does not send `required` has the Fixed choice turned off.
