@@ -7,15 +7,31 @@ import { t } from './i18n.js';
 // `.ruler/ruler.project.toml` 의 최상위 `default_agents` 한 줄을 읽고 바꾼다. ruler 가 실제로 따르는 에이전트 목록이 이것이고,
 // guideline.json 의 agents 는 조합(MCP 표, ruler 출력 정리)이 쓴다. 두 목록을 함께 고치는 것은 `guideline agents`.
 
-const HEADER = /^\s*\[/;
+// 표 머리 줄([a.b], [[a]], 뒤에 주석 허용). 앞 키의 여러 줄 배열 안의 `["a"],` 같은 줄은 bracketDepth 로 건너뛴다
+const HEADER = /^\s*\[\[?\s*[A-Za-z0-9_."' -]+\s*\]\]?\s*(?:#.*)?\r?$/;
 const LINE = /^(\s*default_agents\s*=\s*)(.*?)(\r?)$/;
+const KEY_VALUE = /^\s*[A-Za-z0-9_."'-]+\s*=\s*(.*)$/;
+
+/** 문자열과 주석을 뺀 한 줄의 [ 개수 - ] 개수. */
+function bracketDepth(line) {
+  const bare = line.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, '').replace(/#.*$/, '');
+  return (bare.match(/\[/g)?.length ?? 0) - (bare.match(/\]/g)?.length ?? 0);
+}
 
 /** 최상위(첫 표 머리 앞) default_agents 줄의 번호와 값. 없으면 null. */
 function findLine(lines) {
+  let depth = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (HEADER.test(lines[i])) return null;
+    if (depth > 0) {
+      // 앞 키의 여러 줄 값 안이다
+      depth += bracketDepth(lines[i]);
+      continue;
+    }
     const m = LINE.exec(lines[i]);
     if (m) return { i, prefix: m[1], value: m[2], cr: m[3] };
+    if (HEADER.test(lines[i])) return null;
+    const kv = KEY_VALUE.exec(lines[i]);
+    if (kv) depth = Math.max(0, bracketDepth(kv[1]));
   }
   return null;
 }

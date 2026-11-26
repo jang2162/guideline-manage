@@ -47,3 +47,14 @@ test('agentsMismatch 는 집합이 다를 때만 true, toml 쪽이 없으면 fal
   assert.equal(agentsMismatch(['claude'], ['claude', 'codex']), true);
   assert.equal(agentsMismatch(['claude'], null), false);
 });
+
+test('앞 키의 여러 줄 배열 안에 [ 로 시작하는 줄이 있어도 최상위 default_agents 를 찾는다(리뷰 4)', () => {
+  const text = 'foo = [\n  ["a"],\n  ["b"]\n]\ndefault_agents = ["claude"]\n\n[agents.claude]\nenabled = true\n';
+  assert.deepEqual(readDefaultAgents(text), { agents: ['claude'], ok: true });
+  assert.equal(setDefaultAgents(text, ['claude', 'opencode']), text.replace('["claude"]', '["claude", "opencode"]'));
+});
+
+test('주석이 붙은 표 머리와 배열 표 머리 뒤의 default_agents 는 최상위가 아니다', () => {
+  assert.deepEqual(readDefaultAgents('nested = false\n[gitignore] # 주석\ndefault_agents = ["codex"]\n'), { agents: null, ok: true });
+  assert.deepEqual(readDefaultAgents('[[x.y]]\ndefault_agents = ["codex"]\n'), { agents: null, ok: true });
+});
