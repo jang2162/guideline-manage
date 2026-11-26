@@ -26,7 +26,7 @@ test('바꿈이 틀리면 valid 가 거짓이고 이유가 붙는다', t => {
   ].join('\n'));
   const list = checkOverrides(readProjectOverrides(project), root);
   assert.deepEqual(list.map(o => [o.heading, o.valid, o.reason]), [
-    ['첫 줄 없음', false, '첫 줄이 「바꾸는 절: `<스택>/<파일>` 「<## 절 제목>」」 꼴이 아님'],
+    ['첫 줄 없음', false, '첫 줄이 「바꾸는 절: `<스택>/<파일>` 「<절 제목>」」 꼴이 아님'],
     ['다른 스택', false, '다른 스택(demo)의 절을 가리킴'],
     ['없는 파일', false, '원본에 base/07-none.md 이 없음'],
     ['없는 절', false, 'base/00-alpha.md 에 「없는 절」 절이 없음'],
@@ -66,5 +66,17 @@ test('바꿈은 .guideline/overrides 의 override.md 와 override.d/*.md 의 ## 
     { file: '.guideline/overrides/base/override.d/01-beta.md', stack: 'base', heading: '베타 전체', target: 'rules/base/01-beta.md', title: null, valid: true },
     { file: '.guideline/overrides/base/override.md', stack: 'base', heading: '밖에 만든다', target: 'rules/base/00-alpha.md', title: '기본 절', valid: true },
     { file: '.guideline/overrides/deploy__a.b/override.md', stack: 'deploy__a.b', heading: '배포', target: 'rules/deploy__a.b/00-x.md', title: '배포 절', valid: true },
+  ]);
+});
+
+test('첫 줄의 절 제목 앞에 `## ` 를 붙여 써도 원본 절을 찾는다', t => {
+  const { root, project } = setup(t);
+  write(project, '.guideline/overrides/base/override.md', [
+    '## 한국어', '', '바꾸는 절: `base/00-alpha.md` 「## 기본 절」', '',
+    '## 영어', '', 'Overrides: `base/00-alpha.md` "##  기본 절"', '',
+  ].join('\n'));
+  assert.deepEqual(checkOverrides(readProjectOverrides(project), root).map(o => [o.heading, o.title, o.valid]), [
+    ['한국어', '기본 절', true],
+    ['영어', '기본 절', true],
   ]);
 });

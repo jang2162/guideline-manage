@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { headings, sectionsAt } from './sections.js';
+import { bareTitle, headings, sectionsAt } from './sections.js';
 import { stackFiles } from './catalog.js';
 import { asTree, readText } from './tree.js';
 import { GUIDE_DIR } from './layout.js';
@@ -24,7 +24,7 @@ function parse(file, stack, section) {
   const m = OVERRIDE_LINES.map(re => re.exec(first)).find(Boolean);
   if (!m) return { file, stack, heading: section.title, target: null, title: null, reason: FIRST_LINE_BAD() };
   const [, targetStack, targetFile, title] = m;
-  const o = { file, stack, heading: section.title, target: `rules/${targetStack}/${targetFile}`, title: title ?? null };
+  const o = { file, stack, heading: section.title, target: `rules/${targetStack}/${targetFile}`, title: title ? bareTitle(title) : null };
   if (targetStack !== stack) o.reason = t('overrides.otherStack', { stack: targetStack });
   return o;
 }

@@ -1,4 +1,4 @@
-import { outsideFences } from './sections.js';
+import { bareTitle, outsideFences } from './sections.js';
 
 export { headings } from './sections.js';
 
@@ -14,7 +14,7 @@ const CELL = /^`([^`/]+(?:\/[^`/]+)*)`\s*(?:「(.+)」|"(.+)")$/;
 /** `<파일>` 「<절 제목>」 이나 `<파일>` "<절 제목>" 셀을 읽는다. 읽을 수 없으면 null. */
 function cell(text) {
   const m = CELL.exec(text.trim());
-  return m ? { ref: m[1], title: m[2] ?? m[3] } : null;
+  return m ? { ref: m[1], title: bareTitle(m[2] ?? m[3]) } : null;
 }
 
 /**

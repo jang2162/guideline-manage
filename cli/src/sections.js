@@ -53,6 +53,11 @@ export function headingLines(lines) {
  * @param {string} text
  * @returns {Set<string>}
  */
+/** 절 제목 지정에서 앞의 `## ` 를 뗀다. 안내의 `<## 절 제목>` 을 글자 그대로 따라 `## ` 까지 쓴 것도 받는다. */
+export function bareTitle(title) {
+  return title.replace(/^#{2}\s+/, '');
+}
+
 export function headings(text) {
   return new Set(headingLines(toLines(text)).filter(h => h.level === 2).map(h => h.title));
 }

@@ -54,3 +54,10 @@ test('headings 는 코드 블록 밖의 ## 제목만 글자 그대로 모은다'
   const text = '---\nload: always\n---\n\n# 제목\n\n## 첫 절  \n\n```markdown\n## 예시 안의 제목\n```\n\n### 하위\n\n## 둘째 절\n';
   assert.deepEqual([...headings(text)], ['첫 절', '둘째 절']);
 });
+
+test('overrideRows 는 셀의 절 제목 앞에 붙은 `## ` 를 뗀다', () => {
+  const text = '# orca\n\n## 다른 스택을 바꾸는 것\n\n| 이 스택 | 바꾸는 절 |\n| --- | --- |\n| `05-switch.md` 「## 바꾸는 절」 | `base/00-alpha.md` "## 기본 절" |\n';
+  assert.deepEqual(overrideRows(text), [
+    { from: { file: '05-switch.md', title: '바꾸는 절' }, to: { stack: 'base', file: '00-alpha.md', title: '기본 절' } },
+  ]);
+});

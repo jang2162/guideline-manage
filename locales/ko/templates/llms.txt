@@ -179,7 +179,7 @@ guideline proposals <번호>              # 제안 하나: Outdated·충돌, 파
 - **`.guideline/` 의 사본(`overrides/` 만 빼고 모두)과 `guideline.json`·`guideline-lock.json` 은 직접 고치지 않는다.** CLI 가 쓴다. 고친 것을 공용으로 하려면 `guideline propose` 로 올린다.
 - **생성물(`.ruler/<스택>/`, `.ruler/guideline.md`, `.ruler/skills/`, `.ruler/ruler.toml`, `docs/guideline/`)은 고치지 않는다.** 다음 `guideline apply` 가 덮어쓴다. ruler 설정은 `.ruler/ruler.project.toml` 에 둔다.
 - **`.guideline/rules/<스택>/` 과 생성물인 `.ruler/<스택>/` 폴더 안에 프로젝트 파일을 두지 않는다**(하위 폴더도 마찬가지다). 받은 스택 폴더는 원본의 것이라, 원본에 없는 파일이나 하위 폴더는 「원본에서 사라짐」 으로 보인다. 프로젝트 고유 규칙은 아래 바꿈이나 `.ruler/*.md` 에 쓴다.
-- 이 프로젝트에만 다르게 할 것은 **바꿈**에 쓴다: `.guideline/overrides/<스택 경로>/override.md`(또는 `override.d/*.md`, 하위 스택은 `.guideline/overrides/<부모>/<하위>/override.md`). 바꿈마다 첫 줄에 ``바꾸는 절: `<스택>/<파일>` 「<## 절 제목>」`` 을 쓴다(파일 전체면 「」 를 뺀다). 바꿈이 사본보다 우선하고, CLI 는 바꿈을 건드리지 않는다.
+- 이 프로젝트에만 다르게 할 것은 **바꿈**에 쓴다: `.guideline/overrides/<스택 경로>/override.md`(또는 `override.d/*.md`, 하위 스택은 `.guideline/overrides/<부모>/<하위>/override.md`). 바꿈마다 첫 줄에 ``바꾸는 절: `<스택>/<파일>` 「<절 제목>」`` 을 쓴다(파일 전체면 「」 를 뺀다. 절 제목은 원본의 `## ` 뒤를 글자 그대로 옮긴다). 바꿈이 사본보다 우선하고, CLI 는 바꿈을 건드리지 않는다.
 - 스택 세팅이 필요하면 `docs/guideline/<스택>/SETUP.md` 를 따른다. 개인 범위 스택(`setup-personal`)이면 커밋되는 파일을 바꾸지 않는다.
 - **`<git 공용 디렉터리>/guideline/units/` 의 개인 사본은 고치지 않는다.** `guideline update` 가 덮어쓰고 `propose` 는 보내지 않는다. 작업자가 받는 것은 `guideline pick --local` 로 바꾼다.
 - 비밀값은 제안에도 담지 않는다. MCP 의 값은 `${VAR}` 참조로 쓴다.

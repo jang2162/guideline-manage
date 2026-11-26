@@ -6,6 +6,10 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+### Fixed
+
+- **Section titles written with `## `:** a project override's first line (``Overrides: `<stack>/<file>` "## <title>"``) and a cell of a stack README's override table now find the section when the title starts with `## `, as the old `<## section title>` placeholder suggested. Before, the CLI reported an `override-target` to-do (or a bad table row) for a section that exists, and the composed `AGENTS.md` kept the original section next to the override, so the two contradicting rules were both injected. The placeholder in the management guideline, `/llms.txt` and the error messages is now `<section title>`, with "copy the title after `## ` exactly".
+
 ## 0.26.0
 
 ### Added

@@ -292,7 +292,7 @@ test('warnings 는 바꿈 표의 틀린 행 다섯 종류를 README 경로로 �
     { path, message: '`base/00-alpha.md` 「없는 절」 — 그 파일에 이 ## 절 제목이 없음' },
     { path, message: '`00-ref.md` — 바꾸는 절의 파일이 load: always 가 아님' },
     { path, message: '`orca/00-ref.md` 「참조 절」 — 바뀌는 절이 같은 스택에 있음' },
-    { path, message: '| 05-switch.md 「바꾸는 절」 | `base/00-alpha.md` 「기본 절」 | — 셀 형식을 읽을 수 없음. `<파일>` 「<## 절 제목>」 형식으로 써야 함' },
+    { path, message: '| 05-switch.md 「바꾸는 절」 | `base/00-alpha.md` 「기본 절」 | — 셀 형식을 읽을 수 없음. `<파일>` 「<절 제목>」 형식으로 써야 함' },
   ]);
   assert.equal(stackOverrides('orca', root).overrides.length, 1);
 });
