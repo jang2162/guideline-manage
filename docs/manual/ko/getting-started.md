@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/getting-started.md @ v0.23.0 -->
+<!-- source: docs/manual/en/getting-started.md @ v0.27.0 -->
 [English](../en/getting-started.md) | **한국어**
 
 # 시작하기
@@ -135,7 +135,7 @@ CLI 가 서버에서 원본을 받아 `.guideline/` 의 사본과 비교합니�
 > 프로젝트에 이미 있는 항목의 체크를 풀면 「제거」 입니다. 그 항목이 빨갛게 바뀌고 제출 버튼에 「제거 N 포함」 이 붙습니다.
 
 항목 상태와 폼의 기능은 [고르기 폼](reference.md#고르기-폼)에 모두 있습니다.
-고른 블록에 **필수**를 표시하면 누구도 자기에게서 그 블록을 빼지 못합니다.
+고른 블록에 **고정**을 표시하면 누구도 자기에게서 그 블록을 빼지 못합니다.
 프로젝트는 그대로 두고 내가 받는 것만 바꾸려면 `guideline pick --local` 을 쓰세요([내 머신에서만 지침 쓰기](how-to/use-guidelines-only-on-your-machine.md)).
 
 ## 5. 결과 확인과 커밋

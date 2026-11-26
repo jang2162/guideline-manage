@@ -89,7 +89,7 @@ guideline update --source company    # 그 출처만 최신으로
 작업자는 프로젝트 선택에 블록을 더하거나 거기서 뺄 수 있다. 자기에게만 적용되고, 프로젝트와 커밋되는 파일은 그대로다.
 
 ```bash
-guideline pick --local                       # 개인 폼: 블록마다 그대로 / 더함 / 뺌
+guideline pick --local                       # 개인 폼: 고정이 아닌 블록마다 켬 / 끔
 guideline pick --local --recommend r.json    # 미리 체크: {"add": {"블록 키": "이유"}, "remove": {"블록 키": "이유"}}. --yes 면 폼 없이 저장
 guideline pick --local --role frontend       # 개인 역할의 겹 — 공통 개인 선택 위에 얹는다
 guideline role use frontend                  # 이 워크트리가 그 역할을 쓴다(git 루트에서 반영). --none 은 지운다
@@ -97,8 +97,8 @@ guideline role use frontend                  # 이 워크트리가 그 역할을
 
 - **저장 자리.** 개인 선택은 git 공용 디렉터리의 `<git 공용 디렉터리>/guideline/units/<단위 키>/local.json` 이다(단위 키는 git 루트 단위면 `%root`, 그 밖은 단위 경로를 URL 인코딩한 것, 예: `packages%2Fapi`). 그 클론의 모든 워크트리가 함께 쓰고, 커밋되지 않는다. 개인 사본(`.guideline/` 과 `guideline-lock.json`)도 그 옆에 있다. git 저장소와 git 2.31 이상이 필요하다. 아니면 `pick --local` 이 코드 2 로 멈춘다.
 - **받는 것** = 프로젝트 선택 + 내 더함(조상 스택 포함) − 내 뺌(그 아래 하위 스택 포함). `guideline.json`·`guideline-lock.json`·`.guideline/`·`.gitignore` 블록은 바뀌지 않는다. 개인 범위에서만 나온 생성물은 git 의 `info/exclude` 에, 단위와 워크트리마다 한 블록으로 적힌다(`# START guideline personal files <단위 경로> @<워크트리>`, git 루트 단위와 메인 워크트리는 `.`).
-- **필수.** 프로젝트 pick 폼에서 고른 블록에 **필수** 를 표시할 수 있다(`guideline.json` 의 `sources.<이름>.required`). 필수 블록과 그것을 품은 스택은 누구도 개인 선택으로 뺄 수 없다. 전에 해 둔 뺌은 무시된다(할 일 `personal-ignored`).
-- **작업자에게 추천하기.** 프로젝트 파일이 아니라 그 작업자의 작업과 도구로 판단한다: `when` 이 도구를 말하는 스택(「<도구>를 쓰는 작업」)은 그 도구를 쓰는 작업자에게 맞는다. 그냥 `{"블록 키": "이유"}` 는 더함이다. 원본에 없는 키나 필수 블록의 뺌은 폼을 열기 전에 코드 2 로 멈춘다.
+- **고정.** 프로젝트 pick 폼에서 고른 블록에 **고정**을 표시할 수 있다(`guideline.json` 의 `sources.<이름>.required`). 고정 블록과 그것을 품은 스택은 누구도 개인 선택으로 뺄 수 없다. 전에 해 둔 뺌은 무시된다(할 일 `personal-ignored`).
+- **작업자에게 추천하기.** 프로젝트 파일이 아니라 그 작업자의 작업과 도구로 판단한다: `when` 이 도구를 말하는 스택(「<도구>를 쓰는 작업」)은 그 도구를 쓰는 작업자에게 맞는다. 그냥 `{"블록 키": "이유"}` 는 더함이다. 원본에 없는 키나 고정 블록의 뺌은 폼을 열기 전에 코드 2 로 멈춘다.
 - **머신 기본값.** 개인 폼의 「이 선택을 내 기본값으로」 는 서버 주소(origin)마다 `~/.config/guideline/defaults.json`(`$XDG_CONFIG_HOME` 이 있으면 `$XDG_CONFIG_HOME/guideline/`)에 저장한다. 개인 선택이 아직 없는 프로젝트에서 개인 폼을 미리 체크하는 데만 쓰고, `update`·`apply` 는 읽지 않는다.
 - **최신 유지.** `pick --local` 은 개인 사본을 프로젝트 잠금의 리비전으로 받는다. `guideline update` 가 프로젝트와 개인 사본을 함께 올린다. `guideline apply` 는 어느 워크트리에서든 서버 없이 그것들을 조합한다. 개인 사본은 고치지 않는다: `update` 가 덮어쓰고 `propose` 는 보내지 않는다.
 - **세팅.** 개인 범위로만 받은 스택은 `setup` 대신 `setup-personal` 할 일을 낸다: 커밋되는 파일을 바꾸지 않고 세팅하고, 바꿔야 하는 단계는 사용자에게 알린다.
@@ -164,7 +164,7 @@ guideline proposals <번호>              # 제안 하나: Outdated·충돌, 파
 | `alias` | 별칭 문제다. 「스택 자리가 바뀜」 면 바꿈 파일을 `.guideline/overrides/<새 이름>/` 로 옮긴다. 그 밖은 `guideline.json` 의 `aliases` 를 고친다 |
 | `removed-upstream` | 알리고, 지우려면 `guideline pick` 을 하자고 한다(`scope: "personal"` 이면 `guideline pick --local`) |
 | `setup-personal` | 개인 범위로만 받은 스택에 세팅 문서가 있다. `setup` 처럼 `docs/guideline/<스택>/SETUP.md` 를 따르되 커밋되는 파일(`package.json`, 커밋되는 설정, `.gitignore`, `.ruler/ruler.project.toml` …)은 바꾸지 않는다. 바꿔야 하는 단계를 조용히 건너뛰지 말고 무엇을 바꾸게 되는지 사용자에게 알린다 |
-| `personal-ignored` | 작업자가 개인으로 뺀 블록을 프로젝트가 필수로 정해 그 뺌을 무시했다. 사용자에게 알리고, `guideline pick --local` 에서 정리한다 |
+| `personal-ignored` | 작업자가 개인으로 뺀 블록을 프로젝트가 고정으로 정해 그 뺌을 무시했다. 사용자에게 알리고, `guideline pick --local` 에서 정리한다 |
 | `personal-shadowed` | 개인으로 더한 블록이 프로젝트가 다른 출처에서 고른 블록과 최종 이름이 같아 쓰지 않는다. `pick --local` 에서 나왔으면 저장하지 않은 것이고, 아니면 `guideline pick --local` 에서 정리한다 |
 | `personal-revision` | 개인 사본과 프로젝트 사본이 한 출처의 다른 리비전이다(다른 워크트리에서 `update`). 바꿈이 가리키는 절이 어긋날 수 있다. `guideline update` 를 돌린다 |
 | `personal-sync` | 개인 사본을 받지 못했다(쓰기 오류, 또는 읽을 수 없는 개인 잠금: 문구의 파일을 지운다). 프로젝트 반영은 끝났다. 고친 뒤 `guideline update` 를 다시 돌린다 |

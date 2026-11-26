@@ -89,7 +89,7 @@ guideline update --source company    # update only that source
 A worker can add blocks to the project's choice, or remove blocks from it, for themselves only. The project and its committed files stay as they are.
 
 ```bash
-guideline pick --local                       # the personal form: As project / Add / Remove per block
+guideline pick --local                       # the personal form: On / Off per block that is not Fixed
 guideline pick --local --recommend r.json    # pre-checked: {"add": {"block key": "reason"}, "remove": {"block key": "reason"}}; --yes saves it without the form
 guideline pick --local --role frontend       # a personal role's layer, on top of the common personal selection
 guideline role use frontend                  # this worktree uses that role (applies from the git root); --none clears it
@@ -97,8 +97,8 @@ guideline role use frontend                  # this worktree uses that role (app
 
 - **Where it is kept.** The personal selection is `local.json` in git's common directory, `<git common dir>/guideline/units/<unit key>/` (unit key `%root` for the git root unit, otherwise the URL-encoded unit path, such as `packages%2Fapi`). Every worktree of the clone shares it, and it is never committed. The personal copies (`.guideline/` and `guideline-lock.json`) live next to it. It needs a git repository and git 2.31 or later; otherwise `pick --local` stops with exit code 2.
 - **What you receive** = the project's choice + your additions (with their ancestor stacks) − your removals (with the child stacks below them). `guideline.json`, `guideline-lock.json`, `.guideline/` and the `.gitignore` block do not change. Generated files that come only from the personal scope are listed in git's `info/exclude`, in a block per unit and worktree (`# START guideline personal files <unit path> @<worktree>`, `.` for the git root unit and for the main worktree).
-- **Required.** In the project's pick form a chosen block can be marked **Required** (`sources.<name>.required` in `guideline.json`). Nobody can remove a Required block, or a stack that holds one, in a personal selection; a removal left from before is ignored (to-do `personal-ignored`).
-- **Recommending for a worker.** Judge from the worker's own work and tools, not from the project's files: a stack whose `when` names a tool ("work that uses <tool>") fits a worker who uses that tool. A plain `{"block key": "reason"}` means add. A key not in the source, or a removal of a Required block, stops with exit code 2 before the form opens.
+- **Fixed.** In the project's pick form a chosen block can be marked **Fixed** (`sources.<name>.required` in `guideline.json`). Nobody can remove a Fixed block, or a stack that holds one, in a personal selection; a removal left from before is ignored (to-do `personal-ignored`).
+- **Recommending for a worker.** Judge from the worker's own work and tools, not from the project's files: a stack whose `when` names a tool ("work that uses <tool>") fits a worker who uses that tool. A plain `{"block key": "reason"}` means add. A key not in the source, or a removal of a Fixed block, stops with exit code 2 before the form opens.
 - **Machine defaults.** "Save this selection as my default" in the personal form stores it per server address (origin) in `~/.config/guideline/defaults.json` (`$XDG_CONFIG_HOME/guideline/` when it is set). It only pre-checks the personal form in a project where you have no personal selection yet; `update` and `apply` never read it.
 - **Updating.** `pick --local` receives the personal copies at the revision in the project's lock. `guideline update` updates the project and the personal copies together. `guideline apply` composes them in any worktree without the server. Do not edit the personal copies: `update` overwrites them and `propose` does not send them.
 - **Setup.** A stack received only personally gets a `setup-personal` to-do instead of `setup`: set it up without changing committed files, and tell the user about a step that would.
@@ -164,7 +164,7 @@ A to-do with `scope: "personal"` comes from the personal copies (`setup-personal
 | `alias` | An alias problem. For "the stack moved", move the override files to `.guideline/overrides/<new name>/`. Otherwise fix `aliases` in `guideline.json` |
 | `removed-upstream` | Tell the user, and suggest `guideline pick` to remove it (`guideline pick --local` when it has `scope: "personal"`) |
 | `setup-personal` | A stack received only in the personal scope has a setup doc. Follow `docs/guideline/<stack>/SETUP.md` as for `setup`, but do not change committed files (`package.json`, committed config, `.gitignore`, `.ruler/ruler.project.toml` …). Do not skip a step that would silently: tell the user what it would change |
-| `personal-ignored` | The project now marks a block Required that the worker removed personally, so the removal is ignored. Tell the user; clean it up with `guideline pick --local` |
+| `personal-ignored` | The project now marks a block Fixed that the worker removed personally, so the removal is ignored. Tell the user; clean it up with `guideline pick --local` |
 | `personal-shadowed` | A personal addition has the same final name as a block the project picked from another source, so it is not used. From `pick --local` it was not saved; otherwise clean it up with `guideline pick --local` |
 | `personal-revision` | The personal copies and the project's copies are at different revisions of a source (another worktree ran `update`), so overrides may point at sections that differ. Run `guideline update` |
 | `personal-sync` | The personal copies could not be updated (a write error, or a personal lock that cannot be read: delete the file named). The project was applied. Fix it and run `guideline update` again |

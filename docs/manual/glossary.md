@@ -37,8 +37,11 @@ Product names, commands, file names, setting keys and code stay untranslated.
 | form (pick form) | 폼 | |
 | display name | 표시 이름 | `label` |
 | category | 분류 | `categories` |
-| required blocks | 필요한 블록 | `requires`. Not the same as Required (`required`) |
-| Required (block) | 필수 (블록) | `required` of a source in `guideline.json`: a chosen block that nobody can remove in a personal selection |
+| required blocks | 필요한 블록 | `requires`. Not the same as Fixed (`required`) |
+| Fixed (block) | 고정 (블록) | `required` of a source in `guideline.json`: a chosen block that nobody can turn off in a personal selection. Called Required (필수) before 0.28 |
+| Default (block) | 기본 (블록) | A chosen block that is not Fixed: everyone gets it, and anyone can turn it off locally |
+| Not used (block) | 사용 안 함 | A block the project does not choose. Anyone can still turn it on locally |
+| On / Off | 켬 / 끔 | The personal form's switch for a block that is not Fixed |
 | alias | 별칭 | `aliases` in `guideline.json` |
 | unit directory | 단위 디렉터리 | A directory with `.ruler/` |
 | manifest | 매니페스트 | `guideline.json` |

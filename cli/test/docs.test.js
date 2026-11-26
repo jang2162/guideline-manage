@@ -157,7 +157,7 @@ test('개인 범위: 참조·설정·how-to·모노레포·문제 해결·올리
     for (const want of ['guideline pick --local', ...PERSONAL_KINDS.map(k => `\`${k}\``)]) assert.ok(up.includes(want), `${lang}/upgrade.md: ${want}`);
   }
   const glossary = read('docs/manual/glossary.md');
-  for (const want of ['| personal scope | 개인 범위 |', '| Required (block) | 필수 (블록) |', '| machine defaults | 머신 기본값 |', '| git common directory | git 공용 디렉터리 |']) assert.ok(glossary.includes(want), want);
+  for (const want of ['| personal scope | 개인 범위 |', '| Fixed (block) | 고정 (블록) |', '| machine defaults | 머신 기본값 |', '| git common directory | git 공용 디렉터리 |']) assert.ok(glossary.includes(want), want);
 });
 
 test('개인 범위: CHANGELOG 와 README 가 pick --local·필수·머신 기본값·모든 프로젝트의 override-target 을 적는다', () => {
@@ -185,8 +185,8 @@ test('개인 역할: how-to·참조·설정·문제 해결·올리기 문서가 
     assert.match(how, lang === 'en' ? /remove the parent stack itself in the role form/ : /역할 폼에서 부모 스택을 빼세요/, `${lang}/how-to: 자동 조상`);
     // role use 가 일부만 반영하고 실패하면 역할은 유지된다
     assert.match(how, lang === 'en' ? /the role stays[^\n]*guideline apply/ : /역할은 그대로[^\n]*guideline apply/, `${lang}/how-to: 부분 실패`);
-    // 역할 폼의 기준 열
-    assert.ok(how.includes(lang === 'en' ? 'project + my common selection get it' : '프로젝트·공통 선택이 받음'), `${lang}/how-to: 기준 열`);
+    // 역할 폼: 공통 선택이 더한 블록의 표시
+    assert.ok(how.includes(lang === 'en' ? '**My common choice**' : '**내 공통 선택**'), `${lang}/how-to: 내 공통 선택`);
     const ref = read(`docs/manual/${lang}/reference.md`);
     for (const want of ['guideline role', 'guideline role use <name>'.replace('<name>', lang === 'en' ? '<name>' : '<이름>'), '--role <name>'.replace('<name>', lang === 'en' ? '<name>' : '<이름>'), '"roles"', '`defined`', ...ROLE_KINDS.map(k => `\`${k}\``)]) {
       assert.ok(ref.includes(want), `${lang}/reference.md: ${want}`);

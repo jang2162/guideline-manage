@@ -30,7 +30,7 @@ Common options: `--project <path>` (default: current directory), `--server <URL>
 `guideline pick --recommend <file|-> --yes` applies the recommendation without creating a form or opening a browser. Use it only when nobody needs to review the choice.
 
 - It applies what the form would have opened with checked: the source's blocks in `guideline.json`, plus the recommended additions, the blocks they need (`requires`) and their ancestor stacks, minus the recommended removals. Removing a stack also removes its chosen child stacks, and the ancestors and dependencies that were checked only because of it, as unchecking it in the form does.
-- Required blocks stay Required. Recommending the removal of a Required block, or a stack that holds one, exits with code 2. So does a key both added and removed, an addition inside a stack recommended for removal (adding `rules/a/b` while removing `rules/a`), and a key not in the source. These checks run before anything is written, also before a project in the old layout is moved, and apply to the form (without `--yes`) and to `--local` too.
+- Fixed blocks stay Fixed. Recommending the removal of a Fixed block, or a stack that holds one, exits with code 2. So does a key both added and removed, an addition inside a stack recommended for removal (adding `rules/a/b` while removing `rules/a`), and a key not in the source. These checks run before anything is written, also before a project in the old layout is moved, and apply to the form (without `--yes`) and to `--local` too.
 - Agents stay as they are.
 - Files edited in the project are not overwritten: they are skipped with a `skipped` to-do, as `guideline update` does without `--force`. A removed block whose copy was edited keeps that copy, with a `leftover` to-do. Files in `.guideline/` that the source does not have stay. Blocked items stay blocked.
 - It refuses, with exit code 2 and nothing written, when the working tree has uncommitted changes or the project is not in a git repository (the form asks **Proceed anyway** then). Commit first.
@@ -73,7 +73,7 @@ The personal scope adds these kinds. `status` also prints `personal-ignored`, `p
 | Kind | Meaning |
 | --- | --- |
 | `setup-personal` | A stack received only in the personal scope has a setup doc. Follow `docs/guideline/<stack>/SETUP.md` without changing committed files, and tell the user about a step that would. Agents get it instead of `setup` |
-| `personal-ignored` | The project marks a block **Required** that you removed personally, so the removal is ignored. Clean it up with `guideline pick --local` |
+| `personal-ignored` | The project marks a block **Fixed** that you removed personally, so the removal is ignored. Clean it up with `guideline pick --local` |
 | `personal-shadowed` | A personal addition has the same final name (after aliases) as a block the project picked from another source, so it is not used, nor the blocks you added below it. `pick --local` does not save them; elsewhere, clean it up with `guideline pick --local` |
 | `personal-revision` | The personal copies and the project's copies are at different revisions of a source, for example after `update` in another worktree. Run `guideline update` (from `apply` and `status`) |
 | `personal-sync` | The personal copies could not be updated: a write error, or a personal lock that cannot be read (delete the file the message names). The project itself was applied. Run `guideline update` again |
@@ -118,7 +118,7 @@ Edit the copies in `.guideline/` (or send them upstream with `guideline propose`
 `items` of each source are **block keys**: `rules/<stack path>`, `skills/<name>`, `agents/<name>.md`, `mcp/<name>` (`"version": 3`).
 A child stack is listed together with its ancestor stacks, for example `["rules/browser", "rules/browser/browseros-neo"]`.
 An older file (`"version": 1` or `2`, with file paths) is read as before and rewritten as version 3 the next time `pick` or `update` writes it (a `manifest-v3` to-do says so).
-`required` of a source lists the blocks marked **Required** in the pick form, for example `"required": ["rules/browser"]`. Each must be one of `items`. Nobody can remove them, or the stacks above them, in a personal selection. `pick` drops a required block you unchecked.
+`required` of a source lists the blocks marked **Fixed** in the pick form, for example `"required": ["rules/browser"]`. Each must be one of `items`. Nobody can remove them, or the stacks above them, in a personal selection. `pick` drops a fixed block you unchecked.
 
 ## Personal scope
 
@@ -126,7 +126,7 @@ An older file (`"version": 1` or `2`, with file paths) is read as before and rew
 How to use it: [Use guidelines only on your machine](how-to/use-guidelines-only-on-your-machine.md).
 
 What you receive is the project's choice, plus your additions and their ancestor stacks, minus your removals and the stacks below them.
-A **Required** block and the stacks above it cannot be removed; such a removal is ignored with a `personal-ignored` to-do.
+A **Fixed** block and the stacks above it cannot be removed; such a removal is ignored with a `personal-ignored` to-do.
 Additions are limited to the sources in `guideline.json`.
 
 | Place | Contents |
@@ -143,7 +143,7 @@ The management guideline (`.ruler/guideline.md`) gets a "This worker's personal 
 - `pick --local` opens one personal form per source. It shows the source at the revision in the project's lock, and receives the personal copies at that revision. `guideline update` brings the project and the personal copies to the latest revision together.
 - `apply` composes the personal scope from the git common directory without the server, in any worktree.
 - `propose` never sends personal copies.
-- `--recommend` pre-checks the additions and removals in the form. A key not in the source, or a removal of a Required block or a stack that holds one, stops with exit code 2 before the form opens.
+- `--recommend` pre-checks the additions and removals in the form. A key not in the source, or a removal of a Fixed block or a stack that holds one, stops with exit code 2 before the form opens.
 - A personal addition hidden by a block with the same final name that the project picked from another source is not saved (`personal-shadowed`). The blocks below it are not saved either.
 - `local.json` or `defaults.json` that cannot be read stops `pick --local` with exit code 1; the file is not overwritten.
 
@@ -153,7 +153,7 @@ The management guideline (`.ruler/guideline.md`) gets a "This worker's personal 
 | --- | --- |
 | `added` | Blocks your common personal selection added that are received (`<source>:<key>` with several sources). `removed` and `ignored` are also the common layer's; the role's are in `role` |
 | `removed` | Blocks of the project's choice you do not receive, the stacks below a removed one included |
-| `ignored` | Removals ignored because the block is Required |
+| `ignored` | Removals ignored because the block is Fixed |
 | `shadowed` | `[{ id, by }]`: additions hidden by a block of source `by`, judged on what the worktree finally receives |
 | `role` | `{ name, defined, added, removed, ignored }` for this worktree's role, `null` without a role. `defined` is `false` when the role has a name but this unit does not define it; the lists are then empty |
 | `items` | `[{ id, state }]`: the personal copies and their states, as for the project's copies |
@@ -168,7 +168,7 @@ How to use it: [Use a role per worktree](how-to/use-guidelines-only-on-your-mach
 `apply`, `update`, `pick`, `pick --local` and `status` compose three layers: the project's choice, the common personal selection, then the role's layer from `roles.<name>` in `local.json`.
 
 - The role's layer sits on the result of the common layer, the stacks it fills in above your additions included. When the role removes only a block below such a stack, the stack stays; remove the stack itself to drop it.
-- A Required block and the stacks above it cannot be removed in the role's layer either (`personal-ignored`).
+- A Fixed block and the stacks above it cannot be removed in the role's layer either (`personal-ignored`).
 - A unit that does not define the worktree's role composes the common layer only, and `status` says so. When no unit of the worktree defines it, the worktree gets one `role-missing` to-do, even in a monorepo.
 - The personal copies hold the additions of every role, whichever worktree runs `update`.
 - The management guideline's personal section shows "Role: `<name>`" with the role's additions and removals when this unit defines the role.
@@ -224,7 +224,7 @@ How to make a language pack: [Add a language pack](how-to/add-a-language-pack.md
 
 `pick --local` exits with 2 when the folder is not in a git repository (or git is older than 2.31), nothing was received yet, the project is still in the old layout, or it is combined with `--new`.
 It exits with 1 when `local.json` or `defaults.json` cannot be read, or when the server does not know the personal form ("This server does not know the personal form").
-`pick --yes` exits with 2 without `--recommend`, with `--new`, with uncommitted changes in the working tree or outside a git repository (project mode), and for a recommended removal of a Required block. `pick --recommend` (with or without `--yes` and `--local`) exits with 2 for a key not in the source, a key both added and removed, and an addition inside a stack recommended for removal. Nothing is written then, and a project in the old layout is not moved.
+`pick --yes` exits with 2 without `--recommend`, with `--new`, with uncommitted changes in the working tree or outside a git repository (project mode), and for a recommended removal of a Fixed block. `pick --recommend` (with or without `--yes` and `--local`) exits with 2 for a key not in the source, a key both added and removed, and an addition inside a stack recommended for removal. Nothing is written then, and a project in the old layout is not moved.
 `pick --local --role` also exits with 2 for a role name that breaks the naming rule, and `pick --role` without `--local` exits with 2.
 `guideline role` exits with 2 outside a git repository, for a bad name or arguments, and when `use` names a role no unit defines. `role use` exits with the code `guideline apply` would (1 write failure, 2 nothing received or old layout).
 `guideline agents` exits with 2 for an unknown action or agent name, no names, removing the last agent, an unreadable `default_agents` line, nothing received yet and a project still in the old layout, without writing anything; otherwise `add` and `remove` exit with the code `guideline apply` would.
@@ -247,13 +247,18 @@ A 0.24 server refuses a CLI that does not send the stack form's `formVersion` wi
 | source updated | The source changed after you received it | **update** starts turned on |
 | edited in project | The project changed it after receiving it | Left as is. Turn on **overwrite** to revert it to the source |
 
-- **The form chooses whole stacks**, not single files. A stack row has one checkbox that covers all its files; the files under it have no checkboxes of their own.
+- **Each block gets one of three choices: Not used · Default · Fixed.** A line at the top of the form explains them.
+  - **Fixed**: everyone gets it, and nobody can turn it off in a personal selection (`required` in `guideline.json`).
+  - **Default**: everyone gets it, and anyone can turn it off locally with `guideline pick --local`.
+  - **Not used**: the project does not get it. Anyone can still turn it on locally.
+- **The form chooses whole stacks**, not single files. A stack row has one choice that covers all its files; the files under it have no choice of their own.
 - **Child stacks form a tree.** A child stack is indented under its parent and shows its `when`, the work that needs it. A parent that holds only child stacks (a bundle stack) is a row of its own.
-  - Checking a child stack checks its ancestors too, marked **Ancestor**.
-  - Checking a parent does not check its children.
-  - Unchecking an ancestor unchecks all its descendants.
-  - Unchecking a child also unchecks the ancestors that were checked only because of it, unless you checked them yourself, another chosen child stack is still under them, or another chosen block needs them (`requires`).
-- **Unchecking an item that is already there means "remove".** It turns red and the submit button says "includes N removal(s)".
+  - Choosing Default or Fixed for a child stack sets its ancestors to at least Default, marked **Ancestor**.
+  - Choosing a parent does not choose its children.
+  - Setting an ancestor to Not used sets all its descendants to Not used.
+  - Setting a child to Not used also releases the ancestors that were chosen only because of it, unless you chose them yourself, another chosen child stack is still under them, or another chosen block needs them (`requires`).
+- **Setting a block that is already there to Not used means "remove".** It turns red and the submit button says "includes N removal(s)". An item that is gone from the source keeps a checkbox instead: uncheck it to remove it.
+- A step tab counts its blocks as "fixed n · default n".
 - The form goes in steps: 1. Guidelines → 2. MCP → 3. Subagents → 4. Skills → 5. Review. Select a step tab at any time; submit from **Review** after seeing everything. Steps with nothing to choose are skipped.
 - Category buttons (`backend`, `browser` …) filter the items shown. Checks do not change. **All** clears the filter.
 - When a block needs another block (`requires`), choosing it checks that block too, marked **Dependency**. You can uncheck it, but a "X is missing — Y needs it" warning stays.
@@ -262,19 +267,20 @@ A 0.24 server refuses a CLI that does not send the stack form's `formVersion` wi
 - Items recommended with `--recommend` carry **Agent pick** and a reason. Blocks recommended for removal (`"remove"`) start unchecked and carry **Agent removal** and a reason (0.26+ server).
 - With uncommitted changes in the working tree you get a warning, and must check **Proceed anyway** to submit. Commit first, so you can review the result with `git diff`.
 - Items with a source warning show as "blocked" and cannot be checked; the reason is shown.
-- A chosen stack row, and a chosen MCP server, subagent or skill row, has a **Required** checkbox. A Required block cannot be removed in anyone's personal selection. Unchecking the block turns its Required box off. **Review** lists the Required blocks.
+- **Review** groups the chosen blocks under **Fixed** and **Default** by step, then lists updates and removals. A form made by a CLI older than 0.24 cannot handle Fixed, so its Fixed choice is turned off.
 - A form expires if it is not opened within 10 minutes, or after 90 seconds without page signals once opened.
 
 ### The personal form
 
 `guideline pick --local` opens the same form in personal mode. Its subtitle ends with "my personal selection".
 
-- Each block shows whether the project gets it, and three choices: **As project**, **Add** and **Remove**. Add is off for a block the project already gets; Remove is off for one it does not.
-- A Required block shows "Required — cannot remove"; a stack above one shows "Holds a required block — cannot remove".
-- Adding a child stack adds its ancestors the project does not get. Removing a stack removes the stacks below it. Turning a choice back to **As project** resets the stacks below that had the same choice.
+- The **Fixed** group comes first and is locked: a Fixed block shows "Fixed — cannot turn off"; a stack above one shows "Holds a fixed block — cannot turn off".
+- The **On / off** group below holds every block that is not Fixed, each with an **On**/**Off** switch. Blocks the project gets carry **Default** and start on; the rest start off. A block you changed carries **I turned on** or **I turned off**.
+- What is saved is still the difference from the project: turning off a Default block is a removal, turning on a Not used block is an addition (`local.json` `add`/`remove`).
+- Turning on a child stack turns on its ancestors. Turning off a stack turns off the stacks below it.
 - A line at the top says what is pre-checked: "my selection for this project" or "my defaults".
-- **Review** lists what you add and remove, and has **Save this selection as my default**. There is no uncommitted-changes warning, because nothing committed is written.
-- With `--role <name>` the form edits that role's layer. Its subtitle ends with "personal selection — role <name>", and the project column reads "project + my common selection get it" ("… do not get it"). A 0.24 server shows the plain personal form instead.
+- **Review** shows how many blocks you receive (fixed · default · turned on), lists what you turned on and off, and has **Save this selection as my default**. There is no uncommitted-changes warning, because nothing committed is written.
+- With `--role <name>` the form edits that role's layer. Its subtitle ends with "personal selection — role <name>", and a block your common selection added carries **My common choice** instead of **Default** (a 0.28 CLI is needed for that mark). A 0.24 server shows the plain personal form instead.
 - In a monorepo subdirectory the personal form does not block skills, subagents and MCP servers, which are received only at the git root. Add them in the git root's personal selection.
 
 ## Token scopes
@@ -294,14 +300,14 @@ The row stays hidden in the DB because revisions point to it; its name can be re
 - **Lists** show stacks, skills, subagents and MCP servers. Lists only add blocks. The home cards show top-level stacks only; child stacks are under their parent.
 - **Child stacks**: a stack's page lists its child stacks (and a **+ Add child stack** button for admins). A child stack is a block page of its own, at `/s/<parent>/<child>`, with its `when` shown.
 - **Block page**: the block list on the left, then the block's file tree (always ● · reference ○), then the chosen document. New file, upload, rename, delete and download live on the block page; **Download block (.tar.gz)** is in the top button row.
-- **Block settings** (`/settings/<kind>/<name>`, admin): save the display name and categories, edit **Required blocks**, set **When it is needed** (`when`, stacks only), add or upload files, rename the block or delete it. Renaming also fixes the `name:` line of subagents and skills and other blocks' `requires`. Renaming a stack changes only its last name part, and its child stacks and the `requires` keys that point into it change with it. Moving a stack under another parent is not done on the web: use `guideline source` and `propose --from`.
+- **Block settings** (`/settings/<kind>/<name>`, admin): save the display name and categories, edit **Fixed blocks**, set **When it is needed** (`when`, stacks only), add or upload files, rename the block or delete it. Renaming also fixes the `name:` line of subagents and skills and other blocks' `requires`. Renaming a stack changes only its last name part, and its child stacks and the `requires` keys that point into it change with it. Moving a stack under another parent is not done on the web: use `guideline source` and `propose --from`.
 - **File edit** shows a warning preview before saving. **New file** uses the language pack's `new-file/` templates.
 - **Docs** (`/docs`) is the first kind tab. It shows and creates `docs/<name>.md` documents. The authoring rules (`authoring.md`) and the management additions (`management.md`) are grouped as "Also read by agents" and cannot be renamed or deleted on the web. New documents are not sent to projects.
 - **Usage** renders `/llms.txt` with a **Copy link** button. It is open even with `PUBLIC_READ=0`.
 - **History** and **Proposals** show 30 per page (`?page=`). Revision and proposal pages show the changed files as a tree (kind → block → file) on the left and one chosen file (`?file=`) in the middle. Diffs longer than 80 lines fold. History pages also revert.
 - **Tokens**: issue, revoke and delete tokens.
 - **Display name**: `label` in a block's frontmatter. Shown on the web, in the pick form and in `guideline list`.
-- **Required blocks**: `requires: [rules/x]` in a block's frontmatter.
+- **Fixed blocks**: `requires: [rules/x]` in a block's frontmatter.
 - Visitors who are not logged in do not see the editing, proposal and token buttons; they get **Log in** at the top.
 
 ## Server API
@@ -338,7 +344,7 @@ Accepting is one revision (source `proposal`, author = token name, message "prop
 ### CLI login and forms
 
 - **CLI login**: `guideline login` opens `/cli/login`. Selecting **Issue** in an admin session sends a single-use, two-minute code to the CLI's `127.0.0.1` callback. The CLI exchanges it at `POST /api/v1/cli/token` for a read token named `cli-<host>-<6 chars>`. `DELETE /api/v1/tokens/self` revokes the sent token (`guideline logout`).
-- **Forms**: `POST /api/v1/forms` (2 MB body) creates a form and returns `/forms/<id>?k=<link token>`. A private server needs a read token; a public server lets anyone create a form. The link covers only that form and turns into a cookie (and leaves the address) when first opened. `GET /api/v1/forms/<id>/result?wait=` waits for the result. The request body carries `formVersion: 2` (stack choices); a body without it is refused with 426. The response lists `modes: ["project", "personal"]`; a body with `mode: "personal"` opens the personal form, and its result is `{ mode: "personal", add, remove, saveDefault, rejected: [] }` (block keys with aliases applied). A removal of a Required block is refused with 400. A form created with a token returns its result only to that token; a form created without a token, only to the admin or to a request with the link token in the `X-Form-Link` header. Forms finished more than a day ago are deleted when a new form is created.
+- **Forms**: `POST /api/v1/forms` (2 MB body) creates a form and returns `/forms/<id>?k=<link token>`. A private server needs a read token; a public server lets anyone create a form. The link covers only that form and turns into a cookie (and leaves the address) when first opened. `GET /api/v1/forms/<id>/result?wait=` waits for the result. The request body carries `formVersion: 2` (stack choices); a body without it is refused with 426. The response lists `modes: ["project", "personal"]`; a body with `mode: "personal"` opens the personal form, and its result is `{ mode: "personal", add, remove, saveDefault, rejected: [] }` (block keys with aliases applied). A removal of a Fixed block is refused with 400. A form created with a token returns its result only to that token; a form created without a token, only to the admin or to a request with the link token in the `X-Form-Link` header. Forms finished more than a day ago are deleted when a new form is created.
 - **`/llms.txt`**: the usage and setup guide for agents. It opens without login. It is the language pack's `templates/llms.txt`, with `{{SERVER}}` filled from `PUBLIC_URL`, rebuilt per request.
 
 ## Markers in guidelines

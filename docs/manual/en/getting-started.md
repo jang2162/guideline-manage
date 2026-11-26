@@ -134,7 +134,7 @@ The terminal waits until you submit the form.
 > Unchecking an item that the project already has means "remove". The item turns red and the submit button says "includes N removal(s)".
 
 Every item state and form control is described in [The pick form](reference.md#the-pick-form).
-A chosen block can be marked **Required**, so that nobody removes it for themselves.
+A chosen block can be marked **Fixed**, so that nobody removes it for themselves.
 To change only what you receive, without changing the project, use `guideline pick --local` ([Use guidelines only on your machine](how-to/use-guidelines-only-on-your-machine.md)).
 
 ## 5. Check the result and commit

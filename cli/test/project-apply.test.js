@@ -706,7 +706,7 @@ test('필수가 된 블록의 개인 뺌은 무시하고 알린다', async t => 
   assert.ok(back.written.includes('.ruler/base/00-a.md'));
   const todo = back.todos.find(x => x.kind === 'personal-ignored');
   assert.equal(todo.item, 'rules/base');
-  assert.equal(todo.message, 'rules/base: 필수가 된 블록이라 개인 뺌을 무시함 — guideline pick --local 에서 정리');
+  assert.equal(todo.message, 'rules/base: 고정이 된 블록이라 개인 뺌을 무시함 — guideline pick --local 에서 정리');
   // status 도 같은 할 일을 낸다(서버 없이)
   assert.ok((await statusKinds(p)).includes('personal-ignored'));
 });

@@ -6,6 +6,12 @@ Manual steps for upgrading are in [Upgrade the server and the CLI](docs/manual/e
 
 ## Unreleased
 
+### Changed
+
+- **The pick form offers Not used · Default · Fixed per block.** The block checkbox and its separate **Required** checkbox become one choice of three, on stack rows and on MCP server, subagent and skill rows. Step tabs count "fixed n · default n", and **Review** groups the chosen blocks by Fixed and Default. A form made by a CLI that does not send `required` has the Fixed choice turned off.
+- **The personal form turns blocks On or Off.** Fixed blocks (and the stacks that hold one) are locked at the top; every other block has an On/Off switch. Blocks the project gets carry **Default** and start on; the role form marks blocks added by your common selection **My common choice** (needs the 0.28 CLI, which sends the project's own choice with the role form). **Review** shows how many blocks you receive and what you turned on and off.
+- **"Required" is now called "Fixed"** in the CLI, the server's web, `llms.txt`, the `guideline-sync` skill and the manual. Only the names changed: `guideline.json` (`required`), `local.json` (`add`/`remove`) and the form API are the same, so older CLIs and servers keep working with new ones. Servers started before 0.28 keep the old `guideline-sync` wording until you update the seed ([upgrade](docs/manual/en/how-to/upgrade.md#update-the-seed-on-a-running-server)).
+
 ## 0.27.0
 
 ### Added

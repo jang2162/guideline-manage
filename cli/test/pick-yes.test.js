@@ -148,7 +148,7 @@ test('--yes 로 필수 블록(또는 그것을 품은 스택)을 빼라고 하�
     const e = collect();
     const code = await projectPick({ project: p, env, ...quiet, err: e.out, out: () => {}, fetchImpl, open: noForm, yes: true, recommend: rec({ remove: { [key]: '' } }) });
     assert.equal(code, 2, key);
-    assert.match(e.text(), /필수 블록\(또는 필수를 품은 스택\)은 빼라고 추천할 수 없음/);
+    assert.match(e.text(), /고정 블록\(또는 고정 블록을 품은 스택\)은 빼라고 추천할 수 없음/);
   }
   assert.deepEqual(log, []);
   assert.equal(read(p, MANIFEST), before);

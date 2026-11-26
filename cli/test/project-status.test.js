@@ -264,7 +264,7 @@ test('status 는 개인 더함·뺌과 개인 사본 상태를 보인다', async
   assert.match(text.text(), /^ {2}개인 범위 — 더함 1: rules\/extra$/m);
   assert.match(text.text(), /^ {2}개인 범위 — 뺌 1: skills\/s$/m);
   assert.match(text.text(), /^ {2}원본 새로 나옴 {2}rules\/extra\/00-e\.md \(개인 사본\)$/m);
-  assert.match(text.text(), /- rules\/base: 필수가 된 블록이라 개인 뺌을 무시함/);
+  assert.match(text.text(), /- rules\/base: 고정이 된 블록이라 개인 뺌을 무시함/);
 });
 
 test('status --json 의 personal.role 과 겹별 줄', async t => {

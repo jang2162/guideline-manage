@@ -414,7 +414,7 @@ test('관리 지침에 이 작업자의 더함·뺌과 세팅 규칙이 보인�
     '이 작업자는 프로젝트 선택 위에 아래 개인 선택을 얹었다. 개인 선택은 이 작업자의 git 저장소에만 있고 커밋되지 않는다. 개인 범위에서만 나온 생성물은 `.gitignore` 가 아니라 git 의 `info/exclude` 에 적힌다.', '',
     '- 더한 것: `rules/extra` (company)',
     `- 뺀 것: \`rules/${DEPLOY}\` (company), \`skills/team-s\` (team)`,
-    '- 무시된 뺌: `mcp/none` (team, 뺄 것이 없음), `rules/base` (company, 필수라 뺄 수 없음)',
+    '- 무시된 뺌: `mcp/none` (team, 뺄 것이 없음), `rules/base` (company, 고정이라 뺄 수 없음)',
     '- 개인 범위 스택(세팅 표에서 「개인」 표시)의 세팅은 세팅 문서를 따르되 커밋되는 파일을 바꾸지 않는다. 바꿔야 하는 단계(커밋되는 설정 파일, `.gitignore` 등)는 건너뛰지 말고 사용자에게 알린다.',
   ].join('\n')), guide);
   // 세팅 표: 개인으로 더한 스택만 「개인」
@@ -464,7 +464,7 @@ test('관리 지침의 개인 절은 공통 겹과 역할 겹을 나눠 보이�
     '- 역할: `ui`',
     '- 역할이 더한 것: `rules/extra` (company)',
     `- 역할이 뺀 것: \`rules/${DEPLOY}\` (company)`,
-    '- 역할에서 무시된 뺌: `rules/base` (company, 필수라 뺄 수 없음)',
+    '- 역할에서 무시된 뺌: `rules/base` (company, 고정이라 뺄 수 없음)',
     '- 개인 범위 스택',
   ].join('\n')), guide);
   assert.doesNotMatch(guide, /^- 더한 것:/m, '공통 겹은 더한 것이 없다');

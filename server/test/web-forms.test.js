@@ -274,7 +274,7 @@ test('개인 모드 제출은 personalSelection 결과를 결과로 둔다', asy
   assert.deepEqual(data.personal, { ...PERSONAL, role: null });
   const rejected = await postJson(f.s, `/forms/${f.id}/submit`, { personalChoices: { 'rules/base': 'remove' } }, { cookie });
   assert.equal(rejected.status, 400);
-  assert.match(rejected.json().error, /필수/);
+  assert.match(rejected.json().error, /고정/);
   const ok = await postJson(f.s, `/forms/${f.id}/submit`, {
     personalChoices: { 'rules/tools/deep': 'add', 'rules/web': 'remove', 'rules/base': 'add', 'skills/s': 'bogus' },
     saveDefault: true,

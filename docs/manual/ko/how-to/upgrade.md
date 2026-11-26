@@ -1,4 +1,4 @@
-<!-- source: docs/manual/en/how-to/upgrade.md @ v0.26.1 -->
+<!-- source: docs/manual/en/how-to/upgrade.md @ v0.27.0 -->
 [English](../../en/how-to/upgrade.md) | **한국어**
 
 # 서버와 CLI 올리기
@@ -33,11 +33,12 @@ npm install -g guideline-manage
 - 서버는 0.12.0 보다 낮은 CLI 를 「CLI 버전이 낮음 — guideline-manage 업데이트 필요」 로 거부합니다.
 - 공개 서버에서 토큰 없이 받으려면 CLI 0.16 이상이어야 합니다. 0.15 CLI 는 토큰이 없으면 서버에 묻기 전에 멈춥니다.
 - 폼을 쓰려면 **CLI 와 서버를 함께 0.24 이상으로 올리세요.** 폼은 파일이 아니라 스택 단위로 고르고 `guideline.json` 을 버전 3 으로 씁니다. 0.24 서버는 옛 CLI 의 폼을 426 으로 거절하고(서버 언어에 따라 「guideline CLI 를 0.24.0 이상으로 업데이트 필요」 또는 「update the guideline CLI to 0.24.0 or newer」), 0.24 CLI 는 서버가 옛날인 출처를 건너뜁니다(「서버가 CLI 보다 옛날」, 종료 코드 1). 갱신·상태·제안은 서버를 올리지 않아도 됩니다.
-- `guideline pick --local`(개인 범위)과 고르기 폼의 **필수** 표시도 0.24 서버가 필요합니다. 옛 서버는 개인 폼을 몰라 `pick --local` 이 「이 서버는 개인 폼을 모름」 으로 그 폼을 취소합니다(종료 코드 1).
+- `guideline pick --local`(개인 범위)과 고르기 폼의 **고정** 표시(0.28 전에는 **필수**)도 0.24 서버가 필요합니다. 옛 서버는 개인 폼을 몰라 `pick --local` 이 「이 서버는 개인 폼을 모름」 으로 그 폼을 취소합니다(종료 코드 1).
 - 새 CLI 로 처음 `pick` 이나 `update` 를 한 뒤 `guideline.json` 을 커밋하세요. 버전 3(블록 키)으로 다시 쓰이며, 옛 CLI 는 읽지 못합니다(CLI 언어에 따라 「version 이 1 이나 2 가 아님」 또는 「version is not 1 or 2」).
 - **서버도 CLI 와 함께 다시 배포하세요.** 고르기 폼의 스크립트(`/static/selection.js`)는 서버가 내주는데, 0.24 판은 `.guideline/` 에 남은 스킬·서브에이전트·MCP 서버를 맞는 단계에 보입니다. 옛 서버는 엉뚱한 단계에 보입니다.
 - **개인 역할은 버전 2 파일을 씁니다.** 0.24.0 보다 새 CLI 의 첫 `guideline pick --local`(또는 `guideline role remove`)은 `local.json` 을 버전 2 로 쓰고, 머신 기본값 저장은 `defaults.json` 을 버전 2 로 씁니다. 0.24.0 CLI 는 그것을 읽지 못합니다: 그 `apply`·`update`·`status` 는 프로젝트 선택만으로 조합하고(`local-bad` 할 일), 그 `pick --local` 은 종료 코드 1 로 멈춥니다. 그 파일을 함께 쓰는 모든 워크트리와 머신의 CLI 를 올리세요. 버전 1 파일도 그대로 읽습니다.
-- 역할 폼(`pick --local --role`)은 0.24 서버에서도 동작하며, 보통의 개인 폼으로 보입니다. 역할 부제와 「프로젝트·공통 선택이 받음」 열을 보려면 서버를 다시 배포하세요.
+- 0.28 부터 고르기 폼은 블록마다 **사용 안 함 · 기본 · 고정** 을 고르고, 개인 폼은 블록을 **켬**·**끔** 으로 고릅니다. 바뀐 것은 화면뿐입니다. `guideline.json`·`local.json`·폼 API 는 그대로라 0.24 이상 CLI 와 서버는 어떻게 섞여도 함께 돕니다. 폼은 서버가 내주므로 새 화면을 보려면 서버를 다시 배포하세요.
+- 역할 폼(`pick --local --role`)은 0.24 서버에서도 동작하며, 보통의 개인 폼으로 보입니다. 역할 부제와 「내 공통 선택」 표시(0.28)를 보려면 서버를 다시 배포하세요.
 - 0.20 이상 CLI 는 옛 서버에서도 동작합니다. 옛 서버는 `whoami` 가 404 라서 `guideline propose` 는 예전처럼 제안으로 보내고, `status`·`login` 은 토큰 범위를 보이지 않습니다. 옛 CLI 는 0.20 서버에서 예전과 같습니다.
 
 ## `.guideline/` 배치로 프로젝트 옮기기
@@ -104,6 +105,9 @@ npm install -g guideline-manage
 > **0.26 전에 띄운 서버:** `guideline-sync` 스킬이 `pick --recommend … --yes`(폼 없이 추천 반영)와 프로젝트 폼의 빼라는 추천을 모릅니다. 웹에서 언어팩 `templates/skills/guideline-sync/SKILL.md` 에서 옮겨 오세요: 「무엇을 할지」 의 「폼 없이 추천대로 반영」 행, 「추천해서 받기」 3·5단계의 `{"add": …, "remove": …}` 문장과 6단계(사용자가 폼 없이 반영하라고 했을 때만 `--yes`), 「개인 범위」 3단계의 `--yes` 문장. 없으면 에이전트는 계속 폼을 열어 안전합니다. 일부만 옮기면 사용자가 요청하지 않았는데 폼을 건너뛸 수 있습니다.
 
 > **0.27 전에 띄운 서버:** `guideline-sync` 스킬이 `guideline agents` 를 모릅니다. 웹에서 언어팩 `templates/skills/guideline-sync/SKILL.md` 에서 옮겨 오세요: 「무엇을 할지」 의 코딩 에이전트 행, 「할 일 처리」 의 `agents-mismatch`·`agents-unreadable` 행. 없으면 에이전트가 에이전트를 바꾸려고 폼을 띄울 수 있는데, 폼으로는 바꿀 수 없습니다.
+
+> [!WARNING]
+> **0.28 전에 띄운 서버:** `guideline-sync` 스킬이 고정 블록을 「필수」 라고 부르고, 역할 폼의 프로젝트 열이 「프로젝트·공통 선택이 받음」 이라고 적습니다. 웹에서 언어팩 `templates/skills/guideline-sync/SKILL.md` 에서 옮겨 오세요: 「개인 범위」 의 4 단계와 6 단계의 `--role` 문장, 「추천해서 받기」 의 5 단계, 「할 일 처리」 의 `personal-ignored` 행. 없어도 동작은 같고, 에이전트가 옛 화면을 설명할 뿐입니다.
 
 ## 다음 문서
 

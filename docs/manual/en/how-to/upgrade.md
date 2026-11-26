@@ -32,11 +32,12 @@ npm install -g guideline-manage
 - A server rejects a CLI older than 0.12.0 with "The CLI is too old — upgrade guideline-manage".
 - Fetching from a public server without a token needs CLI 0.16 or later. The 0.15 CLI stops before asking the server when it has no token.
 - **Upgrade the CLI and the server together to 0.24 or later** for the pick form: it chooses whole stacks and writes `guideline.json` version 3. A 0.24 server refuses an older CLI's form ("update the guideline CLI to 0.24.0 or newer"), and a 0.24 CLI skips a source whose server is older ("This server is older than the CLI", exit code 1). Updating, status and proposals do not need the server upgrade.
-- `guideline pick --local` (the personal scope) and the **Required** marks of the pick form need a 0.24 server too. An older server does not know the personal form: `pick --local` cancels it with "This server does not know the personal form" (exit code 1).
+- `guideline pick --local` (the personal scope) and the **Fixed** marks of the pick form (called **Required** before 0.28) need a 0.24 server too. An older server does not know the personal form: `pick --local` cancels it with "This server does not know the personal form" (exit code 1).
 - Commit `guideline.json` after the first `pick` or `update` with the new CLI. It is rewritten as version 3 (block keys); an older CLI cannot read it ("version is not 1 or 2").
 - **Redeploy the server together with the CLI.** The pick form's script (`/static/selection.js`) is served by the server, and the 0.24 one files the leftover skills, subagents and MCP servers of `.guideline/` under the right step. An older server shows them under the wrong step.
 - **Personal roles write version 2 files.** The first `guideline pick --local` (or `guideline role remove`) with a CLI newer than 0.24.0 writes `local.json` as version 2, and saving machine defaults writes `defaults.json` as version 2. A 0.24.0 CLI cannot read them: its `apply`, `update` and `status` compose from the project's choice only (`local-bad` to-do), and its `pick --local` stops with exit code 1. Upgrade the CLI in every worktree and on every machine that shares them. Version 1 files are still read.
-- The role form (`pick --local --role`) works with a 0.24 server, which shows it as the plain personal form. Redeploy the server for the role's subtitle and the "project + my common selection get it" column.
+- From 0.28 the pick form offers **Not used · Default · Fixed** per block and the personal form turns blocks **On** or **Off**. Only the screens changed: `guideline.json`, `local.json` and the form API are the same, so a 0.24 or later CLI and server still work together in any mix. The forms are served by the server, so redeploy it to get the new screens.
+- The role form (`pick --local --role`) works with a 0.24 server, which shows it as the plain personal form. Redeploy the server for the role's subtitle and the "My common choice" mark (0.28).
 - A 0.20 or later CLI works with an older server. `whoami` returns 404 there, so `guideline propose` sends proposals as before, and `status` and `login` show no token scope. An older CLI on a 0.20 server behaves as before.
 
 ## Move projects to the `.guideline/` layout
@@ -103,6 +104,9 @@ A server that was started before the versions below keeps the old text, so updat
 > **Servers started before 0.26:** the `guideline-sync` skill does not know `pick --recommend … --yes` (applying a recommendation without the form) or recommended removals in the project form. On the web, copy these from the language pack's `templates/skills/guideline-sync/SKILL.md`: the "Apply the recommendation without the form" row in "What to do", the `{"add": …, "remove": …}` sentences in steps 3 and 5 of "Recommend and receive", its step 6 (`--yes` only when the user said to apply without the form), and the `--yes` sentences in step 3 of "Personal scope". Without them an agent keeps opening the form, which is safe; with only part of them it may skip the form when the user did not ask for that.
 
 > **Servers started before 0.27:** the `guideline-sync` skill does not know `guideline agents`. On the web, copy the coding-agent row in "What to do" and the `agents-mismatch` and `agents-unreadable` rows in "Handling to-dos" from the language pack's `templates/skills/guideline-sync/SKILL.md`. Without them an agent may open the form to change agents, which cannot change them.
+
+> [!WARNING]
+> **Servers started before 0.28:** the `guideline-sync` skill calls Fixed blocks "Required" and says the role form's project column reads "project + my common selection get it". On the web, copy step 4 and the `--role` sentence of step 6 in "Personal scope", step 5 of "Recommend and receive", and the `personal-ignored` row in "Handling to-dos" from the language pack's `templates/skills/guideline-sync/SKILL.md`. Without them an agent describes the old screen; the behavior is the same.
 
 ## Next
 

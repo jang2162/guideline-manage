@@ -24,11 +24,11 @@ Your additions and removals are your **personal selection**, stored in git's own
 
    The form opens with the subtitle "my personal selection". It shows the source at the revision the project received.
 
-2. For each block, choose **As project**, **Add** or **Remove**.
-   - Each row says whether the project gets the block. Add is off for a block the project gets, and Remove is off for one it does not.
-   - Adding a child stack adds its ancestors too. Removing a stack removes the stacks below it.
-   - A **Required** block shows "Required — cannot remove". A stack that holds one shows "Holds a required block — cannot remove".
-3. On **Review**, check what you add and remove. Check **Save this selection as my default** if you want it to pre-check the form in other projects (see [Machine defaults](#machine-defaults)).
+2. Turn blocks **On** or **Off**.
+   - Every block that is not Fixed has a switch. A block the project gets carries **Default** and starts on; the others start off. A block you changed carries **I turned on** or **I turned off**.
+   - Turning on a child stack turns on its ancestors too. Turning off a stack turns off the stacks below it.
+   - A **Fixed** block is locked at the top with "Fixed — cannot turn off". A stack that holds one shows "Holds a fixed block — cannot turn off".
+3. On **Review**, check how many blocks you receive and what you turned on and off. Check **Save this selection as my default** if you want it to pre-check the form in other projects (see [Machine defaults](#machine-defaults)).
 4. Select **Submit — save my selection**.
 
 The terminal shows the generated files it wrote, as `pick` does.
@@ -121,8 +121,8 @@ No environment variable changes the role.
    A role name starts with a lowercase letter and uses lowercase letters, digits and `-`, up to 32 characters. Another name, or `--role` without `--local`, stops with exit code 2 before the form opens.
 
 2. Choose the role's blocks in the personal form, one form per source. It is the personal form described above, with two differences:
-   - The column that says what is received reads "project + my common selection get it". The role sits on the project's choice plus your common selection.
-   - The subtitle ends with "personal selection — role frontend". A 0.24 server ignores the role, so it shows the plain personal form and the label "project gets it"; the result is the same.
+   - The role sits on the project's choice plus your common selection: a block your common selection added starts on and carries **My common choice** instead of **Default**. Turning it off removes it in the role's layer.
+   - The subtitle ends with "personal selection — role frontend". A 0.24 server ignores the role, so it shows the plain personal form; the result is the same.
 3. Submit. The role is created when it does not exist yet.
 
 The form pre-checks the role's current definition. Without one, it pre-checks that server's saved defaults for the role, otherwise nothing.
@@ -184,14 +184,14 @@ Each unit keeps its role definitions in its own `local.json`, but a worktree has
 If another worktree runs `update`, your copies can be at a newer revision than this worktree's project copies.
 `apply` and `status` then report a `personal-revision` to-do; run `guideline update` here to align them.
 
-## Required blocks
+## Fixed blocks
 
 A project can mark blocks that nobody may remove.
-In the project's pick form (`guideline pick`), a chosen block has a **Required** checkbox.
-The list goes to `sources.<name>.required` in `guideline.json`, which you commit.
+In the project's pick form (`guideline pick`), each block is **Not used**, **Default** or **Fixed**.
+The Fixed blocks go to `sources.<name>.required` in `guideline.json`, which you commit.
 
-- A Required block, and every stack above it, cannot be removed in a personal selection.
-- If a block becomes Required after you removed it, your removal is ignored and you get a `personal-ignored` to-do. Run `guideline pick --local` to clean it up.
+- A Fixed block, and every stack above it, cannot be removed in a personal selection.
+- If a block becomes Fixed after you removed it, your removal is ignored and you get a `personal-ignored` to-do. Run `guideline pick --local` to clean it up.
 - An agent cannot recommend removing it either: `pick --local --recommend` stops with exit code 2.
 
 ## Machine defaults
@@ -226,7 +226,7 @@ It writes a file like this and runs `guideline pick --local --recommend <file>`:
 
 The form opens with those choices checked and marked.
 A plain `{ "block key": "reason" }` means add.
-A key that is not in the source, or a removal of a Required block, stops with exit code 2 before the form opens.
+A key that is not in the source, or a removal of a Fixed block, stops with exit code 2 before the form opens.
 
 ## Limits
 
