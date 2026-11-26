@@ -119,6 +119,32 @@ function keptRequired(required, chosen) {
   return [...new Set(required)].filter(k => kept.has(k)).sort();
 }
 
+/** 프로젝트 폼에서 블록 하나에 고를 수 있는 칸: 사용 안 함 · 기본 · 고정. 데이터는 그대로다(기본 = items, 고정 = items + required). */
+export const TIERS = ['off', 'default', 'fixed'];
+
+/**
+ * 블록의 칸. 골라졌고 required 면 고정, 골라지기만 했으면 기본, 아니면 사용 안 함(풀린 블록의 required 는 제출에서도 빠진다).
+ * @param {string} unit
+ * @param {{ chosen: Set<string>, required: Set<string> }} ctx
+ * @returns {'off' | 'default' | 'fixed'}
+ */
+export function tierOf(unit, { chosen, required }) {
+  if (!chosen.has(unit)) return 'off';
+  return required.has(unit) ? 'fixed' : 'default';
+}
+
+/**
+ * 블록을 그 칸으로 둘 때의 체크와 required. 조상·하위 스택·requires 연쇄는 체크를 바꾸는 쪽(forms.js)이 맡는다.
+ * @param {string} unit
+ * @param {'off' | 'default' | 'fixed'} tier
+ * @param {{ chosen: Set<string>, required: Set<string> }} _ctx
+ * @returns {{ check: boolean, required: boolean }}
+ */
+export function applyTier(unit, tier, _ctx) {
+  if (!TIERS.includes(tier)) throw new Error(`unknown tier: ${tier}`);
+  return { check: tier !== 'off', required: tier === 'fixed' };
+}
+
 /** 개인 모드에서 블록 하나에 고를 수 있는 것: 프로젝트 선택 그대로·더함·뺌. */
 export const PERSONAL_CHOICES = ['keep', 'add', 'remove'];
 

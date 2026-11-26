@@ -1,6 +1,6 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis, initialChoices, requiresOf } from './selection.js';
+import { itemKey, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis, initialChoices, requiresOf, tierOf, applyTier, TIERS } from './selection.js';
 import { ancestorKeys, isWithin } from './blocks.js';
 
 const $ = sel => document.querySelector(sel);
@@ -28,12 +28,14 @@ const LOCK_LABEL = {
   gone: t('web.client.gone'), removed: t('web.client.orphan'),
 };
 const ACTION_LABEL = { add: t('web.client.add'), update: t('web.client.update'), remove: t('web.client.remove') };
+const TIER_LABEL = { off: t('web.client.tier.off'), default: t('web.client.tier.default'), fixed: t('web.client.tier.fixed') };
+const TIER_HINT = { off: t('web.client.tierHint.off'), default: t('web.client.tierHint.default'), fixed: t('web.client.tierHint.fixed') };
 // auto: 의존성으로 켠 블록, touched: 사람이 직접 켜거나 끈 블록, notes: 마지막 동작에서 함께 켠·끈 안내.
 // marked: 켠 묶음 스택(항목이 없어 choices 에 남지 않는다), ancestor: 하위 스택 때문에 켠 조상(그 하위 스택을 풀면 함께 푼다).
 const state = {
   data: null, choices: {}, initial: {}, open: new Set(), finished: false, auto: new Set(), touched: new Set(), notes: [], step: 'rules', cat: null,
   marked: new Set(), ancestor: new Set(),
-  // 프로젝트 모드의 필수 블록(골라진 블록에서만 켤 수 있다).
+  // 프로젝트 모드의 고정 블록(guideline.json 의 required). 골라진 블록에서만 의미가 있다.
   required: new Set(), initialRequired: new Set(),
   // 개인 모드: 블록 키 → 'add' | 'remove'(없으면 그대로), 처음 상태, 기본값으로 저장할지.
   pc: {}, pInitial: {}, saveDefault: false,
@@ -228,6 +230,23 @@ function userStack(name, on) {
   }
 }
 
+/**
+ * 사람이 블록의 칸을 고른다. 골라짐이 바뀌면 체크 칸을 바꾼 것과 같다(스택은 userStack, 그 밖은 항목마다 userCheck):
+ * 조상·하위 스택·필요한 블록이 함께 움직인다. 그 뒤 이 블록의 required 를 칸대로 둔다.
+ */
+function userTier(unit, tier) {
+  const want = applyTier(unit, tier, { chosen: chosenUnits(), required: state.required });
+  if (want.check !== chosenUnits().has(unit)) {
+    if (unit.startsWith('rules/')) userStack(stackOf(unit), want.check);
+    else for (const i of unitItems(unit)) userCheck(i, want.check);
+  }
+  if (want.required) state.required.add(unit);
+  else state.required.delete(unit);
+  // 함께 풀린 블록(하위 스택 등)의 고정은 지운다. 나중에 의존성으로 다시 켜질 때 고정으로 되살아나지 않게.
+  const chosen = chosenUnits();
+  for (const u of [...state.required]) if (!chosen.has(u)) state.required.delete(u);
+}
+
 // 지침 파일을 켜면 그 스택의 세팅 문서가 없을 때 함께 켠다. 따로 끌 수 있다.
 function check(item, on) {
   state.choices[itemKey(item)].checked = on;
@@ -277,19 +296,28 @@ function missingNotes(unit) {
     .map(m => t('web.client.missingRequire', { needs: unitName(m.needs), by: unitName(unit) }));
 }
 
-/** 「필수」 칸. 골라진 블록에서만 켤 수 있고, 풀린 블록의 필수는 꺼진 것으로 보인다(제출에서도 빠진다). */
-function requiredToggle(unit) {
+/**
+ * 블록의 칸(사용 안 함 · 기본 · 고정). 기본·고정은 골라진 블록, 고정은 그중 required 인 것이다(selection.js tierOf).
+ * 옛 CLI 의 폼(payload 에 required 가 없음)은 고정을 다루지 않으므로 고정 칸을 끈다.
+ */
+function tierControl(unit, { disabled = false } = {}) {
   if (!unit) return '';
-  const chosen = chosenUnits().has(unit);
-  const on = chosen && state.required.has(unit);
-  return `<label class="req${on ? ' on' : ''}" title="${esc(t('web.client.requiredHint'))}"><input type="checkbox" data-required="${esc(unit)}" ${on ? 'checked' : ''} ${chosen ? '' : 'disabled'}> ${esc(t('web.client.required'))}</label>`;
+  const tier = tierOf(unit, { chosen: chosenUnits(), required: state.required });
+  const opt = v => {
+    const off = disabled || (v === 'fixed' && !state.data.fixedKnown);
+    const hint = v === 'fixed' && !state.data.fixedKnown ? t('web.client.tierFixedUnavailable') : TIER_HINT[v];
+    return `<label class="tier-opt tier-${v}${tier === v ? ' on' : ''}${off ? ' off' : ''}" title="${esc(hint)}">`
+      + `<input type="radio" name="tier:${esc(unit)}" data-tier="${esc(unit)}" value="${v}" ${tier === v ? 'checked' : ''} ${off ? 'disabled' : ''}>${esc(TIER_LABEL[v])}</label>`;
+  };
+  return `<span class="tier" role="radiogroup" aria-label="${esc(unitName(unit))}">${TIERS.map(opt).join('')}</span>`;
 }
 const requiredNow = () => {
   const chosen = chosenUnits();
   return [...state.required].filter(u => chosen.has(u)).sort();
 };
 
-// select: false 면 선택 칸 없이 보인다(지침 단계의 파일은 스택 행의 칸 하나로 함께 고른다). 갱신·덮어쓰기 칸은 남는다.
+// select: false 면 선택 칸 없이 보인다(지침 단계의 파일은 스택 행의 칸 하나로 함께 고른다). 'tier' 면 체크박스 대신 칸(after 에 둔다).
+// 갱신·덮어쓰기 칸은 남는다.
 function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, tags = '', warns = [], select = true, after = '' } = {}) {
   const key = itemKey(item);
   const choice = state.choices[key];
@@ -310,8 +338,8 @@ function rowHtml(item, label, meta, { badges = [], cats = [], nameHtml = null, t
   if (ACTION_LABEL[action]) extra.push(`<span class="act act-${action}">${esc(ACTION_LABEL[action])}</span>`);
   if (after) extra.push(after);
   return `<div class="row${action === 'remove' ? ' remove' : ''}${blocked ? ' blocked' : ''}">`
-    + (select ? `<label class="main"><input type="checkbox" data-key="${esc(key)}" ${choice.checked ? 'checked' : ''} ${blocked ? 'disabled' : ''}>` : '<span class="main file">')
-    + `<span class="name">${nameHtml ?? esc(label)}</span>${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}${tags}${select ? '</label>' : '</span>'}`
+    + (select === true ? `<label class="main"><input type="checkbox" data-key="${esc(key)}" ${choice.checked ? 'checked' : ''} ${blocked ? 'disabled' : ''}>` : select === 'tier' ? '<span class="main">' : '<span class="main file">')
+    + `<span class="name">${nameHtml ?? esc(label)}</span>${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}${tags}${select === true ? '</label>' : '</span>'}`
     + `<span class="meta">${esc(meta)}</span>`
     + `<span class="state ${esc(stateCls)}">${esc(stateText)}</span>`
     + `<span class="extra">${extra.join('')}</span>`
@@ -341,14 +369,16 @@ const stepItems = step => state.data.items.filter(i => stepOf(i) === step);
 const hasStep = step => step === 'confirm' || (isPersonal() ? personalUnits(step).length > 0 : stepItems(step).length > 0);
 
 function renderSteps() {
-  // 개인 모드는 단계마다 개인 변경(더함·뺌) 수를 센다.
+  // 개인 모드는 단계마다 개인 변경(더함·뺌) 수를, 프로젝트 모드는 고정·기본 수를 센다.
   const sel = isPersonal() ? pResult() : null;
   const chosen = sel ? new Set([...sel.add, ...sel.remove]) : chosenUnits();
+  const fixed = new Set(sel ? [] : requiredNow());
+  const inStep = (set, step) => [...set].filter(u => stepOf({ kind: '', id: u }) === step).length;
   for (const b of document.querySelectorAll('[data-step]')) {
     const step = b.dataset.step;
-    const n = step === 'confirm' ? chosen.size : [...chosen].filter(u => stepOf({ kind: '', id: u }) === step).length;
-    const count = sel ? 'web.client.personal.stepCount' : 'web.client.stepCount';
-    b.querySelector('small').textContent = step === 'confirm' ? '' : hasStep(step) ? t(count, { n }) : t('web.client.stepNone');
+    const text = sel ? t('web.client.personal.stepCount', { n: inStep(chosen, step) })
+      : t('web.client.stepTiers', { fixed: inStep(fixed, step), default: inStep(chosen, step) - inStep(fixed, step) });
+    b.querySelector('small').textContent = step === 'confirm' ? '' : hasStep(step) ? text : t('web.client.stepNone');
     b.classList.toggle('on', step === state.step);
     b.classList.toggle('none', !hasStep(step));
     b.setAttribute('aria-current', step === state.step ? 'step' : 'false');
@@ -394,7 +424,6 @@ function renderList() {
       const live = stackItems(s.name);
       const on = live.filter(i => isChecked(itemKey(i))).length;
       const bundle = isBundle(unit);
-      const checked = bundle ? state.marked.has(unit) : live.length > 0 && on === live.length;
       const id = `stack:${s.name}`;
       const fileWhen = path => s.files.find(f => f.path === path)?.when;
       const rows = [
@@ -410,10 +439,9 @@ function renderList() {
       ];
       const short = s.parent ? s.name.slice(s.parent.length + 1) : s.name;
       out.push(`<details class="group stack-group${depth ? ' child' : ''}" data-group="${esc(id)}" data-depth="${Math.min(depth, 5)}" ${state.open.has(id) ? 'open' : ''}><summary>`
-        + `<input type="checkbox" class="stack-box" data-stack="${esc(s.name)}" ${checked ? 'checked' : ''} ${!bundle && on > 0 && on < live.length ? 'data-mixed' : ''} ${live.length || bundle ? '' : 'disabled'}>`
-        + `<b>${blockHtml(short, s.label, s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(unit)}${requiredToggle(unit)}`
+        + `<b>${blockHtml(short, s.label, s.name)}</b>${s.categories.length ? `<span class="cats">[${esc(s.categories.join(', '))}]</span>` : ''}${unitTags(unit)}`
         + `${(project().rootStacks ?? []).includes(s.name) ? `<span class="cats">${esc(t('web.client.inRoot'))}</span>` : ''}`
-        + `<span class="meta count">${on}/${live.length}</span>`
+        + `<span class="meta count">${on}/${live.length}</span>${tierControl(unit, { disabled: !(live.length || bundle) })}`
         + `${s.when ? `<span class="when">${esc(t('web.client.when', { when: s.when }))}</span>` : ''}</summary>${rows.join('')}</details>`);
     }
   }
@@ -427,7 +455,8 @@ function renderList() {
       + shown.map(i => rowHtml(i, label(i), meta(i), {
         cats: itemCategories(i), nameHtml: itemLabel(i) ? blockHtml(label(i), itemLabel(i)) : null,
         tags: i.kind === 'orphan' ? '' : unitTags(blockKey(i.id)), warns: i.kind === 'orphan' ? [] : missingNotes(blockKey(i.id)),
-        after: i.kind === 'orphan' || i.state === 'orphan' || isRemoved(i) ? '' : requiredToggle(blockKey(i.id)),
+        // 원본에서 사라진 것은 칸 대신 체크 해제(제거)로 고른다.
+        ...(i.kind === 'orphan' || i.state === 'orphan' || isRemoved(i) ? {} : { select: 'tier', after: tierControl(blockKey(i.id), { disabled: i.state === 'blocked' }) }),
       })).join('') + '</details>');
   };
   const of = kind => items.filter(i => i.kind === kind && !isRemoved(i));
@@ -440,27 +469,32 @@ function renderList() {
     out.push(confirmHtml());
   }
   const notes = state.notes.map(n => `<div class="note dep-note">${esc(n)}</div>`).join('');
+  const legend = step === 'confirm' ? '' : `<p class="meta tier-legend">${esc(t('web.client.tierLegend'))}</p>`;
   const hiddenLine = state.cat && hidden ? `<p class="meta hidden-count">${esc(t('web.client.hiddenByCategory', { cat: state.cat, n: hidden }))}</p>` : '';
-  $('#list').innerHTML = notes + out.join('') + hiddenLine;
-  for (const box of document.querySelectorAll('[data-mixed]')) box.indeterminate = true;
+  $('#list').innerHTML = legend + notes + out.join('') + hiddenLine;
   renderSteps();
   renderSummary();
 }
 
-/** 확인 단계: 단계마다 골라진 블록과 빠진 의존성. */
+/** 확인 단계: 칸(고정·기본)마다 단계별로 골라진 블록과 빠진 의존성, 사용 안 함 안내. */
 function confirmHtml() {
   const chosen = [...chosenUnits()];
-  const parts = STEPS.filter(s => s !== 'confirm').map(step => {
-    const units = chosen.filter(u => stepOf({ kind: '', id: u }) === step);
+  const fixed = new Set(requiredNow());
+  const tierPart = (key, cls, units) => {
     if (!units.length) return '';
-    return `<section class="confirm-step"><h3>${esc(t(`web.client.step.${step}`))}</h3><ul>`
-      + units.map(u => `<li>${esc(unitName(u))}${unitTags(u)}${missingNotes(u).map(w => `<div class="reason warn">${esc(w)}</div>`).join('')}</li>`).join('')
-      + '</ul></section>';
-  }).join('');
-  const req = requiredNow();
-  const reqHtml = req.length ? `<section class="confirm-step confirm-required"><h3>${esc(t('web.client.confirm.required', { n: req.length }))}</h3><ul>`
-    + req.map(u => `<li>${esc(unitName(u))}</li>`).join('') + '</ul></section>' : '';
-  return (parts || `<p class="meta">${esc(t('web.client.confirmEmpty'))}</p>`) + reqHtml + changeList('remove') + changeList('update');
+    const lines = STEPS.filter(s => s !== 'confirm').map(step => {
+      const here = units.filter(u => stepOf({ kind: '', id: u }) === step);
+      if (!here.length) return '';
+      return `<li><b>${esc(t(`web.client.step.${step}`))}</b>: ${here.map(u => `${esc(unitName(u))}${unitTags(u)}`).join(', ')}`
+        + here.flatMap(missingNotes).map(w => `<div class="reason warn">${esc(w)}</div>`).join('') + '</li>';
+    }).join('');
+    return `<section class="confirm-step confirm-${cls}"><h3>${esc(t(key, { n: units.length }))}</h3><ul>${lines}</ul></section>`;
+  };
+  const parts = tierPart('web.client.confirm.fixed', 'fixed', chosen.filter(u => fixed.has(u)))
+    + tierPart('web.client.confirm.default', 'default', chosen.filter(u => !fixed.has(u)));
+  return (parts || `<p class="meta">${esc(t('web.client.confirmEmpty'))}</p>`)
+    + `<section class="confirm-step confirm-off"><h3>${esc(t('web.client.tier.off'))}</h3><p class="meta">${esc(t('web.client.confirm.off'))}</p></section>`
+    + changeList('update') + changeList('remove');
 }
 
 /** 확인 단계: 제거·갱신할 항목. 단계마다 흩어진 변화를 제출 전에 한곳에서 보게 한다. */
@@ -656,16 +690,15 @@ $('#list').addEventListener('change', e => {
     renderList();
     return;
   }
-  if (t.dataset.required) {
-    if (t.checked) state.required.add(t.dataset.required);
-    else state.required.delete(t.dataset.required);
+  if (t.dataset.tier) {
+    userTier(t.dataset.tier, t.value);
+    ensureAncestors();
     renderList();
     return;
   }
   if (t.dataset.key) userCheck(state.data.items.find(i => itemKey(i) === t.dataset.key), t.checked);
   else if (t.dataset.update) state.choices[t.dataset.update].update = t.checked;
   else if (t.dataset.overwrite) state.choices[t.dataset.overwrite].overwrite = t.checked;
-  else if (t.dataset.stack) userStack(t.dataset.stack, t.checked);
   else return;
   ensureAncestors();
   renderList();

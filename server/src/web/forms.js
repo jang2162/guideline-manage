@@ -117,6 +117,8 @@ export function registerForms(router) {
       mode: f.payload.mode ?? 'project',
       personal: f.payload.mode === 'personal' ? personalData(f.payload.personal) : null,
       required: f.payload.required ?? [],
+      // CLI 가 payload 에 지금 고정(required)을 실었는가. 옛 CLI 의 폼이면 거짓이고, 화면은 고정 칸을 끈다(제출해도 결과에 싣지 않는다).
+      fixedKnown: Array.isArray(f.payload.required),
       // CLI 가 별칭을 입힌 원본의 목록을 실어 보내면 그것을 쓴다(여러 출처)
       catalog: f.payload.catalog ?? catalogView(dbTree(ctx.store, f.revision)),
     }, { 'Cache-Control': 'no-store' });

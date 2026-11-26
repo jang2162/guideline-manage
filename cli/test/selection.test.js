@@ -205,3 +205,37 @@ test('buildSelection 은 프로젝트 모드에서 체크된 블록의 필수만
   assert.deepEqual(sel.required, ['rules/base', 'rules/lib', 'rules/lib/x']);
   assert.equal(Object.hasOwn(buildSelection({ revision: 3, items, choices, project: null }), 'required'), false, '필수를 주지 않으면 싣지 않는다');
 });
+
+test('tierOf: 고정은 골라졌고 required, 기본은 골라지기만, 사용 안 함은 안 골라짐', async () => {
+  const { tierOf } = await import('../src/selection.js');
+  const chosen = new Set(['rules/a', 'rules/b']);
+  const required = new Set(['rules/a', 'rules/c']);
+  assert.equal(tierOf('rules/a', { chosen, required }), 'fixed');
+  assert.equal(tierOf('rules/b', { chosen, required }), 'default');
+  // required 에 있어도 골라지지 않았으면 사용 안 함(풀린 블록의 required 는 제출에서도 빠진다)
+  assert.equal(tierOf('rules/c', { chosen, required }), 'off');
+  assert.equal(tierOf('rules/d', { chosen, required }), 'off');
+});
+
+test('applyTier: 칸마다 블록의 체크와 required', async () => {
+  const { applyTier } = await import('../src/selection.js');
+  const ctx = { chosen: new Set(), required: new Set() };
+  assert.deepEqual(applyTier('rules/a', 'fixed', ctx), { check: true, required: true });
+  assert.deepEqual(applyTier('rules/a', 'default', ctx), { check: true, required: false });
+  assert.deepEqual(applyTier('rules/a', 'off', ctx), { check: false, required: false });
+  assert.throws(() => applyTier('rules/a', 'bogus', ctx));
+});
+
+test('applyTier 의 결과를 입히면 tierOf 가 그 칸을 돌려준다', async () => {
+  const { applyTier, tierOf } = await import('../src/selection.js');
+  for (const tier of ['off', 'default', 'fixed']) {
+    for (const start of [[[], []], [['rules/a'], []], [['rules/a'], ['rules/a']]]) {
+      const chosen = new Set(start[0]);
+      const required = new Set(start[1]);
+      const r = applyTier('rules/a', tier, { chosen, required });
+      if (r.check) chosen.add('rules/a'); else chosen.delete('rules/a');
+      if (r.required) required.add('rules/a'); else required.delete('rules/a');
+      assert.equal(tierOf('rules/a', { chosen, required }), tier);
+    }
+  }
+});

@@ -215,7 +215,7 @@ test('폼에는 단계 탭 다섯(지침·MCP·서브에이전트·스킬·확�
   const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
   for (const step of ['rules', 'mcp', 'agents', 'skills', 'confirm']) assert.ok(page.includes(`data-step="${step}"`), step);
   assert.ok(page.includes('id="prev"') && page.includes('id="next"'));
-  for (const key of ['web.client.stepCount', 'web.client.stepNone', 'web.client.hiddenByCategory', 'web.client.allCategories', 'web.client.step.rules', 'web.client.step.mcp', 'web.client.step.agents', 'web.client.step.skills']) assert.ok(page.includes(`"${key}"`), key);
+  for (const key of ['web.client.stepTiers', 'web.client.stepNone', 'web.client.hiddenByCategory', 'web.client.allCategories', 'web.client.step.rules', 'web.client.step.mcp', 'web.client.step.agents', 'web.client.step.skills']) assert.ok(page.includes(`"${key}"`), key);
 });
 
 test('폼 데이터의 catalog 스택에 parent·when 이 있다', async t => {
@@ -349,7 +349,30 @@ test('폼 페이지는 개인 모드·필수 문구를 브라우저 문구 블�
   const f = await setup(t, {}, { mode: 'personal', personal: PERSONAL });
   const cookie = await openForm(f);
   const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: cookie } })).text;
-  for (const key of ['web.client.required', 'web.client.personal.keep', 'web.client.personal.add', 'web.client.personal.remove', 'web.client.personal.inProject', 'web.client.personal.notInProject', 'web.client.personal.locked', 'web.client.personal.preset.local', 'web.client.personal.preset.defaults', 'web.client.personal.saveDefault']) {
+  for (const key of ['web.client.personal.keep', 'web.client.personal.add', 'web.client.personal.remove', 'web.client.personal.inProject', 'web.client.personal.notInProject', 'web.client.personal.locked', 'web.client.personal.preset.local', 'web.client.personal.preset.defaults', 'web.client.personal.saveDefault']) {
     assert.ok(page.includes(`"${key}"`), key);
   }
+});
+
+test('정적 forms.js 는 프로젝트 블록마다 사용 안 함·기본·고정 칸(data-tier)을 쓰고 필수 체크박스는 없다', async t => {
+  const s = await startApp(t);
+  const src = (await s.req('/static/forms.js')).text;
+  assert.match(src, /data-tier="/);
+  assert.doesNotMatch(src, /data-required=/);
+  assert.match(src, /^import \{[^}]*\btierOf\b[^}]*\bapplyTier\b[^}]*\} from '\.\/selection\.js';$/m);
+  for (const key of ['web.client.tier.off', 'web.client.tier.default', 'web.client.tier.fixed', 'web.client.tierLegend', 'web.client.stepTiers', 'web.client.confirm.fixed', 'web.client.confirm.default']) {
+    assert.ok(src.includes(`'${key}'`), key);
+  }
+  const f = await setup(t);
+  const page = (await f.s.req(`/forms/${f.id}`, { headers: { Cookie: await openForm(f) } })).text;
+  assert.ok(page.includes('"web.client.tier.fixed":"고정"'));
+  assert.ok(page.includes('"web.client.tier.default":"기본"'));
+  assert.ok(page.includes('"web.client.tier.off":"사용 안 함"'));
+});
+
+test('폼 data 의 fixedKnown: payload 에 required 가 있을 때만 참(옛 CLI 폼은 고정을 고를 수 없다)', async t => {
+  const f = await setup(t, {}, { required: [] });
+  assert.equal((await getAs(f.s, await openForm(f), `/forms/${f.id}/data`)).json().fixedKnown, true);
+  const old = await setup(t);
+  assert.equal((await getAs(old.s, await openForm(old), `/forms/${old.id}/data`)).json().fixedKnown, false);
 });
