@@ -336,3 +336,13 @@ test('두 파일을 쓴 뒤 apply 가 실패하면 이미 바뀌었다고 하고
   assert.match(again.out, /바뀐 것 없음/);
   assert.equal(again.rulerCalls, 0);
 });
+
+test('agents 에 올바른 이름과 모르는 이름이 섞여 있으면, 결과가 같아도 바뀐 것 없음이 아니라 guideline.json 을 고친다', async t => {
+  const p = project(t);
+  setRawAgents(p, ['claude', 'cursor']);
+  const r = await run(p, { action: 'add', names: ['claude'] });
+  assert.equal(r.code, 0, r.err);
+  assert.doesNotMatch(r.out, /바뀐 것 없음/);
+  assert.deepEqual(manifestAgents(p), ['claude']);
+  assert.equal(r.rulerCalls, 1);
+});

@@ -63,3 +63,8 @@ test('agentsMismatch 는 toml 쪽의 AGENTS 밖 이름을 빼고 비교한다(�
   assert.equal(agentsMismatch(['claude'], ['claude', 'cursor']), false);
   assert.equal(agentsMismatch(['claude'], ['codex', 'cursor']), true);
 });
+
+test('[ 로 시작하지만 표 머리가 아닌 줄(여러 줄 문자열 안)에서 멈추지 않는다', () => {
+  const text = 'note = """\n[참고] 이 줄은 표 머리가 아니다\n"""\ndefault_agents = ["codex"]\n';
+  assert.deepEqual(readDefaultAgents(text), { agents: ['codex'], ok: true });
+});
