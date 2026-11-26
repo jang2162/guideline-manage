@@ -36,7 +36,8 @@ export async function agents({
     return 2;
   }
   // apply 가 열지 못할 프로젝트(깨진 매니페스트, 잠금 없음, 옛 배치)는 쓰기 전에 멈춘다 — 쓰고 나서 apply 가 실패하면 두 파일만 바뀐 채 남는다
-  const opened = openProject({ dir, err });
+  // agents 칸의 오류만은 넘어가 읽는다 — 그것을 고치는 길이 이 명령이다
+  const opened = openProject({ dir, err, lenientAgents: true });
   if (opened.code !== undefined) return opened.code;
   const { manifest, lock } = opened;
   const layout = layoutOf(lock, dir);
@@ -71,7 +72,7 @@ export async function agents({
   let nextToml = null;
   if (own !== null) {
     const mine = readDefaultAgents(own);
-    if (mine.ok && mine.agents && sameSet(next, mine.agents) && sameSet(next, current)) return unchanged({ next, json, out });
+    if (!manifest.agentsBad && mine.ok && mine.agents && sameSet(next, mine.agents) && sameSet(next, current)) return unchanged({ next, json, out });
     // AGENTS 밖 이름은 guideline 이 다루지 않는다 — 지우지 않고 그대로 둔다
     const others = (mine.agents ?? []).filter(a => !AGENTS.includes(a));
     nextToml = setDefaultAgents(own, [...next, ...others]);
@@ -79,7 +80,7 @@ export async function agents({
       err(t('agents.tomlUnreadable', { file: PROJECT_TOML }));
       return 2;
     }
-  } else if (sameSet(next, current)) {
+  } else if (!manifest.agentsBad && sameSet(next, current)) {
     return unchanged({ next, json, out });
   }
 
@@ -102,6 +103,7 @@ function show({ manifest, ruler, rulerText, rulerFile, follows, json, out }) {
     return 0;
   }
   out(t('agents.showManifest', { agents: manifest.agents.join(', ') }));
+  if (manifest.agentsBad) out(t('agents.showBadAgents'));
   const file = follows ? rulerFile : PROJECT_TOML;
   if (rulerText === null) out(t('agents.showNoToml', { file }));
   else if (!ruler.ok) out(t('agents.showUnreadable', { file }));

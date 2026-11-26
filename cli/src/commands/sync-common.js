@@ -25,11 +25,11 @@ import { t } from '../i18n.js';
  * 프로젝트의 매니페스트·잠금을 읽고 단위 검사를 한다. 문제가 있으면 { code }.
  * --server 는 출처가 하나일 때만 그 출처의 주소를 바꾼다.
  */
-export function openProject({ dir, server, source, err, needManifest = true }) {
+export function openProject({ dir, server, source, err, needManifest = true, lenientAgents = false }) {
   let manifest;
   let lock;
   try {
-    manifest = readManifest(dir);
+    manifest = readManifest(dir, { lenientAgents });
     lock = readLock(dir);
   } catch (e) {
     if (!(e instanceof ManifestError)) throw e;

@@ -276,3 +276,45 @@ test('toml 의 AGENTS 밖 이름(cursor)은 어긋남으로 보지 않고, add �
   const again = await run(p, { action: 'add', names: ['codex'] });
   assert.match(again.out, /바뀐 것 없음/);
 });
+
+/** guideline.json 의 agents 만 손으로 바꾼다(다른 칸은 그대로). */
+function setRawAgents(p, value) {
+  const m = JSON.parse(read(p, 'guideline.json'));
+  m.agents = value;
+  fs.writeFileSync(path.join(p, 'guideline.json'), `${JSON.stringify(m, null, 2)}\n`);
+}
+
+test('guideline.json 의 agents 가 올바르지 않아도 agents 는 읽고, add 가 유효한 목록으로 고친다(리뷰 3)', async t => {
+  const p = project(t);
+  setRawAgents(p, ['cursor']);
+  const shown = await run(p, {});
+  assert.equal(shown.code, 0, shown.err);
+  assert.match(shown.out, /agents 가 올바르지 않음/);
+  const r = await run(p, { action: 'add', names: ['codex'] });
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(manifestAgents(p), ['codex']);
+  assert.match(read(p, PROJECT_TOML), /^default_agents = \["codex"\]$/m);
+  assert.equal(r.rulerCalls, 1);
+});
+
+test('agents 가 빈 목록이면 add claude 로 고치고, 결과가 비는 remove 는 2', async t => {
+  const p = project(t);
+  setRawAgents(p, []);
+  const before = snapshot(p);
+  const rm = await run(p, { action: 'remove', names: ['claude'] });
+  assert.equal(rm.code, 2);
+  assert.match(rm.err, /에이전트가 하나는/);
+  assert.deepEqual(snapshot(p), before);
+  const r = await run(p, { action: 'add', names: ['claude'] });
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(manifestAgents(p), ['claude']);
+});
+
+test('agents 가 아닌 매니페스트 오류는 agents 도 그대로 1', async t => {
+  const p = project(t);
+  const m = JSON.parse(read(p, 'guideline.json'));
+  m.form = 'nope';
+  fs.writeFileSync(path.join(p, 'guideline.json'), `${JSON.stringify(m, null, 2)}\n`);
+  const r = await run(p, { action: 'add', names: ['codex'] });
+  assert.equal(r.code, 1);
+});

@@ -50,16 +50,16 @@ export function splitQualified(q) {
  * 모든 버전에서 조상 스택을 채운다.
  * @returns {Manifest}
  */
-export function checkManifest(m) {
+export function checkManifest(m, { lenientAgents = false } = {}) {
   const bad = why => {
     throw new ManifestError(`${MANIFEST}: ${why}`);
   };
   if (!m || typeof m !== 'object') bad(t('manifest.notObject'));
   if (m.version !== 1 && m.version !== 2 && m.version !== 3) bad(t('manifest.badVersion'));
   if (!FORMS.includes(m.form)) bad(t('manifest.badForm'));
-  if (!isStrArr(m.agents) || m.agents.length === 0 || !m.agents.every(a => AGENTS.includes(a))) {
-    bad(t('manifest.badAgents'));
-  }
+  const agentsBad = !isStrArr(m.agents) || m.agents.length === 0 || !m.agents.every(a => AGENTS.includes(a));
+  // lenientAgents: `guideline agents` 만 쓴다. badAgents 가 고치라고 가리키는 명령이 같은 오류로 멈추면 안내가 자기 자신으로 돈다
+  if (agentsBad && !lenientAgents) bad(t('manifest.badAgents'));
   let raw;
   if (m.version === 1) {
     if (!isHttp(m.server)) bad(t('manifest.badServer'));
@@ -96,6 +96,11 @@ export function checkManifest(m) {
     if (notChosen !== undefined) bad(t('manifest.requiredNotChosen', { name, item: notChosen }));
     sources[name] = { server: s.server, items, aliases: { ...aliases }, required: [...new Set(required)].sort(byStr) };
   }
+  if (agentsBad) {
+    // 유효한 이름만 남긴다(비어도 된다). agentsBad 는 디스크의 agents 가 이 목록과 다르다는 표시
+    const agents = Array.isArray(m.agents) ? [...new Set(m.agents.filter(a => AGENTS.includes(a)))] : [];
+    return { version: 3, form: m.form, agents, sources, agentsBad: true };
+  }
   return { version: 3, form: m.form, agents: [...m.agents], sources };
 }
 
@@ -110,9 +115,9 @@ export function manifestVersionOnDisk(project) {
 }
 
 /** @returns {Manifest | null} */
-export function readManifest(project) {
+export function readManifest(project, opts) {
   const m = readJsonFile(path.join(project, MANIFEST));
-  return m === null ? null : checkManifest(m);
+  return m === null ? null : checkManifest(m, opts);
 }
 
 /**
