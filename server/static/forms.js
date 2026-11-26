@@ -1,6 +1,6 @@
 // 서버가 띄우는 내보내기 폼. CSP 때문에 인라인 스크립트 대신 이 파일을 쓴다.
 // 체크 상태를 결과로 바꾸는 규칙(selection.js)은 서버와 같이 쓴다. 결과는 서버가 다시 계산한다.
-import { itemKey, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis, initialChoices, requiresOf, tierOf, applyTier, TIERS, toggleOn, toggleTo } from './selection.js';
+import { itemKey, canUpdate, canOverwrite, actionOf, summarize, blockKey, stepOf, missingRequires, releasable, pullRequired, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis, initialChoices, requiresOf, tierOf, applyTier, TIERS, personalTurn } from './selection.js';
 import { ancestorKeys, isWithin } from './blocks.js';
 
 const $ = sel => document.querySelector(sel);
@@ -239,6 +239,10 @@ function userTier(unit, tier) {
   if (want.check !== chosenUnits().has(unit)) {
     if (unit.startsWith('rules/')) userStack(stackOf(unit), want.check);
     else for (const i of unitItems(unit)) userCheck(i, want.check);
+  }
+  if (want.direct) {
+    state.touched.add(unit);
+    state.auto.delete(unit);
   }
   if (want.required) state.required.add(unit);
   else state.required.delete(unit);
@@ -506,7 +510,7 @@ function changeList(action) {
     + items.map(i => `<li><code>${esc(i.id)}</code></li>`).join('') + '</ul></section>';
 }
 
-// 개인 모드: 고정이 아닌 블록마다 켬·끔. 켬·끔은 프로젝트 선택과의 차이(더함·뺌·그대로, selection.js toggleTo)로 기록한다. 판정(조상 더함·자손 뺌·필수 거절)은 selection.js personalSelection 이 하고,
+// 개인 모드: 고정이 아닌 블록마다 켬·끔. 켬·끔은 프로젝트 선택과의 차이(더함·뺌·그대로, selection.js personalTurn)로 기록한다. 판정(조상 더함·자손 뺌·필수 거절)은 selection.js personalSelection 이 하고,
 // 서버가 제출 때 같은 함수로 다시 계산한다. 갱신·덮어쓰기·더러운 작업 트리 칸은 없다(커밋되는 파일을 바꾸지 않는다).
 
 /** 개인 모드에서 단계의 블록: 키, 나무 깊이, 원본 목록의 항목. */
@@ -515,11 +519,6 @@ function personalUnits(step) {
   if (step === 'rules') return stackRows(c.stacks).map(({ stack, depth }) => ({ unit: `rules/${stack.name}`, depth, entry: stack }));
   const list = { mcp: c.mcp, agents: c.subagents, skills: c.skills }[step] ?? [];
   return list.map(x => ({ unit: step === 'agents' ? `agents/${x.name}.md` : `${step}/${x.name}`, depth: 0, entry: x }));
-}
-const pGet = unit => state.pc[unit] ?? 'keep';
-function pSet(unit, v) {
-  if (v === 'keep') delete state.pc[unit];
-  else state.pc[unit] = v;
 }
 const pBasis = () => personalBasis(state.data.personal);
 const pResult = () => personalSelection({ personal: state.data.personal, choices: state.pc });
@@ -532,36 +531,17 @@ function pReceived(sel) {
 /** 원본 목록과 프로젝트 선택의 스택 키. 자손을 찾을 때 쓴다. */
 const pStackKeys = () => [...new Set([...state.data.catalog.stacks.map(x => `rules/${x.name}`), ...pBasis().inProject])].filter(k => k.startsWith('rules/'));
 
-/**
- * 사람이 블록 하나의 개인 선택을 바꾼다. 하위 스택을 더하면 프로젝트에 없는 조상을 더하고(뺀 조상은 되돌린다),
- * 스택을 빼면 그 아래 프로젝트 블록을 빼고 더함을 되돌린다. 더함·뺌을 그대로로 되돌리면 같은 선택이던 자손도 되돌린다.
- */
-function userPersonal(unit, v) {
-  const prev = pGet(unit);
-  if (prev === v) return;
-  const { inProject } = pBasis();
-  pSet(unit, v);
-  if (v === 'add') {
-    for (const a of ancestorKeys(unit)) {
-      if (!inProject.has(a) && pGet(a) !== 'add') {
-        pSet(a, 'add');
-        state.notes.push(t('web.client.personal.ancestorAdded', { by: unitName(unit), needs: unitName(a) }));
-      } else if (inProject.has(a) && pGet(a) === 'remove') {
-        pSet(a, 'keep');
-        state.notes.push(t('web.client.personal.ancestorKept', { by: unitName(unit), needs: unitName(a) }));
-      }
-    }
-  }
-  const kids = pStackKeys().filter(k => k !== unit && isWithin(k, unit));
-  let n = 0;
-  for (const k of kids) {
-    const want = v === 'remove' ? (inProject.has(k) ? 'remove' : 'keep') : v === 'keep' && pGet(k) === prev ? 'keep' : pGet(k);
-    if (pGet(k) !== want) {
-      pSet(k, want);
-      n++;
-    }
-  }
-  if (n) state.notes.push(t(v === 'remove' ? 'web.client.personal.childrenRemoved' : 'web.client.personal.childrenReset', { n }));
+// 켬·끔 한 번의 판정(조상·하위 스택 연동)은 selection.js personalTurn. 여기서는 결과를 상태에 두고 안내를 문구로 바꾼다.
+const PERSONAL_NOTE = {
+  ancestorAdded: n => t('web.client.personal.ancestorAdded', { by: unitName(n.by), needs: unitName(n.needs) }),
+  ancestorKept: n => t('web.client.personal.ancestorKept', { by: unitName(n.by), needs: unitName(n.needs) }),
+  childrenRemoved: n => t('web.client.personal.childrenRemoved', { n: n.n }),
+  childrenReset: n => t('web.client.personal.childrenReset', { n: n.n }),
+};
+function userTurn(unit, on) {
+  const r = personalTurn({ personal: state.data.personal, choices: state.pc, unit, on, stackKeys: pStackKeys() });
+  state.pc = r.choices;
+  for (const n of r.notes) state.notes.push(PERSONAL_NOTE[n.key](n));
 }
 
 /**
@@ -575,10 +555,11 @@ function basisTag(unit) {
 }
 
 /** 고정(필수와 그것을 품은 조상)은 잠긴 줄, 나머지는 켬·끔 토글. 하위 스택은 같은 묶음 안의 조상 수만큼 들여 쓴다. */
-function personalRow({ unit, entry }, depth, received) {
+function personalRow({ unit, entry }, depth, received, sel) {
   const { inProject, guarded } = pBasis();
-  const v = pGet(unit);
   const here = inProject.has(unit);
+  // 스위치와 표시는 날 선택값이 아니라 실제 결과로 그린다(뺀 스택 아래의 더함은 결과에서 빠지므로).
+  const effect = sel.add.includes(unit) ? 'add' : sel.remove.includes(unit) ? 'remove' : null;
   const short = unit.startsWith('rules/') && entry.parent ? entry.name.slice(entry.parent.length + 1) : entry.name;
   const rec = state.data.recommend ?? {};
   const warns = received.has(unit) ? missingRequires(received, requiresMap()).filter(m => m.unit === unit)
@@ -590,14 +571,14 @@ function personalRow({ unit, entry }, depth, received) {
     const fixed = (state.data.personal.required ?? []).includes(unit);
     control = `<span class="badge lock">${esc(t(fixed ? 'web.client.personal.locked' : 'web.client.personal.lockedAncestor'))}</span>`;
   } else {
-    const on = toggleOn(unit, v, here);
+    const on = received.has(unit);
     if (here) tags.push(`<span class="state p-in">${esc(basisTag(unit))}</span>`);
-    if (v === 'add') tags.push(`<span class="act act-add">${esc(t('web.client.personal.turnedOn'))}</span>`);
-    if (v === 'remove') tags.push(`<span class="act act-remove">${esc(t('web.client.personal.turnedOff'))}</span>`);
+    if (effect === 'add') tags.push(`<span class="act act-add">${esc(t('web.client.personal.turnedOn'))}</span>`);
+    if (effect === 'remove') tags.push(`<span class="act act-remove">${esc(t('web.client.personal.turnedOff'))}</span>`);
     control = `<label class="switch${on ? ' on' : ''}"><input type="checkbox" role="switch" data-toggle="${esc(unit)}" ${on ? 'checked' : ''} aria-label="${esc(unitName(unit))}">`
       + `<span class="knob" aria-hidden="true"></span><span class="switch-text">${esc(t(on ? 'web.client.personal.on' : 'web.client.personal.off'))}</span></label>`;
   }
-  return `<div class="row prow${v === 'remove' ? ' turned-off' : ''}${depth ? ' child' : ''}" data-depth="${Math.min(depth, 5)}" data-unit="${esc(unit)}">`
+  return `<div class="row prow${effect === 'remove' ? ' turned-off' : ''}${depth ? ' child' : ''}" data-depth="${Math.min(depth, 5)}" data-unit="${esc(unit)}">`
     + `<span class="main"><span class="name">${blockHtml(short, entry.label, entry.name)}</span>`
     + `${cats.length ? `<span class="cats">[${esc(cats.join(', '))}]</span>` : ''}`
     + `${Object.hasOwn(rec, unit) ? `<span class="badge rec">${esc(t('web.client.recommended'))}</span>` : ''}</span>`
@@ -621,7 +602,7 @@ function personalListHtml(step) {
     if (!list.length) return '';
     const inGroup = new Set(list.map(x => x.unit));
     return `<h3 class="pgroup">${esc(t(key))} <small>${esc(t(hint))}</small></h3>`
-      + `<div class="group personal-list ${cls}">${list.map(x => personalRow(x, ancestorKeys(x.unit).filter(a => inGroup.has(a)).length, received)).join('')}</div>`;
+      + `<div class="group personal-list ${cls}">${list.map(x => personalRow(x, ancestorKeys(x.unit).filter(a => inGroup.has(a)).length, received, sel)).join('')}</div>`;
   };
   const hidden = units.length - visibleUnits.length;
   return group('web.client.personal.fixedGroup', 'web.client.personal.fixedGroupHint', 'fixed-list', visibleUnits.filter(x => guarded.has(x.unit)))
@@ -705,6 +686,11 @@ async function showDiff(key) {
   }
 }
 
+/** 목록을 다시 그리면 바꾼 입력이 새 요소로 바뀌어 포커스를 잃는다. 같은 입력에 포커스를 되돌려 화살표·Space 조작이 이어지게 한다. */
+function refocus(selector) {
+  $('#list').querySelector(selector)?.focus();
+}
+
 $('#list').addEventListener('change', e => {
   const t = e.target;
   if ('saveDefault' in t.dataset) {
@@ -713,15 +699,16 @@ $('#list').addEventListener('change', e => {
   }
   state.notes = [];
   if (t.dataset.toggle) {
-    const unit = t.dataset.toggle;
-    userPersonal(unit, toggleTo(t.checked, pBasis().inProject.has(unit)));
+    userTurn(t.dataset.toggle, t.checked);
     renderList();
+    refocus(`input[data-toggle="${CSS.escape(t.dataset.toggle)}"]`);
     return;
   }
   if (t.dataset.tier) {
     userTier(t.dataset.tier, t.value);
     ensureAncestors();
     renderList();
+    refocus(`input[data-tier="${CSS.escape(t.dataset.tier)}"][value="${CSS.escape(t.value)}"]`);
     return;
   }
   if (t.dataset.key) userCheck(state.data.items.find(i => itemKey(i) === t.dataset.key), t.checked);

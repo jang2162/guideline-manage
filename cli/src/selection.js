@@ -138,11 +138,12 @@ export function tierOf(unit, { chosen, required }) {
  * @param {string} unit
  * @param {'off' | 'default' | 'fixed'} tier
  * @param {{ chosen: Set<string>, required: Set<string> }} _ctx
- * @returns {{ check: boolean, required: boolean }}
+ * @returns {{ check: boolean, required: boolean, direct: boolean }}
  */
 export function applyTier(unit, tier, _ctx) {
   if (!TIERS.includes(tier)) throw new Error(`unknown tier: ${tier}`);
-  return { check: tier !== 'off', required: tier === 'fixed' };
+  // direct: 사람이 이 블록을 직접 골랐다. 의존성으로 켜진 블록도 기본·고정을 고르면, 그것을 필요로 한 블록을 꺼도 함께 풀리지 않는다.
+  return { check: tier !== 'off', required: tier === 'fixed', direct: tier !== 'off' };
 }
 
 /** 개인 모드에서 블록 하나에 고를 수 있는 것: 프로젝트 선택 그대로·더함·뺌. */
@@ -167,6 +168,52 @@ export function toggleOn(_unit, v, inBasis) {
 export function toggleTo(on, inBasis) {
   if (inBasis) return on ? 'keep' : 'remove';
   return on ? 'add' : 'keep';
+}
+
+/**
+ * 로컬 폼에서 블록 하나를 켜거나 끈다. 새 개인 선택(choices)과 화면에 보일 안내(notes)를 돌려준다. choices 는 바꾸지 않는다.
+ * - 켜면 그 블록을 실제로 받게 한다: 조상 중 기준 밖인 것은 더하고, 뺀 것은 되돌린다(뺀 조상이 이 블록을 덮지 않게).
+ * - 끄면 그 아래 스택 중 기준에 있는 것은 빼고, 더한 것은 기록을 지운다.
+ * - 다시 켜면(뺌을 되돌림) 같은 선택이던 아래 스택도 되돌린다.
+ * @param {{ personal: { chosen: string[], required?: string[] }, choices: Record<string, string>, unit: string, on: boolean, stackKeys: string[] }} opts
+ *   stackKeys: 원본 목록과 기준의 스택 키(자손을 찾을 때 쓴다)
+ * @returns {{ choices: Record<string, 'add' | 'remove'>, notes: ({ key: 'ancestorAdded' | 'ancestorKept', by: string, needs: string } | { key: 'childrenRemoved' | 'childrenReset', n: number })[] }}
+ */
+export function personalTurn({ personal, choices, unit, on, stackKeys }) {
+  const { inProject } = personalBasis(personal);
+  const next = { ...choices };
+  const get = k => next[k] ?? 'keep';
+  const set = (k, v) => {
+    if (v === 'keep') delete next[k];
+    else next[k] = v;
+  };
+  const notes = [];
+  const prev = get(unit);
+  const v = toggleTo(on, inProject.has(unit));
+  set(unit, v);
+  if (on) {
+    for (const a of ancestorKeys(unit)) {
+      if (!inProject.has(a) && get(a) !== 'add') {
+        set(a, 'add');
+        notes.push({ key: 'ancestorAdded', by: unit, needs: a });
+      } else if (inProject.has(a) && get(a) === 'remove') {
+        set(a, 'keep');
+        notes.push({ key: 'ancestorKept', by: unit, needs: a });
+      }
+    }
+  }
+  if (prev !== v) {
+    let n = 0;
+    for (const k of stackKeys.filter(k => k !== unit && isWithin(k, unit))) {
+      const want = v === 'remove' ? (inProject.has(k) ? 'remove' : 'keep') : v === 'keep' && get(k) === prev ? 'keep' : get(k);
+      if (get(k) !== want) {
+        set(k, want);
+        n++;
+      }
+    }
+    if (n) notes.push({ key: v === 'remove' ? 'childrenRemoved' : 'childrenReset', n });
+  }
+  return { choices: Object.fromEntries(Object.entries(next).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))), notes };
 }
 
 /**

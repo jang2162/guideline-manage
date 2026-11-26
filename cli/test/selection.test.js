@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { itemKey, defaultChoice, canUpdate, actionOf, selectionItems, summarize, buildResult, buildSelection, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection } from '../src/selection.js';
+import { itemKey, defaultChoice, canUpdate, actionOf, selectionItems, summarize, buildResult, buildSelection, stackRows, ancestorsToChoose, chosenDescendants, releasableAncestors, personalChoices, personalSelection, personalBasis } from '../src/selection.js';
 
 test('selection.js 는 브라우저에서도 돌도록 ./blocks.js 말고는 import 하지 않고, blocks.js 는 아무것도 import 하지 않는다', () => {
   const text = fs.readFileSync(new URL('../src/selection.js', import.meta.url), 'utf8');
@@ -220,9 +220,9 @@ test('tierOf: 고정은 골라졌고 required, 기본은 골라지기만, 사용
 test('applyTier: 칸마다 블록의 체크와 required', async () => {
   const { applyTier } = await import('../src/selection.js');
   const ctx = { chosen: new Set(), required: new Set() };
-  assert.deepEqual(applyTier('rules/a', 'fixed', ctx), { check: true, required: true });
-  assert.deepEqual(applyTier('rules/a', 'default', ctx), { check: true, required: false });
-  assert.deepEqual(applyTier('rules/a', 'off', ctx), { check: false, required: false });
+  assert.deepEqual(applyTier('rules/a', 'fixed', ctx), { check: true, required: true, direct: true });
+  assert.deepEqual(applyTier('rules/a', 'default', ctx), { check: true, required: false, direct: true });
+  assert.deepEqual(applyTier('rules/a', 'off', ctx), { check: false, required: false, direct: false });
   assert.throws(() => applyTier('rules/a', 'bogus', ctx));
 });
 
@@ -261,4 +261,53 @@ test('toggleTo 와 toggleOn 은 서로 되돌린다', async () => {
   for (const inBasis of [true, false]) {
     for (const on of [true, false]) assert.equal(toggleOn('rules/a', toggleTo(on, inBasis), inBasis), on);
   }
+});
+
+// 로컬 폼의 켬·끔 한 번(personalTurn). 프로젝트는 base·base/x·web 을 받는다.
+const TURN = { chosen: ['rules/base', 'rules/base/x', 'rules/web'], required: [] };
+const TURN_KEYS = ['rules/base', 'rules/base/x', 'rules/base/y', 'rules/web', 'rules/tools', 'rules/tools/deep'];
+const received = (personal, choices) => {
+  const sel = personalSelection({ personal, choices });
+  const out = new Set(personalBasis(personal).inProject);
+  for (const k of sel.remove) out.delete(k);
+  for (const k of sel.add) out.add(k);
+  return out;
+};
+
+test('personalTurn: 뺀 스택 아래 블록을 켜면 뺀 조상을 되돌려 실제로 받는다(켰는데 안 켜짐이 없다)', async () => {
+  const { personalTurn } = await import('../src/selection.js');
+  let r = personalTurn({ personal: TURN, choices: {}, unit: 'rules/base', on: false, stackKeys: TURN_KEYS });
+  assert.deepEqual(r.choices, { 'rules/base': 'remove', 'rules/base/x': 'remove' });
+  assert.deepEqual(r.notes, [{ key: 'childrenRemoved', n: 1 }]);
+  r = personalTurn({ personal: TURN, choices: r.choices, unit: 'rules/base/x', on: true, stackKeys: TURN_KEYS });
+  assert.ok(received(TURN, r.choices).has('rules/base/x'), 'base/x 를 받는다');
+  assert.ok(received(TURN, r.choices).has('rules/base'), '조상 base 도 다시 받는다');
+  assert.deepEqual(r.notes, [{ key: 'ancestorKept', by: 'rules/base/x', needs: 'rules/base' }]);
+});
+
+test('personalTurn: 기준 밖 하위 스택을 켜면 조상을 더하고, 끄면 그 블록만 기록이 없어진다', async () => {
+  const { personalTurn } = await import('../src/selection.js');
+  let r = personalTurn({ personal: TURN, choices: {}, unit: 'rules/tools/deep', on: true, stackKeys: TURN_KEYS });
+  assert.deepEqual(r.choices, { 'rules/tools': 'add', 'rules/tools/deep': 'add' });
+  assert.deepEqual(r.notes, [{ key: 'ancestorAdded', by: 'rules/tools/deep', needs: 'rules/tools' }]);
+  r = personalTurn({ personal: TURN, choices: r.choices, unit: 'rules/tools/deep', on: false, stackKeys: TURN_KEYS });
+  assert.deepEqual(r.choices, { 'rules/tools': 'add' });
+});
+
+test('personalTurn: 켬·끔은 실제로 받는지와 늘 맞는다(한 번 바꾼 뒤마다)', async () => {
+  const { personalTurn } = await import('../src/selection.js');
+  // 모든 순서의 두 단계 조작에서, 마지막으로 바꾼 블록은 고른 대로 받거나 안 받는다
+  for (const a of TURN_KEYS) for (const b of TURN_KEYS) for (const onA of [true, false]) for (const onB of [true, false]) {
+    let c = personalTurn({ personal: TURN, choices: {}, unit: a, on: onA, stackKeys: TURN_KEYS }).choices;
+    c = personalTurn({ personal: TURN, choices: c, unit: b, on: onB, stackKeys: TURN_KEYS }).choices;
+    assert.equal(received(TURN, c).has(b), onB, `${a}=${onA} → ${b}=${onB}`);
+  }
+});
+
+test('applyTier: 기본·고정은 사람이 직접 고른 것(direct), 사용 안 함은 아니다', async () => {
+  const { applyTier } = await import('../src/selection.js');
+  const ctx = { chosen: new Set(), required: new Set() };
+  assert.equal(applyTier('rules/a', 'fixed', ctx).direct, true);
+  assert.equal(applyTier('rules/a', 'default', ctx).direct, true);
+  assert.equal(applyTier('rules/a', 'off', ctx).direct, false);
 });

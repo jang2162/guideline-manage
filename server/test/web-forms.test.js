@@ -347,7 +347,7 @@ test('정적 forms.js 는 개인 폼을 켬·끔 토글(data-toggle)로 그리�
   const src = (await s.req('/static/forms.js')).text;
   assert.match(src, /data-toggle="/);
   assert.doesNotMatch(src, /tri-opt|data-personal=/);
-  assert.match(src, /^import \{[^}]*\btoggleOn\b[^}]*\btoggleTo\b[^}]*\} from '\.\/selection\.js';$/m);
+  assert.match(src, /^import \{[^}]*\bpersonalTurn\b[^}]*\} from '\.\/selection\.js';$/m);
   for (const key of ['on', 'off', 'fixedGroup', 'toggleGroup', 'defaultTag', 'commonTag', 'turnedOn', 'turnedOff']) {
     assert.ok(src.includes(`'web.client.personal.${key}'`), key);
   }
